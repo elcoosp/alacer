@@ -17,7 +17,7 @@ use accesskit_winit::{Adapter, Event as AccessKitEvent, WindowEvent as AccessKit
 use alacer_core::events::PointerEvent;
 use alacer_core::geom::{Point, Size};
 use alacer_core::passes::PassPipeline;
-use alacer_text::ThreadLocalGlyphSource;
+use alacer_text::{ThreadLocalGlyphSource, ThreadLocalTextSeam};
 use std::sync::Arc;
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, StartCause, WindowEvent};
@@ -107,6 +107,9 @@ pub struct AlacerApp {
 impl AlacerApp {
     /// Assembles the app around a fully-wired [`PassPipeline`] (root mounted,
     /// bindings installed by the caller before `run`).
+    ///
+    /// The platform layer is an assembly site: it installs this thread's
+    /// text seam so widgets (core-only dependencies) can shape text (ADR-9).
     #[must_use]
     pub fn new(
         pipeline: PassPipeline,
@@ -114,6 +117,7 @@ impl AlacerApp {
         size: (f32, f32),
         backend: BackendPreference,
     ) -> Self {
+        alacer_core::text_seam::install(std::rc::Rc::new(ThreadLocalTextSeam));
         Self {
             pipeline,
             glyph_source: ThreadLocalGlyphSource,

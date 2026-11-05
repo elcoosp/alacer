@@ -11,7 +11,20 @@ This repository implements milestone **M0** of the [architecture document]
 + parley + accesskit on one window — with the counter and the scrolling list
 rendering and masks flowing end-to-end.
 
-## Status: M0 exit criteria, all green
+## Status: M0 + M1 exit criteria, all green
+
+### M1 (§18): the view DSL, the pass contract, the corpus
+
+| Criterion | Evidence |
+| --- | --- |
+| **30 blessed snapshots green** | `alacer-testing/tests/m1_exit_criteria.rs` — 30 scenarios through the real pipeline + software raster |
+| **A11y queries pass** | the query builder (`query(role).named(..)`), `press` through the AccessKit default action, `find_all`/`walk` |
+| **Pass-system overhead < 15% on 10k-node churn** | the §7.2 kill criterion as a test (`pass_overhead_stays_under_the_15_percent_gate_on_10k_node_churn`) + `benches/pass_overhead.rs` |
+| **The ten-pass contract, as code** | `PassKind` (§7.2), per-pass tracing spans, the frame ledger, capture→bubble routing (§10.1), focus passes over the `FOCUS` currency |
+| **`rsx!` proc-macro** | `alacer-macro` (ADR-0000's M1 deferral, landed): elements, interpolated text, `key:`, `for`, `if/else` |
+| **View reconciliation** | `ViewRoot`: patch-in-place, subtree replace, keyed peel→map→LIS with `apply(old, ops) == new` asserted per update; the §6.4 fuzz mirrored |
+
+### M0 (§18): the skeleton
 
 | Criterion (§18) | Evidence |
 | --- | --- |
@@ -27,16 +40,16 @@ rendering and masks flowing end-to-end.
 ## The crate DAG (ADR-9)
 
 ```text
-                 alacer (facade)
-       ┌──────────────┼──────────────┐
-  alacer-testing   alacer-platform   examples
-       │               │
-alacer-widgets ── alacer-view
-  │     │    │
-alacer-layout alacer-text alacer-render alacer-a11y
-  └──────────┴──────┬──────┴───────────┘
-              alacer-core
-   (Change masks · arena · pass system · flux bridge)
+                        alacer (facade)
+            ┌──────────────┼──────────────┐
+       alacer-testing   alacer-platform   examples
+            │               │
+       alacer-widgets ── alacer-view
+         │     │    │
+      alacer-layout alacer-text alacer-render alacer-a11y
+         └──────────┴──────┬──────┴───────────┘
+      alacer-macro     alacer-core
+      (rsx!)    (Change masks · arena · pass system · flux bridge)
 ```
 
 Layering is a DAG: no upward dependencies, no cycles (the build system makes
@@ -83,13 +96,13 @@ backend — no mock renderer, no mock event loop (axiom A4).
 
 - **Lint regime**: clippy `pedantic` **denied** workspace-wide, plus
   `missing_docs` and `unsafe_code = forbid`. There is no `#[allow]` anywhere;
-  the one documented cast seam (`alacer-core/src/num.rs`) carries the single
-  `#[expect]`s with reasons.
-- **TDD**: every module grew tests first; 134 tests across the workspace
+  the documented cast seams (`alacer-core/src/num.rs`, the rsx! number
+  narrowing in `alacer-view`) carry the single `#[expect]`s with reasons.
+- **TDD**: every module grew tests first; 181 tests across the workspace
   (unit + integration + doctest), all green locally and in CI.
 - **Benchmarks as contracts (A6)**: criterion suites for the flux batch drain,
-  mask propagation, journal replay, incremental-vs-full relayout, and text
-  layout.
+  mask propagation, journal replay, incremental-vs-full relayout, text
+  layout, and the §7.2 pass-overhead churn gate.
 - **CI/CD**: fmt + clippy + tests + doc + cargo-deny + DAG check on push/PR;
   git-cliff-generated changelogs; GitHub Releases on tags (`v*`).
 
@@ -103,10 +116,11 @@ backend — no mock renderer, no mock event loop (axiom A4).
 | `crates/alacer-render` | scene journal, software rasterizer, batching |
 | `crates/alacer-a11y` | AccessKit sink, incremental TreeUpdates |
 | `crates/alacer-view` | keyed reconciliation (peel → key map → LIS) |
-| `crates/alacer-widgets` | label, button, column/row/spacer, list, panel |
+| `crates/alacer-widgets` | label, button, column/row/spacer, list, panel, the default element registry |
 | `crates/alacer-platform` | winit loop, wgpu backend, softbuffer present, coalescing |
-| `crates/alacer-testing` | headless harness, a11y queries, snapshots, M0 suite |
-| `crates/alacer` | facade: prelude, pipeline assembly, window runner |
+| `crates/alacer-testing` | headless harness, a11y queries, snapshots, M0 + M1 suites |
+| `crates/alacer-macro` | the `rsx!` view DSL compiler (proc-macro leaf) |
+| `crates/alacer` | facade: prelude, `rsx!` re-export, `mount_view`, window runner |
 | `docs/` | architecture document, ADRs |
 | `.github/workflows/` | CI + release automation |
 

@@ -76,6 +76,9 @@ mod tests {
     struct Probe;
 
     impl Widget for Probe {
+        fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+            self
+        }
         fn role(&self) -> Role {
             Role::Container
         }

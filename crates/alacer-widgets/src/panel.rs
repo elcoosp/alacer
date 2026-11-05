@@ -19,6 +19,16 @@ impl Panel {
         Self { color, height }
     }
 
+    /// Sets the height in place (view reconciliation, §6.1).
+    pub fn set_height(&mut self, height: f32) {
+        self.height = height;
+    }
+
+    /// Sets the fill color in place (view reconciliation).
+    pub fn set_color(&mut self, color: Color) {
+        self.color = color;
+    }
+
     /// Builds the boxed widget.
     #[must_use]
     pub fn boxed(self) -> Box<dyn Widget> {
@@ -27,6 +37,9 @@ impl Panel {
 }
 
 impl Widget for Panel {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
     fn role(&self) -> Role {
         Role::Decoration
     }

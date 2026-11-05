@@ -153,6 +153,60 @@ impl TestHarness {
         self.settle();
     }
 
+    /// Dispatches one key event to the focused widget, then settles (§10.3:
+    /// keyboard input is focus-routed; Tab cycles when ignored).
+    ///
+    /// # Panics
+    ///
+    /// Panics if layout fails.
+    pub fn key(&mut self, event: &alacer_core::events::KeyEvent) {
+        let _ = self.pipeline.dispatch_key(event);
+        self.settle();
+    }
+
+    /// Types `text` as character presses into the focused widget.
+    ///
+    /// # Panics
+    ///
+    /// Panics if layout fails.
+    pub fn type_text(&mut self, text: &str) {
+        for ch in text.chars() {
+            let _ = self
+                .pipeline
+                .dispatch_key(&alacer_core::events::KeyEvent::char(ch));
+        }
+        self.settle();
+    }
+
+    /// Presses a special key (no text, no modifiers), then settles.
+    ///
+    /// # Panics
+    ///
+    /// Panics if layout fails.
+    pub fn press_key(&mut self, key: alacer_core::events::Key) {
+        let _ = self
+            .pipeline
+            .dispatch_key(&alacer_core::events::KeyEvent::pressed(key));
+        self.settle();
+    }
+
+    /// Dispatches one IME event to the focused widget, then settles (§10.3:
+    /// the fcitx5/ibus path — preedit composes, commit inserts).
+    ///
+    /// # Panics
+    ///
+    /// Panics if layout fails.
+    pub fn ime(&mut self, event: &alacer_core::events::ImeEvent) {
+        let _ = self.pipeline.dispatch_ime(event);
+        self.settle();
+    }
+
+    /// The IME request the pipeline derived from the focused widget (§10.3).
+    #[must_use]
+    pub fn ime_request(&self) -> Option<alacer_core::passes::ImeRequest> {
+        self.pipeline.ime_request().cloned()
+    }
+
     /// The a11y query: first node with `role` whose name contains `name`
     /// (§11.5: tests drive the a11y tree, never the widget tree).
     ///

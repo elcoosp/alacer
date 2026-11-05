@@ -330,4 +330,40 @@ mod tests {
             "coverage is w×h"
         );
     }
+
+    #[test]
+    fn rasterized_glyphs_sit_upright_on_the_baseline() {
+        use crate::raster::GlyphRasterizer;
+        let mut ctx = TextContext::new();
+        let layout = ctx.layout_text("L", 32.0, None);
+        let glyph = layout.glyphs.first().expect("L shaped").clone();
+        let mut raster = GlyphRasterizer::new();
+        let bitmap = raster
+            .rasterize(glyph.font_id, glyph.glyph_id, glyph.size, &|tag| {
+                ctx.registry().font_data(tag)
+            })
+            .expect("L rasterizes");
+        // An L has no descender: its ink must end exactly at the baseline
+        // (the y-down contract: `top` is the bitmap's top row offset).
+        assert_eq!(
+            bitmap.top + bitmap.height as i32,
+            0,
+            "the L's last row sits on the baseline"
+        );
+        // Orientation: the L's top row is the bare stem, its bottom row the
+        // full-width foot — a vertically flipped buffer inverts the counts.
+        let width = bitmap.width as usize;
+        let ink = |row: usize| {
+            bitmap.coverage[row * width..(row + 1) * width]
+                .iter()
+                .filter(|coverage| **coverage > 128)
+                .count()
+        };
+        let top_row = ink(0);
+        let bottom_row = ink(bitmap.height as usize - 1);
+        assert!(
+            top_row * 3 < bottom_row,
+            "top row ({top_row}) must be the narrow stem, bottom row ({bottom_row}) the foot"
+        );
+    }
 }

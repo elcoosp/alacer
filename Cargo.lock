@@ -156,7 +156,7 @@ dependencies = [
 
 [[package]]
 name = "alacer"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "alacer-a11y",
  "alacer-core",
@@ -173,7 +173,7 @@ dependencies = [
 
 [[package]]
 name = "alacer-a11y"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "accesskit",
  "alacer-core",
@@ -182,7 +182,7 @@ dependencies = [
 
 [[package]]
 name = "alacer-core"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "bitflags 2.13.2",
  "criterion",
@@ -194,7 +194,7 @@ dependencies = [
 
 [[package]]
 name = "alacer-layout"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "alacer-core",
  "criterion",
@@ -206,7 +206,7 @@ dependencies = [
 
 [[package]]
 name = "alacer-macro"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -215,7 +215,7 @@ dependencies = [
 
 [[package]]
 name = "alacer-platform"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "accesskit",
  "accesskit_winit",
@@ -237,7 +237,7 @@ dependencies = [
 
 [[package]]
 name = "alacer-render"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "alacer-core",
  "criterion",
@@ -248,7 +248,7 @@ dependencies = [
 
 [[package]]
 name = "alacer-testing"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "alacer-a11y",
  "alacer-core",
@@ -265,7 +265,7 @@ dependencies = [
 
 [[package]]
 name = "alacer-text"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "alacer-core",
  "criterion",
@@ -278,7 +278,7 @@ dependencies = [
 
 [[package]]
 name = "alacer-view"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "alacer-core",
  "criterion",
@@ -287,7 +287,7 @@ dependencies = [
 
 [[package]]
 name = "alacer-widgets"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "alacer-core",
  "alacer-view",

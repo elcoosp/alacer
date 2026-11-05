@@ -1,8 +1,19 @@
 //! Pointer events routed by pass 1 (M0: pointer only; keyboard/IME land with the
-//! focus passes in M1/M3).
+//! focus passes in M3).
 
 use crate::geom::{Point, Vector};
 use crate::mask::Change;
+
+/// Which phase of the capture→bubble route the event is in (§10.1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum EventPhase {
+    /// Root → target descent: ancestors observe the event first.
+    Capture,
+    /// Target → root ascent: the default; the target sees the event before
+    /// its ancestors.
+    #[default]
+    Bubble,
+}
 
 /// Context handed to [`crate::widget::Widget::on_pointer_event`].
 ///
@@ -11,15 +22,32 @@ use crate::mask::Change;
 #[derive(Debug, Clone, Default)]
 pub struct EventCtx {
     requested: Change,
+    phase: EventPhase,
 }
 
 impl EventCtx {
-    /// An empty context.
+    /// An empty context in the default ([`EventPhase::Bubble`]) phase.
     #[must_use]
     pub const fn new() -> Self {
         Self {
             requested: Change::empty(),
+            phase: EventPhase::Bubble,
         }
+    }
+
+    /// An empty context in `phase` (the pass-1 router's constructor).
+    #[must_use]
+    pub const fn with_phase(phase: EventPhase) -> Self {
+        Self {
+            requested: Change::empty(),
+            phase,
+        }
+    }
+
+    /// The current routing phase.
+    #[must_use]
+    pub const fn phase(&self) -> EventPhase {
+        self.phase
     }
 
     /// Requests `change` for the handling node.

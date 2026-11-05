@@ -39,13 +39,13 @@ pub enum MainAxisAlignment {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CrossAxisAlignment {
     /// Pack to the start edge.
-    #[default]
     Start,
     /// Center on the cross axis.
     Center,
     /// Pack to the end edge.
     End,
     /// Stretch to fill the cross axis.
+    #[default]
     Stretch,
 }
 
@@ -160,7 +160,7 @@ pub trait MeasureFn: Send + Sync + 'static {
 
 #[cfg(test)]
 mod tests {
-    use super::{FlexDirection, Style};
+    use super::{CrossAxisAlignment, FlexDirection, Style};
 
     #[test]
     fn column_builder_sets_direction_only() {
@@ -169,6 +169,16 @@ mod tests {
         assert_eq!(s.grow, 0.0);
         assert_eq!(s.padding, 0.0);
         assert!(!s.clip_overflow);
+    }
+
+    #[test]
+    fn containers_stretch_children_by_default() {
+        // Flexbox/taffy semantics: an unset cross size fills the container.
+        // Shrink-wrapping everything made list items and panels collapse to
+        // their intrinsic measure width — the broken-corpus layout bug.
+        assert_eq!(Style::default().align, CrossAxisAlignment::Stretch);
+        assert_eq!(Style::column().align, CrossAxisAlignment::Stretch);
+        assert_eq!(Style::row().align, CrossAxisAlignment::Stretch);
     }
 
     #[test]

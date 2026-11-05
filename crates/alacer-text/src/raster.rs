@@ -99,10 +99,26 @@ impl GlyphRasterizer {
         }
 
         let mask = zeno::Mask::new(outline.path());
-        let (coverage, placement) = mask.render();
+        let (mut coverage, placement) = mask.render();
+        // zeno reads the swash y-down outline as y-up: its buffer's row 0 is
+        // the path's *lowest* point, and `placement.top` is that bottom edge's
+        // offset from the baseline. The `GlyphBitmap` contract is row 0 =
+        // visual top with `top` measured downward from the baseline — flip
+        // the rows and re-derive the offset (empirically pinned by the
+        // `rasterized_glyphs_sit_upright_on_the_baseline` test: an L's top
+        // row is the narrow stem and `top + height == 0`).
+        let rows = placement.height as usize;
+        let cols = placement.width as usize;
+        for row in 0..rows / 2 {
+            let upper = row * cols;
+            let lower = (rows - 1 - row) * cols;
+            let (head, tail) = coverage.split_at_mut(lower);
+            head[upper..upper + cols].swap_with_slice(&mut tail[..cols]);
+        }
+        let top = -(placement.top + i32::try_from(placement.height).unwrap_or(i32::MAX));
         let bitmap = GlyphBitmap {
             left: placement.left,
-            top: placement.top,
+            top,
             width: placement.width,
             height: placement.height,
             coverage: Arc::from(coverage.into_boxed_slice()),

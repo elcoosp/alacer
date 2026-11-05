@@ -197,4 +197,19 @@ pub trait Widget: 'static {
     fn accepts_pointer(&self) -> bool {
         true
     }
+
+    /// Whether this widget can hold keyboard focus (§7.2 pass 2 recomputes
+    /// the candidates from this predicate after structure changes).
+    ///
+    /// The default derives from the semantic role: actionable inputs are
+    /// focusable. Override for custom controls.
+    fn focusable(&self) -> bool {
+        matches!(self.role(), Role::Button | Role::TextInput)
+    }
+
+    /// The `Any` escape hatch for in-place patching (§6.1: view diffs mutate
+    /// retained widgets in place; concrete patchers downcast through this,
+    /// the same discipline Masonry's `WidgetMut` machinery uses). Implement
+    /// as `{ self }`.
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
 }

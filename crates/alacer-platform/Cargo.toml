@@ -1,0 +1,32 @@
+[package]
+name = "alacer-platform"
+description = "Alacer's platform: winit integration, event coalescing, and window present over wgpu or softbuffer (ADR-1: stock winit, never forked)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[features]
+default = ["backend-wgpu", "backend-softbuffer"]
+backend-wgpu = ["dep:wgpu"]
+backend-softbuffer = ["dep:softbuffer"]
+
+[dependencies]
+alacer-core.workspace = true
+alacer-layout.workspace = true
+alacer-text.workspace = true
+alacer-render.workspace = true
+tiny-skia.workspace = true
+alacer-a11y.workspace = true
+alacer-widgets.workspace = true
+accesskit.workspace = true
+accesskit_winit.workspace = true
+winit.workspace = true
+raw-window-handle.workspace = true
+wgpu = { workspace = true, optional = true }
+softbuffer = { workspace = true, optional = true }
+tracing.workspace = true
+bytemuck = { version = "1", features = ["derive"] }
+pollster = "0.4"

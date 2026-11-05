@@ -4,10 +4,17 @@
 //!
 //! Glyphs arrive as coverage bitmaps through the [`GlyphSource`] seam — the
 //! exact same bitmaps the GPU backend uploads to its atlas.
+//!
+//! M3 partial paint (§9.3): [`SoftwareRenderer::render_partial`] repaints
+//! only the frame's [`Damage`] regions onto the *persistent* framebuffer —
+//! clear each region, redraw the primitives intersecting it in scene order —
+//! and the equivalence contract (Q8) guarantees the result is pixel-identical
+//! to a full re-render. `alacer-testing` fuzzes that equivalence.
 
 use alacer_core::color::Color;
+use alacer_core::damage::Damage;
 use alacer_core::num::{f32_to_i32, f32_to_u8};
-use alacer_core::scene::{Glyph, GlyphSource, Primitive, Quad, SceneSnapshot};
+use alacer_core::scene::{Glyph, GlyphSource, Primitive, Quad, SceneSnapshot, primitive_extent};
 use std::sync::Arc;
 use tiny_skia::{
     FillRule, FilterQuality, Mask, Paint, Path, PathBuilder, Pixmap, PixmapPaint,
@@ -54,15 +61,87 @@ impl SoftwareRenderer {
             let mut painter = pixmap.as_mut();
             for primitive in &scene.primitives {
                 match primitive {
-                    Primitive::Quad(quad) => self.draw_quad(&mut painter, quad),
-                    Primitive::Glyph(glyph) => self.draw_glyph(&mut painter, glyph, glyphs),
+                    Primitive::Quad(quad) => self.draw_quad(&mut painter, quad, None),
+                    Primitive::Glyph(glyph) => {
+                        self.draw_glyph(&mut painter, glyph, glyphs, None);
+                    }
                 }
             }
         }
         Some(pixmap)
     }
 
-    fn draw_quad(&self, painter: &mut tiny_skia::PixmapMut<'_>, quad: &Quad) {
+    /// Repaints only `damage`'s regions onto the persistent `frame`
+    /// framebuffer (§9.3, M3): each region is cleared to `background`, then
+    /// every primitive whose extent intersects the region is redrawn in
+    /// scene order, scissored to the region.
+    ///
+    /// The equivalence contract (Q8): the result is pixel-identical to
+    /// [`Self::render`] of the same scene over the same background, provided
+    /// `frame` is the previous frame's rendering of the previous scene and
+    /// the pipeline's damage covers every changed pixel (old layer extents
+    /// are damage too — `PassPipeline::tick` guarantees this).
+    ///
+    /// `Damage::NONE` is a no-op (the present can be skipped entirely);
+    /// `Damage::FULL` clears the whole frame and redraws everything.
+    ///
+    /// # Panics
+    ///
+    /// Never; returns `None` only when the frame cannot be allocated (0×0 or
+    /// OOM).
+    pub fn render_partial(
+        &mut self,
+        scene: &SceneSnapshot,
+        frame: &mut Pixmap,
+        damage: &Damage,
+        background: Color,
+        glyphs: &mut dyn GlyphSource,
+    ) -> Option<()> {
+        let viewport = alacer_core::geom::Size::new(
+            f32::from(u16::try_from(frame.width()).unwrap_or(u16::MAX)),
+            f32::from(u16::try_from(frame.height()).unwrap_or(u16::MAX)),
+        );
+        for region in damage.regions(viewport) {
+            clear_region(frame, &region, background);
+            // One scissor mask per region: a primitive may only touch pixels
+            // the region owns (blending is not idempotent outside it).
+            let scissor = tiny_region(&region, frame.width(), frame.height()).and_then(|r| {
+                rect_mask(
+                    alacer_core::geom::Rect::new(
+                        alacer_core::geom::Point::new(r.left(), r.top()),
+                        alacer_core::geom::Size::new(r.width(), r.height()),
+                    ),
+                    frame.width(),
+                    frame.height(),
+                )
+            });
+            let mut painter = frame.as_mut();
+            for primitive in &scene.primitives {
+                // Only primitives reaching into this region draw. Clean ones
+                // are redrawn within the region; their pixels outside keep
+                // the previous frame's identical values.
+                if !primitive_extent(primitive).intersects(&region) {
+                    continue;
+                }
+                match primitive {
+                    Primitive::Quad(quad) => {
+                        self.draw_quad(&mut painter, quad, scissor.as_ref());
+                    }
+                    Primitive::Glyph(glyph) => {
+                        self.draw_glyph(&mut painter, glyph, glyphs, scissor.as_ref());
+                    }
+                }
+            }
+        }
+        Some(())
+    }
+
+    fn draw_quad(
+        &self,
+        painter: &mut tiny_skia::PixmapMut<'_>,
+        quad: &Quad,
+        extra_scissor: Option<&Mask>,
+    ) {
         let Some(rect) = Rect::from_xywh(
             quad.rect.origin.x,
             quad.rect.origin.y,
@@ -72,7 +151,7 @@ impl SoftwareRenderer {
             return;
         };
         let path = quad_path(rect, quad.corner_radius);
-        let clip = clip_mask(quad.clip, painter.width(), painter.height());
+        let clip = combined_mask(quad.clip, extra_scissor, painter.width(), painter.height());
         let paint = Paint {
             blend_mode: tiny_skia::BlendMode::SourceOver,
             ..fill_paint(quad.color)
@@ -106,6 +185,7 @@ impl SoftwareRenderer {
         painter: &mut tiny_skia::PixmapMut<'_>,
         glyph: &Glyph,
         source: &mut dyn GlyphSource,
+        extra_scissor: Option<&Mask>,
     ) {
         let Some(bitmap) = source.glyph_bitmap(glyph.font_id, glyph.glyph_id, glyph.size) else {
             return;
@@ -119,7 +199,7 @@ impl SoftwareRenderer {
         stamp_glyph(&mut stamp, &bitmap, glyph.color);
         let x = f32_to_i32(glyph.position.x) + bitmap.left;
         let y = f32_to_i32(glyph.position.y) + bitmap.top;
-        let clip = clip_mask(glyph.clip, painter.width(), painter.height());
+        let clip = combined_mask(glyph.clip, extra_scissor, painter.width(), painter.height());
         painter.draw_pixmap(
             x,
             y,
@@ -147,8 +227,36 @@ fn to_skia(color: Color) -> tiny_skia::Color {
     tiny_skia::Color::from_rgba8(color.r, color.g, color.b, color.a)
 }
 
+/// The mask for one optional clip rect (the primitive's own clip).
 fn clip_mask(clip: Option<alacer_core::geom::Rect>, width: u32, height: u32) -> Option<Mask> {
     let clip = clip?;
+    rect_mask(clip, width, height)
+}
+
+/// Combines the primitive's own clip with a partial-paint scissor region:
+/// the mask covers their intersection (a primitive may only touch pixels the
+/// region owns — blending is not idempotent outside it).
+fn combined_mask(
+    clip: Option<alacer_core::geom::Rect>,
+    scissor: Option<&Mask>,
+    width: u32,
+    height: u32,
+) -> Option<Mask> {
+    let Some(scissor) = scissor else {
+        return clip_mask(clip, width, height);
+    };
+    let Some(clip) = clip else {
+        return Some(scissor.clone());
+    };
+    let clip_mask = rect_mask(clip, width, height)?;
+    let mut combined = scissor.clone();
+    for (a, b) in combined.data_mut().iter_mut().zip(clip_mask.data().iter()) {
+        *a = (*a).min(*b);
+    }
+    Some(combined)
+}
+
+fn rect_mask(clip: alacer_core::geom::Rect, width: u32, height: u32) -> Option<Mask> {
     let mut mask = Mask::new(width, height)?;
     let rect = Rect::from_xywh(
         clip.origin.x,
@@ -159,6 +267,32 @@ fn clip_mask(clip: Option<alacer_core::geom::Rect>, width: u32, height: u32) -> 
     let path = PathBuilder::from_rect(rect);
     mask.fill_path(&path, FillRule::Winding, false, Transform::identity());
     Some(mask)
+}
+
+/// Clears one region to `background` (the partial path's erase step).
+fn clear_region(frame: &mut Pixmap, region: &alacer_core::geom::Rect, background: Color) {
+    let Some(rect) = tiny_region(region, frame.width(), frame.height()) else {
+        return;
+    };
+    let mut paint = Paint::default();
+    paint.set_color(to_skia(background));
+    frame.fill_rect(rect, &paint, Transform::identity(), None);
+}
+
+/// A damage region as a clamped tiny-skia rect.
+fn tiny_region(region: &alacer_core::geom::Rect, width: u32, height: u32) -> Option<Rect> {
+    let x = region.origin.x.max(0.0);
+    let y = region.origin.y.max(0.0);
+    let right = region
+        .max_x()
+        .min(f32::from(u16::try_from(width).unwrap_or(u16::MAX)));
+    let bottom = region
+        .max_y()
+        .min(f32::from(u16::try_from(height).unwrap_or(u16::MAX)));
+    if right <= x || bottom <= y {
+        return None;
+    }
+    Rect::from_xywh(x, y, right - x, bottom - y)
 }
 
 /// Builds the quad path — sharp when `radius` is 0, rounded otherwise.
@@ -267,8 +401,9 @@ pub fn solid_bitmap(w: u32, h: u32, left: i32, top: i32) -> alacer_core::scene::
 mod tests {
     use super::{ClosureGlyphSource, SoftwareRenderer, solid_bitmap};
     use alacer_core::color::Color;
+    use alacer_core::damage::{Damage, DamageBuilder};
     use alacer_core::geom::{Point, Rect, Size};
-    use alacer_core::scene::{Glyph, Primitive, Quad, SceneSnapshot};
+    use alacer_core::scene::{Glyph, Primitive, Quad, SceneSnapshot, primitive_extent};
     use std::sync::Arc;
 
     fn render_with<F>(scene: &SceneSnapshot, source: &mut F) -> Option<tiny_skia::Pixmap>
@@ -277,6 +412,339 @@ mod tests {
     {
         let mut src = ClosureGlyphSource::new(source);
         SoftwareRenderer::new().render(scene, 40, 30, Color::WHITE, &mut src)
+    }
+
+    /// Renders `scene` partially onto `prev` with `damage` and compares the
+    /// result pixel-by-pixel with a full render of the same scene.
+    fn assert_partial_equals_full(
+        prev_scene: &SceneSnapshot,
+        scene: &SceneSnapshot,
+        damage: &Damage,
+        source: &mut dyn alacer_core::scene::GlyphSource,
+        width: u32,
+        height: u32,
+    ) {
+        let mut full_renderer = SoftwareRenderer::new();
+        let mut partial_renderer = SoftwareRenderer::new();
+        let expected = full_renderer
+            .render(scene, width, height, Color::WHITE, source)
+            .expect("full render");
+        let mut no_glyphs =
+            |_f: u64, _g: u32, _s: f32| -> Option<alacer_core::scene::GlyphBitmap> { None };
+        let mut prev = full_renderer
+            .render(
+                prev_scene,
+                width,
+                height,
+                Color::WHITE,
+                &mut ClosureGlyphSource::new(&mut no_glyphs),
+            )
+            .expect("prev render");
+        partial_renderer
+            .render_partial(scene, &mut prev, damage, Color::WHITE, source)
+            .expect("partial render");
+        for y in 0..height {
+            for x in 0..width {
+                let a = prev.pixel(x, y).expect("in bounds");
+                let b = expected.pixel(x, y).expect("in bounds");
+                assert_eq!(
+                    (a.red(), a.green(), a.blue()),
+                    (b.red(), b.green(), b.blue()),
+                    "partial != full at ({x},{y})"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn partial_repaint_matches_full_repaint_on_a_color_flip() {
+        let prev_scene = SceneSnapshot {
+            primitives: vec![Primitive::Quad(Quad::filled(
+                Rect::new(Point::new(4.0, 4.0), Size::new(20.0, 16.0)),
+                Color::rgb(255, 0, 0),
+            ))],
+        };
+        let scene = SceneSnapshot {
+            primitives: vec![Primitive::Quad(Quad::filled(
+                Rect::new(Point::new(4.0, 4.0), Size::new(20.0, 16.0)),
+                Color::rgb(0, 0, 255),
+            ))],
+        };
+        let mut damage = DamageBuilder::new();
+        damage.add(Rect::new(Point::new(4.0, 4.0), Size::new(20.0, 16.0)));
+        let damage = damage.finish(Size::new(40.0, 30.0));
+        assert!(!damage.is_full());
+        let mut glyphs =
+            |_f: u64, _g: u32, _s: f32| -> Option<alacer_core::scene::GlyphBitmap> { None };
+        let mut source = ClosureGlyphSource::new(&mut glyphs);
+        assert_partial_equals_full(&prev_scene, &scene, &damage, &mut source, 40, 30);
+    }
+
+    #[test]
+    fn partial_repaint_matches_full_repaint_on_a_move() {
+        let prev_scene = SceneSnapshot {
+            primitives: vec![Primitive::Quad(Quad::filled(
+                Rect::new(Point::new(2.0, 2.0), Size::new(12.0, 12.0)),
+                Color::rgb(30, 200, 30),
+            ))],
+        };
+        let scene = SceneSnapshot {
+            primitives: vec![Primitive::Quad(Quad::filled(
+                Rect::new(Point::new(24.0, 14.0), Size::new(12.0, 12.0)),
+                Color::rgb(30, 200, 30),
+            ))],
+        };
+        let mut damage = DamageBuilder::new();
+        damage.add(Rect::new(Point::new(2.0, 2.0), Size::new(12.0, 12.0)));
+        damage.add(Rect::new(Point::new(24.0, 14.0), Size::new(12.0, 12.0)));
+        let damage = damage.finish(Size::new(40.0, 30.0));
+        let mut glyphs =
+            |_f: u64, _g: u32, _s: f32| -> Option<alacer_core::scene::GlyphBitmap> { None };
+        let mut source = ClosureGlyphSource::new(&mut glyphs);
+        assert_partial_equals_full(&prev_scene, &scene, &damage, &mut source, 40, 30);
+    }
+
+    #[test]
+    fn partial_repaint_matches_full_repaint_with_glyphs() {
+        let glyph = |x: f32| {
+            Primitive::Glyph(Glyph {
+                position: Point::new(x, 20.0),
+                size: 16.0,
+                color: Color::BLACK,
+                font_id: 1,
+                glyph_id: 65,
+                clip: None,
+            })
+        };
+        let prev_scene = SceneSnapshot {
+            primitives: vec![glyph(4.0), glyph(12.0)],
+        };
+        let scene = SceneSnapshot {
+            primitives: vec![glyph(4.0), glyph(26.0)],
+        };
+        let mut damage = DamageBuilder::new();
+        // The pipeline damages the old layer extents and the new ones.
+        for primitive in scene.primitives.iter().chain(prev_scene.primitives.iter()) {
+            damage.add(primitive_extent(primitive));
+        }
+        let damage = damage.finish(Size::new(40.0, 30.0));
+        let mut glyphs = |_f: u64, _g: u32, _s: f32| Some(solid_bitmap(6, 12, 0, -10));
+        let mut source = ClosureGlyphSource::new(&mut glyphs);
+        assert_partial_equals_full(&prev_scene, &scene, &damage, &mut source, 40, 30);
+    }
+
+    #[test]
+    fn full_damage_repaints_everything() {
+        let prev_scene = SceneSnapshot {
+            primitives: vec![Primitive::Quad(Quad::filled(
+                Rect::new(Point::new(0.0, 0.0), Size::new(40.0, 30.0)),
+                Color::rgb(10, 10, 10),
+            ))],
+        };
+        let scene = SceneSnapshot::default();
+        let mut prev = SoftwareRenderer::new()
+            .render(
+                &prev_scene,
+                40,
+                30,
+                Color::WHITE,
+                &mut ClosureGlyphSource::new(&mut |_f, _g, _s| None),
+            )
+            .expect("prev");
+        let expected = SoftwareRenderer::new()
+            .render(
+                &scene,
+                40,
+                30,
+                Color::WHITE,
+                &mut ClosureGlyphSource::new(&mut |_f, _g, _s| None),
+            )
+            .expect("expected");
+        SoftwareRenderer::new()
+            .render_partial(
+                &scene,
+                &mut prev,
+                &Damage::FULL,
+                Color::WHITE,
+                &mut ClosureGlyphSource::new(&mut |_f, _g, _s| None),
+            )
+            .expect("partial");
+        for y in 0..30_u32 {
+            for x in 0..40_u32 {
+                let a = prev.pixel(x, y).expect("in bounds");
+                let b = expected.pixel(x, y).expect("in bounds");
+                assert_eq!(
+                    (a.red(), a.green(), a.blue()),
+                    (b.red(), b.green(), b.blue())
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn none_damage_leaves_the_frame_untouched() {
+        let prev_scene = SceneSnapshot {
+            primitives: vec![Primitive::Quad(Quad::filled(
+                Rect::new(Point::new(0.0, 0.0), Size::new(40.0, 30.0)),
+                Color::rgb(10, 10, 10),
+            ))],
+        };
+        let scene = SceneSnapshot::default();
+        let mut prev = SoftwareRenderer::new()
+            .render(
+                &prev_scene,
+                40,
+                30,
+                Color::WHITE,
+                &mut ClosureGlyphSource::new(&mut |_f, _g, _s| None),
+            )
+            .expect("prev");
+        SoftwareRenderer::new()
+            .render_partial(
+                &scene,
+                &mut prev,
+                &Damage::NONE,
+                Color::WHITE,
+                &mut ClosureGlyphSource::new(&mut |_f, _g, _s| None),
+            )
+            .expect("partial");
+        let pixel = prev.pixel(1, 1).expect("in bounds");
+        assert_eq!((pixel.red(), pixel.green(), pixel.blue()), (10, 10, 10));
+    }
+
+    /// A tiny deterministic LCG — the equivalence fuzz (Q8) needs
+    /// reproducible pseudo-randomness, no external crate.
+    struct Lcg(u64);
+
+    impl Lcg {
+        fn next(&mut self) -> u64 {
+            self.0 = self
+                .0
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            self.0 >> 11
+        }
+
+        fn below(&mut self, bound: u64) -> u64 {
+            self.next() % bound
+        }
+    }
+
+    #[test]
+    fn equivalence_fuzz_partial_matches_full_over_random_edits() {
+        let mut rng = Lcg(0x5EED);
+        let width = 64_u32;
+        let height = 48_u32;
+        let viewport = Size::new(
+            f32::from(u16::try_from(width).unwrap_or(0)),
+            f32::from(u16::try_from(height).unwrap_or(0)),
+        );
+
+        let mut prev_scene = SceneSnapshot::default();
+        let mut prev = SoftwareRenderer::new()
+            .render(
+                &prev_scene,
+                width,
+                height,
+                Color::WHITE,
+                &mut ClosureGlyphSource::new(&mut |_f, _g, _s| None),
+            )
+            .expect("initial frame");
+
+        let mut renderer = SoftwareRenderer::new();
+        for _step in 0..64 {
+            // Mutate the scene: move/recolor one or two quads, add or remove.
+            let mut primitives = prev_scene.primitives.clone();
+            let action = rng.below(4);
+            match action {
+                0 if !primitives.is_empty() => {
+                    let index = rng.below(u64::try_from(primitives.len()).unwrap_or(1));
+                    if let Some(Primitive::Quad(quad)) = primitives.get_mut(index as usize) {
+                        quad.color = Color::rgb(
+                            u8::try_from(rng.below(256)).unwrap_or(0),
+                            u8::try_from(rng.below(256)).unwrap_or(0),
+                            u8::try_from(rng.below(256)).unwrap_or(0),
+                        );
+                    }
+                }
+                1 if !primitives.is_empty() => {
+                    let index = rng.below(u64::try_from(primitives.len()).unwrap_or(1));
+                    if let Some(Primitive::Quad(quad)) = primitives.get_mut(index as usize) {
+                        quad.rect = Rect::new(
+                            Point::new(
+                                f32::from(u8::try_from(rng.below(50)).unwrap_or(0)),
+                                f32::from(u8::try_from(rng.below(38)).unwrap_or(0)),
+                            ),
+                            Size::new(
+                                f32::from(u8::try_from(rng.below(20)).unwrap_or(1)) + 1.0,
+                                f32::from(u8::try_from(rng.below(20)).unwrap_or(1)) + 1.0,
+                            ),
+                        );
+                    }
+                }
+                2 => {
+                    primitives.push(Primitive::Quad(Quad::filled(
+                        Rect::new(
+                            Point::new(
+                                f32::from(u8::try_from(rng.below(50)).unwrap_or(0)),
+                                f32::from(u8::try_from(rng.below(38)).unwrap_or(0)),
+                            ),
+                            Size::new(
+                                f32::from(u8::try_from(rng.below(16)).unwrap_or(1)) + 1.0,
+                                f32::from(u8::try_from(rng.below(16)).unwrap_or(1)) + 1.0,
+                            ),
+                        ),
+                        Color::rgb(
+                            u8::try_from(rng.below(256)).unwrap_or(0),
+                            u8::try_from(rng.below(256)).unwrap_or(0),
+                            u8::try_from(rng.below(256)).unwrap_or(0),
+                        ),
+                    )));
+                }
+                _ if !primitives.is_empty() => {
+                    let index = rng.below(u64::try_from(primitives.len()).unwrap_or(1));
+                    primitives.remove(index as usize);
+                }
+                _ => {}
+            }
+            let scene = SceneSnapshot { primitives };
+
+            // The pipeline's damage rule: every old and new primitive extent.
+            let mut damage = DamageBuilder::new();
+            for primitive in prev_scene.primitives.iter().chain(scene.primitives.iter()) {
+                damage.add(primitive_extent(primitive));
+            }
+            let damage = damage.finish(viewport);
+
+            let expected = SoftwareRenderer::new()
+                .render(
+                    &scene,
+                    width,
+                    height,
+                    Color::WHITE,
+                    &mut ClosureGlyphSource::new(&mut |_f, _g, _s| None),
+                )
+                .expect("full render");
+            let mut glyphs =
+                |_f: u64, _g: u32, _s: f32| -> Option<alacer_core::scene::GlyphBitmap> { None };
+            let mut source = ClosureGlyphSource::new(&mut glyphs);
+            renderer
+                .render_partial(&scene, &mut prev, &damage, Color::WHITE, &mut source)
+                .expect("partial render");
+
+            for y in 0..height {
+                for x in 0..width {
+                    let a = prev.pixel(x, y).expect("in bounds");
+                    let b = expected.pixel(x, y).expect("in bounds");
+                    assert_eq!(
+                        (a.red(), a.green(), a.blue()),
+                        (b.red(), b.green(), b.blue()),
+                        "step fuzz partial != full at ({x},{y}) after step {action}"
+                    );
+                }
+            }
+            prev_scene = scene;
+        }
     }
 
     #[test]

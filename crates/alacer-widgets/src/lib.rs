@@ -17,6 +17,7 @@ pub use column::{Column, Row, Spacer};
 pub use label::Label;
 pub use list::{List, ListHandle};
 pub use panel::Panel;
+pub use registry::default_registry;
 
 use alacer_core::widget::Widget;
 
@@ -33,6 +34,8 @@ impl<W: Widget> BoxedWidget for W {}
 use alacer_core::color::Color;
 use alacer_core::scene::PaintCtx;
 /// Visual constants shared by the M0 widget set.
+pub mod registry;
+
 pub mod theme {
     use super::Color;
 

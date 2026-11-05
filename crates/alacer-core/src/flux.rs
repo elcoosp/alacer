@@ -16,6 +16,11 @@ use reactive_graph::computed::Memo;
 use reactive_graph::effect::{ImmediateEffect, batch};
 use reactive_graph::owner::Owner;
 use reactive_graph::signal::RwSignal;
+
+/// The reactive signal handle the flux issues (`reactive_graph::RwSignal`).
+///
+/// Copy, thread-safe, and the type rsx! view closures capture.
+pub type FluxRwSignal<T> = RwSignal<T>;
 use reactive_graph::traits::Get;
 use rustc_hash::FxHashMap;
 use std::sync::atomic::{AtomicU64, Ordering};

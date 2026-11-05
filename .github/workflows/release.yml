@@ -88,7 +88,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p dist
-          for bin in counter scrolling_list; do
+          for bin in counter counter_view scrolling_list; do
             for f in target/release/examples/"$bin"*; do
               [ -f "$f" ] && cp "$f" dist/alacer-"$bin"-"$RUNNER_OS"$( [ "${f##*.}" = "exe" ] && echo ".exe" )
             done

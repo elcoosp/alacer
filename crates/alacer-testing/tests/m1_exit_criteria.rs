@@ -1,0 +1,614 @@
+//! The M1 exit criteria, as executable spec (architecture §18):
+//!
+//! - **30 blessed snapshots green** — the corpus below, one test, every
+//!   scenario rendered through the real pipeline + software raster (A4);
+//! - **a11y queries pass** — the query builder, press-through-a11y, walks,
+//!   and plural counts (ADR-10: a11y-driven queries are the only API);
+//! - the scheduling contract still holds under view reconciliation.
+//!
+//! Blessing is deliberate and reviewable: `ALACER_BLESS=1 cargo test` regenerates
+//! the corpus (ADR-5 snapshot hygiene).
+
+use alacer_core::geom::Point;
+use alacer_core::passes::PassPipeline;
+use alacer_core::widget::{A11yAction, Role};
+use alacer_macro::rsx;
+use alacer_testing::TestHarness;
+use alacer_view::{ViewNode, ViewRoot};
+use reactive_graph::traits::{Get, Set};
+
+/// The harness-layer mount: the default M0 element registry (the facade's
+/// `mount_view` re-exports exactly this composition, ADR-9).
+fn mount(view: &ViewNode, pipeline: &mut PassPipeline) -> ViewRoot {
+    ViewRoot::mount(view, pipeline, alacer_widgets::default_registry())
+}
+
+const VIEWPORT: (f32, f32) = (240.0, 320.0);
+
+// ---------------------------------------------------------------------------
+// Scenario building blocks (§5.2's vocabulary, via rsx!)
+// ---------------------------------------------------------------------------
+
+fn counter_view(count: alacer_core::FluxRwSignal<i32>) -> ViewNode {
+    rsx! {
+        column { gap: 8.0, padding: 12.0,
+            label { text: "Clicked {count.get()} times" }
+            button { text: "Increment", on_click: move || count.set(count.get() + 1) }
+        }
+    }
+}
+
+fn items_view(title: &str, items: &[u64]) -> ViewNode {
+    let items = items.to_vec();
+    rsx! {
+        column { gap: 4.0,
+            label { key: 0_u64, text: title }
+            for item in items.iter() {
+                label { key: *item * 10 + 1, text: "Item {item}" }
+            }
+        }
+    }
+}
+
+fn click_center(harness: &mut TestHarness, role: Role, name: &str) {
+    let bounds = harness.query(role).named(name).bounds();
+    harness.click(Point::new(
+        bounds.origin.x + bounds.size.width / 2.0,
+        bounds.origin.y + bounds.size.height / 2.0,
+    ));
+}
+
+// ---------------------------------------------------------------------------
+// The 30 scenarios — each mounts, optionally interacts, and leaves the frame
+// the snapshot captures. One function per scenario keeps the corpus readable
+// and reviewable (ADR-5: baselines are contracts).
+// ---------------------------------------------------------------------------
+
+fn s01_hello_label(h: &mut TestHarness) {
+    let view = rsx! { column { padding: 20.0, label { text: "Hello, Alacer" } } };
+    let _root = mount(&view, h.pipeline_mut());
+}
+
+fn s02_styled_label(h: &mut TestHarness) {
+    let view = rsx! {
+        column { padding: 16.0,
+            label { text: "Large and tinted", font_size: 28.0, color: alacer_widgets::theme::ACCENT }
+        }
+    };
+    let _root = mount(&view, h.pipeline_mut());
+}
+
+fn s03_long_wrapped_label(h: &mut TestHarness) {
+    let view = rsx! {
+        column { padding: 12.0,
+            label { text: "The quick brown fox jumps over the lazy dog and keeps going well past the viewport width" }
+        }
+    };
+    let _root = mount(&view, h.pipeline_mut());
+}
+
+fn s04_button_default(h: &mut TestHarness) {
+    let view = rsx! { column { padding: 24.0, button { text: "Save" } } };
+    let _root = mount(&view, h.pipeline_mut());
+}
+
+fn s05_button_pressed(h: &mut TestHarness) {
+    let view = rsx! { column { padding: 24.0, button { text: "Hold" } } };
+    let _root = mount(&view, h.pipeline_mut());
+    h.settle();
+    // Press down and leave it down: the pressed fill is the snapshot.
+    let bounds = h.query(Role::Button).named("Hold").bounds();
+    h.pipeline_mut()
+        .dispatch_pointer(&alacer_core::PointerEvent::Down {
+            position: Point::new(
+                bounds.origin.x + bounds.size.width / 2.0,
+                bounds.origin.y + bounds.size.height / 2.0,
+            ),
+            button: alacer_core::MouseButton::Left,
+        });
+}
+
+fn s06_button_custom_colors(h: &mut TestHarness) {
+    let view = rsx! {
+        column { padding: 24.0,
+            button { text: "Danger", color: alacer_core::Color::rgb(170, 40, 40) }
+        }
+    };
+    let _root = mount(&view, h.pipeline_mut());
+}
+
+fn s07_column_gaps(h: &mut TestHarness) {
+    let view = rsx! {
+        column { padding: 12.0, gap: 12.0,
+            label { text: "First" }
+            label { text: "Second" }
+            label { text: "Third" }
+            label { text: "Fourth" }
+        }
+    };
+    let _root = mount(&view, h.pipeline_mut());
+}
+
+fn s08_column_padding(h: &mut TestHarness) {
+    let view = rsx! {
+        column { padding: 40.0, gap: 4.0,
+            label { text: "Deep inset" }
+            label { text: "All sides" }
+        }
+    };
+    let _root = mount(&view, h.pipeline_mut());
+}
+
+fn s09_row_mixed(h: &mut TestHarness) {
+    let view = rsx! {
+        column { padding: 16.0, gap: 8.0,
+            row { gap: 8.0,
+                label { text: "Left" }
+                button { text: "Middle" }
+                spacer { size: 12.0 }
+                label { text: "Right" }
+            }
+        }
+    };
+    let _root = mount(&view, h.pipeline_mut());
+}
+
+fn s10_nested_containers(h: &mut TestHarness) {
+    let view = rsx! {
+        column { padding: 12.0, gap: 8.0,
+            row { gap: 6.0,
+                column { gap: 4.0,
+                    label { text: "Top left" }
+                    label { text: "Bottom left" }
+                }
+                column { gap: 4.0,
+                    label { text: "Top right" }
+                    label { text: "Bottom right" }
+                }
+            }
+        }
+    };
+    let _root = mount(&view, h.pipeline_mut());
+}
+
+fn s11_panel_card(h: &mut TestHarness) {
+    let view = rsx! {
+        column { padding: 16.0, gap: 8.0,
+            panel { height: 48.0, color: alacer_widgets::theme::PANEL }
+            label { text: "A card over a panel" }
+        }
+    };
+    let _root = mount(&view, h.pipeline_mut());
+}
+
+fn s12_spacer_stack(h: &mut TestHarness) {
+    let view = rsx! {
+        column { padding: 16.0, gap: 0.0,
+            label { text: "Above" }
+            spacer { size: 32.0 }
+            label { text: "Middle" }
+            spacer { size: 64.0 }
+            label { text: "Below" }
+        }
+    };
+    let _root = mount(&view, h.pipeline_mut());
+}
+
+fn s13_list_top(h: &mut TestHarness) {
+    let view = rsx! {
+        column { padding: 8.0,
+            list { height: 220.0,
+                for i in 0_u64..10 {
+                    panel { key: i, height: 32.0, color: alacer_widgets::theme::PANEL }
+                }
+            }
+        }
+    };
+    let _root = mount(&view, h.pipeline_mut());
+}
+
+fn s14_list_scrolled_120(h: &mut TestHarness) {
+    let view = rsx! {
+        column { padding: 8.0,
+            list { height: 220.0,
+                for i in 0_u64..10 {
+                    panel { key: i, height: 32.0, color: alacer_widgets::theme::PANEL }
+                }
+            }
+        }
+    };
+    let root = mount(&view, h.pipeline_mut());
+    h.settle();
+    // Scroll through the facade's list handle lookup: the only list is the
+    // first descendant of the root column.
+    let list_node = first_descendant_of_kind(h, root.root_id());
+    scroll_list(h, list_node, 120.0);
+}
+
+fn s15_list_scrolled_400(h: &mut TestHarness) {
+    let view = rsx! {
+        column { padding: 8.0,
+            list { height: 220.0,
+                for i in 0_u64..24 {
+                    panel { key: i, height: 32.0, color: alacer_widgets::theme::PANEL }
+                }
+            }
+        }
+    };
+    let root = mount(&view, h.pipeline_mut());
+    h.settle();
+    let list_node = first_descendant_of_kind(h, root.root_id());
+    scroll_list(h, list_node, 400.0);
+}
+
+fn s16_list_few_items(h: &mut TestHarness) {
+    let view = rsx! {
+        column { padding: 8.0,
+            list { height: 220.0,
+                for i in 0_u64..2 {
+                    panel { key: i, height: 48.0, color: alacer_widgets::theme::ACCENT_PRESSED }
+                }
+            }
+        }
+    };
+    let _root = mount(&view, h.pipeline_mut());
+}
+
+fn s17_theme_surfaces(h: &mut TestHarness) {
+    let view = rsx! {
+        column { padding: 10.0, gap: 6.0,
+            panel { height: 36.0, color: alacer_widgets::theme::SURFACE }
+            panel { height: 36.0, color: alacer_widgets::theme::PANEL }
+            panel { height: 36.0, color: alacer_widgets::theme::ACCENT }
+            panel { height: 36.0, color: alacer_widgets::theme::ACCENT_PRESSED }
+        }
+    };
+    let _root = mount(&view, h.pipeline_mut());
+}
+
+fn s18_counter_after_clicks(h: &mut TestHarness) {
+    let signal = h.pipeline_mut().flux_mut().signal(0_i32);
+    let view = counter_view(signal);
+    let mut root = mount(&view, h.pipeline_mut());
+    h.settle();
+    for _ in 0..3 {
+        click_center(h, Role::Button, "Increment");
+        let next = counter_view(signal);
+        let _report = root.update(&next, h.pipeline_mut());
+        h.settle();
+    }
+}
+
+fn s19_counter_pressed_state(h: &mut TestHarness) {
+    let signal = h.pipeline_mut().flux_mut().signal(0_i32);
+    let view = counter_view(signal);
+    let mut root = mount(&view, h.pipeline_mut());
+    h.settle();
+    let bounds = h.query(Role::Button).named("Increment").bounds();
+    h.pipeline_mut()
+        .dispatch_pointer(&alacer_core::PointerEvent::Down {
+            position: Point::new(
+                bounds.origin.x + bounds.size.width / 2.0,
+                bounds.origin.y + bounds.size.height / 2.0,
+            ),
+            button: alacer_core::MouseButton::Left,
+        });
+    h.settle();
+    let next = counter_view(signal);
+    let _report = root.update(&next, h.pipeline_mut());
+    h.settle();
+}
+
+fn s20_big_font_stack(h: &mut TestHarness) {
+    let view = rsx! {
+        column { padding: 12.0, gap: 6.0,
+            label { text: "Twelve", font_size: 12.0 }
+            label { text: "Sixteen", font_size: 16.0 }
+            label { text: "Twenty two", font_size: 22.0 }
+            label { text: "Thirty two", font_size: 32.0 }
+        }
+    };
+    let _root = mount(&view, h.pipeline_mut());
+}
+
+fn s21_muted_text_colors(h: &mut TestHarness) {
+    let view = rsx! {
+        column { padding: 12.0, gap: 6.0,
+            label { text: "Primary", color: alacer_widgets::theme::TEXT }
+            label { text: "Muted", color: alacer_widgets::theme::TEXT_MUTED }
+            label { text: "Accent", color: alacer_widgets::theme::ACCENT }
+        }
+    };
+    let _root = mount(&view, h.pipeline_mut());
+}
+
+fn s22_wide_button(h: &mut TestHarness) {
+    let view = rsx! {
+        column { padding: 24.0,
+            button { text: "A very long button label indeed" }
+        }
+    };
+    let _root = mount(&view, h.pipeline_mut());
+}
+
+fn s23_two_buttons_row(h: &mut TestHarness) {
+    let view = rsx! {
+        column { padding: 20.0, gap: 10.0,
+            row { gap: 10.0,
+                button { text: "Cancel" }
+                button { text: "OK" }
+            }
+        }
+    };
+    let _root = mount(&view, h.pipeline_mut());
+}
+
+fn s24_quiet_button(h: &mut TestHarness) {
+    let view = rsx! {
+        column { padding: 24.0,
+            button { text: "Quiet", color: alacer_widgets::theme::PANEL, text_color: alacer_widgets::theme::TEXT_MUTED }
+        }
+    };
+    let _root = mount(&view, h.pipeline_mut());
+}
+
+fn s25_deep_nesting(h: &mut TestHarness) {
+    let view = rsx! {
+        column { padding: 8.0, gap: 4.0,
+            column { padding: 8.0, gap: 4.0,
+                column { padding: 8.0, gap: 4.0,
+                    column { padding: 8.0, gap: 4.0,
+                        column { padding: 8.0, gap: 4.0,
+                            label { text: "Five levels deep" }
+                        }
+                    }
+                }
+            }
+        }
+    };
+    let _root = mount(&view, h.pipeline_mut());
+}
+
+fn s26_many_labels(h: &mut TestHarness) {
+    let view = rsx! {
+        column { padding: 8.0, gap: 2.0,
+            for i in 0_u64..20 {
+                label { key: i, text: "Row {i}" }
+            }
+        }
+    };
+    let _root = mount(&view, h.pipeline_mut());
+}
+
+fn s27_scroll_then_click(h: &mut TestHarness) {
+    let signal = h.pipeline_mut().flux_mut().signal(0_i32);
+    let view = rsx! {
+        column { padding: 8.0, gap: 8.0,
+            button { text: "Refresh", on_click: move || signal.set(signal.get() + 1) }
+            label { text: "Refreshed {signal.get()} times" }
+        }
+    };
+    let mut root = mount(&view, h.pipeline_mut());
+    h.settle();
+    click_center(h, Role::Button, "Refresh");
+    let next = rsx! {
+        column { padding: 8.0, gap: 8.0,
+            button { text: "Refresh", on_click: move || signal.set(signal.get() + 1) }
+            label { text: "Refreshed {signal.get()} times" }
+        }
+    };
+    let _report = root.update(&next, h.pipeline_mut());
+    h.settle();
+}
+
+fn s28_conditional_label(h: &mut TestHarness) {
+    let view = rsx! {
+        column { padding: 20.0,
+            if false {
+                button { text: "Never mounted" }
+            } else {
+                label { text: "The quiet branch" }
+            }
+        }
+    };
+    let _root = mount(&view, h.pipeline_mut());
+}
+
+fn s29_conditional_button(h: &mut TestHarness) {
+    let view = rsx! {
+        column { padding: 20.0,
+            if true {
+                button { text: "The loud branch" }
+            } else {
+                label { text: "Never mounted" }
+            }
+        }
+    };
+    let _root = mount(&view, h.pipeline_mut());
+}
+
+fn s30_mixed_grid(h: &mut TestHarness) {
+    let view = rsx! {
+        column { padding: 12.0, gap: 8.0,
+            row { gap: 8.0,
+                panel { height: 40.0, color: alacer_widgets::theme::PANEL }
+                panel { height: 40.0, color: alacer_widgets::theme::ACCENT }
+            }
+            row { gap: 8.0,
+                label { text: "Name:" }
+                spacer { size: 8.0 }
+                button { text: "Submit" }
+            }
+        }
+    };
+    let _root = mount(&view, h.pipeline_mut());
+}
+
+/// The corpus: (name, run). Order is the snapshot prefix.
+/// One scenario: mount, interact, leave the frame to snapshot.
+type Scenario = (&'static str, fn(&mut TestHarness));
+
+const SCENARIOS: &[Scenario] = &[
+    ("hello_label", s01_hello_label),
+    ("styled_label", s02_styled_label),
+    ("long_wrapped_label", s03_long_wrapped_label),
+    ("button_default", s04_button_default),
+    ("button_pressed", s05_button_pressed),
+    ("button_custom_colors", s06_button_custom_colors),
+    ("column_gaps", s07_column_gaps),
+    ("column_padding", s08_column_padding),
+    ("row_mixed", s09_row_mixed),
+    ("nested_containers", s10_nested_containers),
+    ("panel_card", s11_panel_card),
+    ("spacer_stack", s12_spacer_stack),
+    ("list_top", s13_list_top),
+    ("list_scrolled_120", s14_list_scrolled_120),
+    ("list_scrolled_400", s15_list_scrolled_400),
+    ("list_few_items", s16_list_few_items),
+    ("theme_surfaces", s17_theme_surfaces),
+    ("counter_after_clicks", s18_counter_after_clicks),
+    ("counter_pressed_state", s19_counter_pressed_state),
+    ("big_font_stack", s20_big_font_stack),
+    ("muted_text_colors", s21_muted_text_colors),
+    ("wide_button", s22_wide_button),
+    ("two_buttons_row", s23_two_buttons_row),
+    ("quiet_button", s24_quiet_button),
+    ("deep_nesting", s25_deep_nesting),
+    ("many_labels", s26_many_labels),
+    ("scroll_then_click", s27_scroll_then_click),
+    ("conditional_label", s28_conditional_label),
+    ("conditional_button", s29_conditional_button),
+    ("mixed_grid", s30_mixed_grid),
+];
+
+// ---------------------------------------------------------------------------
+// The exit criteria
+// ---------------------------------------------------------------------------
+
+#[test]
+fn m1_corpus_is_thirty_scenarios() {
+    assert_eq!(
+        SCENARIOS.len(),
+        30,
+        "the M1 exit criterion is 30 blessed snapshots (§18)"
+    );
+}
+
+#[test]
+fn m1_thirty_blessed_snapshots_are_green() {
+    for (index, (name, run)) in SCENARIOS.iter().enumerate() {
+        let mut harness = TestHarness::new(VIEWPORT.0, VIEWPORT.1);
+        run(&mut harness);
+        harness.settle();
+        // The a11y CI walker runs on every scenario (§11.1 as code).
+        harness.assert_all_named();
+        harness.snapshot(&format!("m1_{index:02}_{name}"));
+    }
+}
+
+#[test]
+fn m1_a11y_queries_pass() {
+    let mut harness = TestHarness::new(VIEWPORT.0, VIEWPORT.1);
+    let signal = harness.pipeline_mut().flux_mut().signal(0_i32);
+    let view = counter_view(signal);
+    let mut root = mount(&view, harness.pipeline_mut());
+    harness.settle();
+
+    // The singular query (M0's API) and the builder agree.
+    let _ = harness.expect_a11y(Role::Button, "Increment");
+    assert!(harness.query(Role::Button).named("Increment").exists());
+    assert_eq!(harness.query(Role::Button).named("Increment").count(), 1);
+    assert_eq!(harness.query(Role::Label).named("Item").count(), 0);
+    assert!(harness.query(Role::Button).named("Nonexistent").count() == 0);
+
+    // Walk: the whole tree contains exactly the two mounted widgets + column.
+    let tree = harness.pipeline().a11y_snapshot().expect("a11y tree");
+    assert_eq!(tree.walk(None).len(), 3, "column + label + button");
+    let button = tree.find(Role::Button, "Increment").expect("button");
+    assert_eq!(
+        tree.walk(Some(button.id)).len(),
+        1,
+        "leaves walk to themselves"
+    );
+
+    // Press through the a11y tree (the actionable half of §11.5).
+    harness.press(Role::Button, "Increment");
+    let next = counter_view(signal);
+    let _report = root.update(&next, harness.pipeline_mut());
+    harness.settle();
+    let _ = harness.expect_a11y(Role::Label, "Clicked 1 times");
+}
+
+#[test]
+fn m1_a11y_action_on_an_untargeted_widget_reports_not_consumed() {
+    let mut harness = TestHarness::new(VIEWPORT.0, VIEWPORT.1);
+    let view = rsx! { column { padding: 8.0, label { text: "static" } } };
+    let _root = mount(&view, harness.pipeline_mut());
+    harness.settle();
+    let label_id = harness
+        .pipeline()
+        .a11y_snapshot()
+        .and_then(|tree| tree.find(Role::Label, "static"))
+        .expect("label")
+        .id;
+    let consumed = harness
+        .pipeline_mut()
+        .dispatch_a11y_action(label_id, A11yAction::DefaultPress);
+    assert!(!consumed, "a label is not actionable");
+}
+
+#[test]
+fn m1_keyed_list_reconcile_keeps_the_scheduling_contract() {
+    let mut harness = TestHarness::new(VIEWPORT.0, VIEWPORT.1);
+    let view = items_view("Batch", &[1, 2, 3, 4]);
+    let mut root = mount(&view, harness.pipeline_mut());
+    harness.settle();
+    let layout_runs = harness.pipeline().counters().layout_runs;
+
+    // One update ⇒ at most one layout+paint cycle (ADR-6 kill-switch).
+    let reversed = items_view("Batch", &[4, 3, 2, 1]);
+    let _report = root.update(&reversed, harness.pipeline_mut());
+    harness.settle();
+    assert_eq!(
+        harness.pipeline().counters().layout_runs,
+        layout_runs + 1,
+        "one write batch ⇒ one layout run"
+    );
+    let _ = harness.expect_a11y(Role::Label, "Item 4");
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/// The first descendant of `root` whose widget is a `List` (scroll setup in
+/// scenarios; the a11y walker's role query is the public path, the arena walk
+/// here is test-only plumbing for the shared `ListHandle`).
+fn first_descendant_of_kind(
+    harness: &TestHarness,
+    root: alacer_core::arena::NodeId,
+) -> alacer_core::arena::NodeId {
+    let arena = harness.pipeline().arena();
+    let mut found = None;
+    arena.for_each_pre_order(&mut |id, slot| {
+        if found.is_none() && slot.widget().role() == Role::ScrollArea {
+            found = Some(id);
+        }
+    });
+    let _ = root;
+    found.expect("a list is mounted")
+}
+
+fn scroll_list(harness: &mut TestHarness, node: alacer_core::arena::NodeId, offset: f32) {
+    let handle = {
+        let mut guard = harness.pipeline_mut().arena_mut().mutate(node);
+        guard
+            .widget_mut()
+            .as_any_mut()
+            .downcast_mut::<alacer_widgets::List>()
+            .expect("the node is a List")
+            .handle()
+    };
+    handle.scroll_to(offset);
+    harness.settle();
+}

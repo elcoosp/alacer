@@ -5,6 +5,24 @@ All notable changes to **Alacer** will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
+## [0.2.0] — 2026-11-05
+
+
+
+### Added
+
+
+- The ten-pass contract, capture routing, focus passes, and the M1 overhead gate
+
+- The view tree, element registry, and the in-place view reconciler with the equivalence fuzz
+
+- The rsx! view DSL compiler — elements, props with interpolation, keyed for loops, if/else branches
+
+- The a11y query API and the 30-blessed-snapshot M1 corpus
+
+- The counter_view example, the binding prop, ADR-0007, and the M1 README
+
+
 ## [0.1.0] — 2026-11-05
 
 

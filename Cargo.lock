@@ -156,11 +156,12 @@ dependencies = [
 
 [[package]]
 name = "alacer"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "alacer-a11y",
  "alacer-core",
  "alacer-layout",
+ "alacer-macro",
  "alacer-platform",
  "alacer-render",
  "alacer-testing",
@@ -172,7 +173,7 @@ dependencies = [
 
 [[package]]
 name = "alacer-a11y"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "accesskit",
  "alacer-core",
@@ -181,7 +182,7 @@ dependencies = [
 
 [[package]]
 name = "alacer-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "bitflags 2.13.2",
  "criterion",
@@ -193,7 +194,7 @@ dependencies = [
 
 [[package]]
 name = "alacer-layout"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "alacer-core",
  "criterion",
@@ -204,8 +205,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "alacer-macro"
+version = "0.2.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
 name = "alacer-platform"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "accesskit",
  "accesskit_winit",
@@ -227,7 +237,7 @@ dependencies = [
 
 [[package]]
 name = "alacer-render"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "alacer-core",
  "criterion",
@@ -238,13 +248,15 @@ dependencies = [
 
 [[package]]
 name = "alacer-testing"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "alacer-a11y",
  "alacer-core",
  "alacer-layout",
+ "alacer-macro",
  "alacer-render",
  "alacer-text",
+ "alacer-view",
  "alacer-widgets",
  "reactive_graph",
  "rustc-hash 2.1.3",
@@ -253,7 +265,7 @@ dependencies = [
 
 [[package]]
 name = "alacer-text"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "alacer-core",
  "criterion",
@@ -266,7 +278,7 @@ dependencies = [
 
 [[package]]
 name = "alacer-view"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "alacer-core",
  "criterion",
@@ -275,11 +287,10 @@ dependencies = [
 
 [[package]]
 name = "alacer-widgets"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "alacer-core",
- "alacer-layout",
- "alacer-text",
+ "alacer-view",
  "tracing",
 ]
 

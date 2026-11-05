@@ -31,17 +31,18 @@ pub mod num;
 pub mod passes;
 pub mod scene;
 pub mod style;
+pub mod text_seam;
 pub mod widget;
 
 pub use arena::{Arena, NodeId, WidgetMut};
 pub use color::Color;
-pub use events::{MouseButton, PointerEvent};
-pub use flux::{Flux, FluxCounters, RenderBinding};
+pub use events::{EventPhase, MouseButton, PointerEvent};
+pub use flux::{Flux, FluxCounters, FluxRwSignal, RenderBinding};
 pub use geom::{Point, Rect, Size, Vector};
 pub use mask::Change;
 pub use passes::{
-    A11ySink, FrameReport, LayoutEngine, LayoutError, PassPipeline, SceneJournal, TreeNode,
-    TreeSnapshot,
+    A11ySink, FrameReport, LayoutEngine, LayoutError, PassKind, PassPipeline, PassRun,
+    SceneJournal, TreeNode, TreeSnapshot,
 };
 pub use scene::{
     Glyph, GlyphBitmap, GlyphSource, PaintCtx, PaintSink, Primitive, Quad, SceneSnapshot,
@@ -49,17 +50,18 @@ pub use scene::{
 pub use style::{
     CrossAxisAlignment, Display, MainAxisAlignment, MeasureFn, MeasureSpec, Style, TextSpec,
 };
+pub use text_seam::{GlyphRun, PlacedGlyph, TextSeam};
 pub use widget::{A11yAction, EventResponse, LabelSource, Role, Widget};
 
-/// The Alacer prelude: import this once and the M0 vocabulary is in scope.
+/// The Alacer prelude: import this once and the framework vocabulary is in scope.
 pub mod prelude {
     pub use crate::arena::{Arena, NodeId, WidgetMut};
     pub use crate::color::Color;
-    pub use crate::events::{MouseButton, PointerEvent};
+    pub use crate::events::{EventPhase, MouseButton, PointerEvent};
     pub use crate::flux::{Flux, RenderBinding};
     pub use crate::geom::{Point, Rect, Size, Vector};
     pub use crate::mask::Change;
-    pub use crate::passes::PassPipeline;
+    pub use crate::passes::{PassKind, PassPipeline};
     pub use crate::style::{CrossAxisAlignment, Display, MainAxisAlignment, Style};
     pub use crate::widget::{EventResponse, LabelSource, Role, Widget};
 }

@@ -288,8 +288,10 @@ pub struct FrameReport {
     pub paint_ran: bool,
     /// `true` when the accessibility pass ran.
     pub a11y_ran: bool,
-    /// The materialized scene (empty when nothing painted).
-    pub scene: SceneSnapshot,
+    /// The materialized scene (empty when nothing painted). Shared, not
+    /// cloned: idle and replay-only frames reuse the last materialization
+    /// (ADR-0008 item 4, §14.3's warm path).
+    pub scene: std::sync::Arc<SceneSnapshot>,
     /// The pass ledger, in contract order — every tick pass, ran or skipped.
     pub passes: Vec<PassRun>,
     /// Focus moved this frame.
@@ -358,6 +360,12 @@ pub struct PassPipeline {
     counters: FrameCounters,
     scroll_offsets: FxHashMap<NodeId, Vector>,
     last_compose_events: u64,
+    /// The last materialized scene — replay frames share it instead of
+    /// re-walking the journal (ADR-0008 item 4).
+    scene_cache: Option<std::sync::Arc<SceneSnapshot>>,
+    /// The pre-order paint order, valid until tree shape changes (it is a
+    /// pure function of shape). Rebuilt on structural frames.
+    order_cache: Option<Vec<NodeId>>,
     /// Per-pass wall timing (the M1 gate instrumentation); off by default.
     timings: bool,
     /// Pass ledger entries for dispatch-driven passes (event, action),
@@ -390,6 +398,8 @@ impl PassPipeline {
             a11y,
             counters: FrameCounters::default(),
             scroll_offsets: FxHashMap::default(),
+            scene_cache: None,
+            order_cache: None,
             last_compose_events: 0,
             timings: false,
             interframe: Vec::new(),
@@ -655,12 +665,15 @@ impl PassPipeline {
             run.nanos = layout_work; // the pass body IS the injected call
         }
 
-        // Pass 7 — compose: translation-only scroll updates. Runs after layout
-        // AND after any routed input: a wheel event moves a scroll offset
-        // without touching layout — that is the whole point of translation-only
-        // updates (§8.2 item 4).
+        // Pass 7 — compose: translation-only scroll updates. Runs whenever a
+        // repaint will: a wheel event moves a scroll offset without touching
+        // layout, and programmatic scrolls (the mutate-guard `request` seam)
+        // surface as PAINT masks — paint must see translated bounds (§8.2).
         let events_since = self.counters.events_routed - self.last_compose_events;
-        let compose_due = layout_ran || events_since > 0;
+        let compose_due = layout_ran
+            || events_since > 0
+            || structure_changed
+            || dirty.values().any(|m| m.intersects(Change::PAINT));
         let mut translated = Vec::new();
         let mut compose_work = 0_u64;
         ledger.push(self.run_pass(PassKind::Compose, |s| {
@@ -692,13 +705,17 @@ impl PassPipeline {
                 let start = s.timings.then(std::time::Instant::now);
                 if structure_changed {
                     s.journal.clear();
+                    s.order_cache = None;
                 }
                 s.paint_dirty(structure_changed, &paint_set, &translated);
                 s.counters.paint_runs += 1;
                 // The frame's scene materialization is the paint pass's
                 // product: clean layers replay from the journal (§9.1).
-                let order = s.paint_order();
-                scene = Some(s.journal.snapshot(&order));
+                s.ensure_paint_order();
+                let order = s.order_cache.as_deref().expect("order just built");
+                let snapshot = std::sync::Arc::new(s.journal.snapshot(order));
+                s.scene_cache = Some(std::sync::Arc::clone(&snapshot));
+                scene = Some(snapshot);
                 paint_work = start.map_or(0, |t| crate::num::u128_to_u64(t.elapsed().as_nanos()));
             }
             paint_ran
@@ -735,12 +752,12 @@ impl PassPipeline {
 
         let total_nanos =
             total_start.map_or(0, |t| crate::num::u128_to_u64(t.elapsed().as_nanos()));
-        // A frame that skipped paint replays the journal untouched — the
-        // cheap replay IS the journal's point (§9.1).
-        let scene = scene.unwrap_or_else(|| {
-            let order = self.paint_order();
-            self.journal.snapshot(&order)
-        });
+        // A frame that skipped paint replays the cached materialization —
+        // the cheap replay IS the journal's point (§9.1): no walk, no
+        // primitive clones, one Arc clone (§14.3's warm path).
+        let scene = scene
+            .or_else(|| self.scene_cache.as_ref().map(std::sync::Arc::clone))
+            .unwrap_or_default();
         Ok(FrameReport {
             layout_ran,
             paint_ran,
@@ -871,16 +888,27 @@ impl PassPipeline {
     /// Returns the descendants whose bounds moved (they need repaint + a11y
     /// bounds updates, never layout).
     fn compose_scrolls(&mut self) -> Vec<NodeId> {
-        let mut containers = Vec::new();
-        self.arena.for_each_pre_order(&mut |id, slot| {
-            let offset = slot.widget().scroll_offset();
-            if offset != Vector::zero() {
-                containers.push((id, offset));
-            }
-        });
+        // Candidates come from the arena's scrollable index (attach-time
+        // `is_scroll_container`), so this is O(scrollables), not O(tree).
+        // Offsets are compared against the last applied value, so scrolling
+        // back to zero translates too — not just non-zero offsets.
+        let candidates: Vec<(NodeId, Vector)> = self
+            .arena
+            .scrollables()
+            .filter_map(|id| {
+                let slot = self.arena.widget(id);
+                let offset = slot.scroll_offset();
+                let last = self
+                    .scroll_offsets
+                    .get(&id)
+                    .copied()
+                    .unwrap_or(Vector::zero());
+                (offset != last).then_some((id, offset))
+            })
+            .collect();
 
         let mut moved = Vec::new();
-        for (container, offset) in containers {
+        for (container, offset) in candidates {
             let last = self
                 .scroll_offsets
                 .get(&container)
@@ -918,19 +946,42 @@ impl PassPipeline {
         paint_set: &FxHashSet<NodeId>,
         translated: &[NodeId],
     ) {
-        let translated: FxHashSet<NodeId> = translated.iter().copied().collect();
-        let mut targets = Vec::new();
-        self.arena.for_each_pre_order(&mut |id, _| {
-            if full_rebuild || paint_set.contains(&id) || translated.contains(&id) {
-                targets.push(id);
+        if full_rebuild {
+            // Structural frames re-emit every layer, in paint order.
+            self.ensure_paint_order();
+            for node in self
+                .order_cache
+                .as_deref()
+                .expect("order just built")
+                .to_vec()
+            {
+                let primitives = self.paint_node(node);
+                self.journal.commit_layer(node, primitives);
             }
-        });
-        for node in targets {
-            let primitives = self.paint_node(node);
-            self.journal.commit_layer(node, primitives);
+        } else {
+            // Layers are keyed by node, so commit order is irrelevant: the
+            // dirty set plus the composed translations is the whole target
+            // list — no walk over clean subtrees (ADR-0008 item 4).
+            let targets: Vec<NodeId> = paint_set.iter().chain(translated.iter()).copied().collect();
+            for node in targets {
+                let primitives = self.paint_node(node);
+                self.journal.commit_layer(node, primitives);
+            }
         }
-        let order = self.paint_order();
-        self.journal.retain(&order);
+        self.ensure_paint_order();
+        self.journal
+            .retain(self.order_cache.as_deref().expect("order just built"));
+    }
+
+    /// Rebuilds the pre-order paint order cache when it is stale. The cache
+    /// is a pure function of tree shape, so only structural change (which
+    /// resets it) and the first frame pay the walk (ADR-0008 item 4).
+    fn ensure_paint_order(&mut self) {
+        if self.order_cache.is_none() {
+            let mut order = Vec::new();
+            self.arena.for_each_pre_order(&mut |id, _| order.push(id));
+            self.order_cache = Some(order);
+        }
     }
 
     fn paint_node(&mut self, node: NodeId) -> Vec<Primitive> {
@@ -1029,12 +1080,6 @@ impl PassPipeline {
             path.push(id.raw());
         }
         path.hash()
-    }
-
-    fn paint_order(&self) -> Vec<NodeId> {
-        let mut order = Vec::new();
-        self.arena.for_each_pre_order(&mut |id, _| order.push(id));
-        order
     }
 }
 
@@ -1353,6 +1398,10 @@ mod tests {
             fn scroll_offset(&self) -> Vector {
                 Vector::new(0.0, *self.offset.lock().expect("scroll lock"))
             }
+
+            fn is_scroll_container(&self) -> bool {
+                true
+            }
         }
 
         let mut p = pipeline();
@@ -1585,6 +1634,37 @@ mod tests {
                 run.kind.name()
             );
         }
+    }
+
+    #[test]
+    fn replay_frames_share_the_cached_scene_allocation() {
+        // ADR-0008 item 4: idle and replay-only frames reuse the last
+        // materialization (one Arc clone, zero primitive clones); a repaint
+        // rematerializes.
+        let mut p = pipeline();
+        let root = p.mount_root(Box::new(Fixed {
+            size: Size::new(100.0, 30.0),
+        }));
+        let painted = p.tick(viewport()).expect("paint frame");
+        assert!(painted.paint_ran);
+        let replay = p.tick(viewport()).expect("replay frame");
+        assert!(!replay.paint_ran);
+        assert!(
+            std::sync::Arc::ptr_eq(&painted.scene, &replay.scene),
+            "the replay frame shares the painted scene allocation"
+        );
+
+        // A repaint produces a fresh materialization with the same content.
+        let mut guard = p.arena_mut().mutate(root);
+        guard.request(Change::PAINT);
+        drop(guard);
+        let repainted = p.tick(viewport()).expect("repaint frame");
+        assert!(repainted.paint_ran);
+        assert!(
+            !std::sync::Arc::ptr_eq(&painted.scene, &repainted.scene),
+            "a repaint rematerializes the scene"
+        );
+        assert_eq!(*painted.scene, *repainted.scene, "content is stable");
     }
 
     #[test]

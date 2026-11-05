@@ -1,0 +1,12 @@
+# Build artifacts
+/target
+
+# Editor debris
+*.swp
+*.swo
+.idea/
+.vscode/
+*.orig
+
+# OS debris
+.DS_Store

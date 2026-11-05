@@ -16,11 +16,12 @@ use alacer_core::flux::Flux;
 use alacer_core::geom::{Point, Rect, Size};
 use alacer_core::passes::PassPipeline;
 use alacer_core::style::MeasureSpec;
-use alacer_core::widget::{Role, Widget};
+use alacer_core::widget::{A11yAction, Role, Widget};
 use alacer_layout::LayoutHost;
 use alacer_render::{SceneJournalImpl, SoftwareRenderer};
-use alacer_text::{ThreadLocalGlyphSource, ThreadLocalMeasurer, with_text};
+use alacer_text::{ThreadLocalGlyphSource, ThreadLocalMeasurer, ThreadLocalTextSeam, with_text};
 use std::path::PathBuf;
+use std::rc::Rc;
 use std::sync::Arc;
 use tiny_skia::Pixmap;
 
@@ -36,6 +37,9 @@ impl TestHarness {
     /// A harness with a `width × height` viewport.
     #[must_use]
     pub fn new(width: f32, height: f32) -> Self {
+        // The harness is an assembly site: widgets reach text through the
+        // core seam, so install this thread's implementation first (ADR-9).
+        alacer_core::text_seam::install(Rc::new(ThreadLocalTextSeam));
         let flux = Flux::new();
         let layout = LayoutHost::new(Arc::new(ThreadLocalMeasurer));
         let journal = SceneJournalImpl::new();
@@ -163,6 +167,44 @@ impl TestHarness {
             .unwrap_or_else(|| {
                 panic!("a11y query failed: no {role} named {name:?} is reachable");
             })
+    }
+
+    /// The a11y query builder (§11.5) — the ergonomic plural form:
+    /// `harness.query(Role::Label).named("Item").count()`.
+    #[must_use]
+    pub fn query(&self, role: Role) -> A11yQuery<'_> {
+        A11yQuery {
+            harness: self,
+            role,
+            name: String::new(),
+        }
+    }
+
+    /// Dispatches the default accessibility action ("press") to the first
+    /// node with `role` named `name`, then settles — the actionable half of
+    /// §11.5's contract (reachable, named, **actionable**).
+    ///
+    /// # Panics
+    ///
+    /// Panics when no such node is reachable: a test that cannot find its
+    /// target is a test bug.
+    pub fn press(&mut self, role: Role, name: &str) {
+        let node = self
+            .pipeline
+            .a11y_snapshot()
+            .and_then(|tree| tree.find(role, name))
+            .unwrap_or_else(|| {
+                panic!("a11y press failed: no {role} named {name:?} is reachable");
+            });
+        let id = node.id;
+        let consumed = self
+            .pipeline
+            .dispatch_a11y_action(id, A11yAction::DefaultPress);
+        assert!(
+            consumed,
+            "the {role} named {name:?} did not consume the default a11y action"
+        );
+        self.settle();
     }
 
     /// Renders the current frame's pixels — same as [`Self::pixels`].
@@ -337,6 +379,81 @@ impl<W: Widget> WidgetBoxExt for W {}
 #[must_use]
 pub fn glyph_source() -> ThreadLocalGlyphSource {
     ThreadLocalGlyphSource
+}
+
+/// The a11y query builder (§11.5): the official query API, in plural form.
+/// `harness.query(Role::Label).named("Item").count()` — every read routes
+/// through the AccessKit tree, never the widget tree.
+pub struct A11yQuery<'h> {
+    harness: &'h TestHarness,
+    role: Role,
+    name: String,
+}
+
+impl A11yQuery<'_> {
+    /// Narrows the query to nodes whose name contains `name`.
+    #[must_use]
+    pub fn named(self, name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            ..self
+        }
+    }
+
+    /// The resolved snapshot (settle first — the query reads what pass 9
+    /// last published).
+    fn tree(&self) -> Option<&alacer_core::passes::TreeSnapshot> {
+        self.harness.pipeline().a11y_snapshot()
+    }
+
+    /// Whether any node matches.
+    #[must_use]
+    pub fn exists(&self) -> bool {
+        self.tree()
+            .is_some_and(|tree| tree.contains(self.role, &self.name))
+    }
+
+    /// How many nodes match.
+    #[must_use]
+    pub fn count(&self) -> usize {
+        self.tree()
+            .map_or(0, |tree| tree.find_all(self.role, &self.name).len())
+    }
+
+    /// Every matching node, in tree order.
+    #[must_use]
+    pub fn all(&self) -> Vec<&alacer_core::passes::TreeNode> {
+        self.tree()
+            .map(|tree| tree.find_all(self.role, &self.name))
+            .unwrap_or_default()
+    }
+
+    /// The first match — panics naming the query when nothing matches.
+    ///
+    /// # Panics
+    ///
+    /// Panics when no node matches.
+    #[must_use]
+    pub fn first(&self) -> &alacer_core::passes::TreeNode {
+        self.tree()
+            .and_then(|tree| tree.find(self.role, &self.name))
+            .unwrap_or_else(|| {
+                panic!(
+                    "a11y query failed: no {} named {:?} is reachable",
+                    self.role, self.name
+                )
+            })
+    }
+
+    /// The first match's bounds (click targeting).
+    ///
+    /// # Panics
+    ///
+    /// Panics when nothing matches or the node has no bounds.
+    #[must_use]
+    pub fn bounds(&self) -> Rect {
+        self.first().bounds.expect("matched node has bounds")
+    }
 }
 
 #[cfg(test)]

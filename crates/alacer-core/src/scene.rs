@@ -5,7 +5,7 @@
 //! [`PaintCtx`]; the journal storage and rasterizers live in `alacer-render`.
 
 use crate::color::Color;
-use crate::geom::{Point, Rect};
+use crate::geom::{Point, Rect, Size};
 
 /// A filled (optionally rounded, optionally bordered) rectangle.
 #[derive(Debug, Clone, PartialEq)]
@@ -154,6 +154,60 @@ impl<'a> PaintCtx<'a> {
 pub struct SceneSnapshot {
     /// Every recorded primitive, in paint order (pre-order tree walk).
     pub primitives: Vec<Primitive>,
+}
+
+/// The conservative margin (pixels) wrapped around every primitive extent
+/// before it becomes damage (§9.3): anti-aliased edges and glyph bitmap
+/// overhang must never fall outside a region, or partial frames leave stale
+/// pixels. Overestimating is safe — it only widens the repaint area.
+pub const PAINT_DAMAGE_MARGIN: f32 = 2.0;
+
+/// Inflates `rect` by `margin` on every side.
+#[must_use]
+pub fn inflate(rect: Rect, margin: f32) -> Rect {
+    Rect::new(
+        Point::new(rect.origin.x - margin, rect.origin.y - margin),
+        Size::new(
+            rect.size.width + margin * 2.0,
+            rect.size.height + margin * 2.0,
+        ),
+    )
+}
+
+/// The conservative painted extent of one primitive, in absolute coordinates:
+/// the area any correct renderer may touch. Quads span their rect plus half
+/// the border stroke (the stroke is centered on the path) plus the AA margin;
+/// glyphs span a generous box around the baseline origin, because bitmap
+/// metrics belong to the font (up to ~1.05 em above the baseline, ~0.45 em
+/// below, ±0.5 em horizontally) and the pipeline must not depend on font
+/// internals to compute damage.
+#[must_use]
+pub fn primitive_extent(primitive: &Primitive) -> Rect {
+    match primitive {
+        Primitive::Quad(quad) => {
+            let stroke = quad.border_width * 0.5;
+            inflate(quad.rect, stroke + PAINT_DAMAGE_MARGIN)
+        }
+        Primitive::Glyph(glyph) => {
+            let s = glyph.size;
+            Rect::new(
+                Point::new(glyph.position.x - s * 0.6, glyph.position.y - s * 1.1),
+                Size::new(
+                    s * 2.2 + PAINT_DAMAGE_MARGIN * 2.0,
+                    s * 1.7 + PAINT_DAMAGE_MARGIN * 2.0,
+                ),
+            )
+        }
+    }
+}
+
+/// The union of every primitive's extent, inflated once more by the AA
+/// margin — the damage contribution of one committed layer.
+#[must_use]
+pub fn primitives_extent(primitives: &[Primitive]) -> Option<Rect> {
+    let mut iter = primitives.iter().map(primitive_extent);
+    let first = iter.next()?;
+    Some(iter.fold(first, |acc, r| acc.union(&r)))
 }
 
 /// A rasterized glyph: 8-bit coverage plus sub-pixel placement.

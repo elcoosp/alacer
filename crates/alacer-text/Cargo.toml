@@ -1,0 +1,24 @@
+[package]
+name = "alacer-text"
+description = "Alacer's text: a parley/fontique/swash facade with shaped-glyph layout and an evicting layout cache"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+alacer-core.workspace = true
+parley.workspace = true
+swash.workspace = true
+zeno = "0.3.3"
+rustc-hash.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+linebender_resource_handle = "0.1.1"
+
+[[bench]]
+name = "layout"
+harness = false

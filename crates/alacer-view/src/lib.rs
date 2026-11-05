@@ -1,6 +1,8 @@
-//! Alacer's view layer: keyed reconciliation (§6.2).
+//! Alacer's view layer: the view tree, keyed reconciliation, and the
+//! view→widget reconciler (§6.1, §6.2).
 //!
-//! The pipeline is Dioxus's, hardened across its fuzz corpus, ported as ALGO:
+//! The keyed diff pipeline is Dioxus's, hardened across its fuzz corpus,
+//! ported as ALGO:
 //!
 //! 1. **Prefix/suffix peel** — matching runs at both ends never move.
 //! 2. **Key map** — the remaining nodes resolve through a hash map of keys.
@@ -9,7 +11,20 @@
 //!
 //! The result is a list of [`DiffOp`]s that transforms `old` into `new` with
 //! the minimum number of moves. The §6.4 equivalence property — *incremental
-//! result ≡ fresh rebuild* — is property-tested below.
+//! result ≡ fresh rebuild* — is property-tested below. [`ViewRoot`] runs the
+//! same pipeline against the retained widget arena: view diffs become
+//! in-place widget mutations, never rebuilds (§6.1). The element registry
+//! ([`WidgetRegistry`]) maps view element names to widget create/patch
+//! pairs; the concrete M0 set registers itself from `alacer-widgets`
+//! (`alacer_widgets::default_registry`).
+
+pub mod mount;
+pub mod registry;
+pub mod view;
+
+pub use mount::{PatchReport, ViewRoot};
+pub use registry::{ElementProps, WidgetRegistry};
+pub use view::{PropValue, ViewNode};
 
 use rustc_hash::FxHashMap;
 use std::hash::Hash;

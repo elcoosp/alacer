@@ -190,7 +190,9 @@ impl Widget for Button {
                 button: _button, ..
             } => {
                 self.pressed = true;
-                ctx.request(alacer_core::Change::PAINT);
+                // Click-to-focus: buttons take keyboard focus on press (§10.3),
+                // which also detaches the IME from any editing widget.
+                ctx.request(alacer_core::Change::PAINT.union(alacer_core::Change::FOCUS));
                 EventResponse::Handled
             }
             PointerEvent::Up { .. } => {

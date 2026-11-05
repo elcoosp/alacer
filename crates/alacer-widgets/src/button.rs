@@ -136,9 +136,10 @@ impl Widget for Button {
             (Color::TRANSPARENT, 0.0),
         );
 
-        // Centered text.
+        // Centered text; the label wraps at the button's laid-out width —
+        // the same constraint the measure pass saw, so line breaks match.
         alacer_core::text_seam::with_seam(|seam| {
-            let layout = seam.layout_glyphs(&self.label, self.font_size, None);
+            let layout = seam.layout_glyphs(&self.label, self.font_size, Some(size.0));
             let text_origin = Point::new(
                 (size.0 - layout.width).max(0.0) * 0.5,
                 (size.1 - layout.height).max(0.0) * 0.5,

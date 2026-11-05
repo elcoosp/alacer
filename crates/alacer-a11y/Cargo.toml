@@ -1,0 +1,14 @@
+[package]
+name = "alacer-a11y"
+description = "Alacer's accessibility: the AccessKit contract with incremental TreeUpdates built from dirty nodes only (ADR-5)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+alacer-core.workspace = true
+accesskit.workspace = true
+rustc-hash.workspace = true

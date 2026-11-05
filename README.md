@@ -9,7 +9,7 @@
     <img src="https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue?style=flat-square" alt="License MIT OR Apache-2.0"/>
     <img src="https://img.shields.io/badge/Backend-wgpu%20%2B%20software-6A0DAD?style=flat-square" alt="Backend wgpu + software"/>
     <img src="https://img.shields.io/badge/Crates-11-6F4E37?style=flat-square" alt="11 crates"/>
-    <img src="https://img.shields.io/badge/Tests-187%20passing-brightgreen?style=flat-square" alt="187 tests passing"/>
+    <img src="https://img.shields.io/badge/Tests-245%20passing-brightgreen?style=flat-square" alt="245 tests passing"/>
     <img src="https://img.shields.io/badge/A11y-AccessKit-4B32C3?style=flat-square" alt="AccessKit accessibility"/>
     <img src="https://img.shields.io/badge/Layout-Taffy-228B22?style=flat-square" alt="Taffy layout"/>
     <img src="https://img.shields.io/badge/Text-Parley-007ACC?style=flat-square" alt="Parley text"/>
@@ -19,9 +19,9 @@
 
 ---
 
-## Status: M0 + M1 + M2 exit criteria, all green
+## Status: M0 + M1 + M2 + M3 exit criteria, all green
 
-The repository implements milestone **M0** (the skeleton: winit + wgpu + reactive_graph + taffy + parley + accesskit on one window), milestone **M1** (the view DSL, the pass contract, and the test corpus), and milestone **M2** (the invalidation currency: masks + persistent Taffy + torin-style deltas + scene journal replay) of the architecture document in `docs/architecture.md`.
+The repository implements milestone **M0** (the skeleton: winit + wgpu + reactive_graph + taffy + parley + accesskit on one window), milestone **M1** (the view DSL, the pass contract, and the test corpus), milestone **M2** (the invalidation currency: masks + persistent Taffy + torin-style deltas + scene journal replay), and milestone **M3** (the a11y contract + partial paint + the IME contract) of the architecture document in `docs/architecture.md`.
 
 | Criterion | Evidence |
 |---|---|
@@ -42,6 +42,12 @@ The repository implements milestone **M0** (the skeleton: winit + wgpu + reactiv
 | **Translation-only scrolling: zero measure calls** | `m0_scrolling_list_translates_without_re_measuring` (§8.2) |
 | **Zero-config a11y: required role/label at the type level** | `Widget` trait; the CI walker fails unnamed inputs (ADR-5) |
 | **Benchmarked** | criterion suites per crate; `cargo bench` (A6) |
+| **TreeUpdate p99 < 0.5 ms @ 1k nodes** | the M3 kill criterion as a test (`alacer-testing/tests/m3_exit_criteria.rs`) — incremental `A11yDelta` → `TreeUpdate` production measured over 200 dirty-node-only frames |
+| **A11y deltas: removals + focus + values** | `A11yDelta` (updated/removed/focus/initializes); dead widgets surface exactly once; focus rides `TreeUpdate::focus`; editables expose `value()` |
+| **Partial paint: the damage ladder** | `FrameReport.damage` — NONE skips the present, ≤3 least-growth-merged regions repaint scissored, FULL on structural frames or ≥75% coverage (`alacer-core::damage`, §9.3) |
+| **Partial == full, pixel-exact (Q8)** | the equivalence fuzz: over clicks, typing, CJK IME composition and surrogate-pair commits, the accumulated partial framebuffer equals a fresh full render after every step — both backends implement identical damage semantics |
+| **IME contract: UTF-16 end to end** | key/IME routing to the focused widget, Tab cycling, inline preedit + commit via `TextInput`; winit's byte-wise preedit cursor converts at the platform seam (`alacer-platform::keys`); mid-surrogate offsets floor, never slice |
+| **`TextInput` widget** | the IME contract's reference implementation: caret editing, secure mode, focus ring, a11y value |
 
 ## Quick start
 
@@ -49,6 +55,7 @@ The repository implements milestone **M0** (the skeleton: winit + wgpu + reactiv
 cargo run -p alacer --example counter          # wgpu window
 ALACER_SOFTWARE=1 cargo run -p alacer --example counter   # softbuffer window
 cargo run -p alacer --example scrolling_list
+cargo run -p alacer --example text_input      # the M3 IME contract live
 cargo test --workspace                        # headless: real pipeline + software raster (A4)
 cargo bench                                   # criterion suites (A6)
 ```
@@ -62,6 +69,12 @@ Headless machines (and CI) run the **same pipeline** through the software backen
 3. **The persistent Taffy tree (ADR-3, §8).** The tree is created once and never cleared; `mark_dirty` + Taffy's per-node caches bound recomputation to the dirty path. Scrolling composes as *translation-only* updates — zero measure calls per scroll tick.
 4. **One scene journal, two honest backends (A8, ADR-2).** The paint pass records per-node layers; clean subtrees replay from the journal. wgpu rasterizes quads as rounded-rect SDFs and glyphs from a CPU coverage atlas; tiny-skia + softbuffer blends the *same* bitmaps headlessly.
 5. **Accessibility is a type-level contract (ADR-5, §11).** `role()` and `label()` are *required* `Widget` methods; AccessKit node ids are the id-path hashes (one identity with hit-testing, §6.3); updates are dirty-node-only; tests query the a11y tree — reachable, named, actionable.
+
+## The M3 design, in three points (ADR-0009)
+
+1. **The a11y contract is a delta (§11.1).** Pass 9 produces an `A11yDelta` — updated ids, removed ids, focus, initialization — and the sink turns it into an incremental `TreeUpdate`. The snapshot travels as an `Arc` (built once, never deep-cloned per frame); editables expose `value()`; the exit gate measures incremental TreeUpdate p99 < 0.5 ms at 1k nodes (measured: µs-scale).
+2. **Partial paint with an escape hatch (§9.3).** The paint pass merges every repainted node's old journal extent and new primitive extent into at most three regions (least-growth merging, clean-room from documented Slint behavior), with `NONE` (skip the present) and `FULL` (structural frames, ≥75% coverage) as the ladder's ends. Both backends implement identical damage semantics — software clears-and-redraws regions on a persistent framebuffer, wgpu `LoadOp::Load`s an offscreen frame texture with scissor rects — and the equivalence fuzz pins them pixel-equal to full renders over a real interaction script (Q8).
+3. **The IME contract counts UTF-16 (§10.3).** Keys and IME events route to the focused widget only; Tab cycles; the caret, preedit cursors, and commits all count UTF-16 code units with mid-surrogate offsets flooring left. The platform seam converts winit's byte-wise preedit cursor; `TextInput` is the reference widget; the pipeline derives the frame's `ImeRequest` (purpose + caret anchor) for the windowing system.
 
 ## The crate DAG (ADR-9)
 
@@ -84,15 +97,15 @@ Layering is a DAG: no upward dependencies, no cycles (the build system makes cyc
 
 | Path | What |
 |---|---|
-| `crates/alacer-core` | masks, identity, arena, widget trait, flux bridge, pass system |
+| `crates/alacer-core` | masks, identity, arena, widget trait, flux bridge, pass system, damage model, UTF-16 seam |
 | `crates/alacer-layout` | persistent Taffy host, root-candidate relayout, LRU measure cache, style mapping |
 | `crates/alacer-text` | parley facade, font registry, zeno rasterizer, evicting caches |
-| `crates/alacer-render` | scene journal, software rasterizer, batching |
+| `crates/alacer-render` | scene journal, software rasterizer (full + damage-scissored partial), batching |
 | `crates/alacer-a11y` | AccessKit sink, incremental `TreeUpdates` |
 | `crates/alacer-view` | keyed reconciliation (peel → key map → LIS) |
-| `crates/alacer-widgets` | label, button, column/row/spacer, list, panel, the default element registry |
-| `crates/alacer-platform` | winit loop, wgpu backend, softbuffer present, coalescing |
-| `crates/alacer-testing` | headless harness, a11y queries, snapshots, M0 + M1 suites |
+| `crates/alacer-widgets` | label, button, text input, column/row/spacer, list, panel, the default element registry |
+| `crates/alacer-platform` | winit loop, wgpu backend (offscreen frame + scissored damage), softbuffer present (persistent framebuffer), key/IME translation, coalescing |
+| `crates/alacer-testing` | headless harness, a11y queries, snapshots, M0 + M1 + M3 suites |
 | `crates/alacer-macro` | the `rsx!` view DSL compiler (proc-macro leaf) |
 | `crates/alacer` | facade: prelude, `rsx!` re-export, `mount_view`, window runner |
 | `docs/` | architecture document, ADRs |
@@ -101,6 +114,6 @@ Layering is a DAG: no upward dependencies, no cycles (the build system makes cyc
 ## Engineering discipline
 
 - **Lint regime**: clippy `pedantic` **denied** workspace-wide, plus `missing_docs` and `unsafe_code = forbid`. There is no `#[allow]` anywhere; the documented cast seams (`alacer-core/src/num.rs`, the `rsx!` number narrowing in `alacer-view`) carry the single `#[expect]`s with reasons.
-- **TDD**: every module grew tests first; **187 tests** across the workspace (unit + integration + doctest), all green locally and in CI.
+- **TDD**: every module grew tests first; **245 tests** across the workspace (unit + integration + doctest), all green locally and in CI.
 - **Benchmarks as contracts (A6)**: criterion suites for the flux batch drain, mask propagation, journal replay, incremental-vs-full relayout, the W1 churn workload, text layout, and the §7.2 pass-overhead churn gate.
 - **CI/CD**: fmt + clippy + tests + doc + `cargo-deny` + DAG check on push/PR; `git-cliff`-generated changelogs; GitHub Releases on tags (`v*`).

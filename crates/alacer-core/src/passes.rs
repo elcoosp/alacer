@@ -2,26 +2,32 @@
 //! explicit, ordered, independently traceable stage — never scattered through
 //! callbacks.
 //!
-//! M0 runs the pipeline over the mask currency:
+//! The ten named passes ([`PassKind`]), in contract order:
 //!
 //! | # | Pass | Responsibility |
 //! |---|------|----------------|
-//! | 1 | `event` | hit-test + bubble routing (pointer only this milestone) |
+//! | 1 | `event` | hit-test + capture→bubble routing (§10.1) |
+//! | 2 | `update_focusable` | recompute focus candidates after tree changes |
+//! | 3 | `update_focus` | resolve active focus; emit focus diffs |
 //! | 4 | `mutate` | drain queued `WidgetMut` closures; flags merge on drop |
-//! | 5–6 | `style→layout` | the injected [`LayoutEngine`] recomputes geometry from dirty nodes |
+//! | 5 | `style` | reason-flag recalc; diffs invalidate layout/paint |
+//! | 6 | `layout` | the injected [`LayoutEngine`] recomputes geometry from dirty nodes |
 //! | 7 | `compose` | translation-only scroll updates — no re-measure (§8.2) |
 //! | 8 | `paint` | re-emit dirty layers into the [`SceneJournal`]; clean layers replay |
 //! | 9 | `accessibility` | build the a11y update from dirty nodes only (§11.1) |
+//! | 10 | `action` | typed actions to the app driver (side-channel, never masks) |
 //!
-//! Passes 2–3 (focusable/focus) and 10 (actions) land with M1/M3; their slots
-//! in the ordering are reserved and documented.
+//! Every pass is traced under the `alacer::pass` target; with timings on, each
+//! ledger entry carries its wall time and the M1 overhead gate measures the
+//! pass-system bookkeeping share (§7.2 kill criterion).
 
 use crate::arena::{Arena, NodeId};
-use crate::events::PointerEvent;
+use crate::events::{EventPhase, PointerEvent};
 use crate::flux::Flux;
 use crate::geom::{Point, Rect, Size, Vector};
 use crate::mask::Change;
 use crate::scene::{PaintCtx, Primitive, SceneSnapshot};
+use crate::style::Style;
 use crate::widget::{EventResponse, Role, Widget};
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -104,6 +110,49 @@ impl TreeSnapshot {
             .iter()
             .find(|n| n.role == role && n.label.to_lowercase().contains(&needle))
     }
+
+    /// Every node with `role` whose name contains `name`, in tree order —
+    /// the plural query behind the harness's count/all builders.
+    #[must_use]
+    pub fn find_all(&self, role: Role, name: &str) -> Vec<&TreeNode> {
+        let needle = name.to_lowercase();
+        self.nodes
+            .iter()
+            .filter(|n| n.role == role && n.label.to_lowercase().contains(&needle))
+            .collect()
+    }
+
+    /// Whether any node with `role` is named `name`.
+    #[must_use]
+    pub fn contains(&self, role: Role, name: &str) -> bool {
+        self.find(role, name).is_some()
+    }
+
+    /// The node with the exact id-path hash (the AccessKit NodeId).
+    #[must_use]
+    pub fn by_id(&self, id: u64) -> Option<&TreeNode> {
+        self.nodes.iter().find(|n| n.id == id)
+    }
+
+    /// The nodes reachable from `from`'s subtree (depth-first, tree order).
+    /// `None` selects the whole tree; an empty tree walks to nothing.
+    #[must_use]
+    pub fn walk(&self, from: Option<u64>) -> Vec<&TreeNode> {
+        let Some(start) = from.or(self.root) else {
+            return Vec::new();
+        };
+        let mut out = Vec::new();
+        let mut stack = vec![start];
+        while let Some(id) = stack.pop() {
+            if let Some(node) = self.by_id(id) {
+                out.push(node);
+                for child in node.children.iter().rev() {
+                    stack.push(*child);
+                }
+            }
+        }
+        out
+    }
 }
 
 /// The accessibility stage, injected so `alacer-core` stays independent of
@@ -154,6 +203,82 @@ pub struct FrameCounters {
     pub events_routed: u64,
 }
 
+/// The ten named passes of the pass contract (§7.2) — each explicit, ordered,
+/// and independently traceable. Masonry's pass system as contract.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PassKind {
+    /// Hit-test + capture→bubble routing (§10.1). Dispatch-driven.
+    Event,
+    /// Recompute focus candidates after tree changes.
+    UpdateFocusable,
+    /// Resolve the active focus; emit focus diffs.
+    UpdateFocus,
+    /// Drain queued widget mutations; flags merge on drop.
+    Mutate,
+    /// Recalc styles with reason flags; diffs invalidate layout/paint.
+    Style,
+    /// Incremental measure/layout over the persistent tree.
+    Layout,
+    /// Scroll offsets and translation-only updates (§8.2).
+    Compose,
+    /// Append scene ops to the journal; clean layers replay.
+    Paint,
+    /// Build incremental AccessKit updates from dirty nodes only.
+    Accessibility,
+    /// Propagate typed actions to the app driver (side-channel, never masks).
+    Action,
+}
+
+impl PassKind {
+    /// The pass's contract name, used for tracing spans and the ledger.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Event => "event",
+            Self::UpdateFocusable => "update_focusable",
+            Self::UpdateFocus => "update_focus",
+            Self::Mutate => "mutate",
+            Self::Style => "style",
+            Self::Layout => "layout",
+            Self::Compose => "compose",
+            Self::Paint => "paint",
+            Self::Accessibility => "accessibility",
+            Self::Action => "action",
+        }
+    }
+
+    /// The passes [`PassPipeline::tick`] drives, in contract order (§7.2
+    /// passes 2–9; `event` and `action` are dispatch-driven entry points).
+    #[must_use]
+    pub const fn tick_order() -> [Self; 8] {
+        [
+            Self::Mutate,
+            Self::UpdateFocusable,
+            Self::UpdateFocus,
+            Self::Style,
+            Self::Layout,
+            Self::Compose,
+            Self::Paint,
+            Self::Accessibility,
+        ]
+    }
+}
+
+/// One pass's ledger entry: did it run, and how long did its span take.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PassRun {
+    /// Which pass.
+    pub kind: PassKind,
+    /// Whether the pass had work (skipped passes are still recorded).
+    pub ran: bool,
+    /// Wall time of the pass body, when timings are on (else 0).
+    pub nanos: u64,
+    /// Wall time of the pass's *substantive* work (the injected stage call).
+    /// The difference `nanos − work_nanos` is the pass-system bookkeeping the
+    /// M1 gate measures. Zero when unmeasured.
+    pub work_nanos: u64,
+}
+
 /// One frame's outcome, returned by [`PassPipeline::tick`].
 #[derive(Debug, Clone)]
 pub struct FrameReport {
@@ -165,6 +290,12 @@ pub struct FrameReport {
     pub a11y_ran: bool,
     /// The materialized scene (empty when nothing painted).
     pub scene: SceneSnapshot,
+    /// The pass ledger, in contract order — every tick pass, ran or skipped.
+    pub passes: Vec<PassRun>,
+    /// Focus moved this frame.
+    pub focus_changed: bool,
+    /// Total tick wall time, when timings are on (else 0).
+    pub total_nanos: u64,
 }
 
 impl FrameReport {
@@ -172,6 +303,48 @@ impl FrameReport {
     #[must_use]
     pub fn is_idle(&self) -> bool {
         !self.layout_ran && !self.paint_ran && !self.a11y_ran
+    }
+
+    /// The ledger entry for `kind`.
+    #[must_use]
+    pub fn pass(&self, kind: PassKind) -> Option<&PassRun> {
+        self.passes.iter().find(|run| run.kind == kind)
+    }
+
+    /// The four injected stages do the frame's substantive work; everything
+    /// else in the tick is pass-system bookkeeping (§7.2 kill criterion).
+    fn work_nanos(&self) -> u64 {
+        self.passes
+            .iter()
+            .filter(|run| {
+                matches!(
+                    run.kind,
+                    PassKind::Layout
+                        | PassKind::Paint
+                        | PassKind::Accessibility
+                        | PassKind::Compose
+                )
+            })
+            .map(|run| run.work_nanos)
+            .sum()
+    }
+
+    /// Pass-system bookkeeping nanoseconds: the tick minus the injected
+    /// stages' substantive work. Only meaningful with timings on.
+    #[must_use]
+    pub fn pass_overhead_nanos(&self) -> u64 {
+        self.total_nanos.saturating_sub(self.work_nanos())
+    }
+
+    /// `pass_overhead_nanos / total_nanos` — the M1 gate ratio: the collapse
+    /// trigger fires above 0.15 on the 10k-node churn workload (§7.2).
+    #[must_use]
+    pub fn pass_overhead_ratio(&self) -> f32 {
+        if self.total_nanos == 0 {
+            return 0.0;
+        }
+        crate::num::u64_to_f32(self.pass_overhead_nanos())
+            / crate::num::u64_to_f32(self.total_nanos)
     }
 }
 
@@ -185,6 +358,19 @@ pub struct PassPipeline {
     counters: FrameCounters,
     scroll_offsets: FxHashMap<NodeId, Vector>,
     last_compose_events: u64,
+    /// Per-pass wall timing (the M1 gate instrumentation); off by default.
+    timings: bool,
+    /// Pass ledger entries for dispatch-driven passes (event, action),
+    /// attributed to the next tick's report.
+    interframe: Vec<PassRun>,
+    /// Style cache — pass 5 diffs `widget.style()` against it (§7.2 pass 5).
+    style_cache: FxHashMap<NodeId, Style>,
+    /// Focus candidates, recomputed by pass 2.
+    focusables: Vec<NodeId>,
+    /// The node currently holding focus (pass 3 output).
+    focused: Option<NodeId>,
+    /// A focus request awaiting pass 3.
+    pending_focus: Option<NodeId>,
 }
 
 impl PassPipeline {
@@ -205,7 +391,43 @@ impl PassPipeline {
             counters: FrameCounters::default(),
             scroll_offsets: FxHashMap::default(),
             last_compose_events: 0,
+            timings: false,
+            interframe: Vec::new(),
+            style_cache: FxHashMap::default(),
+            focusables: Vec::new(),
+            focused: None,
+            pending_focus: None,
         }
+    }
+
+    /// Enables per-pass wall timing and the overhead ledger (the M1 gate
+    /// instrumentation; benches and the overhead test turn this on).
+    pub fn set_timings(&mut self, on: bool) {
+        self.timings = on;
+    }
+
+    /// Whether per-pass timing is enabled.
+    #[must_use]
+    pub const fn timings_enabled(&self) -> bool {
+        self.timings
+    }
+
+    /// Requests keyboard focus for `node` (resolved by pass 3 next tick).
+    /// Requests for non-focusable or dead nodes are dropped silently.
+    pub fn request_focus(&mut self, node: NodeId) {
+        self.pending_focus = Some(node);
+    }
+
+    /// The focused node, if any (pass 3 output).
+    #[must_use]
+    pub const fn focus(&self) -> Option<NodeId> {
+        self.focused
+    }
+
+    /// The focus candidates pass 2 last computed.
+    #[must_use]
+    pub fn focusables(&self) -> &[NodeId] {
+        &self.focusables
     }
 
     /// Mounts the root widget.
@@ -267,11 +489,34 @@ impl PassPipeline {
         self.layout.reset_measure_calls();
     }
 
-    /// Pass 1 (`event`): hit-test the pointer position and bubble the event
-    /// from the target to the root; the first `Handled` stops bubbling
-    /// (§10.1: z-order-aware; capture phase lands with M1).
+    /// Pass 1 (`event`): hit-test the pointer position, then route the event
+    /// through the full capture→bubble contract (§10.1): ancestors see it
+    /// first during capture (root → target), the target and its ancestors see
+    /// it again during bubble (target → root); the first `Handled` stops the
+    /// phase. Z-order-aware: the deepest, last-painted hit is the target.
     pub fn dispatch_pointer(&mut self, event: &PointerEvent) -> EventResponse {
         self.counters.events_routed += 1;
+        let mut run = PassRun {
+            kind: PassKind::Event,
+            ran: false,
+            nanos: 0,
+            work_nanos: 0,
+        };
+        let span =
+            tracing::trace_span!(target: "alacer::pass", "pass", pass = PassKind::Event.name());
+        let start = self.timings.then(std::time::Instant::now);
+        let _guard = span.enter();
+
+        let response = self.route_pointer(event, &mut run.ran);
+
+        run.nanos = start.map_or(0, |t| crate::num::u128_to_u64(t.elapsed().as_nanos()));
+        drop(_guard);
+        self.interframe.push(run);
+        response
+    }
+
+    /// The event pass body: capture walk, then bubble walk.
+    fn route_pointer(&mut self, event: &PointerEvent, ran: &mut bool) -> EventResponse {
         let Some(position) = event.position() else {
             return EventResponse::Ignored;
         };
@@ -283,17 +528,22 @@ impl PassPipeline {
                 chain.push(id);
             }
         });
-        // Reverse pre-order tail = deepest, topmost (last painted) hit.
-        for node in chain.into_iter().rev() {
-            let (response, requested) = {
-                let mut guard = self.arena.mutate(node);
-                let mut ctx = crate::events::EventCtx::new();
-                let response = guard.widget_mut().on_pointer_event(&mut ctx, event);
-                (response, ctx.take())
-            };
-            if !requested.is_empty() {
-                self.arena.merge_mask(node, requested);
+        if chain.is_empty() {
+            return EventResponse::Ignored;
+        }
+        *ran = true;
+
+        // Capture: root → target (§10.1). First `Handled` stops the phase.
+        for node in &chain {
+            let response = self.visit_with_phase(*node, EventPhase::Capture, event);
+            if response == EventResponse::Handled {
+                return EventResponse::Handled;
             }
+        }
+        // Bubble: target → root. Reverse pre-order tail = deepest, topmost
+        // (last painted) hit first.
+        for node in chain.iter().rev() {
+            let response = self.visit_with_phase(*node, EventPhase::Bubble, event);
             if response == EventResponse::Handled {
                 return EventResponse::Handled;
             }
@@ -301,37 +551,108 @@ impl PassPipeline {
         EventResponse::Ignored
     }
 
-    /// Runs exactly one frame: mutate → flux drain → layout → compose → paint
-    /// → a11y. When no mask is pending every stage is skipped — idle cost zero
-    /// (A7).
+    /// One capture/bubble visit: route the event with the phase set, merge
+    /// the widget's requested masks upward.
+    fn visit_with_phase(
+        &mut self,
+        node: NodeId,
+        phase: EventPhase,
+        event: &PointerEvent,
+    ) -> EventResponse {
+        let (response, requested) = {
+            let mut guard = self.arena.mutate(node);
+            let mut ctx = crate::events::EventCtx::with_phase(phase);
+            let response = guard.widget_mut().on_pointer_event(&mut ctx, event);
+            (response, ctx.take())
+        };
+        if !requested.is_empty() {
+            self.arena.merge_mask(node, requested);
+        }
+        response
+    }
+
+    /// Runs exactly one frame through the pass contract (§7.2): mutate →
+    /// update_focusable → update_focus → style → layout → compose → paint →
+    /// accessibility. When no mask is pending every pass is skipped — idle
+    /// cost zero (A7). Every pass is traced (`alacer::pass`) and, with
+    /// timings on, measured for the M1 overhead gate.
     ///
     /// # Errors
     ///
-    /// Propagates [`LayoutError`] from the layout stage.
+    /// Propagates [`LayoutError`] from the layout pass.
     pub fn tick(&mut self, viewport: Size) -> Result<FrameReport, LayoutError> {
-        // Pass 4 — mutate: drain queued widget mutations; flags merge on drop.
-        self.arena.drain_mutations();
+        let total_start = self.timings.then(std::time::Instant::now);
+        let mut ledger: Vec<PassRun> = std::mem::take(&mut self.interframe);
 
-        // Flux drain: the mask bridge lands masks in the arena (A1).
+        // Flux drain: the mask bridge lands masks in the arena (A1). Bookkeeping
+        // ahead of pass 4 — the bridge is the scheduling contract's seam.
         for (node, change) in self.flux.take_pending_masks() {
             self.arena.merge_mask(node, change);
         }
 
         // Drain the arena's masks into the frame's dirty map.
-        let dirty: FxHashMap<NodeId, Change> =
+        let mut dirty: FxHashMap<NodeId, Change> =
             self.arena.take_masks(Change::ALL).into_iter().collect();
         let root = self.arena.root();
         let first_frame = root.is_some_and(|r| self.arena.bounds(r).is_none());
+        let structure_changed = dirty.values().any(|m| m.contains(Change::STRUCTURE));
 
-        // Passes 5–6 — style → layout (incremental; the persistent Taffy tree
-        // is never cleared between frames, §8.1).
+        // Pass 4 — mutate: drain queued widget mutations; flags merge on drop.
+        let mut mutated: Vec<NodeId> = Vec::new();
+        ledger.push(self.run_pass(PassKind::Mutate, |s| {
+            mutated = s.arena.drain_mutations();
+            !mutated.is_empty()
+        }));
+
+        // Pass 2 — update_focusable: recompute candidates after tree changes.
+        let recompute_focusables = first_frame || structure_changed;
+        ledger.push(self.run_pass(PassKind::UpdateFocusable, |s| {
+            if recompute_focusables {
+                s.recompute_focusables();
+            }
+            recompute_focusables
+        }));
+
+        // Pass 3 — update_focus: resolve the pending request, drop focus held
+        // by dead widgets, emit FOCUS diffs on moves.
+        let mut focus_changed = false;
+        ledger.push(self.run_pass(PassKind::UpdateFocus, |s| {
+            focus_changed = s.update_focus();
+            focus_changed || s.pending_focus.is_some() || recompute_focusables
+        }));
+
+        // Pass 5 — style: diff styles against the cache; diffs invalidate.
+        // Candidates: every node the frame already considers dirty, plus the
+        // nodes pass 4 just mutated (a style change without an explicit mask
+        // is only reachable through a mutation).
+        let style_candidates = !dirty.is_empty() || !mutated.is_empty();
+        let mut style_invalidated: Vec<(NodeId, Change)> = Vec::new();
+        ledger.push(self.run_pass(PassKind::Style, |s| {
+            style_invalidated = s.style_pass(&dirty, &mutated);
+            style_candidates
+        }));
+        // Style diffs join this frame's dirty set immediately — no one-frame
+        // delay, no lingering masks.
+        for (node, change) in &style_invalidated {
+            dirty.entry(*node).or_insert(*change);
+        }
+
+        // Pass 6 — layout (incremental; the persistent Taffy tree is never
+        // cleared between frames, §8.1).
         let layout_ran = first_frame || dirty.values().any(|m| m.forces_layout());
-        let mut translated = Vec::new();
+        let mut layout_work = 0_u64;
         if layout_ran {
             let root = root.expect("root mounted for layout");
+            let start = self.timings.then(std::time::Instant::now);
             self.layout
                 .sync_and_layout(&mut self.arena, root, &dirty, viewport)?;
+            layout_work = start.map_or(0, |t| crate::num::u128_to_u64(t.elapsed().as_nanos()));
             self.counters.layout_runs += 1;
+        }
+        ledger.push(self.run_pass(PassKind::Layout, |_| layout_ran));
+        if let Some(run) = ledger.last_mut() {
+            run.work_nanos = layout_work;
+            run.nanos = layout_work; // the pass body IS the injected call
         }
 
         // Pass 7 — compose: translation-only scroll updates. Runs after layout
@@ -339,13 +660,24 @@ impl PassPipeline {
         // without touching layout — that is the whole point of translation-only
         // updates (§8.2 item 4).
         let events_since = self.counters.events_routed - self.last_compose_events;
-        if layout_ran || events_since > 0 {
-            translated = self.compose_scrolls();
-            self.last_compose_events = self.counters.events_routed;
+        let compose_due = layout_ran || events_since > 0;
+        let mut translated = Vec::new();
+        let mut compose_work = 0_u64;
+        ledger.push(self.run_pass(PassKind::Compose, |s| {
+            if compose_due {
+                let start = s.timings.then(std::time::Instant::now);
+                translated = s.compose_scrolls();
+                compose_work = start.map_or(0, |t| crate::num::u128_to_u64(t.elapsed().as_nanos()));
+                s.last_compose_events = s.counters.events_routed;
+            }
+            compose_due
+        }));
+        if let Some(run) = ledger.last_mut() {
+            run.work_nanos = compose_work;
+            run.nanos = compose_work;
         }
 
         // Pass 8 — paint: re-emit dirty layers; clean layers replay (§9.1).
-        let structure_changed = dirty.values().any(|m| m.contains(Change::STRUCTURE));
         let paint_set: FxHashSet<NodeId> = dirty
             .iter()
             .filter(|(_, m)| m.intersects(Change::PAINT.union(Change::LAYOUT)))
@@ -353,12 +685,27 @@ impl PassPipeline {
             .collect();
         let paint_ran =
             first_frame || structure_changed || !paint_set.is_empty() || !translated.is_empty();
-        if paint_ran {
-            if structure_changed {
-                self.journal.clear();
+        let mut paint_work = 0_u64;
+        let mut scene = None;
+        ledger.push(self.run_pass(PassKind::Paint, |s| {
+            if paint_ran {
+                let start = s.timings.then(std::time::Instant::now);
+                if structure_changed {
+                    s.journal.clear();
+                }
+                s.paint_dirty(structure_changed, &paint_set, &translated);
+                s.counters.paint_runs += 1;
+                // The frame's scene materialization is the paint pass's
+                // product: clean layers replay from the journal (§9.1).
+                let order = s.paint_order();
+                scene = Some(s.journal.snapshot(&order));
+                paint_work = start.map_or(0, |t| crate::num::u128_to_u64(t.elapsed().as_nanos()));
             }
-            self.paint_dirty(structure_changed, &paint_set, &translated);
-            self.counters.paint_runs += 1;
+            paint_ran
+        }));
+        if let Some(run) = ledger.last_mut() {
+            run.work_nanos = paint_work;
+            run.nanos = paint_work;
         }
 
         // Pass 9 — accessibility: incremental updates from dirty nodes only
@@ -370,20 +717,152 @@ impl PassPipeline {
             .chain(translated.iter().map(|n| self.id_hash(*n)))
             .collect();
         let a11y_ran = first_frame || !a11y_set.is_empty();
-        if a11y_ran {
-            let snapshot = self.build_tree_snapshot();
-            self.a11y.apply(&snapshot, &a11y_set);
-            self.counters.a11y_runs += 1;
+        let mut a11y_work = 0_u64;
+        ledger.push(self.run_pass(PassKind::Accessibility, |s| {
+            if a11y_ran {
+                let start = s.timings.then(std::time::Instant::now);
+                let snapshot = s.build_tree_snapshot();
+                s.a11y.apply(&snapshot, &a11y_set);
+                a11y_work = start.map_or(0, |t| crate::num::u128_to_u64(t.elapsed().as_nanos()));
+                s.counters.a11y_runs += 1;
+            }
+            a11y_ran
+        }));
+        if let Some(run) = ledger.last_mut() {
+            run.work_nanos = a11y_work;
+            run.nanos = a11y_work;
         }
 
-        let order = self.paint_order();
-        let scene = self.journal.snapshot(&order);
+        let total_nanos =
+            total_start.map_or(0, |t| crate::num::u128_to_u64(t.elapsed().as_nanos()));
+        // A frame that skipped paint replays the journal untouched — the
+        // cheap replay IS the journal's point (§9.1).
+        let scene = scene.unwrap_or_else(|| {
+            let order = self.paint_order();
+            self.journal.snapshot(&order)
+        });
         Ok(FrameReport {
             layout_ran,
             paint_ran,
             a11y_ran,
             scene,
+            passes: ledger,
+            focus_changed,
+            total_nanos,
         })
+    }
+
+    /// Runs one pass under its tracing span, recording the ledger entry.
+    /// `body` returns whether the pass had work.
+    fn run_pass(&mut self, kind: PassKind, body: impl FnOnce(&mut Self) -> bool) -> PassRun {
+        let span = tracing::trace_span!(target: "alacer::pass", "pass", pass = kind.name());
+        let start = self.timings.then(std::time::Instant::now);
+        let _guard = span.enter();
+        let ran = body(self);
+        let nanos = start.map_or(0, |t| crate::num::u128_to_u64(t.elapsed().as_nanos()));
+        drop(_guard);
+        PassRun {
+            kind,
+            ran,
+            nanos,
+            work_nanos: 0,
+        }
+    }
+
+    /// Pass 2 body: walk the arena and collect the focusable candidates
+    /// (§7.2 pass 2 — recomputed after structure changes).
+    fn recompute_focusables(&mut self) {
+        let mut focusables = Vec::new();
+        self.arena.for_each_pre_order(&mut |id, slot| {
+            if slot.widget().focusable() {
+                focusables.push(id);
+            }
+        });
+        self.focusables = focusables;
+    }
+
+    /// Pass 3 body: resolve the pending focus request, drop focus held by
+    /// dead widgets, emit `FOCUS` masks on moves. Returns whether focus
+    /// actually moved (§7.2 pass 3 — focus diffs).
+    fn update_focus(&mut self) -> bool {
+        let mut changed = false;
+        if let Some(requested) = self.pending_focus.take() {
+            let valid =
+                self.node_is_live(requested) && self.arena.slot(requested).widget().focusable();
+            if valid && self.focused != Some(requested) {
+                if let Some(old) = self.focused {
+                    self.arena.merge_mask(old, Change::FOCUS);
+                }
+                self.arena.merge_mask(requested, Change::FOCUS);
+                self.focused = Some(requested);
+                changed = true;
+            }
+        }
+        // Focus held by a removed widget is dropped (Masonry's sentinel
+        // discipline: a dead focus target must never survive the frame). The
+        // dead slot is gone from the index — no mask to merge, just release.
+        if let Some(current) = self.focused
+            && !self.node_is_live(current)
+        {
+            self.focused = None;
+            changed = true;
+        }
+        changed
+    }
+
+    /// Whether `node` is a live arena slot.
+    fn node_is_live(&self, node: NodeId) -> bool {
+        self.arena.is_live(node)
+    }
+
+    /// Pass 5 body: diff each candidate's style against the cache and return
+    /// the nodes whose style changed, tagged with the invalidation reason
+    /// (Floem's reason-flag recalc, §7.2 pass 5). Candidates are the frame's
+    /// dirty nodes plus the nodes the mutate pass just drained. The tick
+    /// merges results into its local dirty set — same frame, no one-frame
+    /// delay, no lingering arena masks.
+    fn style_pass(
+        &mut self,
+        dirty: &FxHashMap<NodeId, Change>,
+        mutated: &[NodeId],
+    ) -> Vec<(NodeId, Change)> {
+        let mut invalidated: Vec<(NodeId, Change)> = Vec::new();
+        let candidates = dirty.keys().copied().chain(mutated.iter().copied());
+        for node in candidates {
+            let style = self.arena.widget(node).style();
+            let Some(cached) = self.style_cache.get(&node) else {
+                self.style_cache.insert(node, style);
+                continue; // first sighting: the mount masks already force layout
+            };
+            if *cached == style {
+                continue;
+            }
+            // `clip_overflow` paints (viewport clipping); the rest is layout.
+            let paint_diff = cached.clip_overflow != style.clip_overflow;
+            let mut layout_only = cached.clone();
+            layout_only.clip_overflow = style.clip_overflow;
+            let _ = layout_only != style; // reason flag: any style diff invalidates layout
+            let change = if paint_diff {
+                Change::LAYOUT.union(Change::PAINT)
+            } else {
+                Change::LAYOUT
+            };
+            self.style_cache.insert(node, style);
+            invalidated.push((node, change));
+        }
+        // Structural churn retires cache entries for dead nodes.
+        if dirty.values().any(|m| m.contains(Change::STRUCTURE)) {
+            let dead: Vec<NodeId> = self
+                .style_cache
+                .keys()
+                .copied()
+                .filter(|node| !self.node_is_live(*node))
+                .collect();
+            for node in dead {
+                self.style_cache.remove(&node);
+            }
+        }
+        invalidated
     }
 
     /// Pass 7 (`compose`): applies scroll-offset deltas to descendants without
@@ -561,12 +1040,15 @@ impl PassPipeline {
 
 #[cfg(test)]
 mod tests {
-    use super::{A11ySink, LayoutEngine, LayoutError, PassPipeline, SceneJournal, TreeSnapshot};
+    use super::{
+        A11ySink, LayoutEngine, LayoutError, PassKind, PassPipeline, SceneJournal, TreeSnapshot,
+    };
     use crate::arena::{Arena, NodeId};
     use crate::events::PointerEvent;
     use crate::flux::Flux;
     use crate::geom::{Point, Rect, Size, Vector};
     use crate::mask::Change;
+    use crate::style::Style;
     use crate::widget::{EventResponse, LabelSource, Role, Widget};
     use reactive_graph::traits::Set;
     use rustc_hash::{FxHashMap, FxHashSet};
@@ -577,6 +1059,9 @@ mod tests {
     }
 
     impl Widget for Fixed {
+        fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+            self
+        }
         fn role(&self) -> Role {
             Role::Container
         }
@@ -782,6 +1267,9 @@ mod tests {
         }
 
         impl Widget for Handling {
+            fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+                self
+            }
             fn role(&self) -> Role {
                 Role::Button
             }
@@ -844,6 +1332,9 @@ mod tests {
         }
 
         impl Widget for Scroll {
+            fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+                self
+            }
             fn role(&self) -> Role {
                 Role::ScrollArea
             }
@@ -959,5 +1450,485 @@ mod tests {
         let idle = p.tick(viewport()).expect("idle frame");
         assert!(idle.is_idle());
         assert_eq!(p.counters().layout_runs, 3, "nothing pending: idle");
+    }
+
+    /// A fixed-size widget with a semantic role (focus tests).
+    struct Rolied {
+        size: crate::geom::Size,
+        role: Role,
+    }
+
+    impl Widget for Rolied {
+        fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+            self
+        }
+        fn role(&self) -> Role {
+            self.role
+        }
+
+        fn label(&self) -> LabelSource {
+            LabelSource::text("rolied")
+        }
+
+        fn measure_spec(&self) -> Option<crate::style::MeasureSpec> {
+            Some(crate::style::MeasureSpec::Fixed(self.size))
+        }
+    }
+
+    /// Records `(phase, name)` for every routed event into a shared log; can
+    /// stop a phase early to prove capture/bubble semantics.
+    struct Recorder {
+        name: &'static str,
+        role: Role,
+        log: std::sync::Arc<Mutex<Vec<(&'static str, &'static str)>>>,
+        handle_capture: bool,
+    }
+
+    impl Widget for Recorder {
+        fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+            self
+        }
+        fn role(&self) -> Role {
+            self.role
+        }
+
+        fn label(&self) -> LabelSource {
+            LabelSource::text(self.name)
+        }
+
+        fn measure_spec(&self) -> Option<crate::style::MeasureSpec> {
+            Some(crate::style::MeasureSpec::Fixed(Size::new(50.0, 20.0)))
+        }
+
+        fn on_pointer_event(
+            &mut self,
+            ctx: &mut crate::events::EventCtx,
+            _event: &PointerEvent,
+        ) -> EventResponse {
+            self.log.lock().expect("log lock").push((
+                match ctx.phase() {
+                    crate::events::EventPhase::Capture => "capture",
+                    crate::events::EventPhase::Bubble => "bubble",
+                },
+                self.name,
+            ));
+            if ctx.phase() == crate::events::EventPhase::Capture && self.handle_capture {
+                return EventResponse::Handled;
+            }
+            EventResponse::Ignored
+        }
+    }
+
+    #[test]
+    fn pass_ledger_lists_every_contract_pass_in_order() {
+        let mut p = pipeline();
+        let root = p.mount_root(Box::new(Fixed {
+            size: Size::new(100.0, 30.0),
+        }));
+        let _button = p.add_child(
+            root,
+            Box::new(Rolied {
+                size: Size::new(80.0, 20.0),
+                role: Role::Button,
+            }),
+        );
+        let report = p.tick(viewport()).expect("first frame");
+
+        let kinds: Vec<_> = report.passes.iter().map(|run| run.kind).collect();
+        assert_eq!(
+            kinds,
+            PassKind::tick_order().to_vec(),
+            "the ledger is the contract order, verbatim"
+        );
+        for run in &report.passes {
+            if run.kind == PassKind::Mutate {
+                assert!(
+                    !run.ran,
+                    "nothing was queued on mount: the mutate pass skips"
+                );
+            } else {
+                assert!(
+                    run.ran,
+                    "the first frame processes every other pass: {}",
+                    run.kind.name()
+                );
+            }
+        }
+        // Dispatch-driven passes surface in the next report's ledger.
+        p.dispatch_pointer(&PointerEvent::Move {
+            position: Point::new(10.0, 10.0),
+        });
+        let report = p.tick(viewport()).expect("post-event frame");
+        assert!(
+            report
+                .passes
+                .iter()
+                .any(|run| run.kind == PassKind::Event && run.ran),
+            "the event pass is ledgered with the frame that followed it"
+        );
+    }
+
+    #[test]
+    fn idle_frames_skip_every_pass_but_still_ledger_them() {
+        let mut p = pipeline();
+        let _root = p.mount_root(Box::new(Fixed {
+            size: Size::new(100.0, 30.0),
+        }));
+        let _ = p.tick(viewport()).expect("first frame");
+        let idle = p.tick(viewport()).expect("idle frame");
+
+        assert!(idle.is_idle());
+        for run in &idle.passes {
+            assert!(
+                !run.ran,
+                "idle frames skip {}: still ledgered",
+                run.kind.name()
+            );
+        }
+    }
+
+    #[test]
+    fn capture_precedes_bubble_and_handled_stops_the_phase() {
+        let log = std::sync::Arc::new(Mutex::new(Vec::new()));
+        let mut p = pipeline();
+        let root = p.mount_root(Box::new(Recorder {
+            name: "root",
+            role: Role::Container,
+            log: std::sync::Arc::clone(&log),
+            handle_capture: false,
+        }));
+        let target = p.add_child(
+            root,
+            Box::new(Recorder {
+                name: "target",
+                role: Role::Container,
+                log: std::sync::Arc::clone(&log),
+                handle_capture: false,
+            }),
+        );
+        let _ = p.tick(viewport()).expect("geometry");
+
+        p.dispatch_pointer(&PointerEvent::Down {
+            position: Point::new(10.0, 10.0),
+            button: crate::events::MouseButton::Left,
+        });
+        let order = log.lock().expect("log lock").clone();
+        assert_eq!(
+            order,
+            vec![
+                ("capture", "root"),
+                ("capture", "target"),
+                ("bubble", "target"),
+                ("bubble", "root"),
+            ],
+            "capture descends root→target, bubble ascends target→root"
+        );
+        let _ = target;
+    }
+
+    #[test]
+    fn handled_capture_stops_the_route_before_bubble() {
+        let log = std::sync::Arc::new(Mutex::new(Vec::new()));
+        let mut p = pipeline();
+        let root = p.mount_root(Box::new(Recorder {
+            name: "root",
+            role: Role::Container,
+            log: std::sync::Arc::clone(&log),
+            handle_capture: true, // stops capture immediately
+        }));
+        let _target = p.add_child(
+            root,
+            Box::new(Recorder {
+                name: "target",
+                role: Role::Container,
+                log: std::sync::Arc::clone(&log),
+                handle_capture: false,
+            }),
+        );
+        let _ = p.tick(viewport()).expect("geometry");
+
+        let response = p.dispatch_pointer(&PointerEvent::Down {
+            position: Point::new(10.0, 10.0),
+            button: crate::events::MouseButton::Left,
+        });
+        assert_eq!(response, EventResponse::Handled);
+        assert_eq!(
+            log.lock().expect("log lock").as_slice(),
+            [("capture", "root")],
+            "a handled capture ends the route: no target, no bubble"
+        );
+    }
+
+    #[test]
+    fn update_focusable_recomputes_after_structure_changes() {
+        let mut p = pipeline();
+        let root = p.mount_root(Box::new(Fixed {
+            size: Size::new(200.0, 100.0),
+        }));
+        let _ = p.tick(viewport()).expect("first frame");
+        assert!(p.focusables().is_empty(), "no focusable widgets yet");
+
+        let button = p.add_child(
+            root,
+            Box::new(Rolied {
+                size: Size::new(80.0, 20.0),
+                role: Role::Button,
+            }),
+        );
+        let _ = p.tick(viewport()).expect("structure frame");
+        assert_eq!(
+            p.focusables(),
+            &[button],
+            "the button is the only candidate"
+        );
+    }
+
+    #[test]
+    fn focus_resolves_requests_and_emits_one_diff() {
+        let mut p = pipeline();
+        let root = p.mount_root(Box::new(Fixed {
+            size: Size::new(200.0, 100.0),
+        }));
+        let a = p.add_child(
+            root,
+            Box::new(Rolied {
+                size: Size::new(80.0, 20.0),
+                role: Role::Button,
+            }),
+        );
+        let b = p.add_child(
+            root,
+            Box::new(Rolied {
+                size: Size::new(80.0, 20.0),
+                role: Role::TextInput,
+            }),
+        );
+        let _ = p.tick(viewport()).expect("first frame");
+
+        p.request_focus(a);
+        let report = p.tick(viewport()).expect("focus frame");
+        assert_eq!(p.focus(), Some(a));
+        assert!(report.focus_changed, "the move is reported once");
+
+        p.request_focus(b);
+        let report = p.tick(viewport()).expect("second focus frame");
+        assert_eq!(p.focus(), Some(b));
+        assert!(report.focus_changed);
+
+        // Re-requesting the same node is a no-op, not a diff.
+        p.request_focus(b);
+        let report = p.tick(viewport()).expect("no-op focus frame");
+        assert!(!report.focus_changed, "same-node focus request is silent");
+    }
+
+    #[test]
+    fn focus_requests_for_non_focusable_or_dead_widgets_are_dropped() {
+        let mut p = pipeline();
+        let root = p.mount_root(Box::new(Fixed {
+            size: Size::new(200.0, 100.0),
+        }));
+        let button = p.add_child(
+            root,
+            Box::new(Rolied {
+                size: Size::new(80.0, 20.0),
+                role: Role::Button,
+            }),
+        );
+        let _ = p.tick(viewport()).expect("first frame");
+
+        p.request_focus(root);
+        let _ = p.tick(viewport()).expect("drop frame");
+        assert_eq!(p.focus(), None, "a container cannot take focus");
+
+        p.request_focus(button);
+        let _ = p.tick(viewport()).expect("focus frame");
+        assert_eq!(p.focus(), Some(button));
+
+        p.arena_mut().remove_subtree(button);
+        let report = p.tick(viewport()).expect("removal frame");
+        assert_eq!(p.focus(), None, "dead focus holders are dropped");
+        assert!(report.focus_changed);
+    }
+
+    #[test]
+    fn style_diffs_invalidate_layout_in_the_same_frame() {
+        // A widget whose style lives in a shared cell: the mutation changes
+        // `style()` without any explicit mask — pass 5 is the recalc that
+        // must notice and invalidate.
+        struct Styler {
+            size: crate::geom::Size,
+            style: std::sync::Arc<Mutex<Style>>,
+        }
+
+        impl Widget for Styler {
+            fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+                self
+            }
+            fn role(&self) -> Role {
+                Role::Container
+            }
+
+            fn label(&self) -> LabelSource {
+                LabelSource::text("styler")
+            }
+
+            fn style(&self) -> Style {
+                self.style.lock().expect("style lock").clone()
+            }
+
+            fn measure_spec(&self) -> Option<crate::style::MeasureSpec> {
+                Some(crate::style::MeasureSpec::Fixed(self.size))
+            }
+        }
+
+        let _guard = crate::flux::batch_test_lock();
+        let style = std::sync::Arc::new(Mutex::new(Style::default()));
+        let mut p = pipeline();
+        let root = p.mount_root(Box::new(Fixed {
+            size: Size::new(200.0, 100.0),
+        }));
+        let child = p.add_child(
+            root,
+            Box::new(Styler {
+                size: Size::new(80.0, 20.0),
+                style: std::sync::Arc::clone(&style),
+            }),
+        );
+        let _ = p.tick(viewport()).expect("first frame");
+        let layout_runs_before = p.counters().layout_runs;
+
+        // Mutate the style WITHOUT any explicit mask: the mutation goes
+        // through the mutate pass, which feeds the node to pass 5's recalc —
+        // the diff must invalidate layout in the same frame.
+        let cell = std::sync::Arc::clone(&style);
+        p.arena_mut().queue_mutation(
+            child,
+            Box::new(move |_| {
+                cell.lock().expect("style lock").gap = 12.0;
+            }),
+        );
+        let report = p.tick(viewport()).expect("style-diff frame");
+        assert!(
+            report.pass(PassKind::Style).is_some_and(|run| run.ran),
+            "pass 5 saw the style diff"
+        );
+        assert!(
+            report.layout_ran,
+            "pass 5 turned the style diff into layout"
+        );
+        assert_eq!(
+            p.counters().layout_runs,
+            layout_runs_before + 1,
+            "exactly one extra layout run"
+        );
+        let _ = child;
+    }
+
+    #[test]
+    fn pass_overhead_stays_under_the_15_percent_gate_on_10k_node_churn() {
+        // The §7.2 kill criterion, as a test: on the 10k-node churn workload
+        // the pass-system bookkeeping must stay under 15% of frame time, or
+        // the contract collapses to three passes. Median over 40 churn
+        // frames keeps the assertion stable against scheduler noise.
+        let _guard = crate::flux::batch_test_lock();
+
+        /// A container whose style lives in a shared cell (churn driver).
+        struct ChurnBox {
+            size: crate::geom::Size,
+            style: std::sync::Arc<Mutex<Style>>,
+        }
+
+        impl Widget for ChurnBox {
+            fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+                self
+            }
+            fn role(&self) -> Role {
+                Role::Container
+            }
+
+            fn label(&self) -> LabelSource {
+                LabelSource::text("churn")
+            }
+
+            fn style(&self) -> Style {
+                self.style.lock().expect("style lock").clone()
+            }
+
+            fn measure_spec(&self) -> Option<crate::style::MeasureSpec> {
+                Some(crate::style::MeasureSpec::Fixed(self.size))
+            }
+        }
+
+        let mut p = pipeline();
+        let root = p.mount_root(Box::new(ChurnBox {
+            size: Size::new(400.0, 800.0),
+            style: std::sync::Arc::new(Mutex::new(Style::default())),
+        }));
+
+        // 100 containers × 100 children = 10,101 nodes.
+        const CONTAINERS: usize = 100;
+        const CHILDREN: usize = 100;
+        let mut churn_cells: Vec<(NodeId, std::sync::Arc<Mutex<Style>>)> = Vec::new();
+        for _ in 0..CONTAINERS {
+            let style = std::sync::Arc::new(Mutex::new(Style::default()));
+            let container = p.add_child(
+                root,
+                Box::new(ChurnBox {
+                    size: Size::new(200.0, 4.0),
+                    style: std::sync::Arc::clone(&style),
+                }),
+            );
+            churn_cells.push((container, style));
+            for _ in 0..CHILDREN {
+                let _leaf = p.add_child(
+                    container,
+                    Box::new(ChurnBox {
+                        size: Size::new(2.0, 2.0),
+                        style: std::sync::Arc::new(Mutex::new(Style::default())),
+                    }),
+                );
+            }
+        }
+        assert_eq!(p.arena().len(), CONTAINERS * CHILDREN + CONTAINERS + 1);
+
+        p.set_timings(true);
+        let first = p.tick(viewport()).expect("first frame");
+        assert!(
+            first.total_nanos > 0,
+            "timings are on: the frame is measured"
+        );
+
+        // Churn: each frame re-styles 100 containers through the mutate pass
+        // — the realistic per-frame invalidation load (1% of the tree).
+        let mut ratios = Vec::new();
+        for frame in 0..60_u32 {
+            let window = frame as usize % CONTAINERS;
+            for (node, cell) in churn_cells.iter().cycle().skip(window).take(100) {
+                let cell = std::sync::Arc::clone(cell);
+                // +1 keeps the first churn frame distinct from the mounted
+                // default (gap 0.0), so every measured frame invalidates.
+                let gap = (crate::num::u32_to_f32(frame) + 1.0) * 0.1;
+                p.arena_mut().queue_mutation(
+                    *node,
+                    Box::new(move |_| {
+                        cell.lock().expect("style lock").gap = gap;
+                    }),
+                );
+            }
+            let report = p.tick(viewport()).expect("churn frame");
+            assert!(report.layout_ran, "churn invalidates layout every frame");
+            if frame >= 20 {
+                ratios.push(report.pass_overhead_ratio());
+            }
+        }
+
+        ratios.sort_by(f32::total_cmp);
+        let median = ratios[ratios.len() / 2];
+        assert!(
+            median < 0.15,
+            "M1 gate: pass-system overhead {median:.3} ≥ 15% on the 10k-node \
+             churn workload — collapse to 3 passes (§7.2)"
+        );
+        assert!(median > 0.0, "the instrumentation measures something");
     }
 }

@@ -63,6 +63,10 @@ impl SceneJournal for SceneJournalImpl {
         }
     }
 
+    fn layer(&self, node: NodeId) -> Option<Vec<Primitive>> {
+        self.layers.get(&node).cloned()
+    }
+
     fn snapshot(&self, order: &[NodeId]) -> SceneSnapshot {
         let primitives = order
             .iter()

@@ -205,6 +205,50 @@ impl alacer_core::scene::GlyphSource for ThreadLocalGlyphSource {
     }
 }
 
+/// The [`TextSeam`](alacer_core::text_seam::TextSeam) implementation routed
+/// through the thread-local context — what assembly sites install so widgets
+/// can shape and measure text without depending on this crate (ADR-9 M1
+/// tightening).
+///
+/// A zero-sized marker: the seam executes on the frame thread, so routing
+/// through [`with_text`] shares the process's shaping caches.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct ThreadLocalTextSeam;
+
+impl alacer_core::text_seam::TextSeam for ThreadLocalTextSeam {
+    fn measure(
+        &self,
+        spec: &alacer_core::style::TextSpec,
+        max_width: Option<f32>,
+    ) -> alacer_core::geom::Size {
+        with_text(|ctx| ctx.measure(spec, max_width))
+    }
+
+    fn layout_glyphs(
+        &self,
+        text: &str,
+        font_size: f32,
+        max_width: Option<f32>,
+    ) -> alacer_core::text_seam::GlyphRun {
+        let layout = with_text(|ctx| ctx.layout_text(text, font_size, max_width));
+        alacer_core::text_seam::GlyphRun {
+            width: layout.width,
+            height: layout.height,
+            glyphs: layout
+                .glyphs
+                .iter()
+                .map(|glyph| alacer_core::text_seam::PlacedGlyph {
+                    x: glyph.x,
+                    y: glyph.y,
+                    size: glyph.size,
+                    font_id: glyph.font_id,
+                    glyph_id: glyph.glyph_id,
+                })
+                .collect(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{TextContext, ThreadLocalGlyphSource, ThreadLocalMeasurer, with_text};

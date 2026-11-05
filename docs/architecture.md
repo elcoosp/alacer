@@ -1,0 +1,704 @@
+# Alacer — System Architecture
+
+> **Alacer** — Latin for *swift, eager, lively*; the etymon of English *alacrity*: **brisk and cheerful readiness**.
+> A retained-mode Rust UI framework whose reactivity, layout, paint, and accessibility consume **one shared invalidation currency** — engineered for best-in-class performance *and* best-in-class developer experience, with zero-config accessibility.
+
+| | |
+|---|---|
+| **Status** | `architecture/draft-1` — ratified against the 2026-11-05 ecosystem audit |
+| **Date** | 2026-11-05 (Europe/Paris) |
+| **Evidence base** | `rust-ui-framework-audit-2026-11-05.zip`: 16 repositories verified, cloned, and pinned at exact SHAs; ~705 unique `file:line` citations, every path verified to exist in its pinned clone. Audit codename "Meridian" is superseded by **Alacer** (naming rationale in §2). |
+| **Audience** | Core engineers building Alacer; reviewers evaluating its claims; future maintainers |
+| **Companion documents** | `VISION.md`, `adr/ADR-1…7`, `audit/INDEX.md`, `audit/MATRIX.md`, `audit/STEAL.md`, `audit/INNOVATE.md`, `audit/PRIMITIVES.md`, `audit/LICENSES.md`, `audit/BENCHMARKS.md` (bundled in the audit ZIP) |
+
+**Citation legend.** Claims about other frameworks are cited to the audited source tree at the pinned SHA, e.g. `crates/gpui/src/window.rs:3743 @ 056a44d` (full SHAs in `audit/INDEX.md`). Cross-framework synthesis lives in `audit/MATRIX.md`; per-framework reports in `audit/<framework>/REPORT.md`. Where the audit could not verify something, the claim is marked **UNVERIFIED** — this document inherits the audit's zero-fabrication policy. Design budgets for Alacer itself are labeled **[budget]** — they are commitments to be CI-enforced, not measurements.
+
+---
+
+## Contents
+
+1. [Thesis](#1-thesis) — the quadrant, in one sentence and four numbers
+2. [Name](#2-name) — why Alacer
+3. [Design axioms](#3-design-axioms) — eight falsifiable commitments
+4. [System overview](#4-system-overview) — layers, crates, and the life of a frame
+5. [State & flux — the reactive core](#5-state--flux--the-reactive-core)
+6. [Structure — views, reconciliation, identity](#6-structure--views-reconciliation-identity)
+7. [Widget core — arena and the pass contract](#7-widget-core--arena-and-the-pass-contract)
+8. [Layout — persistent Taffy + torin-style incrementality](#8-layout--persistent-taffy--torin-style-incrementality)
+9. [Rendering — one scene journal, two honest backends](#9-rendering--one-scene-journal-two-honest-backends)
+10. [Input & focus](#10-input--focus)
+11. [Accessibility — a type-level contract](#11-accessibility--a-type-level-contract)
+12. [Platform integration](#12-platform-integration)
+13. [DX architecture](#13-dx-architecture) — the best-in-class developer experience plan
+14. [Performance architecture](#14-performance-architecture) — the best-in-class performance plan
+15. [What Alacer will not build](#15-what-alacer-will-not-build)
+16. [Moats](#16-moats) — three defensible differentiators
+17. [ADR register](#17-adr-register) — 11 decision records
+18. [Roadmap & kill criteria](#18-roadmap--kill-criteria)
+19. [Risks & open questions](#19-risks--open-questions)
+20. [Provenance, licensing, and honesty](#20-provenance-licensing-and-honesty)
+21. [Glossary](#21-glossary)
+22. [Appendix: evidence index](#22-appendix-evidence-index)
+
+---
+
+## 1. Thesis
+
+> **Alacer is a retained-mode Rust UI framework in which reactivity, layout, paint, and accessibility consume one shared invalidation currency — delivering Zed-class responsiveness, Leptos-class reactivity ergonomics, and zero-config accessibility: the quadrant no audited framework occupies.**
+
+The audit of 16 Rust UI frameworks (2026-11-05, pinned SHAs) produced four numbers that justify this project's existence:
+
+| # | Verified finding | Consequence |
+|---|---|---|
+| **4** | Fine-grained reactivity was independently re-implemented four times (Leptos `reactive_graph`, Dioxus signals, Freya 0.4 core, Floem's crate — `audit/MATRIX.md` §3). One of them is MIT-licensed, framework-independent, and complexity-tested. | Writing a fifth reactive core is negative-value work. We adopt, extend, and upstream. |
+| **5** | Five custom layout engines exist (Masonry, torin, morphorm, Slint's water-filling solver, Makepad's Walk) while Taffy — which won the flexbox/grid API war — is cleared and rebuilt *every frame* by the most layout-serious desktop app in the ecosystem (`crates/gpui/src/window.rs:3743` @ `056a44d`). | The industry's missing piece is not another solver; it is **incremental relayout over a persistent tree**. We build exactly that, once. |
+| **2** | Two of the most popular "hobby-scale" stacks ship **zero** accessibility (Iced and Floem, grep-verified; iced's a11y issue #282 has been open since 2020). | Zero-config accessibility is the single largest verified differentiation slot in the ecosystem. |
+| **1** | Dioxus's `subsecond` hot-patcher became ecosystem infrastructure: Dioxus, GPUI, Leptos, and Freya all hot-reload through it. | State-preserving hot reload is table stakes we adopt for free — and make CI-grade. |
+
+**The market failure Alacer exploits:** every audited stack optimizes one vertex of the triangle *performance × ergonomics × accessibility* and treats the others as a tax. GPUI buys editor-class speed with per-frame rebuilds and a Zed-sized platform investment; egui buys unmatched tool-DX with immediate-mode ceilings (a11y nodes built lazily during the UI walk, unbounded glyph/state caches — `crates/epaint/src/text/glyph_atlas.rs:381-395`, `crates/egui/src/util/id_type_map.rs:573-601` @ `fc9d66d`); Iced and Floem buy approachability by dropping a11y entirely. Nobody composes. Composition is the product.
+
+**Definition of done for v1** (traceable to §18): a widget set covering the counter/todo/data-table canon; benchmarks where Alacer beats both the immediate-mode DX baseline (egui) and the best audited retained stack on the same hardware in at least one shared workload; an accessibility CI gate that fails builds on unnamed widgets; and a public, reproducible benchmark harness (spec: `audit/BENCHMARKS.md` §5).
+
+---
+
+## 2. Name
+
+**Alacer** (*ah-LAH-ker*), Latin adjective: *swift, quick, lively, eager*. It is the root of English **alacrity** — "brisk and cheerful readiness" — which is precisely the product contract: **swift** (performance) and **cheerful** (developer experience) are one property, not a trade-off.
+
+Selection was evidence-driven, in the audit's spirit:
+
+- **crates.io** (checked live, 2026-11-05): `alacer` is **unregistered**. Nearly every other candidate was taken and rejected on collision grounds: `ferrite` (an image-loading crate), `keel` (an active "Keel Engine"), `pronghorn`, `iridium`, `flywheel`, `stator`, `escapement`, `carina`, `fovea`, `saccade`, `tessera`, `vivace`, `legato`, `cairn`, `heddle` — all occupied.
+- **GitHub** (checked live): 21 repos named `alacer`, none a software framework (max 7★, no Rust project).
+- **Crate family:** `alacer`, `alacer-core`, `alacer-view`, `alacer-layout`, `alacer-render`, `alacer-text`, `alacer-a11y`, `alacer-platform`, `alacer-widgets`, `alacer-testing`, `alacer-devtools`, `alacer-hot` (availability to be re-verified at first publish — `UNVERIFIED` until done).
+- The audit's internal codename "Meridian" is retired; all ADRs and audit references carry over unchanged.
+
+---
+
+## 3. Design axioms
+
+Each axiom is a commitment with a falsifiable consequence. "Evidence" is the audited mechanism that motivates it.
+
+### A1 — One currency of change
+Every cross-cutting consumer — layout, paint, accessibility, devtools — consumes the same per-node `Change` masks. No subsystem invents private invalidation.
+*Evidence of the wound:* GPUI clears its entire Taffy tree every frame and hides the cost behind entity caches (`crates/gpui/src/window.rs:3743`, `taffy.rs:55-60`); Freya 0.4 regressed to full repaint in its rewrite (`// TODO: Use incremental rendering`, `crates/freya-core/src/render_pipeline.rs:58`); Iced's damage-based redraw exists only on its software path — its wgpu `present()` accepts no damage parameter (`wgpu/src/window/compositor.rs:230-264` vs `tiny_skia/src/window/compositor.rs:149-185`).
+*Consequence:* a feature that cannot express itself as a mask is rejected or redesigned. Devtools read the same masks (§13.3).
+
+### A2 — Steal proven cores; own only the composition
+We write **no subsystem for which a maintained, permissively-licensed, production-proven crate exists.** Adopted: `reactive_graph` (reactivity), `taffy` (flex/grid), torin's algorithm (incremental relayout), `parley`/`fontique`/`swash` (text), `accesskit`, `winit`, `wgpu`, `subsecond` (hot reload). Ported-as-algorithm: Slint's partial renderer. Owned: the **composition** — masks, passes, journals, and the DX/tooling above them.
+*Evidence:* four reactive reimplementations; five layout engines; Masonry's pass contract is reusable as a design; `audit/STEAL.md` classifies all 20 steals (IDEA/ALGO/CODE) with licenses.
+
+### A3 — Accessibility is a type-level invariant, not a feature
+A widget that cannot be named cannot be compiled. Role and label source are required trait methods (Masonry precedent: `masonry_core/src/core/widget.rs:424-435` @ `dc49687`); test queries route through the accessibility tree (egui kittest precedent); a debug-mode CI walker fails builds on unnamed widgets.
+*Consequence:* the a11y gap map (Iced/Floem/Blinc = zero) is structurally impossible in Alacer, by construction rather than by discipline.
+
+### A4 — The test harness mirrors production
+Headless testing runs the **real** pass pipeline with a software rasterizer — the design that four teams independently converged on (masonry_testing, freya-testing, egui kittest, floem headless; `audit/STEAL.md` #9). No mock event loop, no mock renderer for tests.
+*Consequence:* every feature must be headless-testable before merge; GPU-less CI is the default, not a downgrade.
+
+### A5 — Never fork core infrastructure
+Iced pins three in-org forks by rev (winit, cosmic-text, cryoglyph — `Cargo.toml:206,207,249` @ `8ff48c4`); Floem rides a Lapce winit fork (`Cargo.toml:65` @ `1351ffb`). Both pay documented supply-chain and merge pain. KAS, by contrast, adopted a winit platform feature upstream within days (`kas-core/src/data_transfer.rs:4-7` @ `98d1419`).
+*Consequence:* patches go upstream; a fork requires an ADR with a sunset plan (§17, ADR-1/ADR-9).
+
+### A6 — Budgets are contracts, not aspirations
+Floem commits event-path criterion baselines *inside a normative spec* — ~2.25 ns cached hit-test, ~390-410 ns pointer dispatch (`src/event/README.md:334-412` @ `1351ffb`). We extend the practice to build time, binary size, memory, and frame phases: budgets live in CI, regressions are red.
+*Consequence:* performance debates end with a diff to a baseline file, not an opinion.
+
+### A7 — Sustained speed, not sprint speed
+Cheetahs win benchmarks; the 10,000th frame wins users. Immediate mode is a treadmill — correct and simple, but it re-pays full cost every frame; Alacer is a **flywheel** — work done once (measurement, shaping, journal entries, a11y nodes) is retained and re-used until invalidated.
+*Evidence:* egui's whole-UI repaint each frame vs GPUI's `Entity::cached` subtree replay making per-frame element-tree rebuilds viable at editor scale (`crates/gpui/src/view.rs:552-568` @ `056a44d`); Masonry's debug-mode purity panics that catch cache-coherence bugs structurally (`masonry_core/src/passes/layout.rs:72-99`).
+*Consequence:* idle CPU = 0% (`ControlFlow::Wait`); the warm paint path for a static UI performs **zero heap allocations** [budget, CI-enforced via dhat].
+
+### A8 — The software path is first-class
+One scene journal, consumed by both the GPU backend and the software backend. Slint's partial renderer already wraps both its Skia and software renderers — proof the pattern works (`internal/core/partial_renderer.rs:273` @ `0b1c00d`); Iced's GPU/software damage asymmetry is the cautionary tale.
+*Consequence:* CI, screenshots, headless tests, and low-end machines exercise the identical scene representation the GPU sees.
+
+---
+
+## 4. System overview
+
+### 4.1 Layers
+
+```mermaid
+flowchart TB
+    subgraph APP["Application"]
+        UI["rsx! views + Signal/Memo/Effect state"]
+    end
+    subgraph FLUX["flux — reactivity (adopted: reactive_graph)"]
+        G["dependency graph · push-Check / pull-Update"]
+        E["effect queue · batch() · owners"]
+    end
+    subgraph CUR["invalidation currency — the heart"]
+        M["Change { LAYOUT · PAINT · A11Y } per-node masks"]
+    end
+    subgraph CORE["core — retained widget tree (owned)"]
+        A["tree arena · WidgetIds · passes"]
+        P["event → focus → mutate → style → layout → compose → paint → a11y"]
+    end
+    subgraph SURF["surface"]
+        L["layout: persistent Taffy + torin-style deltas"]
+        S["scene journal (append-only paint ops)"]
+        R["renderers: wgpu | tiny-skia+softbuffer"]
+        T["text: parley + fontique + swash + GPU glyph atlas"]
+        K["accesskit TreeUpdates"]
+        W["winit · muda · rfd · arboard · tray-icon"]
+    end
+    UI -->|"write batch"| G
+    G --> E -->|"masks, never direct mutation"| M
+    M --> P
+    M --> L
+    P --> S
+    S --> R
+    P --> T
+    M --> K
+    W -->|"window events"| P
+```
+
+ASCII fallback:
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│ application: rsx! views · Signal/Memo/Effect · owners          │
+└───────────────┬────────────────────────────────────────────────┘
+                │ write batch (coalesced)
+┌───────────────▼────────────────────────────────────────────────┐
+│ flux: reactive_graph — push-Check/pull-Update, effect queue    │
+└───────────────┬────────────────────────────────────────────────┘
+                │ Change{Layout,Paint,A11y} masks (merged upward)
+┌───────────────▼──────────────┐   ┌─────────────────────────────┐
+│ core: arena + pass system    │   │ layout: persistent Taffy    │
+│ event→focus→mutate→style→    │◄──┤ + torin-style incremental   │
+│ layout→compose→paint→a11y    │   │ deltas, LRU measure cache   │
+└───────┬───────────┬──────────┘   └─────────────────────────────┘
+        │           │
+        ▼           ▼
+┌───────────────────┐ ┌───────────────────────────────────────────┐
+│ scene journal     │ │ accessibility: accesskit incremental      │
+│ (append-only ops) │ │ TreeUpdates from dirty nodes              │
+└─────┬───────┬─────┘ └───────────────────────────────────────────┘
+      │       │
+      ▼       ▼
+┌───────────┐ ┌──────────────┐   ┌───────────────────────────────┐
+│ wgpu      │ │ tiny-skia +  │   │ platform: winit · muda · rfd  │
+│ (primary) │ │ softbuffer   │   │ arboard · tray-icon           │
+└───────────┘ └──────────────┘   └───────────────────────────────┘
+```
+
+### 4.2 Crate workspace
+
+Layering is a DAG, enforced in CI (no upward deps, no cycles, facade-only re-exports). Public API surface is confined to `alacer` + leaf crates; internals are free to change (ADR-9).
+
+| Crate | Responsibility | Key dependencies (all MIT/Apache) | LOC budget [budget] |
+|---|---|---|---|
+| `alacer` | Facade: prelude, re-exports, docs, feature flags | all below | ≤ 3k |
+| `alacer-hot` | subsecond integration; hot-patch contract | `subsecond` | ≤ 2k |
+| `alacer-devtools` | Causality inspector, mask heatmap, frame journals (feature-gated) | `alacer-core`, serde, ws | ≤ 15k |
+| `alacer-testing` | Headless harness, a11y queries, snapshots, record/replay, fuzz targets | `alacer` + tiny-skia | ≤ 20k |
+| `alacer-widgets` | Widget library (button, label, text input, list, table, scroll…) | `alacer-core` | ≤ 30k |
+| `alacer-platform` | winit integration, event coalescing, clipboard/menus/dialogs/tray | `winit`, `muda`, `rfd`, `arboard`, `tray-icon`, `accesskit_winit` | ≤ 15k |
+| `alacer-a11y` | AccessKit contract, incremental TreeUpdates, id-path NodeIds | `accesskit` | ≤ 8k |
+| `alacer-text` | parley/fontique/swash façade, shaping caches, glyph atlas | `parley`, `fontique`, `swash` | ≤ 12k |
+| `alacer-render` | Scene journal, wgpu + tiny-skia backends, damage/partial paint | `wgpu`, `tiny-skia`, `softbuffer` | ≤ 35k |
+| `alacer-layout` | Persistent Taffy host, torin-style incremental engine, measure cache | `taffy`, `euclid` | ≤ 10k |
+| `alacer-view` | rsx! proc-macro, view tree, keyed reconciliation, id-path hashing | `syn`, `quote`, `alacer-core` | ≤ 15k |
+| `alacer-core` | Widget trait + arena + pass system + Change masks + focus/IME contract | `euclid`, `tracing` | ≤ 25k |
+
+Dependency weight is a design goal: the audit's build-cost proxies show lockfiles of 599–1,576 unique crates for peer stacks (`audit/BENCHMARKS.md` §2). Alacer's own-code budget is ~190k LOC — deliberately larger than a toy, an order of magnitude smaller than Makepad's 1.85M-LOC vendoring monorepo — and its *direct* dependency list is the twelve crates above.
+
+### 4.3 The life of a frame
+
+Design budgets for a 120 Hz frame (8.33 ms) on the reference rig (§14.2), mid-size app (1k nodes, one region dirty) **[budget]**:
+
+| Phase | Budget | Mechanism |
+|---|---|---|
+| Input coalescing | ≤ 0.3 ms | compatible-event merge, wheel accumulation (§10.2) |
+| Flux: effect drain to fixpoint | ≤ 0.5 ms | push-Check/pull-Update; 1-bit coalescing; batch() |
+| Reconciliation (view diff → mutations) | ≤ 1.0 ms | peel → key map → LIS; only dirty scopes |
+| Layout (incremental) | ≤ 2.0 ms | common-ancestor re-measure + translation-only updates |
+| Paint (journal append) | ≤ 2.5 ms | dirty subtrees only; cached subtrees replayed |
+| Accessibility TreeUpdate | ≤ 0.5 ms (p99 @ 1k nodes) | dirty-node incremental updates |
+| Present | remainder | damage-aware on both backends |
+
+Idle contract: no timers, no polling — `ControlFlow::Wait`; 0% CPU between interactions [budget]. Violations of any phase budget are CI failures against committed criterion/tracing baselines (A6), not release-note apologies.
+
+---
+
+## 5. State & flux — the reactive core
+
+### 5.1 Decision: adopt `reactive_graph`, extend, upstream
+
+Alacer's reactivity is **Leptos's `reactive_graph` crate (MIT) as a dependency — not a vendored copy, not a re-implementation.** It is the only Rust reactivity engine that is (a) framework-independent, (b) runtime-agnostic via `any_spawner` (tokio, glib, wasm-bindgen, async-executor — `any_spawner/Cargo.toml:12-20, 33-39` @ `7d656a4`), and (c) complexity-tested (2,170 test LOC including amortized-regression tests, of 17,794 source LOC). Three other frameworks converged on the same design — Dioxus's signals/generational-box, Freya's 0.4 core, Floem's crate — independently re-deriving it (ADR-6). A fifth hand-rolled core would repeat the ecosystem's most expensive duplication.
+
+Core semantics we inherit (all cited at `7d656a4`):
+
+| Mechanism | What it buys us | Where verified |
+|---|---|---|
+| **push-Check / pull-Update** propagation | glitch suppression; recomputation only toward actual dirty sources | `reactive_graph/src/computed/inner.rs:69-79, 81-97, 106-124` |
+| **Order-preserving `FxIndexSet` edges** | effects observe dependencies in registration order ("the inner effect assumes the outer has already run" — `shift_remove` preserves it) | `src/graph/sets.rs:1-13, 84-93` |
+| **1-bit effect channel** (`AtomicBool` + `AtomicWaker`) | N synchronous signal writes coalesce into **one** wake/rerun | `src/channel.rs:17-21, 51-56, 61-77` |
+| **WriteGuard notifies on drop** | notifications deferred until the mutable borrow ends — no torn reads | `src/signal/guards.rs:354-368` |
+| **`batch()`** | nested-safe, ordered `IndexSet` replay at scope end | `src/effect/immediate.rs:150-183, 210-255` |
+| **Owner tree** with amortized-O(1) pruning + regression tests; pause/resume cascades | leak-safe teardown; disposal order children → cleanups → arena | `src/owner.rs:327-351`, `:546-559`, `owner.rs:661-708` (tests); `owner.rs:476-515` (pause/resume); `src/owner.rs:533-543` (structure) |
+| **`RenderEffect`** | synchronous first run *during rendering*; per-dynamic-slot render bindings; re-dirty on hot patch | `src/effect/render_effect.rs:22-37, 175-216` |
+
+### 5.2 What Alacer adds (and gives upstream)
+
+1. **Memo cycle detection.** Verified gap: `reactive_graph` has none (grep clean; only an `ImmediateEffect` recursion warning at `immediate.rs:352-354`). A memo cycle today misbehaves silently. We contribute a dev-only DFS-over-edges detector at memo creation — the same class of check Masonry applies to measure purity. *Kill-switch note (ADR-6):* if effect scheduling cannot drive paint batching within M0's budget, GPUI-style draw-level entity tracking (`crates/gpui/src/app.rs:1459-1466, 1468-1495` @ `056a44d`) becomes the documented fallback for paint, keeping `reactive_graph` for data.
+2. **Borrow-location diagnostics.** Port Floem's `TrackedRefCell` (MIT): in debug builds, signal cells record the `Location` of every borrow, turning "already borrowed" panics into a two-location diff (`reactive/src/signal.rs:29-37, 118-120` @ `1351ffb`).
+3. **The mask bridge (this is the composition).** Effects in Alacer do not mutate widgets. Every effect drain ends by applying `Change` masks to arena nodes; widget mutation happens only inside the pass system (§7). This is the single rule that makes Pillar 3 (§4.1) possible: *reactivity is upstream of invalidation, never tangled with it.*
+4. **A scheduling contract, test-enforced:** *one write batch ⇒ at most one layout+paint cycle* (plus an animation-tick frame when springs are active). Freya is the counterexample we refuse to become: its memos/effects are async task loops with arrival-order scheduling and no cycle detection (`crates/freya-core/src/lifecycle/memo.rs:106-116`, `effect.rs:48-203` @ `0b13171`).
+
+### 5.3 Public API surface (what users touch)
+
+```rust
+use alacer::prelude::*;
+
+#[derive(Clone, PartialEq)]
+struct Todo { done: bool, label: String }
+
+fn app() -> View {
+    let todos = use_signal(Vec::<Todo>::new);        // Signal<Vec<Todo>>
+    let remaining = use_memo(move ||                 // Memo<usize>, tracked automatically
+        todos.with(|t| t.iter().filter(|x| !x.done).count()));
+
+    rsx! {
+        input { placeholder: "Add a todo…",
+                on_submit: move |text| todos.write().push(Todo { done: false, label: text }) }
+        for (i, todo) in todos.read().iter().enumerate() {   // fine-grained: per-item bindings
+            todo_row { key: i, todo, on_toggle: move |_| todos.write()[i].done ^= true }
+        }
+        footer { "{remaining} items left" }                  // re-renders this slot only
+    }
+}
+```
+
+Ergonomic targets, borrowed from the audited winners: `Copy` signal handles over generational arenas (Dioxus `packages/generational-box` semantics — thread-local arenas, generation counters, `Owner` teardown, `packages/generational-box/src/unsync.rs:38-46`, `entry.rs:31-59` @ `7dfd07e`); dynamic per-run dependency tracking (no manual `unwrap`-style declarations); hooks-rule violations caught with actionable panics (Freya's HOOKS_ERROR pattern, `lifecycle/base.rs:9-107` @ `0b13171`).
+
+**Why not the alternatives (decided, with evidence):**
+- *Elm-style whole-app re-run* (Masonry/Xilem): every message re-runs `app_logic` and diffs the whole view tree (`xilem/src/driver.rs:256-293` @ `dc49687`) — a tax that grows with app size, paid even when one label changes.
+- *Immediate-mode no-reactivity* (egui): unmatched for tools, but it forces whole-UI repaint and structurally complicates a11y/damage (§9, §11).
+- *Entities + draw-level tracking only* (GPUI): cheap and correct for redraws, but no memo-level data reuse; adopted as the paint-consumer fallback, not the core (ADR-6).
+
+---
+
+## 6. Structure — views, reconciliation, identity
+
+### 6.1 View layer: ephemeral builders, retained widgets
+
+Alacer separates what is *declared* from what *lives*:
+
+- **View tree** — ephemeral, re-created for dirty scopes only: a typed tree produced by `rsx!` (proc-macro builders; no external DSL — §15).
+- **Widget tree** — retained, arena-owned: created once, mutated in place; widgets are never re-created on state change (Xilem/Masonry bridge precedent: view diff emits `WidgetMut` mutations; `xilem_masonry/src/pod.rs:21-59`, `masonry_root.rs:45-71` @ `dc49687`).
+
+This hybrid is the audited sweet spot: GPUI proves per-frame element trees need entity caches to survive editor scale (`crates/gpui/src/element.rs:10-14`, `view.rs:552-568`); Masonry proves retained widgets + ephemeral views give a11y and IME a structural home. Reconciliation cost is bounded by scoping: only scopes dirtied by the flux layer re-run their view closures (the Leptos insight — each dynamic slot is its own binding — applied to a widget world).
+
+### 6.2 Keyed reconciliation: peel → key map → LIS
+
+For collections, Alacer ports the diff pipeline Dioxus hardened (Apache/MIT, `packages/vdom/src/diff/iterator.rs:231-352` @ `7dfd07e`):
+
+1. **Prefix/suffix peel** — match runs with equal keys at both ends (`iterator.rs:250-267`).
+2. **Key map** — remaining nodes resolved through a hash map of keys (debug-assert: keys unique — `iterator.rs:241-254`).
+3. **Longest-increasing-subsequence** — LIS members are "stable": they do not move; everything else is the minimal mutation set (`iterator.rs:271-346`). Floem's LCS-style keyed diff (`src/view/mod.rs:398-480` @ `1351ffb`) is the cross-check ALGO reference.
+
+Anti-goal: Iced's default — index-based `TypeId`-tag diffing where a mismatch recreates whole subtree state (`core/src/widget/tree.rs:62-73` @ `8ff48c4`), with keying available only as opt-in `keyed_column` (`widget/src/keyed.rs:1-42`). Keying is the default in Alacer's list widgets; index-pairing remains an explicit, documented opt-out for append-mostly lists.
+
+### 6.3 Identity: one hash, four consumers
+
+Every element gets an **id path** from the view structure; each path prefix carries a pre-folded hash (GPUI design, `crates/gpui/src/element.rs:212-236` @ `056a44d`). That single hash value serves as:
+
+| Consumer | Role of the hash |
+|---|---|
+| Element-state slot | persistence key across re-renders (GPUI `(GlobalElementId, TypeId)` pattern, `window.rs:1044`) |
+| Hit-testing identity | the same node id reported by the spatial index (§10.1) |
+| AccessKit `NodeId` | stable across frames without extra mapping tables (GPUI: `element.rs:253-255`) |
+| Hot-reload template key | template signals keyed by `file:line:col` (Dioxus global-signal interning, `packages/signals/src/global/mod.rs:120-170` @ `7dfd07e`) |
+
+One identity system for state, input, accessibility, and tooling kills an entire class of drift bugs — the a11y tree can never disagree with the hit-test tree about what a node *is*.
+
+### 6.4 Correctness regime for the diff
+
+Dioxus is the only audited project fuzzing its reconciler; we adopt the practice wholesale (IDEA+CODE): a mock-tree **oracle** (`packages/oracle/src/lib.rs:1-9`) + libFuzzer structured-mutation harness asserting *incremental result ≡ fresh rebuild* (`packages/fuzz/README.md:1-18`), plus a miri stress suite (`packages/vdom/tests/miri_stress.rs`). The same harness pattern later guards the invalidation engine (§8.4) and the scene journal (§9.2).
+
+---
+
+## 7. Widget core — arena and the pass contract
+
+### 7.1 Arena
+
+Widgets live in a `tree_arena`-style arena (Masonry's standalone `tree_arena` crate, Apache-2.0): safe nested-`Vec` nodes with a parents map as the **default**; an O(1) hash-map arena exists upstream but ships with 11 `unsafe` blocks and is self-described as "not yet fully tested" (`tree_arena/src/lib.rs:7-75`, `tree_arena_unsafe.rs:8` @ `dc49687`). Alacer ships safe-by-default; the fast arena lands only behind a feature flag *after* passing the fuzz equivalence suite (ADR-9). `WidgetId` = `NonZeroU64` from a global atomic counter, attributed on attach (`masonry_core/src/core/widget.rs:34-44`).
+
+All tree mutation flows through guard types that **merge invalidation flags upward on Drop** (Masonry `WidgetMut` discipline, `masonry_core/src/core/widget_mut.rs:22-43`) — combined with GPUI's lease-and-panic re-entrancy protection (`entity_map.rs:164-177, 296-307` @ `056a44d`): mutating a widget mid-update is a panic with the two contending locations named.
+
+### 7.2 The pass contract
+
+Ten named passes, each explicit, ordered, and independently traceable (Masonry's pass system as contract — `masonry_core/src/doc/pass_system.md:26-41, 133-147` @ `dc49687`; ~3,600 pass LOC in Masonry validates the scale). Every cross-cutting concern becomes a testable, debuggable stage instead of scattering through callbacks:
+
+| # | Pass | Responsibility | Flag consumed / produced |
+|---|---|---|---|
+| 1 | `event` | target widget via spatial index + z-order; capture → bubble along precomputed immutable paths (Floem's 400-line normative spec, `src/event/README.md:24-152, 154-242` @ `1351ffb`) | consumes input; emits masks |
+| 2 | `update_focusable` | recompute focus candidates after tree changes | `Change::Structure` |
+| 3 | `update_focus` | resolve active focus; emit platform IME area (Masonry sentinel pattern, `render_root.rs:47`) | focus diffs |
+| 4 | `mutate` | drain queued `WidgetMut` closures; flags merge on Drop | `Change::*` |
+| 5 | `style` | recalc with reason flags — Floem's Chromium-grade `StyleReasonFlags` (SELECTOR/ANIMATION/TRANSITION/INHERITED_CHANGE…, `src/style/recalc.rs:1-69` @ `1351ffb`) to fixpoint | `Change::Layout`/`Paint` |
+| 6 | `layout` | measure/layout split (Masonry `LenReq` model, `layout/len_req.rs`); 10-slot LRU measurement cache per widget (`layout/measurement_cache.rs:7-94`); **debug purity panics** (`passes/layout.rs:72-99`) | `Change::Layout` → geometry |
+| 7 | `compose` | scroll offsets, transforms; translation-only updates (torin `post_measure` pattern, §8.2) | geometry → final rects |
+| 8 | `paint` | append scene ops to the journal; skip non-dirty subtrees; replay cached ranges | `Change::Paint` |
+| 9 | `accessibility` | build incremental AccessKit updates from dirty nodes only (`passes/accessibility.rs:16-60` pattern) | `Change::A11y` |
+| 10 | `action` | propagate typed `Action`s to ancestors, then to the app driver (`pass_system.md:99-103`) | side-channel, never masks |
+
+*Pass-overhead kill criterion:* if pass-system bookkeeping exceeds 15% of frame time on the 10k-node churn workload (tracing spans, M1 gate), collapse to a 3-pass pipeline — the masks and the journal survive; the taxonomy shrinks.
+
+---
+
+## 8. Layout — persistent Taffy + torin-style incrementality
+
+### 8.1 The decision (ADR-3)
+
+- **Taffy stays** — flex + grid, multi-org maintained (GPUI pins `=0.15.0`; Floem 0.9.2; Slint delegates flexbox to taffy 0.15.1; blitz uses `stylo_taffy` — `audit/MATRIX.md` §4). Building a sixth engine is exactly the duplicated work A2 forbids.
+- **The tree persists** — never cleared between frames. The anti-pattern is specific and verified: GPUI clears its whole `TaffyTree` after every draw (`window.rs:3743`, `taffy.rs:55-60`) and hides the cost behind entity caches — a tax on every general-purpose app that uses its stack.
+- **Incrementality is ported from torin (MIT)** — Freya's 3.7k-LOC engine proves partial relayout works over an engine seam (`crates/torin/src/torin.rs:44-242`, `measure.rs:59-154` @ `0b13171`).
+- **Masonry's measurement discipline is adopted as contract** — measure/layout split, per-widget LRU cache, debug purity panics.
+
+### 8.2 The incremental algorithm (ported semantics, cited at `0b13171`)
+
+1. **Dirty-reason map** — per-node `DirtyReason` (torin: `None | InnerLayout | Reorder` at `torin.rs:94-107`; Alacer extends with `Style` and `Text`).
+2. **Invalidation walk** — `invalidate_with_reason` walks dependants and stops at ascendants that do not need re-measure (`torin.rs:197-242`).
+3. **Root candidate** — the **closest common ancestor** of dirty nodes bounds the re-measure region (`torin.rs:44-92`, `measure()` at 289-330).
+4. **Translation-only updates** — if only position changed (ancestor moved, size identical), `recursive_translate` repositions without re-measuring (`measure.rs:59-154`). This is the workhorse: scrolling a 10k-row list touches translations, not measurements.
+5. **Text is a node concern** — text/font changes mark only the text node dirty in Taffy (Floem pattern: `taffy.mark_dirty(node)`, `src/views/label.rs:214-218` @ `1351ffb`), never restyling the tree.
+
+### 8.3 Numeric discipline
+
+- Layout computes in `f32`; one documented rounding point at `compose`, per axis, in device pixels (single-snapping policy). 
+- egui's hard-won cache lesson is adopted as ALGO: **integer wrap-width rounding** in the galley cache kills the re-wrap feedback loop class (`crates/epaint/src/text/galley_cache.rs:41-64`, citing issues #4927/#4928/#5084/#5163 @ `fc9d66d`).
+- Masonry's debug purity panic is enabled from day one: if a forced re-measure disagrees with the cached size, the build panics at the guilty widget (`passes/layout.rs:72-99`).
+
+### 8.4 Verification
+
+The §6.4 fuzz harness is mirrored for layout: *incremental relayout ≡ full relayout* on random style/structure churn. Coherence bugs — the known cost of incremental everything (`audit/INNOVATE.md` I4) — are caught by fuzzing + purity panics + snapshot tests, not by users.
+
+**Q1 kill-switch (ADR-3):** a 3-day spike decides whether Taffy's API tolerates ancestor-candidate relayout without forking. If not, torin itself becomes the engine (it is `no_std`-capable and euclid-only, `torin/src/lib.rs:2`) with Taffy kept as an optional compatibility layer.
+
+---
+
+## 9. Rendering — one scene journal, two honest backends
+
+### 9.1 Scene journal (GPUI design, Apache-2.0 CODE)
+
+Paint produces an append-only **scene journal** (GPUI's `scene.rs` architecture, `crates/gpui/src/scene.rs:39-53, 151-163, 172-180` @ `056a44d`):
+
+- per-kind primitive vectors (quads, text runs, images, shadows, borders) enabling same-kind batching for instanced draws (`batches()`);
+- an ordered `paint_operations` journal with `finish()` sorting by painter order — replay is deterministic and cache-friendly;
+- rounded corners and shadows as SDF quad properties (`scene.rs:574-586`) — no polygon explosion for the two most common effects.
+
+Because the journal is a *record*, it is also a *replay*: cached subtrees re-emit their recorded ranges (GPUI `Entity::cached` replay semantics, `view.rs:552-568`, `scene.rs:141-149` — with its documented constraint respected: caching requires definite sizes, `view.rs:252-256`).
+
+### 9.2 Two backends, one journal (ADR-2)
+
+| Backend | Role | Notes |
+|---|---|---|
+| **wgpu** | primary | consensus substrate (7/10 audited stacks; Masonry 28, Iced 30, egui 30, Blitz 30, Floem 27, Blinc 26 — Cargo.locks verified) |
+| **tiny-skia + softbuffer** | headless/CI/low-end/VM | the test rig *is* this backend (A4); Floem proves a 4-backend `Renderer` trait with honest fallback (`renderer/src/lib.rs:103-150`, `src/paint/renderer.rs:66-83` @ `1351ffb`) |
+
+Vello is **tracked, not load-bearing** (at Masonry HEAD it was removed as a direct dep and survives via `imaging_vello` — API churn is real, `audit/PRIMITIVES.md` P2). Skia may arrive later as an optional external backend (Floem's anyrender-skia precedent), never in core: its C++ build tax is exactly the cold-build cost we budget against (`audit/BENCHMARKS.md` §2).
+
+### 9.3 Partial paint: damage with an escape hatch
+
+- **Damage model:** the union of `Change::Paint` rects, merged into at most **three** DirtyRegion boxes with least-growth overflow merging, old+new rects on geometry change — Slint's algorithm, ported **clean-room** from documented behavior (its code is GPL/commercial; `audit/LICENSES.md` classifies it IDEA/ALGO-only): `internal/core/partial_renderer.rs:273` fixes the ≤3-rect budget, `:290-318` merges overflow by least growth, `:604-618` adds old+new screen rects on geometry change @ `0b1c00d`.
+- **Overflow → full frame.** When damage exceeds the region budget or is untrackable (backdrop-blur-style effects, Slint `:726-735`), Alacer presents the whole frame. Correctness first; partial paint is an optimization with a defined fallback, never a risk.
+- **Per-item paint trackers** (Slint's `PropertyTracker` slabs, `:748-763`) are a stretch goal behind Q4 — the journal-replay path alone is expected to carry most of the win, exactly as GPUI's does.
+
+### 9.4 Text
+
+- **parley + fontique + swash** as the default stack (ADR-4): Linebender-family convergence (Masonry 0.8, Floem 0.7, Slint migrating to 0.12) means bugfixes flow from a shared ecosystem.
+- **Glyph atlas:** cryoglyph-lineage GPU pipeline (glyphon's descendant, Apache/MIT) with 4-way subpixel binning (GPUI precedent, `gpui_linux/src/linux/text_system.rs` + `text_system.rs:50-53` @ `056a44d`).
+- **Caches evict.** Where egui's atlas "grows in height as needed" forever (`glyph_atlas.rs:381-395`) and `IdTypeMap` is never auto-collected (`id_type_map.rs:573-601`), Alacer's shaping/galley caches use frame-windowed eviction (egui's own `FrameCache` scheme, `cache/frame_cache.rs:37-44`) with dhat-enforced RSS budgets (§14.3).
+- Per-OS platform shapers (GPUI's `PlatformTextSystem` trait design) remain the documented post-1.0 escape hatch for per-platform text quality — behind the `TextLayout` trait seam, not a fork.
+
+---
+
+## 10. Input & focus
+
+### 10.1 Routing as a normative spec
+
+Event routing ships as a **written spec with committed performance baselines** — Floem's model, adopted end to end (`src/event/README.md:24-152, 154-242` for the normative dispatch spec; `:334-412` for the committed baselines @ `1351ffb`): z-index-aware hit-testing; capture → bubble phases; precomputed immutable event paths (no per-event tree walks); W3C pointer-capture semantics (pending → active); synthetic click-after-pointer-up. Baselines: ~2.25 ns cached hit-test, ~390-410 ns flat-tree dispatch, ~100-120 ns per depth level.
+
+- **Spatial index:** a `GridF64` 100 px-cell index over element boxes (Floem's understory backends, `src/view/storage.rs:104, 130-143` @ `1351ffb`) plus a 2-entry exact-float-bits hit-test cache, cleared on layout/tree changes (`src/event/path.rs:17-24`) — the Blink-inspired micro-optimization, kept honest by the spec's baselines.
+
+### 10.2 Coalescing and pacing
+
+Adopt Freya's event-buffer discipline (`crates/ragnarok/src/event_buffer.rs:10-69` @ `0b13171`): compatible consecutive events merge; `MouseMove` coalesces on equal button state (`platform.rs:169-178`); same-direction wheel deltas accumulate (`platform.rs:179-198`); the release deadline derives from the monitor's refresh interval in mHz (`crates/freya-winit/src/window.rs:754-763`). Result: input storms cost one frame of work, not N events.
+
+### 10.3 Focus, IME, shortcuts
+
+- **Focus** is a pair of first-class passes (§7.2), not an afterthought on the event path.
+- **IME contract** (I2): preedit styling, cursor-rect sync, purpose hints, commit semantics — semantics copied from GPUI's `EntityInputHandler` (UTF-16 ranges, marked text) and egui's platform-quirk table including the Windows-Korean preedit workaround (`egui-winit/src/lib.rs:741-763, 795-806` @ `fc9d66d`). Where winit falls short on Wayland, contribute `zwp_text_input_v3` handling upstream (smithay-client-toolkit), *never* fork (A5).
+- **Shortcuts:** GPUI's action/keymap system (typed actions, multi-key sequences) as the IDEA steal; actions flow through pass 10, so keymaps are inspectable and conflict-checkable.
+- **Drag & drop** and clipboard data-transfer formats land post-0.1 (winit's data-transfer extension is the seam — KAS precedent, `kas-core/src/data_transfer.rs:4-7`).
+
+---
+
+## 11. Accessibility — a type-level contract
+
+The audit's sharpest finding is a market failure: AccessKit is the de-facto standard (8/10 Tier-1 use it or route through the webview), yet Iced and Floem ship **zero** a11y, and iced's issue #282 has been open since 2020 (`audit/MATRIX.md` §6; `audit/INNOVATE.md` I1). Alacer treats that as the opening.
+
+### 11.1 The contract (ADR-5)
+
+1. **Required widget methods.** The `Widget` derive requires `role` and a label source — Masonry's required-method design (`masonry_core/src/core/widget.rs:424-435` @ `dc49687`) expressed as `#[derive(Widget)] #[widget(role = Button)]` so the friction lands in one line, not one trait impl.
+2. **Debug-mode CI walker.** A test-only pass walks the widget tree and fails the build if any widget lacks role/label or exposes unnamed input controls — novel in the ecosystem, cheap to build (egui's kittest already panics on unnamed inputs *at test time*; we move the check to *compile/test gate* time, `crates/egui_kittest/README.md` @ `fc9d66d`).
+3. **Identity sharing.** AccessKit `NodeId` = id-path hash = hit-test id (§6.3) — the a11y tree is the same tree, not a parallel one.
+4. **Incremental updates.** TreeUpdates built from dirty nodes only (Freya's `accessibility/dirty_nodes.rs` @ `0b13171`), inside pass 9 — never a full-tree rebuild per frame (egui emits a full `TreeUpdate` every end-pass, `crates/egui/src/context.rs:3182-3207` @ `fc9d66d`; we do not inherit that cost).
+5. **Tests drive the a11y tree.** The official query API — `find(ROLE_BUTTON).named("Save")` — routes through AccessKit nodes with settle-or-error semantics (kittest: 8,131 LOC, `crates/egui_kittest/src/lib.rs:69-80`): a test can only pass if the widget is *reachable, named, and actionable* by a screen reader. Testing and accessibility reinforce each other; neither can rot silently.
+
+### 11.2 Budgets
+
+TreeUpdate p99 < 0.5 ms at 1k nodes (M3 gate); a11y pass cost is a committed tracing baseline like every other phase. *Kill-switch:* if the budget breaks frame targets, scope updates to lazy-subtree mode — the type-level contract stays; the update granularity adapts.
+
+---
+
+## 12. Platform integration
+
+**winit, un-forked** (ADR-1): Masonry, Freya, egui, Slint and blitz ride stock winit; `accesskit_winit`, `muda`, and friends assume its types — ecosystem gravity is free interop. Alacer isolates the platform behind a thin `Platform` trait (GPUI's `crates/gpui/src/platform.rs` design) from day one so a future custom loop (display-link pacing, layer-shell) never breaks the public API.
+
+Platform services, all permissive-licensed, all adopted not written (audit PRIMITIVES P8): menus via **muda** (Slint ships a 1,112-LOC integration; Dioxus and Floem also use it), dialogs via **rfd**, clipboard via **arboard** (+ `smithay-clipboard` on Linux), tray via **tray-icon**, file watching via **notify**, window handles via **raw-window-handle**.
+
+The line we do not cross: GPUI's 7 per-OS platform crates and ~100k LOC of platform code are a Zed-scale investment (`audit/ADR-1`); Alacer buys its wins (IME quality, display-link pacing) via upstream contribution, and buys nothing else until users demand it.
+
+---
+
+## 13. DX architecture
+
+Best-in-class DX is a *subsystem*, specified and budgeted like rendering. Six pillars:
+
+### 13.1 Views that compile-check: `rsx!` with real diagnostics
+
+Proc-macro builders, no external DSL (§15). Slint's DSL tooling is the gold standard — and the cautionary investment: a 91,430-LOC compiler with 66 passes plus a 36,427-LOC LSP (`internal/compiler/passes/`, `tools/lsp` @ `0b1c00d`). Alacer steals the *diagnostics patterns*, not the compiler: miette-style labeled spans on `rsx!` errors, "did you mean" for style properties, and error texts written like Masonry's hint strings ("Did you forget to use `with_action_widget`?", `xilem/src/driver.rs:317-322` @ `dc49687`).
+
+### 13.2 State-preserving hot reload that CI proves
+
+`subsecond` is adopted as-is (ADR-7): jump-table fn-pointer patching with state preserved in generational-box owners — already shared infrastructure for Dioxus, GPUI, Leptos, and Freya (`crates/gpui/src/hot_reload.rs:11-40` @ `056a44d`; Leptos `Cargo.toml:62-64, 116-125` @ `7d656a4`). Alacer's contribution is the **contract + the proof**:
+
+- all UI-adjacent state lives in owners that survive `subsecond::call` frames (Dioxus precedent);
+- on patch, `RenderEffect`s re-dirty instead of rebuilding the world (Leptos pattern, `render_effect.rs:175-216`) — **scoped re-render, not Dioxus's `SchedulerMsg::AllDirty`** (`packages/vdom/src/virtual_dom.rs:798-803` @ `7dfd07e`);
+- a **CI hot-patch suite**: every example is hot-patched in CI and asserted to render the new value with state intact. Nobody in the audited ecosystem does this; subsecond's admitted edges (thread-local resets, segfault class — in-code warnings at `packages/subsecond/subsecond/src/lib.rs:88-93`; issues #5317/#4872; Freya's child-scope breakage #2304) are precisely what such a suite catches.
+- *Fallback (ADR-7):* if subsecond cannot pass the suite by M4, ship template-only hot reload (the `leptos_hot_reload` AST-diff pattern, MIT) and re-evaluate at 1.0.
+
+### 13.3 The Causality inspector
+
+Every audited devtools answers "what does the tree look like?"; none answers "**why**" (Dioxus's most-requested missing tooling; `audit/INNOVATE.md` I5). Because Alacer owns both the reactive graph and the journals, it can answer causally — the moat is that only the framework can build this:
+
+| Question | Answered from |
+|---|---|
+| "Why did this render?" | reactive_graph edge activations leading to the node's mask |
+| "Who wrote this signal?" | write provenance recorded per `Signal` (dev-mode) |
+| "Who subscribes to this memo?" | graph reverse edges |
+| "Why is this frame slow?" | per-phase tracing spans + frame journal (GPUI ships a 3,542-LOC profiler journal as precedent, `profiler/journal.rs`) |
+| "What did this mask touch?" | mask heatmap overlaid on the widget tree |
+
+Overhead is feature-gated and sampled; the inspector is a standalone app (Freya's devtools-app precedent, `crates/freya-devtools/src/server.rs:20-90` @ `0b13171`) speaking a documented WS protocol.
+
+### 13.4 Testing as a product (`alacer-testing`, day one)
+
+The four-way convergence (masonry_testing / freya-testing / kittest / floem headless) is adopted and extended (I6):
+
+- **Headless = production pipeline + software raster** (A4): synthetic pointer/key/IME/a11y events, time control (`animate_ms` — Masonry, `masonry_testing/src/harness.rs:73-130` @ `dc49687`), PNG snapshots GPU-free with `BLESS` re-blessing and oxipng size caps.
+- **A11y-driven queries** as the only official API (§11.1) — including automatic panics on unnamed input widgets.
+- **Record/replay**: user interactions recorded to `.alc` files replayable in `cargo test` (Iced's `.ice` precedent, `examples/todos/tests/carl_sagan.ice` @ `8ff48c4`) — bug reports that are also regression tests.
+- **Baselines as contracts**: committed event-latency and phase-time criterion baselines (Floem precedent) — the harness fails on regression before users feel it.
+- **Fuzz targets**: reconciler, incremental layout, and journal equivalence (§6.4, §8.4).
+- **Hot-patch suite** (§13.2).
+- Snapshot hygiene: per-OS thresholds (kittest's `kittest.toml` pattern) so cross-platform font differences don't rot the corpus.
+
+### 13.5 Zero-to-first-pixel: budgets a user feels
+
+Publish and CI-enforce (I7; nothing in the audited ecosystem publishes compile-time budgets):
+
+| Metric | Budget [budget] | Anchor |
+|---|---|---|
+| Cold build, counter example | < 60 s | reference rig; no Skia-class C++ in the dep tree |
+| Incremental rebuild | < 1 s | ThinLink-style object patching if needed (Dioxus's <500 ms claim is UNVERIFIED — we commit to the weaker number) |
+| Binary size (stripped) | < 10 MB | against peer stacks' lockfile weight (`audit/BENCHMARKS.md` §2) |
+| Idle RSS | < 40 MB | with evicting caches (§9.4) |
+| Example gallery | counter ≈ 30 LOC, todo ≈ 70 LOC | Dioxus counter = 21, Freya = 48, Floem = 80, Xilem todo = 169 (`audit/MATRIX.md` §7) |
+
+### 13.6 Docs and migration
+
+A book written against the benchmark canon (counter / todo / data-table); migration notes from egui (state where each `Memory`-ism lives now) and Iced (message → signal mapping); an examples gallery doubling as the storybook (Makepad's storybook app is the UX precedent).
+
+---
+
+## 14. Performance architecture
+
+### 14.1 The method (before the numbers)
+
+The audit's dynamic phase was honest about its limits: no GPU, no toolchain — so it fabricated nothing and left a harness spec (`audit/BENCHMARKS.md` §5). Alacer adopts that spec as its own performance constitution: shared workloads, fixed rig, 5-run medians, maintainer-reviewed idiomatic examples per compared framework (no strawmen), criterion for CPU paths, tracing spans for phase attribution, dhat for allocations, everything labeled.
+
+### 14.2 Workloads and targets
+
+| # | Workload (BENCHMARKS §5) | Target [budget] | Mechanism under test |
+|---|---|---|---|
+| W1 | 10k-node tree build + 10%/frame style churn | ≥ 5× vs full relayout by M2 gate (≥ 2× minimum to keep the design) | persistent Taffy + ancestor candidates (§8) |
+| W2 | text-dense relayout: 1k paragraphs, width jitter ±5% | stable frame times; no re-wrap oscillation | text-node-only dirty marks + integer wrap rounding (§8.3) |
+| W3 | animation loop, 1k nodes, position/opacity @ vsync | 120 fps @ 1k nodes on the reference rig | journal replay + translation-only updates (§8.2, §9.1) |
+| W4 | input-to-paint latency | p99 ≤ 2 frames @ 120 Hz | coalescing (§10.2) + phase budgets (§4.3) |
+| W5 | signal-graph churn: 10k signals, 1k memos | one rerun per write batch; no glitching | push-Check/pull-Update + 1-bit coalescing (§5.1) |
+
+**Reference rig** (declared once, kept stable): a specified Linux desktop (Vulkan) plus an llvmpipe software run for parity; same winit version across competitors; vsync locked.
+
+### 14.3 Memory discipline
+
+- Idle RSS < 40 MB [budget]; dhat profiles run in CI on the W1/W3 workloads.
+- **Warm-path allocation budget: zero heap allocations** for a static UI's steady-state frame (paint replay + present) [budget]; the masks/journal design makes this checkable, and any new feature that breaks it needs an ADR.
+- Every cache has an eviction policy *and a test that proves it* — the ecosystem's unbounded-cache club (egui's atlas and `IdTypeMap`; cited issues #3689) stays at zero members.
+- Hot-path maps use `FxHash`-class hashing only where profiling justifies it (Makepad measured SipHash at ~4% of main-thread encode samples, `platform/hal/src/lib.rs:13-15` @ `8049ae2` — the lesson is "measure then swap", not "swap everywhere").
+
+### 14.4 Degradation ladder (backpressure)
+
+When a frame can't fit its budget: (1) coalesce remaining flux work into the next frame (already the default); (2) merge damage regions and present one larger region; (3) present full frame; (4) *never* skip the a11y or focus passes — latency may degrade, correctness may not. This ladder is documented, ordered, and each rung is observable in the frame journal.
+
+### 14.5 Scheduling model
+
+Main thread owns the frame loop, the arena, and paint (retained tree mutation is main-thread by contract — Makepad documents the same reality honestly, `widgets/core/src/widget_tree.rs:14-17` @ `8049ae2`). Async work (resources, IO) runs on any_spawner's executors off-thread and lands in the frame via signals — the effect channel coalesces their wakeups. Parallel layout/paint of independent subtrees is an explicit non-goal for v1 (§15) — sequencing risk is not worth pre-1.0 complexity when W1–W5 targets are reachable single-threaded.
+
+---
+
+## 15. What Alacer will not build
+
+Scope discipline is architecture. Each non-goal cites who owns it and why we lose nothing:
+
+| Non-goal | Reason (evidence-based) |
+|---|---|
+| **No external DSL** | Slint's DSL moat rests on a 91k-LOC compiler + 36k-LOC LSP; competing there doubles scope for a moat we don't need. Proc-macro builders + stolen diagnostics patterns cover the need. |
+| **No webview runtime** | Dioxus owns it; the memory cost and non-native a11y seams are verified (`audit/STEAL.md` anti-steals). |
+| **No web/mobile in the first 6 months** | Desktop-first; wasm/mobile = M4+ stretch behind the platform matrix (I8). GPUI's iOS a11y absence is the cautionary tale — we won't ship platforms we can't make accessible. |
+| **No embedded/MCU story** | Slint's software renderer is 15 years of company work. We keep a first-class *desktop* software path only (A8), which incidentally serves CI/headless. |
+| **No 3D / game-engine ambitions** | Bevy adjacency is a trap; wgpu composability is the escape hatch. |
+| **No TUI** | Out of the audited problem space (ratatui owns it). |
+| **No runtime CSS engine** | Typed Rust style properties with Floem-style reason-flag recalc (§7.2 pass 5); selectors/parity with Stylo is a multi-year spec, and no audited native stack ships a full engine either. |
+| **No vendored monorepo** | Makepad's 1.85M LOC / 205 vendored crates buys independence at the price of audit impossibility and bus-factor ≈ 1 (squashed history). We buy the same independence with small, permissive deps (A2, A5). |
+
+---
+
+## 16. Moats
+
+Three differentiators, each hard to copy and disproportionately funded (the audit requires ≥ 3, each evidenced):
+
+1. **The invalidation composition (§4.1, Pillar 3).** One `Change` currency feeding incremental layout (torin-on-Taffy), journal-replay paint, and incremental AccessKit updates. A competitor matching it must rework their layout engine (all Taffy users), their renderer (egui, Iced), or their reactivity (GPUI) — and Freya 0.4 shows what churn without this discipline does (`render_pipeline.rs:58`). We fund it as the core (~40% of M1–M3 effort), and it is kill-proof: the engine transfers to any widget set.
+2. **Zero-config accessibility at the type level (§11).** Competitors can bolt on AccessKit; making it *required* breaks their APIs — a cost incumbents demonstrably defer (iced #282, open 6 years). We fund the docs, the quirks tables, the CI gate, and the a11y-driven test API that no solo project matches.
+3. **Causality devtools (§13.3).** "Why did this render / who wrote / who subscribes" requires owning the reactive core's semantics *and* the renderer's journals — a composition only the framework itself can build. GPUI's profiler journal and Iced's message replay prove the appetite; nobody owns the whole causal chain.
+
+---
+
+## 17. ADR register
+
+ADRs 1–7 were ratified with the audit bundle (`adr/ADR-*.md`); each carries its own kill-switch. ADRs 8–11 are authored here to complete the architecture.
+
+| ADR | Decision | Status | Kill-switch (falsifiable) |
+|---|---|---|---|
+| **ADR-1** | Windowing: stock winit behind a thin `Platform` trait; contribute upstream, never fork | Accepted | winit blocks a launch-critical feature (e.g. sub-frame pacing) > 2 months → patch crate, not fork |
+| **ADR-2** | GPU: wgpu primary + tiny-skia/softbuffer behind one scene journal; Vello tracked, not load-bearing; Skia optional later | Accepted | journal replay on wgpu misses W3 budget by M3 → re-evaluate GPUI-style per-OS pipelines |
+| **ADR-3** | Layout: persistent Taffy tree + torin-style incremental port + Masonry measurement discipline | Accepted (Q1-gated) | 3-day spike: Taffy API resists ancestor-candidate relayout → adopt torin as the engine, Taffy optional |
+| **ADR-4** | Text: parley + fontique + swash behind a `TextLayout` trait; cryoglyph-lineage atlas; egui cache lessons as ALGO | Accepted | blocking CJK/complex-script parley bug with no upstream bandwidth → swap impl to cosmic-text |
+| **ADR-5** | A11y: AccessKit-only, required methods via derive, id-path NodeIds, dirty-node updates, a11y-driven tests | Accepted | AccessKit can't express a needed platform → evaluate Makepad's bespoke stack (interop UNVERIFIED — audit before reuse) |
+| **ADR-6** | Reactivity: adopt `reactive_graph`; upstream memo-cycle detection; TrackedRefCell diagnostics | Accepted | effect scheduling can't drive paint batching in M0 → GPUI-style draw-level tracking for paint, reactive_graph for data |
+| **ADR-7** | Hot reload: adopt subsecond as-is + CI hot-patch suite + scoped re-render contract | Accepted | CI suite fails by M4 (segfault class) → template-only hot reload (leptos_hot_reload pattern) |
+| **ADR-8** *(new)* | **Identity & reconciliation:** id-path prefix hashing as the single identity across element-state, hit-testing, AccessKit NodeIds, and hot-reload keys; keyed peel→map→LIS diffing; fuzz-equivalence gate | Accepted | equivalence fuzz finds a class LIS cannot express minimally → fall back to key-map move semantics, keep fuzz gate |
+| **ADR-9** *(new)* | **Workspace & discipline:** 12-crate DAG (§4.2) with facade-only re-exports; `missing_docs` + `unsafe_code` deny (Iced precedent, `Cargo.toml:253-254` @ `8ff48c4`); zero unsafe outside platform crates; `cargo-deny` license gate (no AGPL, no unknown licenses); upstream-first patch policy | Accepted | DAG friction measurably slows feature work > 1 sprint → consolidate to 6 crates, re-vote |
+| **ADR-10** *(new)* | **Testing productization:** headless-with-real-pipeline as default `cargo test`; a11y-driven queries as the only official API; baselines-as-contracts; fuzz targets; hot-patch suite | Accepted | it *is* the validation (I6) — scope shrinks only via roadmap gates, not by removing the harness |
+| **ADR-11** *(new)* | **Versioning & stability:** 0.x semver; `alacer` + widget crates follow semver-style care from 0.1 (deprecations, migrate notes); internals (`alacer-core`, `-view`, `-render`) may break at minors with CHANGELOG; MSRV pinned; renaming the audit codename to Alacer is recorded as the first entry | Accepted | community pain signals (issue-labeled `stability`) > 10/month → adopt 1.0-RC freeze earlier |
+
+---
+
+## 18. Roadmap & kill criteria
+
+Six months, ordered, each gate falsifiable (evolved from VISION.md; M-names align with the audit's plan).
+
+| # | Weeks | Milestone | Exit criteria | Kill criteria |
+|---|---|---|---|---|
+| M0 | 1–2 | Skeleton: winit + wgpu + reactive_graph + taffy + parley + accesskit on one window | counter + scrolling list render; masks flow end-to-end | reactive_graph cannot drive redraw batches without Glut-style full re-runs (> 1 rebuild per write batch) → pivot Pillar 1 per ADR-6 |
+| M1 | 3–6 | Widget arena + pass contract; `alacer-testing` headless crate from day one | 30 blessed snapshots green; a11y queries pass | pass-system overhead > 15% of frame time on 10k nodes (tracing) → collapse to 3 passes |
+| M2 | 7–12 | **The invalidation currency**: masks + persistent Taffy + torin-style deltas + scene journal replay | W1 ≥ 2× vs full relayout; journal replay paths cached | W1 < 2× → abandon incremental layout, keep journals (GPUI model) |
+| M3 | 13–18 | A11y contract + a11y-driven queries + partial paint on GPU path + IME contract | TreeUpdate p99 < 0.5 ms @ 1k nodes; fcitx5/ibus CI matrix green | a11y cost breaks frame budget → lazy-subtree a11y updates only |
+| M4 | 19–24 | DX: subsecond + CI hot-patch suite; Causality inspector spike; publish 0.1 + this architecture doc | sub-second hot reload demo with state intact; inspector demo | subsecond unstable in CI (segfault class) → template-only hot reload per ADR-7 |
+| M5 | cont. | Community: examples gallery, egui/Iced migration notes, perf dashboards | criterion baselines published as contracts | — |
+
+**Portfolio kill criterion (the whole thesis):** if by end of M3 the shared-harness benchmarks (W1, W2, W3) show **no workload where Alacer beats both egui (the DX baseline) and the best audited retained stack on the same hardware** — or the a11y CI gate cannot be maintained under feature velocity — then "composition beats specialization" is falsified. Pre-registered pivots: (a) extract the invalidation engine as a Masonry/egui backend crate; (b) reduce scope to an a11y + testing supercrate for egui/Iced. Killing a thesis cheaply is cheaper than marketing a failed one.
+
+---
+
+## 19. Risks & open questions
+
+Each open question carries its cheapest validation experiment (VISION.md Q1–Q6, restated with owners):
+
+| # | Assumption | Risk | Cheapest validation |
+|---|---|---|---|
+| Q1 | Taffy can host torin-style ancestor-candidate relayout externally | High — Pillar 3 | 3-day spike over a persistent `TaffyTree`; measure relayout calls/frame (Floem's text-node `mark_dirty` works out-of-tree — encouraging precedent) |
+| Q2 | reactive_graph can drive paint scheduling without a second scheduler | Medium | M0 metric (ADR-6 kill-switch); GPUI draw-tracking is the documented fallback |
+| Q3 | subsecond is CI-grade for a non-Dioxus framework | Medium | I3 CI hot-patch suite in M4; template-only fallback documented |
+| Q4 | Per-item paint trackers on a GPU path without Slint's rewrite cost | Medium-High | journal-replay-only partial paint first; add trackers only if fill rate still dominates |
+| Q5 | Required a11y methods won't poison ergonomics | Low-Medium | ship `#[derive(Widget)] #[widget(role = …)]` early; gather feedback at 0.1 |
+| Q6 | A maintained bench rig stays honest across winit versions | Low | the rig is M0 infrastructure; baselines-as-contract from day 1 (Floem precedent) |
+| Q7 | *(new)* reactive_graph's maintainer set stays responsive | Medium | upstream-first contributions from M0 build goodwill; the crate is small and MIT — a fork under our license is the cheap last resort (explicitly exempted from A5's "never fork" by ADR-6's fork-path note) |
+| Q8 | *(new)* tiny-skia partial paint matches GPU damage semantics exactly | Medium | the equivalence fuzz (§9.3) runs against both backends from M2 |
+
+---
+
+## 20. Provenance, licensing, and honesty
+
+**Adopted (dependencies, all MIT and/or Apache-2.0 — verified in `audit/LICENSES.md`):** `reactive_graph`, `generational-box` (via signal handles), `taffy`, `parley`/`fontique`/`swash`, `accesskit` (+ `accesskit_winit`), `winit`, `wgpu`, `tiny-skia`, `softbuffer`, `subsecond`, `muda`, `rfd`, `arboard`, `tray-icon`, `notify`, `raw-window-handle`, `euclid`, `tracing`, `criterion`, `dhat`.
+
+**Ported as algorithms (IDEA/ALGO):** torin's incremental relayout semantics (MIT code exists — we port onto Taffy, adapting); Slint's partial-renderer damage algorithm (**clean-room from documented behavior** — its source is GPL/commercial; provenance note required per file); Floem's event-spec structure and `TrackedRefCell` (MIT, CODE); GPUI's scene-journal and id-hash designs (Apache-2.0, CODE); egui's integer wrap-rounding lesson (ALGO); Iced's damage ladder and record/replay (ALGO/IDEA); Blinc's statechart/spring primitive patterns (IDEA — maturity audited first, 560★ new project).
+
+**Clean composition (owned, original):** the `Change` mask currency and its three consumers; the pass contract; the a11y type contract + CI walker; the Causality inspector; the CI hot-patch suite; the budgets-as-contracts regime.
+
+**Honesty rules inherited from the audit:** no benchmark numbers exist in this document — every target is labeled **[budget]** and unmeasured until the harness produces it; every cross-framework claim carries a pinned-SHA citation; residual unknowns are marked **UNVERIFIED** (Makepad a11y interop; Dioxus ThinLink timing; GitHub star counts scraped from HTML for 6 repos; Slint generated-code compile times). License posture: Alacer ships `MIT OR Apache-2.0`; `cargo-deny` enforces no-AGPL/no-unknown-license deps; GPL sources are never copied.
+
+---
+
+## 21. Glossary
+
+| Term | Meaning |
+|---|---|
+| **Alacer** | this framework; Latin *swift, eager* (§2) |
+| **Flux** | the reactive layer around `reactive_graph`: signals, memos, effects, owners |
+| **Change mask** | per-node bitflags `LAYOUT | PAINT | A11Y` — the single invalidation currency (A1) |
+| **Scene journal** | append-only, ordered record of paint operations; the replayable source of truth for both renderers (§9.1) |
+| **Pass** | one explicit, ordered tree traversal of the pass contract (§7.2) |
+| **Owner** | reactive_graph scope that owns effects/values and disposes them in order; survives hot-patch frames (§5.1, §13.2) |
+| **RenderEffect** | a synchronous-first-run effect bound to one dynamic render slot (§5.1) |
+| **id path / prefix hash** | structural identity of an element; its hash doubles as hit-test id and AccessKit `NodeId` (§6.3) |
+| **Peel → key map → LIS** | Dioxus-derived keyed reconciliation pipeline (§6.2) |
+| **Purity panic** | debug-mode check that a cached measurement equals a forced re-measure (Masonry pattern, §8.3) |
+| **Translation-only update** | repositioning without re-measure when sizes are unchanged (torin pattern, §8.2) |
+| **Baselines-as-contracts** | committed criterion/perf numbers whose regression fails CI (A6) |
+| **[budget]** | a design commitment, CI-enforced, not yet a measurement |
+| **UNVERIFIED** | a claim the audit could not check in its environment; carried honestly forward |
+
+---
+
+## 22. Appendix: evidence index
+
+Where each architectural decision meets its evidence (audit bundle paths):
+
+| § | Topic | Primary evidence |
+|---|---|---|
+| 1 | Thesis numbers | `audit/MATRIX.md` §3–6; `audit/INDEX.md` |
+| 3 | Axioms A1–A8 | GPUI `window.rs:3743`; Freya `render_pipeline.rs:58`; Iced `wgpu/src/window/compositor.rs:230-264` vs `tiny_skia/…/compositor.rs:149-185`; Masonry `widget.rs:424-435`; Floem `event/README.md:334-412`; egui `glyph_atlas.rs:381-395`, `id_type_map.rs:573-601`; Iced `Cargo.toml:206, 207, 249` (forks), `Cargo.toml:253-254` (lint deny); Floem `Cargo.toml:65` |
+| 5 | Reactivity | `audit/leptos/REPORT.md` §B; `reactive_graph/src/{graph/sets.rs, channel.rs, computed/inner.rs, owner.rs, effect/render_effect.rs}`; Freya `lifecycle/{memo,effect}.rs`; Floem `reactive/src/signal.rs`; GPUI `app.rs:1459-1466, 1468-1495` |
+| 6 | Views & identity | `audit/xilem-masonry/REPORT.md` §A; `audit/dioxus/REPORT.md` §B/D; GPUI `element.rs:212-255`; Dioxus `diff/iterator.rs`, `packages/oracle`, `packages/fuzz` |
+| 7 | Arena & passes | `audit/xilem-masonry/REPORT.md` §A; `masonry_core/src/doc/pass_system.md`; `tree_arena`; `widget_mut.rs:22-43`; GPUI `entity_map.rs` |
+| 8 | Layout | `audit/freya/REPORT.md` §C (torin); Masonry `layout/{measurement_cache,len_req}.rs`, `passes/layout.rs:72-99`; Floem `views/label.rs:214-218`; egui `galley_cache.rs:41-64` |
+| 9 | Rendering & text | GPUI `scene.rs`; `audit/slint/REPORT.md` §D (`partial_renderer.rs`); Floem `renderer/src/lib.rs:103-150`; `audit/PRIMITIVES.md` P2/P4; ADR-2/ADR-4 |
+| 10 | Input | Floem `src/event/README.md`; `understory` grid index; Freya `ragnarok/src/event_buffer.rs`; egui `egui-winit/src/lib.rs:741-763, 795-806` |
+| 11 | Accessibility | `audit/INNOVATE.md` I1; Masonry `widget.rs:424-435`, `passes/accessibility.rs`; Freya `accessibility/dirty_nodes.rs`; egui `egui_kittest`; ADR-5 |
+| 12 | Platform | ADR-1; `audit/PRIMITIVES.md` P1/P8; KAS `data_transfer.rs:4-7` |
+| 13 | DX | `audit/dioxus/REPORT.md` §G (subsecond, oracle); Leptos `render_effect.rs:175-216`; Freya `freya-testing`; Masonry `masonry_testing`; Iced `.ice`; `audit/INNOVATE.md` I3/I5/I6/I7 |
+| 14 | Performance | `audit/BENCHMARKS.md` §2–5; Floem baselines; Makepad `platform/hal/src/lib.rs:13-15`, `widget_tree.rs:14-17` |
+| 15 | Non-goals | VISION.md; `audit/STEAL.md` anti-steals; Slint compiler LOC; Makepad `Cargo.toml:458-465` |
+| 16 | Moats | `audit/INNOVATE.md` I1/I4/I5; VISION.md moats |
+| 18 | Roadmap | VISION.md M0–M5; `audit/BENCHMARKS.md` §5 |
+
+*Every citation resolves to a verified `file:line` at a pinned SHA recorded in `audit/INDEX.md`. Where the audit said `UNVERIFIED`, this document says `UNVERIFIED`. Nothing here is believed; everything here is cited, budgeted, or falsifiable.*
+
+---
+
+*Alacer · architecture draft 1 · 2026-11-05 · from audit to spine in one document.*

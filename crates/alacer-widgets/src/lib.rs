@@ -11,6 +11,7 @@ mod column;
 mod label;
 mod list;
 mod panel;
+mod text_input;
 
 pub use button::Button;
 pub use column::{Column, Row, Spacer};
@@ -18,6 +19,7 @@ pub use label::Label;
 pub use list::{List, ListHandle};
 pub use panel::Panel;
 pub use registry::default_registry;
+pub use text_input::TextInput;
 
 use alacer_core::widget::Widget;
 

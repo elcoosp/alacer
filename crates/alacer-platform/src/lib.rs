@@ -6,17 +6,20 @@
 //! between interactions (A7).
 
 pub mod coalesce;
+pub mod keys;
 pub mod softbuffer;
 pub mod wgpu_backend;
 
 pub use coalesce::EventCoalescer;
+pub use keys::{ime_cursor_utf16, map_ime_event, map_key, map_logical_key};
 pub use softbuffer::{SoftbufferPresenter, pixmap_to_argb};
 pub use wgpu_backend::{BackendError, WgpuRenderer};
 
 use accesskit_winit::{Adapter, Event as AccessKitEvent, WindowEvent as AccessKitWindowEvent};
-use alacer_core::events::PointerEvent;
+use alacer_core::events::{ImeEvent, KeyEvent, PointerEvent};
 use alacer_core::geom::{Point, Size};
-use alacer_core::passes::PassPipeline;
+use alacer_core::passes::{ImeRequest, PassPipeline};
+use alacer_core::widget::EventResponse;
 use alacer_text::{ThreadLocalGlyphSource, ThreadLocalTextSeam};
 use std::sync::Arc;
 use winit::application::ApplicationHandler;
@@ -102,6 +105,15 @@ pub struct AlacerApp {
     cursor: Point,
     needs_present: bool,
     tree_dirty: bool,
+    /// Tracked keyboard modifiers (winit delivers them via
+    /// `ModifiersChanged`, not on key events).
+    modifiers: alacer_core::events::Modifiers,
+    /// The last IME request applied to the window — the platform only acts
+    /// on the delta frame over frame (§10.3).
+    applied_ime: Option<ImeRequest>,
+    /// The softbuffer path's persistent framebuffer: partial paint repaints
+    /// damage regions onto this instead of re-rasterizing everything (§9.3).
+    framebuffer: Option<tiny_skia::Pixmap>,
 }
 
 impl AlacerApp {
@@ -132,6 +144,9 @@ impl AlacerApp {
             cursor: Point::zero(),
             needs_present: true,
             tree_dirty: true,
+            modifiers: alacer_core::events::Modifiers::default(),
+            applied_ime: None,
+            framebuffer: None,
         }
     }
 
@@ -188,9 +203,9 @@ impl AlacerApp {
 
     fn render_frame(&mut self) {
         let viewport = self.viewport_size();
-        let Some(backend) = &mut self.backend else {
+        if self.backend.is_none() {
             return;
-        };
+        }
         let report = match self.pipeline.tick(viewport) {
             Ok(report) => report,
             Err(error) => {
@@ -198,32 +213,158 @@ impl AlacerApp {
                 return;
             }
         };
+        // Apply this frame's IME request to the window (§10.3): attach or
+        // detach the IME, move the candidate window to the caret. Only the
+        // delta acts — platform calls are not free.
+        self.apply_ime_request();
         let scene = report.scene;
+        let width = size_px(viewport.width).max(1);
+        let height = size_px(viewport.height).max(1);
+        let Some(backend) = &mut self.backend else {
+            return;
+        };
         match backend {
             Backend::Wgpu(backend) => {
-                if let Err(error) =
+                let result = if report.damage.is_empty() {
+                    Ok(()) // nothing changed; the last presented frame stands
+                } else if report.damage.is_full() {
                     backend
                         .renderer
                         .render(&scene, &mut self.glyph_source, &backend.surface)
-                {
+                } else {
+                    backend.renderer.render_partial(
+                        &scene,
+                        &report.damage,
+                        &mut self.glyph_source,
+                        &backend.surface,
+                    )
+                };
+                if let Err(error) = result {
                     tracing::error!("wgpu render failed: {error}");
                 }
             }
             Backend::Softbuffer(presenter) => {
+                // The persistent framebuffer (§9.3): partial frames repaint
+                // damage regions onto the previous frame instead of
+                // re-rasterizing the whole scene. A NONE frame skips the
+                // present entirely — zero fill rate for zero change.
+                if report.damage.is_empty() {
+                    return;
+                }
+                let size_changed = self
+                    .framebuffer
+                    .as_ref()
+                    .is_none_or(|frame| frame.width() != width || frame.height() != height);
+                if size_changed {
+                    self.framebuffer = None;
+                }
+                let Some(frame) = self.framebuffer.as_mut() else {
+                    let mut renderer = alacer_render::SoftwareRenderer::new();
+                    let Some(pixmap) = renderer.render(
+                        &scene,
+                        width,
+                        height,
+                        alacer_widgets::theme::SURFACE,
+                        &mut self.glyph_source,
+                    ) else {
+                        tracing::error!("framebuffer allocation failed");
+                        return;
+                    };
+                    self.framebuffer = Some(pixmap);
+                    let Some(frame) = self.framebuffer.as_mut() else {
+                        return;
+                    };
+                    if let Err(error) = presenter.present(frame) {
+                        tracing::error!("present failed: {error}");
+                    }
+                    return;
+                };
                 let mut renderer = alacer_render::SoftwareRenderer::new();
-                if let Some(pixmap) = renderer.render(
-                    &scene,
-                    size_px(viewport.width).max(1),
-                    size_px(viewport.height).max(1),
-                    alacer_widgets::theme::SURFACE,
-                    &mut self.glyph_source,
-                ) && let Err(error) = presenter.present(&pixmap)
+                if report.damage.is_full() {
+                    let fresh = renderer.render(
+                        &scene,
+                        width,
+                        height,
+                        alacer_widgets::theme::SURFACE,
+                        &mut self.glyph_source,
+                    );
+                    if let Some(pixmap) = fresh {
+                        *frame = pixmap;
+                    }
+                } else if renderer
+                    .render_partial(
+                        &scene,
+                        frame,
+                        &report.damage,
+                        alacer_widgets::theme::SURFACE,
+                        &mut self.glyph_source,
+                    )
+                    .is_none()
                 {
+                    tracing::error!("partial repaint failed");
+                }
+                if let Err(error) = presenter.present(frame) {
                     tracing::error!("present failed: {error}");
                 }
             }
         }
         self.needs_present = false;
+    }
+
+    /// Applies the pipeline's IME request delta to the window (§10.3):
+    /// `set_ime_allowed` when the purpose set changes, `set_ime_cursor_area`
+    /// when the caret moves. The fcitx5/ibus seam.
+    fn apply_ime_request(&mut self) {
+        let Some(window) = &self.window else {
+            return;
+        };
+        let request = self.pipeline.ime_request().cloned();
+        if request == self.applied_ime {
+            return;
+        }
+        match (&request, &self.applied_ime) {
+            (Some(request), _) => {
+                let enabled = request.purpose.enabled();
+                let was_enabled = self
+                    .applied_ime
+                    .as_ref()
+                    .is_some_and(|r| r.purpose.enabled());
+                if enabled != was_enabled {
+                    window.set_ime_allowed(enabled);
+                }
+                if let Some(caret) = request.caret {
+                    window.set_ime_cursor_area(
+                        winit::dpi::Position::Logical(winit::dpi::LogicalPosition::new(
+                            f64::from(caret.origin.x),
+                            f64::from(caret.origin.y),
+                        )),
+                        winit::dpi::Size::Logical(winit::dpi::LogicalSize::new(
+                            f64::from(caret.size.width),
+                            f64::from(caret.size.height),
+                        )),
+                    );
+                }
+            }
+            (None, Some(_)) => {
+                window.set_ime_allowed(false);
+            }
+            (None, None) => {}
+        }
+        self.applied_ime = request;
+    }
+
+    /// Routes one mapped key event; handling dirties the frame.
+    fn route_key(&mut self, event: &KeyEvent) {
+        if self.pipeline.dispatch_key(event) == EventResponse::Handled {
+            self.needs_present = true;
+        }
+    }
+
+    /// Routes one mapped IME event; handling dirties the frame.
+    fn route_ime(&mut self, event: &ImeEvent) {
+        if self.pipeline.dispatch_ime(event) == EventResponse::Handled {
+            self.needs_present = true;
+        }
     }
 
     fn viewport_size(&self) -> Size {
@@ -415,6 +556,33 @@ impl ApplicationHandler<PlatformEvent> for AlacerApp {
                     delta: alacer_core::geom::Vector::new(0.0, amount),
                     position: self.cursor,
                 });
+            }
+            WindowEvent::ModifiersChanged(modifiers) => {
+                let state = modifiers.state();
+                self.modifiers.shift = state.shift_key();
+                self.modifiers.control = state.control_key();
+                self.modifiers.alt = state.alt_key();
+                self.modifiers.meta = state.super_key();
+            }
+            // Keyboard routes to the focused widget (§10.3) — focus-routed,
+            // never hit-tested. Editing acts on presses; releases pass too
+            // (widgets decide).
+            WindowEvent::KeyboardInput { event, .. } => {
+                let mapped = keys::map_key(
+                    &event.logical_key,
+                    event.text.as_deref(),
+                    event.state,
+                    self.modifiers,
+                );
+                self.route_key(&mapped);
+            }
+            // IME composition (§10.3): preedit is composing input; commit is
+            // final text. Enabled/Disabled carry no widget-level meaning —
+            // the pipeline's ImeRequest owns the attachment decision.
+            WindowEvent::Ime(ime) => {
+                if let Some(mapped) = keys::map_ime_event(&ime) {
+                    self.route_ime(&mapped);
+                }
             }
             WindowEvent::CloseRequested => {
                 event_loop.exit();

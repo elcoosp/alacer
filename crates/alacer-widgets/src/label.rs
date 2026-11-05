@@ -64,6 +64,24 @@ impl Label {
         self
     }
 
+    /// Replaces the fixed text in place (view reconciliation, §6.1). A no-op
+    /// on a binding-backed label: its text belongs to the reactive binding.
+    pub fn set_text(&mut self, text: impl Into<String>) {
+        if let LabelText::Fixed(slot) = &mut self.text {
+            *slot = text.into();
+        }
+    }
+
+    /// Sets the text color in place (view reconciliation).
+    pub fn set_color(&mut self, color: Color) {
+        self.color = color;
+    }
+
+    /// Sets the font size in place (view reconciliation).
+    pub fn set_font_size(&mut self, size: f32) {
+        self.font_size = size;
+    }
+
     fn current_text(&self) -> String {
         match &self.text {
             LabelText::Fixed(text) => text.clone(),
@@ -80,6 +98,9 @@ impl Label {
 }
 
 impl Widget for Label {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
     fn role(&self) -> Role {
         Role::Label
     }
@@ -100,8 +121,8 @@ impl Widget for Label {
         if text.is_empty() {
             return;
         }
-        alacer_text::with_text(|text_ctx| {
-            let layout = text_ctx.layout_text(&text, self.font_size, None);
+        alacer_core::text_seam::with_seam(|seam| {
+            let layout = seam.layout_glyphs(&text, self.font_size, None);
             for glyph in &layout.glyphs {
                 ctx.push_glyph(alacer_core::scene::Glyph {
                     position: Point::new(glyph.x, glyph.y),

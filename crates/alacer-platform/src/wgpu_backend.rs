@@ -240,6 +240,13 @@ impl Atlas {
 }
 
 /// The wgpu renderer: surface-bound, scene-consuming.
+///
+/// M3 partial paint (§9.3): the scene renders into an **offscreen frame
+/// texture** that persists between frames; a partial frame loads it,
+/// scissor-rects each damage region, repaints only the primitives reaching
+/// into it, and blits to the swapchain. The software backend implements the
+/// identical semantics over its persistent pixmap — the equivalence fuzz in
+/// `alacer-testing` pins the two to the same pixel result (Q8).
 pub struct WgpuRenderer {
     device: wgpu::Device,
     config: wgpu::SurfaceConfiguration,
@@ -254,6 +261,15 @@ pub struct WgpuRenderer {
     height: u32,
     glyphs_rendered: u64,
     instance_frames_skipped: u64,
+    /// The persistent offscreen frame (GPU-side framebuffer, §9.3).
+    frame_texture: Option<wgpu::Texture>,
+    frame_view: Option<wgpu::TextureView>,
+    /// The frame texture → swapchain blit (wgpu's util blitter: one
+    /// fullscreen triangle sampling the source).
+    blitter: wgpu::util::TextureBlitter,
+    /// Whether the frame texture's contents are defined. Resize resets it;
+    /// the first partial frame after a resize falls back to a full render.
+    frame_valid: bool,
 }
 
 impl WgpuRenderer {
@@ -441,6 +457,7 @@ impl WgpuRenderer {
             cache: None,
         });
 
+        let blitter = wgpu::util::TextureBlitter::new(&device, config.format);
         let renderer = Self {
             device,
             config: config.clone(),
@@ -455,17 +472,50 @@ impl WgpuRenderer {
             height: window_size.1.max(1),
             glyphs_rendered: 0,
             instance_frames_skipped: 0,
+            frame_texture: None,
+            frame_view: None,
+            blitter,
+            frame_valid: false,
         };
         Ok((renderer, config))
     }
 
-    /// Resizes and reconfigures the surface.
+    /// Resizes and reconfigures the surface. The offscreen frame is
+    /// recreated lazily; its contents are undefined until the next full
+    /// render (`frame_valid = false`).
     pub fn resize(&mut self, width: u32, height: u32, surface: &wgpu::Surface<'_>) {
         self.width = width.max(1);
         self.height = height.max(1);
         self.config.width = self.width;
         self.config.height = self.height;
         surface.configure(&self.device, &self.config);
+        self.frame_texture = None;
+        self.frame_view = None;
+        self.frame_valid = false;
+    }
+
+    /// The offscreen frame texture, created (or re-created) on demand.
+    fn ensure_frame(&mut self) {
+        if self.frame_texture.is_some() {
+            return;
+        }
+        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("alacer frame"),
+            size: wgpu::Extent3d {
+                width: self.width,
+                height: self.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: self.config.format,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                .union(wgpu::TextureUsages::TEXTURE_BINDING),
+            view_formats: &[],
+        });
+        self.frame_view = Some(texture.create_view(&wgpu::TextureViewDescriptor::default()));
+        self.frame_texture = Some(texture);
     }
 
     /// Glyphs blitted this session (instrumentation).
@@ -486,7 +536,9 @@ impl WgpuRenderer {
         self.atlas.clears()
     }
 
-    /// Renders one scene and presents.
+    /// Renders one scene in full and presents (the [`alacer_core::damage::
+    /// Damage::FULL`]-style path; also the fallback before the offscreen
+    /// frame is valid).
     ///
     /// # Errors
     ///
@@ -497,23 +549,181 @@ impl WgpuRenderer {
         glyphs: &mut dyn GlyphSource,
         surface: &wgpu::Surface<'_>,
     ) -> Result<(), BackendError> {
-        let frame = match surface.get_current_texture() {
-            wgpu::CurrentSurfaceTexture::Success(texture) => texture,
-            wgpu::CurrentSurfaceTexture::Suboptimal(texture) => {
-                tracing::warn!("surface suboptimal; consider reconfiguring");
-                texture
-            }
-            other => {
-                tracing::debug!("surface unavailable this frame: {other:?}");
-                return Ok(());
-            }
+        let Some(frame) = self.acquire(surface) else {
+            return Ok(());
         };
         let view = frame
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
+        let data = self.pack_instances(scene, glyphs);
+        self.ensure_frame();
+        let Some(frame_view) = self.frame_view.clone() else {
+            return Ok(());
+        };
+        if self.upload_instances(&data) {
+            let mut encoder = self
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("alacer frame"),
+                });
+            {
+                let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("alacer scene pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &frame_view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(BACKGROUND),
+                            store: wgpu::StoreOp::Store,
+                        },
+                        depth_slice: None,
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                    multiview_mask: None,
+                });
+                self.draw_all(&mut pass, &data);
+            }
+            self.blitter
+                .copy(&self.device, &mut encoder, &frame_view, &view);
+            self.queue.submit([encoder.finish()]);
+            self.frame_valid = true;
+        } else {
+            // The budget covers 32k primitives; the 10k-node churn workload
+            // fits with room to spare. Skipping beats unbounded buffers.
+            self.instance_frames_skipped += 1;
+        }
+        drop(frame); // present happens on drop (wgpu 30 contract)
+        Ok(())
+    }
 
-        // Instance packing in scene order: quads pack immediately, glyphs fill
-        // after the atlas resolves them.
+    /// Repaints only `damage`'s regions and presents (§9.3, M3): the
+    /// offscreen frame is loaded (`LoadOp::Load`), each region is cleared
+    /// with a synthetic background quad and scissored, and the primitives
+    /// intersecting the region are redrawn — then the frame blits to the
+    /// swapchain. GPU damage semantics match the software path exactly.
+    ///
+    /// # Errors
+    ///
+    /// [`BackendError::Surface`] from acquisition or submission.
+    pub fn render_partial(
+        &mut self,
+        scene: &SceneSnapshot,
+        damage: &alacer_core::damage::Damage,
+        glyphs: &mut dyn GlyphSource,
+        surface: &wgpu::Surface<'_>,
+    ) -> Result<(), BackendError> {
+        let Some(frame) = self.acquire(surface) else {
+            return Ok(());
+        };
+        let view = frame
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        self.ensure_frame();
+        let Some(frame_view) = self.frame_view.clone() else {
+            return Ok(());
+        };
+        if !self.frame_valid {
+            // Contents undefined (first frame / after resize): the full path
+            // is the only correct fallback.
+            drop(view);
+            drop(frame);
+            return self.render(scene, glyphs, surface);
+        }
+        let all = self.pack_instances(scene, glyphs);
+        let viewport = alacer_core::geom::Size::new(
+            alacer_core::num::i32_to_f32(u32_to_i32(self.width)),
+            alacer_core::num::i32_to_f32(u32_to_i32(self.height)),
+        );
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("alacer partial frame"),
+            });
+        let mut drew_any = false;
+        for region in damage.regions(viewport) {
+            // Instances whose rect reaches into the region — the GPU twin of
+            // the software path's scissor filter.
+            let instances: Vec<Instance> = all
+                .iter()
+                .filter(|instance| {
+                    let [x, y, w, h] = instance.rect;
+                    x < region.max_x()
+                        && y < region.max_y()
+                        && x + w > region.origin.x
+                        && y + h > region.origin.y
+                })
+                .copied()
+                .collect();
+            // The synthetic background quad: the region's erase step, drawn
+            // first (the software path's clear_region twin).
+            let mut data = Vec::with_capacity(instances.len() + 1);
+            data.push(background_instance(&region));
+            data.extend(instances);
+            if !self.upload_instances(&data) {
+                continue;
+            }
+            let Some(scissor) = scissor_rect(&region, self.width, self.height) else {
+                continue;
+            };
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("alacer partial pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &frame_view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                    depth_slice: None,
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            pass.set_pipeline(&self.pipeline);
+            pass.set_bind_group(0, &self.bind_group, &[]);
+            pass.set_scissor_rect(scissor.0, scissor.1, scissor.2, scissor.3);
+            let used = u64::try_from(data.len()).unwrap_or(0) * 64;
+            pass.set_vertex_buffer(0, self.instances.slice(..used));
+            let count = u32::try_from(data.len()).unwrap_or(0);
+            pass.draw(0..6, 0..count);
+            drew_any = true;
+        }
+        if drew_any {
+            self.blitter
+                .copy(&self.device, &mut encoder, &frame_view, &view);
+            self.queue.submit([encoder.finish()]);
+        }
+        drop(frame); // present happens on drop (wgpu 30 contract)
+        Ok(())
+    }
+
+    /// The swapchain texture, `None` when the surface is unavailable this
+    /// frame (the caller skips the present — the frame stands).
+    fn acquire(&self, surface: &wgpu::Surface<'_>) -> Option<wgpu::SurfaceTexture> {
+        match surface.get_current_texture() {
+            wgpu::CurrentSurfaceTexture::Success(texture) => Some(texture),
+            wgpu::CurrentSurfaceTexture::Suboptimal(texture) => {
+                tracing::warn!("surface suboptimal; consider reconfiguring");
+                Some(texture)
+            }
+            other => {
+                tracing::debug!("surface unavailable this frame: {other:?}");
+                None
+            }
+        }
+    }
+
+    /// Instance packing in scene order: quads pack immediately, glyphs fill
+    /// after the atlas resolves them.
+    fn pack_instances(
+        &mut self,
+        scene: &SceneSnapshot,
+        glyphs: &mut dyn GlyphSource,
+    ) -> Vec<Instance> {
         let mut data: Vec<Instance> = Vec::with_capacity(scene.primitives.len());
         let mut glyph_slots: Vec<(usize, Glyph, GlyphBitmap)> = Vec::new();
         for (index, primitive) in scene.primitives.iter().enumerate() {
@@ -566,16 +776,18 @@ impl WgpuRenderer {
                 self.glyphs_rendered += 1;
             }
         }
+        data
+    }
 
+    /// Uploads the instance buffer; `false` when over budget (the frame is
+    /// skipped — the budget beats unbounded buffers).
+    fn upload_instances(&self, data: &[Instance]) -> bool {
         let used = u64::try_from(data.len()).unwrap_or(0) * 64;
         if used > self.instance_capacity {
-            // The budget covers 32k primitives; the 10k-node churn workload
-            // fits with room to spare. Skipping beats unbounded buffers.
-            self.instance_frames_skipped += 1;
-            return Ok(());
+            return false;
         }
         self.queue
-            .write_buffer(&self.instances, 0, bytemuck::cast_slice(&data));
+            .write_buffer(&self.instances, 0, bytemuck::cast_slice(data));
         self.queue.write_buffer(
             &self.uniforms,
             0,
@@ -586,43 +798,16 @@ impl WgpuRenderer {
                 0.0,
             ]),
         );
+        true
+    }
 
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("alacer frame"),
-            });
-        {
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("alacer scene pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.96,
-                            g: 0.96,
-                            b: 0.97,
-                            a: 1.0,
-                        }),
-                        store: wgpu::StoreOp::Store,
-                    },
-                    depth_slice: None,
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
-            pass.set_pipeline(&self.pipeline);
-            pass.set_bind_group(0, &self.bind_group, &[]);
-            pass.set_vertex_buffer(0, self.instances.slice(..used));
-            let count = u32::try_from(data.len()).unwrap_or(0);
-            pass.draw(0..6, 0..count);
-        }
-        self.queue.submit([encoder.finish()]);
-        drop(frame); // present happens on drop (wgpu 30 contract)
-        Ok(())
+    fn draw_all<'a>(&self, pass: &mut wgpu::RenderPass<'a>, data: &[Instance]) {
+        pass.set_pipeline(&self.pipeline);
+        pass.set_bind_group(0, &self.bind_group, &[]);
+        let used = u64::try_from(data.len()).unwrap_or(0) * 64;
+        pass.set_vertex_buffer(0, self.instances.slice(..used));
+        let count = u32::try_from(data.len()).unwrap_or(0);
+        pass.draw(0..6, 0..count);
     }
 }
 
@@ -634,6 +819,63 @@ pub fn atlas_key(glyph: &Glyph) -> GlyphKey {
         glyph_id: glyph.glyph_id,
         size_bits: glyph.size.to_bits(),
     }
+}
+
+/// The clear color: `alacer_widgets::theme::SURFACE` as raw wgpu RGB (the
+/// platform crate cannot depend on the widget crate's constants inside WGSL
+/// literals; the two must agree — a const test pins it in `softbuffer.rs`).
+const BACKGROUND: wgpu::Color = wgpu::Color {
+    r: 0.96,
+    g: 0.96,
+    b: 0.97,
+    a: 1.0,
+};
+
+/// The synthetic background quad that erases one damage region before the
+/// region's primitives redraw (the GPU twin of the software path's
+/// `clear_region`): a sharp, unbordered quad covering the region.
+fn background_instance(region: &alacer_core::geom::Rect) -> Instance {
+    Instance {
+        rect: [
+            region.origin.x,
+            region.origin.y,
+            region.size.width,
+            region.size.height,
+        ],
+        geom: [0.0, 0.0, 0.0, 0.0],
+        color: [
+            f32::from(BACKGROUND_COLOR_U8.0) / 255.0,
+            f32::from(BACKGROUND_COLOR_U8.1) / 255.0,
+            f32::from(BACKGROUND_COLOR_U8.2) / 255.0,
+            1.0,
+        ],
+        uv: [region.size.width, region.size.height, 0.0, 0.0],
+    }
+}
+
+/// `SURFACE` (245, 246, 248) as bytes — must equal [`BACKGROUND`].
+const BACKGROUND_COLOR_U8: (u8, u8, u8) = (245, 246, 248);
+
+/// The damage region as an integer scissor rect clamped to the target.
+fn scissor_rect(
+    region: &alacer_core::geom::Rect,
+    width: u32,
+    height: u32,
+) -> Option<(u32, u32, u32, u32)> {
+    let bound_w = alacer_core::num::u32_to_f32(width);
+    let bound_h = alacer_core::num::u32_to_f32(height);
+    let x0 = region.origin.x.max(0.0).floor();
+    let y0 = region.origin.y.max(0.0).floor();
+    let x1 = region.max_x().clamp(0.0, bound_w).floor();
+    let y1 = region.max_y().clamp(0.0, bound_h).floor();
+    let x = alacer_core::num::f32_to_u32(x0);
+    let y = alacer_core::num::f32_to_u32(y0);
+    let w = alacer_core::num::f32_to_u32(x1 - x0);
+    let h = alacer_core::num::f32_to_u32(y1 - y0);
+    if w == 0 || h == 0 || x >= width || y >= height {
+        return None;
+    }
+    Some((x, y, w.min(width - x), h.min(height - y)))
 }
 
 fn u32_to_i32(v: u32) -> i32 {

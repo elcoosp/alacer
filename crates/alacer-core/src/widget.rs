@@ -5,7 +5,7 @@
 //! CI walker in `alacer-testing` fails builds on unnamed input controls; the
 //! contract holds by construction, not by discipline.
 
-use crate::events::{EventCtx, PointerEvent};
+use crate::events::{EventCtx, ImeEvent, KeyEvent, PointerEvent};
 use crate::scene::PaintCtx;
 use crate::style::Style;
 use std::borrow::Cow;
@@ -190,6 +190,48 @@ pub trait Widget: 'static {
     fn on_pointer_event(&mut self, ctx: &mut EventCtx, event: &PointerEvent) -> EventResponse {
         let _ = (ctx, event);
         EventResponse::Ignored
+    }
+
+    /// Handles a key event routed to this widget because it holds focus
+    /// (§10.3 — keyboard input is focus-routed, never hit-tested). Editing
+    /// widgets act on [`KeyState::Pressed`] only; returning [`EventResponse::
+    /// Ignored`] lets the framework take the key (Tab's focus cycling).
+    fn on_key_event(&mut self, ctx: &mut EventCtx, event: &KeyEvent) -> EventResponse {
+        let _ = (ctx, event);
+        EventResponse::Ignored
+    }
+
+    /// Handles an IME event routed to this widget because it holds focus
+    /// (§10.3, the IME contract's event half). Preedit is *composing* input:
+    /// display it inline (the platform cursor is a UTF-16 offset within the
+    /// preedit); an empty preedit cancels; [`ImeEvent::Commit`] inserts final
+    /// text at the caret and clears any preedit.
+    fn on_ime_event(&mut self, ctx: &mut EventCtx, event: &ImeEvent) -> EventResponse {
+        let _ = (ctx, event);
+        EventResponse::Ignored
+    }
+
+    /// Notifies the widget that keyboard focus moved to it (`true`) or away
+    /// (`false`) — the focus-ring hook (§7.2 pass 3). Widgets store the flag
+    /// and repaint on their next look; the framework already merges the
+    /// PAINT mask on both endpoints of the move.
+    fn set_focused(&mut self, focused: bool) {
+        let _ = focused;
+    }
+
+    /// The IME flavor this widget wants while focused (§10.3). [`ImePurpose::
+    /// Off`] (the default) tells the platform no IME is needed; the pipeline
+    /// derives the frame's [`crate::passes::ImeRequest`] from the focused
+    /// widget's answer.
+    fn ime_purpose(&self) -> crate::passes::ImePurpose {
+        crate::passes::ImePurpose::Off
+    }
+
+    /// The widget's exposed value for the a11y tree (M3 contract): editable
+    /// widgets report their content so screen readers read the text, not just
+    /// the name. Valueless roles return `None`.
+    fn value(&self) -> Option<String> {
+        None
     }
 
     /// Handles an accessibility action targeting this widget. Returns `true`

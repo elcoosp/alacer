@@ -69,6 +69,12 @@ impl List {
         self
     }
 
+    /// Shared-borrow layout style access for view reconciliation (§6.1).
+    #[must_use]
+    pub const fn style_mut(&mut self) -> &mut Style {
+        &mut self.style
+    }
+
     /// Builds the boxed widget.
     #[must_use]
     pub fn boxed(self) -> Box<dyn Widget> {
@@ -77,6 +83,9 @@ impl List {
 }
 
 impl Widget for List {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
     fn role(&self) -> Role {
         Role::ScrollArea
     }

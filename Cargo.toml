@@ -1,0 +1,76 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/alacer",
+    "crates/alacer-core",
+    "crates/alacer-layout",
+    "crates/alacer-text",
+    "crates/alacer-render",
+    "crates/alacer-a11y",
+    "crates/alacer-view",
+    "crates/alacer-widgets",
+    "crates/alacer-platform",
+    "crates/alacer-testing",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+license = "MIT OR Apache-2.0"
+authors = ["The Alacer Developers"]
+repository = "https://github.com/alacer-rs/alacer"
+homepage = "https://github.com/alacer-rs/alacer"
+
+# ADR-9 (workspace & discipline): `missing_docs` + `unsafe_code` deny, Iced precedent.
+# Clippy pedantic is denied outright — there is no allow-list anywhere in this workspace.
+[workspace.lints.rust]
+missing_docs = "deny"
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+pedantic = { level = "deny", priority = -1 }
+
+[workspace.dependencies]
+# Internal crates — layering is a DAG, enforced by `scripts/check_dag.py` in CI (ADR-9).
+alacer = { path = "crates/alacer" }
+alacer-core = { path = "crates/alacer-core" }
+alacer-layout = { path = "crates/alacer-layout" }
+alacer-text = { path = "crates/alacer-text" }
+alacer-render = { path = "crates/alacer-render" }
+alacer-a11y = { path = "crates/alacer-a11y" }
+alacer-view = { path = "crates/alacer-view" }
+alacer-widgets = { path = "crates/alacer-widgets" }
+alacer-platform = { path = "crates/alacer-platform" }
+alacer-testing = { path = "crates/alacer-testing" }
+
+# Adopted cores (A2 — steal proven cores; own only the composition).
+# `effects` gates ImmediateEffect — the synchronous, batch-coalescing effect
+# type our scheduling contract (ADR-6) is built on.
+reactive_graph = { version = "0.2.16", features = ["effects"] }
+taffy = "0.15.1"
+parley = "0.12.0"
+swash = "0.2.10"
+accesskit = "0.25.2"
+accesskit_winit = "0.34.2"
+winit = "0.30.13"
+wgpu = "30.0.1"
+tiny-skia = "0.12.0"
+softbuffer = "0.4.8"
+raw-window-handle = "0.6.2"
+
+# Small, permissive utilities.
+bitflags = "2.13.2"
+euclid = "0.22.14"
+rustc-hash = "2.1.3"
+tracing = "0.1.44"
+criterion = "0.8.2"
+
+[profile.dev]
+# Keep dependency builds cheap on constrained machines: no debug info in dev/test.
+debug = 0
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "symbols"

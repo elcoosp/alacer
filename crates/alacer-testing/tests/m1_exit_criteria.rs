@@ -600,15 +600,20 @@ fn first_descendant_of_kind(
 }
 
 fn scroll_list(harness: &mut TestHarness, node: alacer_core::arena::NodeId, offset: f32) {
-    let handle = {
+    {
         let mut guard = harness.pipeline_mut().arena_mut().mutate(node);
-        guard
+        let handle = guard
             .widget_mut()
             .as_any_mut()
             .downcast_mut::<alacer_widgets::List>()
             .expect("the node is a List")
-            .handle()
-    };
-    handle.scroll_to(offset);
+            .handle();
+        handle.scroll_to(offset);
+        drop(handle);
+        // A programmatic scroll is a mutation: the invalidation currency
+        // applies — request the repaint + a11y-bounds refresh (§8.2), the
+        // same masks the wheel path requests through `EventCtx`.
+        guard.request(alacer_core::Change::PAINT.union(alacer_core::Change::A11Y));
+    }
     harness.settle();
 }

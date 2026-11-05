@@ -21,3 +21,7 @@ criterion.workspace = true
 [[bench]]
 name = "incremental"
 harness = false
+
+[[bench]]
+name = "w1_churn"
+harness = false

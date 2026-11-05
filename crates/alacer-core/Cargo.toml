@@ -1,0 +1,27 @@
+[package]
+name = "alacer-core"
+description = "Alacer's core: the Change-mask invalidation currency, widget arena, pass system, and the flux bridge over reactive_graph"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+reactive_graph.workspace = true
+bitflags.workspace = true
+euclid.workspace = true
+rustc-hash.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "flux"
+harness = false
+
+[[bench]]
+name = "arena"
+harness = false

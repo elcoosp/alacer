@@ -18,7 +18,7 @@ from pathlib import Path
 # Layer order: bottom of the stack first. A crate may only depend on crates
 # in its own layer or LOWER layers.
 LAYERS: dict[str, list[str]] = {
-    "foundation": ["alacer-core", "alacer-view"],
+    "foundation": ["alacer-core", "alacer-macro", "alacer-view"],
     "surfaces": ["alacer-layout", "alacer-text", "alacer-render", "alacer-a11y"],
     "widgets": ["alacer-widgets"],
     "platform": ["alacer-platform"],
@@ -28,17 +28,24 @@ LAYERS: dict[str, list[str]] = {
 
 # Internal crate -> declared path deps it is ALLOWED to use. Extra deps fail.
 ALLOWED: dict[str, set[str]] = {
-    # Foundation: core depends on nothing internal. view depends on core.
+    # Foundation: core depends on nothing internal; the proc-macro is a
+    # pure leaf (generated code references ::alacer_view paths at the call
+    # site — no internal dependency needed, the dioxus-rsx pattern).
     "alacer-core": set(),
+    "alacer-macro": set(),
     "alacer-view": {"alacer-core"},
     # Surfaces depend on foundation only.
     "alacer-layout": {"alacer-core"},
     "alacer-text": {"alacer-core"},
     "alacer-render": {"alacer-core"},
     "alacer-a11y": {"alacer-core"},
-    # Widgets consume the surfaces it needs (M0 deviation documented in the
-    # ADR register: tightens to core-only re-exports in M1).
-    "alacer-widgets": {"alacer-core", "alacer-layout", "alacer-text"},
+    # Widgets consume the core seam only (ADR-9 M1 tightening: the text
+    # services reach widgets through alacer-core's TextSeam, installed at
+    # assembly sites).
+    # Widgets register the default element set into the view registry
+    # (ADR-9 M1: the view machinery stays in the foundation; the concrete
+    # element set registers itself where the widget types live).
+    "alacer-widgets": {"alacer-core", "alacer-view"},
     # Platform drives the whole pipeline.
     "alacer-platform": {
         "alacer-core",
@@ -49,8 +56,12 @@ ALLOWED: dict[str, set[str]] = {
         "alacer-widgets",
     },
     # Harness drives everything except the facade (which re-exports it).
+    # The rsx! macro + view tree are foundation leaves: snapshot scenarios
+    # are written in the same view DSL the users get (ADR-10).
     "alacer-testing": {
         "alacer-core",
+        "alacer-macro",
+        "alacer-view",
         "alacer-layout",
         "alacer-text",
         "alacer-render",
@@ -60,6 +71,7 @@ ALLOWED: dict[str, set[str]] = {
     # Facade re-exports everything.
     "alacer": {
         "alacer-core",
+        "alacer-macro",
         "alacer-layout",
         "alacer-text",
         "alacer-render",

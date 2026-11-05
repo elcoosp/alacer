@@ -245,6 +245,13 @@ fn publish(host: &mut LayoutHost, arena: &mut Arena, node: NodeId, origin: Point
 }
 
 fn is_live(arena: &Arena, root: Option<NodeId>, id: NodeId) -> bool {
+    // Dead slots (removed by the view reconciler or by hand) leave the index
+    // first — `parent()` on them would panic. Self-heal: the caller drops
+    // every dead id from the taffy map (ADR-3: the persistent tree is pruned,
+    // never cleared).
+    if !arena.is_live(id) {
+        return false;
+    }
     let Some(root) = root else {
         return false;
     };
@@ -365,6 +372,9 @@ mod tests {
     }
 
     impl Widget for TestBox {
+        fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+            self
+        }
         fn role(&self) -> Role {
             Role::Container
         }

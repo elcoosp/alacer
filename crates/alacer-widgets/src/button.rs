@@ -77,9 +77,34 @@ impl Button {
     pub const fn is_pressed(&self) -> bool {
         self.pressed
     }
+
+    /// Replaces the label text in place (view reconciliation, §6.1).
+    pub fn set_label(&mut self, label: impl Into<String>) {
+        self.label = label.into();
+    }
+
+    /// Sets the fill (and pressed fill) in place (view reconciliation).
+    pub fn set_fill(&mut self, fill: Color) {
+        self.fill = fill;
+        self.fill_pressed = fill;
+    }
+
+    /// Sets the text color in place (view reconciliation).
+    pub fn set_text_color(&mut self, color: Color) {
+        self.text_color = color;
+    }
+
+    /// Replaces the click handler in place (view reconciliation). `None`
+    /// detaches the handler.
+    pub fn set_on_click(&mut self, handler: Option<Box<dyn FnMut()>>) {
+        self.on_click = handler;
+    }
 }
 
 impl Widget for Button {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
     fn role(&self) -> Role {
         Role::Button
     }
@@ -112,8 +137,8 @@ impl Widget for Button {
         );
 
         // Centered text.
-        alacer_text::with_text(|text_ctx| {
-            let layout = text_ctx.layout_text(&self.label, self.font_size, None);
+        alacer_core::text_seam::with_seam(|seam| {
+            let layout = seam.layout_glyphs(&self.label, self.font_size, None);
             let text_origin = Point::new(
                 (size.0 - layout.width).max(0.0) * 0.5,
                 (size.1 - layout.height).max(0.0) * 0.5,
@@ -132,8 +157,8 @@ impl Widget for Button {
     }
 
     fn measure_spec(&self) -> Option<MeasureSpec> {
-        let text_size = alacer_text::with_text(|text_ctx| {
-            text_ctx.measure(
+        let text_size = alacer_core::text_seam::with_seam(|seam| {
+            seam.measure(
                 &TextSpec {
                     text: self.label.clone(),
                     font_id: 0,

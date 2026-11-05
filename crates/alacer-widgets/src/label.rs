@@ -121,8 +121,10 @@ impl Widget for Label {
         if text.is_empty() {
             return;
         }
+        // Wrap at the laid-out width — the constraint the measure pass saw,
+        // so the painted lines match the node's height (§5.2's wrapped label).
         alacer_core::text_seam::with_seam(|seam| {
-            let layout = seam.layout_glyphs(&text, self.font_size, None);
+            let layout = seam.layout_glyphs(&text, self.font_size, Some(ctx.size().width));
             for glyph in &layout.glyphs {
                 ctx.push_glyph(alacer_core::scene::Glyph {
                     position: Point::new(glyph.x, glyph.y),

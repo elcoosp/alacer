@@ -75,6 +75,43 @@ pub fn i32_to_f32(v: i32) -> f32 {
     }
 }
 
+/// Widens to `f32` (frame counters; exact below 2^24).
+#[must_use]
+pub fn u32_to_f32(v: u32) -> f32 {
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "counter values are exact far below the f32 mantissa limit"
+    )]
+    {
+        v as f32
+    }
+}
+
+/// Widens to `f32` (nanosecond timing ratios; exact below 2^24 ns).
+#[must_use]
+pub fn u64_to_f32(v: u64) -> f32 {
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "timing ratios compare magnitudes; f32 precision is ample past 2^24 ns"
+    )]
+    {
+        v as f32
+    }
+}
+
+/// Narrows a `u128` duration to `u64` nanoseconds (saturating; a frame longer
+/// than 584 years is not a frame).
+#[must_use]
+pub fn u128_to_u64(v: u128) -> u64 {
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "saturating clamp bounds the result to u64::MAX before the cast"
+    )]
+    {
+        v.min(u128::from(u64::MAX)) as u64
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{f32_to_i32, f32_to_u8, f32_to_u32, i32_to_f32, usize_to_f32, usize_to_u32};

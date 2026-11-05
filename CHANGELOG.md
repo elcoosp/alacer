@@ -5,6 +5,42 @@ All notable changes to **Alacer** will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
+## [Unreleased]
+
+### Added
+
+- **M3 — the a11y contract**: the a11y pass produces `A11yDelta`s (updated /
+  removed / focus / initializes); AccessKit `TreeUpdate`s stay dirty-node-only,
+  removals surface exactly once, focus travels in the update, editables expose
+  `value()`; the §18 gate — incremental TreeUpdate p99 < 0.5 ms @ 1k nodes —
+  is test-enforced
+- **M3 — partial paint**: the damage model (`alacer-core::damage`, ≤3 regions,
+  least-growth merging, NONE/partial/FULL ladder) computed by the paint pass
+  from old journal extents + new primitive extents, carried in
+  `FrameReport::damage`; software backend repaints regions onto a persistent
+  framebuffer, wgpu backend `LoadOp::Load`s an offscreen frame with scissor
+  rects; the equivalence fuzz pins partial == full pixel-exactly (Q8)
+- **M3 — the IME contract**: UTF-16-native key/IME event vocabulary, the
+  `utf16` arithmetic seam (mid-surrogate offsets floor, never slice),
+  focus-routed `dispatch_key`/`dispatch_ime` with Tab cycling, per-frame
+  `ImeRequest` (purpose + caret anchor), the winit byte→UTF-16 platform seam,
+  and the `TextInput` reference widget (caret editing, inline preedit, commit,
+  secure mode, focus ring, a11y value)
+- `TextInput` widget + the `text_input` example
+- ADR-0009: the M3 scope decision record
+
+### Changed
+
+- `A11ySink::apply` takes a shared `Arc<TreeSnapshot>` (built once per a11y
+  run — no per-frame deep clone) and an `&A11yDelta`
+- `SceneJournal` gains `layer(node)` — the damage pass reads the layer it is
+  about to replace
+- Pass 3 notifies focus endpoints (`Widget::set_focused`) and merges their
+  PAINT masks same-tick; the tick drains all masks pass 3 merged
+- `Widget` gains `on_key_event`, `on_ime_event`, `set_focused`, `ime_purpose`,
+  `value` (all defaulted)
+- Buttons take keyboard focus on press (click-to-focus, §10.3)
+
 ## [0.3.0] — 2026-11-05
 
 

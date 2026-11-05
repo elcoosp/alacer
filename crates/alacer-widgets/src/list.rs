@@ -103,6 +103,10 @@ impl Widget for List {
         Vector::new(0.0, state.offset)
     }
 
+    fn is_scroll_container(&self) -> bool {
+        true
+    }
+
     fn on_pointer_event(&mut self, ctx: &mut EventCtx, event: &PointerEvent) -> EventResponse {
         if let PointerEvent::Wheel { delta, .. } = event {
             let mut state = self.state.lock().expect("scroll state");

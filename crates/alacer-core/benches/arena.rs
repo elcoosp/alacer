@@ -9,6 +9,9 @@ use std::hint::black_box;
 struct Node;
 
 impl Widget for Node {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
     fn role(&self) -> Role {
         Role::Container
     }

@@ -1,0 +1,26 @@
+[package]
+name = "alacer"
+description = "Alacer: a retained-mode Rust UI framework where reactivity, layout, paint, and accessibility consume one shared invalidation currency. Facade crate: prelude and re-exports"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[features]
+default = ["backend-wgpu", "backend-softbuffer"]
+backend-wgpu = ["alacer-platform/backend-wgpu"]
+backend-softbuffer = ["alacer-platform/backend-softbuffer"]
+
+[dependencies]
+alacer-core.workspace = true
+alacer-layout.workspace = true
+alacer-text.workspace = true
+alacer-render.workspace = true
+alacer-a11y.workspace = true
+alacer-view.workspace = true
+alacer-widgets.workspace = true
+alacer-platform.workspace = true
+reactive_graph.workspace = true
+alacer-testing.workspace = true

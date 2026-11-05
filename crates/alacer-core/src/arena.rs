@@ -196,6 +196,36 @@ impl Arena {
         parent_slot.mask |= Change::STRUCTURE.propagated_to_ancestors();
     }
 
+    /// Permutes `parent`'s children into exactly `order` — the move op for
+    /// keyed reconciliation (§6.2: LIS members stay, the rest move).
+    ///
+    /// The list must be a permutation of the current children: dropping,
+    /// duplicating, or importing a foreign id is a reconciler bug and panics.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `order` is not a permutation of the live children, or while
+    /// another mutation holds the lease.
+    #[track_caller]
+    pub fn reorder_children(&mut self, parent: NodeId, order: &[NodeId]) {
+        self.assert_lease_free();
+        let current = self.children(parent).to_vec();
+        let same = current.len() == order.len()
+            && order.iter().all(|id| current.contains(id))
+            && current.iter().all(|id| order.contains(id));
+        assert!(
+            same,
+            "reorder_children: the list must be a permutation of the live \
+             children (got {order:?}, have {current:?})"
+        );
+        let parent_slot = self.slot_mut(parent);
+        if parent_slot.children == order {
+            return; // already in order: no structural change to report
+        }
+        parent_slot.children = order.to_vec();
+        parent_slot.mask |= Change::STRUCTURE.propagated_to_ancestors();
+    }
+
     /// Depth-first pre-order visit of every live node — the paint order.
     pub fn for_each_pre_order(&self, f: &mut impl FnMut(NodeId, &Slot)) {
         if let Some(root) = self.root {
@@ -225,6 +255,14 @@ impl Arena {
             .copied()
             .unwrap_or_else(|| panic!("{node} is not live"));
         &self.slots[idx]
+    }
+
+    /// Whether `node` is a live arena slot (safe to `slot()`, `mutate()`,
+    /// etc.). Dead slots linger in the backing vector after
+    /// [`Self::remove_subtree`] but leave the index.
+    #[must_use]
+    pub fn is_live(&self, node: NodeId) -> bool {
+        self.index.contains_key(&node)
     }
 
     fn slot_mut(&mut self, node: NodeId) -> &mut Slot {
@@ -347,18 +385,22 @@ impl Arena {
         self.pending.len()
     }
 
-    /// Drains all queued mutations.
+    /// Drains all queued mutations, returning the nodes that were mutated
+    /// (pass 4 feeds them to the style pass's recalc candidates, §7.2).
     ///
     /// # Panics
     ///
     /// Panics if the closure targets a node that is no longer live.
-    pub fn drain_mutations(&mut self) {
+    pub fn drain_mutations(&mut self) -> Vec<NodeId> {
         let pending = std::mem::take(&mut self.pending);
+        let mut mutated = Vec::with_capacity(pending.len());
         for mutation in pending {
             let node = mutation.node;
             let mut guard = self.mutate(node);
             (mutation.closure)(guard.widget_mut());
+            mutated.push(node);
         }
+        mutated
     }
 
     /// Takes the arena lease for one node mutation.
@@ -502,6 +544,9 @@ mod tests {
     }
 
     impl Widget for Probe {
+        fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+            self
+        }
         fn role(&self) -> Role {
             self.role
         }
@@ -552,6 +597,59 @@ mod tests {
             ["root", "a", "a1", "b"]
         );
         assert_eq!(order[3].0, b);
+    }
+
+    #[test]
+    fn reorder_children_permutes_paint_order_and_flags_structure() {
+        let mut arena = Arena::new();
+        let root = arena.set_root(Probe::named("root"));
+        let a = arena.add_child(root, Probe::named("a"));
+        let b = arena.add_child(root, Probe::named("b"));
+        let c = arena.add_child(root, Probe::named("c"));
+        let _ = arena.take_masks(Change::ALL); // isolate from mount masks
+
+        arena.reorder_children(root, &[c, a, b]);
+
+        let mut order = Vec::new();
+        arena.for_each_pre_order(&mut |_, slot| order.push(slot.widget().label().resolve()));
+        assert_eq!(
+            order,
+            ["root", "c", "a", "b"],
+            "children follow the new order"
+        );
+
+        let masks = arena.take_masks(Change::ALL);
+        assert!(
+            masks
+                .iter()
+                .any(|(id, m)| *id == root && m.contains(Change::STRUCTURE)),
+            "reorder marks the parent structure-dirty"
+        );
+    }
+
+    #[test]
+    fn reorder_children_rejects_foreign_and_missing_ids() {
+        let mut arena = Arena::new();
+        let root = arena.set_root(Probe::named("root"));
+        let a = arena.add_child(root, Probe::named("a"));
+        let b = arena.add_child(root, Probe::named("b"));
+        let a1 = arena.add_child(a, Probe::named("a1"));
+
+        // A reordered list that drops a child, duplicates one, or adds a
+        // stranger is a reconciler bug: refuse it wholesale.
+        for bad in [
+            &[][..],         // drops b
+            &[a, a, b][..],  // duplicates a
+            &[a, b, a1][..], // a1 is a stranger (child of a)
+        ] {
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                arena.reorder_children(root, bad);
+            }));
+            assert!(
+                result.is_err(),
+                "malformed reorder list must panic: {bad:?}"
+            );
+        }
     }
 
     #[test]
@@ -629,7 +727,8 @@ mod tests {
         );
         assert_eq!(arena.pending_mutations(), 1);
         let _ = arena.take_masks(Change::ALL); // isolate from mount masks
-        arena.drain_mutations();
+        let mutated = arena.drain_mutations();
+        assert_eq!(mutated, vec![a], "the mutated node is reported to pass 5");
         assert_eq!(arena.pending_mutations(), 0);
         assert_eq!(arena.mask(a), Change::empty());
     }

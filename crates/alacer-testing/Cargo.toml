@@ -10,6 +10,8 @@ repository.workspace = true
 
 [dependencies]
 alacer-core.workspace = true
+alacer-macro.workspace = true
+alacer-view.workspace = true
 alacer-layout.workspace = true
 alacer-text.workspace = true
 alacer-render.workspace = true

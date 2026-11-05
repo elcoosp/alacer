@@ -8,7 +8,7 @@
 
 use crate::mask::Change;
 use crate::widget::Widget;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::fmt;
 use std::num::NonZeroU64;
 use std::panic::Location;
@@ -102,6 +102,9 @@ pub struct Arena {
     root: Option<NodeId>,
     mutation_lease: Option<(&'static Location<'static>, u64)>,
     pending: Vec<PendingMutation>,
+    /// Nodes whose children translate with their scroll offset — the compose
+    /// pass visits only these instead of walking the tree every frame.
+    scrollables: FxHashSet<NodeId>,
 }
 
 impl Arena {
@@ -128,6 +131,7 @@ impl Arena {
         self.assert_lease_free();
         assert!(self.root.is_none(), "root already mounted");
         let id = NodeId::allocate();
+        self.scrollables = FxHashSet::default();
         self.slots.push(Slot {
             id,
             parent: None,
@@ -141,6 +145,7 @@ impl Arena {
         });
         self.index.insert(id, 0);
         self.root = Some(id);
+        self.record_scrollable(id);
         id
     }
 
@@ -168,7 +173,24 @@ impl Arena {
             bounds: None,
         });
         self.index.insert(id, self.slots.len() - 1);
+        self.record_scrollable(id);
         id
+    }
+
+    /// Indexes `id` under the scrollable set when its widget translates
+    /// children (the compose pass's candidate list).
+    fn record_scrollable(&mut self, id: NodeId) {
+        if self.slot(id).widget.is_scroll_container() {
+            self.scrollables.insert(id);
+        }
+    }
+
+    /// The live scroll containers (compose pass candidates, §8.2).
+    pub fn scrollables(&self) -> impl Iterator<Item = NodeId> + '_ {
+        self.scrollables
+            .iter()
+            .copied()
+            .filter(|id| self.is_live(*id))
     }
 
     /// Removes a node and its whole subtree; the parent absorbs `STRUCTURE`.
@@ -190,6 +212,7 @@ impl Arena {
             self.slots[idx].mask = Change::empty();
             self.slots[idx].children.clear();
             self.slots[idx].parent = None;
+            self.scrollables.remove(id);
         }
         let parent_slot = self.slot_mut(parent);
         parent_slot.children.retain(|c| *c != node);

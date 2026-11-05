@@ -169,6 +169,14 @@ pub trait Widget: 'static {
         crate::geom::Vector::zero()
     }
 
+    /// Whether this widget's children translate with [`Self::scroll_offset`].
+    ///
+    /// The arena indexes scroll containers so the compose pass visits only
+    /// real candidates instead of walking every node each frame.
+    fn is_scroll_container(&self) -> bool {
+        false
+    }
+
     /// The widget's intrinsic measure request, consumed by the layout engine's
     /// measure functions.
     fn measure_spec(&self) -> Option<crate::style::MeasureSpec> {

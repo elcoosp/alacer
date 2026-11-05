@@ -101,6 +101,14 @@ impl alacer_core::passes::SceneJournal for NullJournal {
         self.layers.lock().expect("journal lock").remove(&node);
     }
 
+    fn layer(&self, node: NodeId) -> Option<Vec<alacer_core::scene::Primitive>> {
+        self.layers
+            .lock()
+            .expect("journal lock")
+            .get(&node)
+            .cloned()
+    }
+
     fn clear(&mut self) {
         self.layers.lock().expect("journal lock").clear();
     }
@@ -129,10 +137,10 @@ struct NullA11y;
 impl alacer_core::passes::A11ySink for NullA11y {
     fn apply(
         &mut self,
-        snapshot: &alacer_core::passes::TreeSnapshot,
-        dirty: &rustc_hash::FxHashSet<u64>,
+        snapshot: std::sync::Arc<alacer_core::passes::TreeSnapshot>,
+        delta: &alacer_core::passes::A11yDelta,
     ) {
-        let _ = (snapshot, dirty);
+        let _ = (snapshot, delta);
     }
 
     fn resolved_tree(&self) -> Option<&alacer_core::passes::TreeSnapshot> {

@@ -22,7 +22,8 @@
 //! pass-system bookkeeping share (§7.2 kill criterion).
 
 use crate::arena::{Arena, NodeId};
-use crate::events::{EventPhase, PointerEvent};
+use crate::damage::{Damage, DamageBuilder};
+use crate::events::{EventPhase, ImeEvent, KeyEvent, PointerEvent};
 use crate::flux::Flux;
 use crate::geom::{Point, Rect, Size, Vector};
 use crate::mask::Change;
@@ -89,6 +90,9 @@ pub struct TreeNode {
     pub bounds: Option<Rect>,
     /// Child ids in tree order.
     pub children: Vec<u64>,
+    /// The widget's exposed value (editable widgets: their text). `None` for
+    /// valueless roles (M3 a11y contract: inputs carry their content).
+    pub value: Option<String>,
 }
 
 /// The full accessibility snapshot of the widget tree, built by pass 9.
@@ -155,18 +159,88 @@ impl TreeSnapshot {
     }
 }
 
+/// The a11y contract's per-frame product (§11.1, M3): what changed in
+/// accessibility terms, and nothing more. One [`A11yDelta`] per a11y pass run:
+/// dirty-node-only re-emits, the ids that disappeared, and the focused node —
+/// the exact delta an incremental platform adapter (AccessKit) needs.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct A11yDelta {
+    /// The id-path hashes whose a11y entry changed this frame (dirty nodes
+    /// only — a clean subtree costs nothing, §11.1 item 4).
+    pub updated: FxHashSet<u64>,
+    /// Ids present in the last a11y frame but gone from the tree now (dead
+    /// widgets). Platform adapters drop them; parents of removed subtrees are
+    /// always in `updated` (STRUCTURE propagates A11Y to ancestors), so
+    /// parent-referenced removals are expressible in one update.
+    pub removed: Vec<u64>,
+    /// The focused node's id-path hash, `None` when no widget holds focus.
+    pub focus: Option<u64>,
+    /// Whether this delta (re)initializes the whole tree (first frame or a
+    /// structural rebuild): adapters treat `updated` as the full forest.
+    pub initializes: bool,
+}
+
+impl A11yDelta {
+    /// A delta carrying nothing — the explicit no-op.
+    #[must_use]
+    pub fn empty() -> Self {
+        Self::default()
+    }
+}
+
 /// The accessibility stage, injected so `alacer-core` stays independent of
 /// AccessKit.
 pub trait A11ySink {
-    /// Applies the snapshot incrementally: only `dirty` ids (id-path hashes)
-    /// are re-emitted downstream (§11.1 item 4).
-    fn apply(&mut self, snapshot: &TreeSnapshot, dirty: &FxHashSet<u64>);
+    /// Applies the snapshot incrementally: only `delta.updated` ids (id-path
+    /// hashes) are re-emitted downstream (§11.1 item 4); `delta.focus` moves
+    /// platform focus; `delta.initializes` marks a full (re)build.
+    ///
+    /// The snapshot arrives shared (`Arc`): the pass builds it once, the sink
+    /// keeps it for queries — no per-frame deep clone of the tree (the p99
+    /// budget measures TreeUpdate production, not bookkeeping).
+    fn apply(&mut self, snapshot: std::sync::Arc<TreeSnapshot>, delta: &A11yDelta);
 
     /// The sink's resolved tree, for harness queries.
     #[must_use]
     fn resolved_tree(&self) -> Option<&TreeSnapshot> {
         None
     }
+}
+
+/// Why the platform's Input Method Editor is needed for the focused widget
+/// (§10.3, the IME contract's request half).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
+pub enum ImePurpose {
+    /// No IME: the focused widget does not accept text.
+    #[default]
+    Off,
+    /// Normal free-form text entry (fcitx5/ibus composition on Linux).
+    Text,
+    /// Digits and separators only — numeric pads, PIN fields.
+    Number,
+    /// Secret entry: platforms suppress preedit echo and suggestion bars.
+    Secure,
+}
+
+impl ImePurpose {
+    /// Whether an IME should be attached to the focused widget at all.
+    #[must_use]
+    pub const fn enabled(self) -> bool {
+        !matches!(self, Self::Off)
+    }
+}
+
+/// The platform IME request derived from the focused widget each frame
+/// (§10.3): what the windowing system must do about input methods now.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ImeRequest {
+    /// The focused editable widget's id-path hash (the AccessKit identity).
+    pub node: u64,
+    /// The requested IME flavor.
+    pub purpose: ImePurpose,
+    /// The caret/preedit anchor region in window coordinates — where platform
+    /// candidate windows anchor. `None` when the widget reports no caret yet.
+    pub caret: Option<Rect>,
 }
 
 /// The scene journal, injected so `alacer-core` owns the paint pass without
@@ -177,6 +251,11 @@ pub trait SceneJournal {
 
     /// Removes node `node`'s layer (subtree removals).
     fn drop_layer(&mut self, node: NodeId);
+
+    /// A copy of node `node`'s recorded layer, if any — the *old* paint extent
+    /// source for damage tracking (§9.3: geometry changes damage old and new).
+    #[must_use]
+    fn layer(&self, node: NodeId) -> Option<Vec<Primitive>>;
 
     /// Materializes the ordered scene: layers concatenated in `order` (the
     /// arena's pre-order walk — the paint order).
@@ -292,6 +371,13 @@ pub struct FrameReport {
     /// cloned: idle and replay-only frames reuse the last materialization
     /// (ADR-0008 item 4, §14.3's warm path).
     pub scene: std::sync::Arc<SceneSnapshot>,
+    /// The frame's paint damage (§9.3, M3): up to three merged region boxes,
+    /// or the full-frame fallback. `Damage::NONE` frames skip the present
+    /// entirely; partial frames let backends repaint regions only — the same
+    /// damage drives the GPU scissor path and the software dirty-rect blit.
+    pub damage: Damage,
+    /// The a11y delta pass 9 produced (empty when the pass skipped).
+    pub a11y_delta: A11yDelta,
     /// The pass ledger, in contract order — every tick pass, ran or skipped.
     pub passes: Vec<PassRun>,
     /// Focus moved this frame.
@@ -379,6 +465,12 @@ pub struct PassPipeline {
     focused: Option<NodeId>,
     /// A focus request awaiting pass 3.
     pending_focus: Option<NodeId>,
+    /// The IME request derived from the focused widget (§10.3; `None` when no
+    /// editable holds focus). The platform layer compares frame over frame.
+    ime_request: Option<ImeRequest>,
+    /// The id-path hashes pass 9 emitted last time — the removals source for
+    /// the a11y delta (dead widgets leave the set; their ids surface once).
+    last_a11y_ids: Option<FxHashSet<u64>>,
 }
 
 impl PassPipeline {
@@ -407,6 +499,8 @@ impl PassPipeline {
             focusables: Vec::new(),
             focused: None,
             pending_focus: None,
+            ime_request: None,
+            last_a11y_ids: None,
         }
     }
 
@@ -488,6 +582,15 @@ impl PassPipeline {
         self.a11y.resolved_tree()
     }
 
+    /// The IME request the last tick derived from the focused widget (§10.3);
+    /// `None` when no editable widget holds focus. The platform layer applies
+    /// the delta frame over frame: attach/detach the IME, move the candidate
+    /// window to `caret`.
+    #[must_use]
+    pub const fn ime_request(&self) -> Option<&ImeRequest> {
+        self.ime_request.as_ref()
+    }
+
     /// The layout engine's measure-call counter.
     #[must_use]
     pub fn measure_calls(&self) -> u64 {
@@ -562,7 +665,9 @@ impl PassPipeline {
     }
 
     /// One capture/bubble visit: route the event with the phase set, merge
-    /// the widget's requested masks upward.
+    /// the widget's requested masks upward. A widget that requests `FOCUS`
+    /// is asking for keyboard focus — the click-to-focus seam (§10.3): the
+    /// request becomes pass 3's pending focus, resolved same tick.
     fn visit_with_phase(
         &mut self,
         node: NodeId,
@@ -576,9 +681,141 @@ impl PassPipeline {
             (response, ctx.take())
         };
         if !requested.is_empty() {
+            if requested.contains(Change::FOCUS) {
+                self.pending_focus = Some(node);
+            }
             self.arena.merge_mask(node, requested);
         }
         response
+    }
+
+    /// Pass 1 (`event`, keyboard half): routes a key event to the *focused*
+    /// widget only (§10.3 — keyboard input is focus-routed, never hit-tested).
+    /// `Tab` / `Shift+Tab` cycle focus when the focused widget ignores them —
+    /// the framework-level key semantic every platform expects.
+    pub fn dispatch_key(&mut self, event: &KeyEvent) -> EventResponse {
+        self.counters.events_routed += 1;
+        let mut run = PassRun {
+            kind: PassKind::Event,
+            ran: false,
+            nanos: 0,
+            work_nanos: 0,
+        };
+        let span =
+            tracing::trace_span!(target: "alacer::pass", "pass", pass = PassKind::Event.name());
+        let start = self.timings.then(std::time::Instant::now);
+        let _guard = span.enter();
+
+        let mut response = EventResponse::Ignored;
+        if let Some(focused) = self.focused
+            && self.node_is_live(focused)
+        {
+            run.ran = true;
+            response = self.visit_key(focused, event);
+        }
+
+        // Focus cycling: Tab walks the candidate list forward, Shift+Tab
+        // backward (§10.3). The widget's `Ignored` lets the framework take it.
+        if response == EventResponse::Ignored && event.presses(&crate::events::Key::Tab) {
+            if self.cycle_focus(event.modifiers.shift) {
+                response = EventResponse::Handled;
+            }
+            run.ran = true;
+        }
+
+        run.nanos = start.map_or(0, |t| crate::num::u128_to_u64(t.elapsed().as_nanos()));
+        drop(_guard);
+        self.interframe.push(run);
+        response
+    }
+
+    /// Pass 1 (`event`, IME half): routes an IME event to the focused widget
+    /// (§10.3). Preedit is composing input — it never reaches `on_key_event`.
+    pub fn dispatch_ime(&mut self, event: &ImeEvent) -> EventResponse {
+        self.counters.events_routed += 1;
+        let mut run = PassRun {
+            kind: PassKind::Event,
+            ran: false,
+            nanos: 0,
+            work_nanos: 0,
+        };
+        let span =
+            tracing::trace_span!(target: "alacer::pass", "pass", pass = PassKind::Event.name());
+        let start = self.timings.then(std::time::Instant::now);
+        let _guard = span.enter();
+
+        let mut response = EventResponse::Ignored;
+        if let Some(focused) = self.focused
+            && self.node_is_live(focused)
+        {
+            run.ran = true;
+            let (handled, requested) = {
+                let mut guard = self.arena.mutate(focused);
+                let mut ctx = crate::events::EventCtx::with_phase(EventPhase::Bubble);
+                let handled = guard.widget_mut().on_ime_event(&mut ctx, event);
+                (handled, ctx.take())
+            };
+            if !requested.is_empty() {
+                if requested.contains(Change::FOCUS) {
+                    self.pending_focus = Some(focused);
+                }
+                self.arena.merge_mask(focused, requested);
+            }
+            response = handled;
+        }
+
+        run.nanos = start.map_or(0, |t| crate::num::u128_to_u64(t.elapsed().as_nanos()));
+        drop(_guard);
+        self.interframe.push(run);
+        response
+    }
+
+    /// One focus-routed key visit: route with the phase set, merge masks.
+    fn visit_key(&mut self, node: NodeId, event: &KeyEvent) -> EventResponse {
+        let (response, requested) = {
+            let mut guard = self.arena.mutate(node);
+            let mut ctx = crate::events::EventCtx::with_phase(EventPhase::Bubble);
+            let response = guard.widget_mut().on_key_event(&mut ctx, event);
+            (response, ctx.take())
+        };
+        if !requested.is_empty() {
+            if requested.contains(Change::FOCUS) {
+                self.pending_focus = Some(node);
+            }
+            self.arena.merge_mask(node, requested);
+        }
+        response
+    }
+
+    /// Moves focus one candidate forward (or backward with `reverse`).
+    /// Wraps at both ends; `true` when focus moved.
+    fn cycle_focus(&mut self, reverse: bool) -> bool {
+        if self.focusables.is_empty() {
+            return false;
+        }
+        let next = match self.focused {
+            Some(current) => {
+                let position = self
+                    .focusables
+                    .iter()
+                    .position(|c| *c == current)
+                    .unwrap_or(0);
+                if reverse {
+                    (position + self.focusables.len() - 1) % self.focusables.len()
+                } else {
+                    (position + 1) % self.focusables.len()
+                }
+            }
+            None => 0,
+        };
+        let target = self.focusables[next];
+        if Some(target) == self.focused {
+            return false;
+        }
+        self.pending_focus = Some(target);
+        // Resolve immediately: key routing must see the new focus this event.
+        self.update_focus();
+        true
     }
 
     /// Runs exactly one frame through the pass contract (§7.2): mutate →
@@ -624,12 +861,21 @@ impl PassPipeline {
         }));
 
         // Pass 3 — update_focus: resolve the pending request, drop focus held
-        // by dead widgets, emit FOCUS diffs on moves.
+        // by dead widgets, emit FOCUS diffs on moves, and notify the old and
+        // new focus holders (focus-ring repaint is the widget's own PAINT
+        // request; §7.2 pass 3 + §10.3).
         let mut focus_changed = false;
         ledger.push(self.run_pass(PassKind::UpdateFocus, |s| {
             focus_changed = s.update_focus();
             focus_changed || s.pending_focus.is_some() || recompute_focusables
         }));
+        // Pass 3's merges (FOCUS|PAINT on both focus endpoints) land mid-tick;
+        // drain everything pending into this frame's dirty map now — no
+        // one-frame focus-ring lag, no lingering masks (the currency coalesces
+        // per frame, A1).
+        for (node, change) in self.arena.take_masks(Change::ALL) {
+            *dirty.entry(node).or_insert(Change::empty()) |= change;
+        }
 
         // Pass 5 — style: diff styles against the cache; diffs invalidate.
         // Candidates: every node the frame already considers dirty, plus the
@@ -665,6 +911,21 @@ impl PassPipeline {
             run.nanos = layout_work; // the pass body IS the injected call
         }
 
+        // The IME request (§10.3): derived from the focused widget after
+        // layout — the caret anchor is the widget's resolved bounds. `None`
+        // when no editable widget holds focus (platform detaches the IME).
+        self.ime_request = self.focused.and_then(|focused| {
+            let purpose = self.arena.widget(focused).ime_purpose();
+            if !purpose.enabled() {
+                return None;
+            }
+            Some(ImeRequest {
+                node: self.id_hash(focused),
+                purpose,
+                caret: self.arena.bounds(focused),
+            })
+        });
+
         // Pass 7 — compose: translation-only scroll updates. Runs whenever a
         // repaint will: a wheel event moves a scroll offset without touching
         // layout, and programmatic scrolls (the mutate-guard `request` seam)
@@ -691,6 +952,11 @@ impl PassPipeline {
         }
 
         // Pass 8 — paint: re-emit dirty layers; clean layers replay (§9.1).
+        // The frame's damage (§9.3, M3) merges every repainted node's *old*
+        // journal extent with its *new* primitive extent — geometry changes
+        // damage both rects — into at most three regions, with the
+        // full-frame escape hatch. Structural frames rebuild everything and
+        // report [`Damage::FULL`].
         let paint_set: FxHashSet<NodeId> = dirty
             .iter()
             .filter(|(_, m)| m.intersects(Change::PAINT.union(Change::LAYOUT)))
@@ -700,6 +966,7 @@ impl PassPipeline {
             first_frame || structure_changed || !paint_set.is_empty() || !translated.is_empty();
         let mut paint_work = 0_u64;
         let mut scene = None;
+        let mut damage = DamageBuilder::new();
         ledger.push(self.run_pass(PassKind::Paint, |s| {
             if paint_ran {
                 let start = s.timings.then(std::time::Instant::now);
@@ -707,7 +974,7 @@ impl PassPipeline {
                     s.journal.clear();
                     s.order_cache = None;
                 }
-                s.paint_dirty(structure_changed, &paint_set, &translated);
+                s.paint_dirty(structure_changed, &paint_set, &translated, &mut damage);
                 s.counters.paint_runs += 1;
                 // The frame's scene materialization is the paint pass's
                 // product: clean layers replay from the journal (§9.1).
@@ -724,22 +991,51 @@ impl PassPipeline {
             run.work_nanos = paint_work;
             run.nanos = paint_work;
         }
+        // The damage ladder (§9.3): structural/first frames repaint in full,
+        // silent frames cost nothing, partial frames carry their regions.
+        let damage = if !paint_ran {
+            Damage::NONE
+        } else if structure_changed || first_frame {
+            Damage::FULL
+        } else {
+            damage.finish(viewport)
+        };
 
-        // Pass 9 — accessibility: incremental updates from dirty nodes only
-        // (§11.1); layout changes move a11y bounds too.
+        // Pass 9 — accessibility: the M3 a11y contract (§11.1). The delta
+        // carries dirty ids only, the ids structural churn removed, and the
+        // focused node; a focus move runs the pass even with no other a11y
+        // work (platform focus lives in the update, not in a node).
         let a11y_set: FxHashSet<u64> = dirty
             .iter()
             .filter(|(_, m)| m.forces_a11y() || m.intersects(Change::LAYOUT))
             .map(|(n, _)| self.id_hash(*n))
             .chain(translated.iter().map(|n| self.id_hash(*n)))
             .collect();
-        let a11y_ran = first_frame || !a11y_set.is_empty();
+        let a11y_ran = first_frame || !a11y_set.is_empty() || focus_changed;
         let mut a11y_work = 0_u64;
+        let mut a11y_delta = A11yDelta::empty();
         ledger.push(self.run_pass(PassKind::Accessibility, |s| {
             if a11y_ran {
                 let start = s.timings.then(std::time::Instant::now);
-                let snapshot = s.build_tree_snapshot();
-                s.a11y.apply(&snapshot, &a11y_set);
+                let snapshot = std::sync::Arc::new(s.build_tree_snapshot());
+                let mut delta = A11yDelta {
+                    updated: a11y_set.clone(),
+                    removed: Vec::new(),
+                    focus: s.focused.map(|f| s.id_hash(f)),
+                    initializes: first_frame || structure_changed,
+                };
+                // Removals: the previous id set minus the current one — dead
+                // widgets surface exactly once (§11.1 item 4, incremental
+                // updates with no ghosts).
+                if let Some(previous) = s.last_a11y_ids.take() {
+                    let current: FxHashSet<u64> = snapshot.nodes.iter().map(|n| n.id).collect();
+                    delta.removed = previous.difference(&current).copied().collect();
+                    s.last_a11y_ids = Some(current);
+                } else {
+                    s.last_a11y_ids = Some(snapshot.nodes.iter().map(|n| n.id).collect());
+                }
+                s.a11y.apply(std::sync::Arc::clone(&snapshot), &delta);
+                a11y_delta = delta;
                 a11y_work = start.map_or(0, |t| crate::num::u128_to_u64(t.elapsed().as_nanos()));
                 s.counters.a11y_runs += 1;
             }
@@ -763,6 +1059,8 @@ impl PassPipeline {
             paint_ran,
             a11y_ran,
             scene,
+            damage,
+            a11y_delta,
             passes: ledger,
             focus_changed,
             total_nanos,
@@ -799,19 +1097,28 @@ impl PassPipeline {
     }
 
     /// Pass 3 body: resolve the pending focus request, drop focus held by
-    /// dead widgets, emit `FOCUS` masks on moves. Returns whether focus
-    /// actually moved (§7.2 pass 3 — focus diffs).
+    /// dead widgets, emit `FOCUS` masks on moves, and notify the old and new
+    /// focus holders via [`Widget::set_focused`] (the focus-ring contract:
+    /// the widget repaints itself, the framework only flags PAINT). Returns
+    /// whether focus actually moved (§7.2 pass 3 — focus diffs).
     fn update_focus(&mut self) -> bool {
         let mut changed = false;
         if let Some(requested) = self.pending_focus.take() {
             let valid =
                 self.node_is_live(requested) && self.arena.slot(requested).widget().focusable();
             if valid && self.focused != Some(requested) {
-                if let Some(old) = self.focused {
-                    self.arena.merge_mask(old, Change::FOCUS);
+                let old = self.focused.replace(requested);
+                self.arena
+                    .merge_mask(requested, Change::FOCUS.union(Change::PAINT));
+                let mut guard = self.arena.mutate(requested);
+                guard.widget_mut().set_focused(true);
+                drop(guard);
+                if let Some(old) = old {
+                    self.arena
+                        .merge_mask(old, Change::FOCUS.union(Change::PAINT));
+                    let mut guard = self.arena.mutate(old);
+                    guard.widget_mut().set_focused(false);
                 }
-                self.arena.merge_mask(requested, Change::FOCUS);
-                self.focused = Some(requested);
                 changed = true;
             }
         }
@@ -939,34 +1246,55 @@ impl PassPipeline {
     }
 
     /// Pass 8's re-emission: repaint exactly the dirty subtrees; clean layers
-    /// are left in the journal untouched (cached-range replay, §9.1).
+    /// are left in the journal untouched (cached-range replay, §9.1). Every
+    /// committed node feeds the frame's damage: the *old* journal extent plus
+    /// the *new* primitive extent — geometry changes damage both rects (§9.3).
     fn paint_dirty(
         &mut self,
         full_rebuild: bool,
         paint_set: &FxHashSet<NodeId>,
         translated: &[NodeId],
+        damage: &mut DamageBuilder,
     ) {
-        if full_rebuild {
+        let targets: Vec<NodeId> = if full_rebuild {
             // Structural frames re-emit every layer, in paint order.
             self.ensure_paint_order();
-            for node in self
-                .order_cache
+            self.order_cache
                 .as_deref()
                 .expect("order just built")
                 .to_vec()
-            {
-                let primitives = self.paint_node(node);
-                self.journal.commit_layer(node, primitives);
-            }
         } else {
             // Layers are keyed by node, so commit order is irrelevant: the
             // dirty set plus the composed translations is the whole target
             // list — no walk over clean subtrees (ADR-0008 item 4).
-            let targets: Vec<NodeId> = paint_set.iter().chain(translated.iter()).copied().collect();
-            for node in targets {
-                let primitives = self.paint_node(node);
-                self.journal.commit_layer(node, primitives);
+            paint_set.iter().chain(translated.iter()).copied().collect()
+        };
+        for node in targets {
+            // The old layer's extent is damage too — a moved/resized widget
+            // must erase where it *was*, not only paint where it is. An
+            // empty (or absent) old layer painted nothing: there is nothing
+            // to erase, and guessing from bounds would over-damage
+            // container nodes whose layers are empty by construction.
+            if let Some(old) = self.journal.layer(node)
+                && let Some(extent) = crate::scene::primitives_extent(&old)
+            {
+                damage.add(extent);
+            } else if self.journal.layer(node).is_none()
+                && let Some(bounds) = self.arena.bounds(node)
+            {
+                // No layer at all: first-ever paint (first frame or after a
+                // structural rebuild — both FULL-damage frames), or a layer
+                // dropped by churn. Bounds are the only trace left.
+                damage.add(crate::scene::inflate(
+                    bounds,
+                    crate::scene::PAINT_DAMAGE_MARGIN,
+                ));
             }
+            let primitives = self.paint_node(node);
+            if let Some(extent) = crate::scene::primitives_extent(&primitives) {
+                damage.add(extent);
+            }
+            self.journal.commit_layer(node, primitives);
         }
         self.ensure_paint_order();
         self.journal
@@ -1037,6 +1365,7 @@ impl PassPipeline {
                 label: slot.widget().label().resolve(),
                 bounds: slot.bounds,
                 children: slot.children.iter().map(|c| self.id_hash(*c)).collect(),
+                value: slot.widget().value(),
             };
             if snapshot.root.is_none() {
                 snapshot.root = Some(node.id);
@@ -1195,6 +1524,14 @@ mod tests {
             self.layers.lock().expect("journal lock").remove(&node);
         }
 
+        fn layer(&self, node: NodeId) -> Option<Vec<crate::scene::Primitive>> {
+            self.layers
+                .lock()
+                .expect("journal lock")
+                .get(&node)
+                .cloned()
+        }
+
         fn snapshot(&self, order: &[NodeId]) -> crate::scene::SceneSnapshot {
             let layers = self.layers.lock().expect("journal lock");
             let primitives = order
@@ -1222,15 +1559,19 @@ mod tests {
     #[derive(Default)]
     struct RecordingA11y {
         updates: u64,
-        last_dirty: FxHashSet<u64>,
+        last_delta: crate::passes::A11yDelta,
         tree: Option<TreeSnapshot>,
     }
 
     impl A11ySink for RecordingA11y {
-        fn apply(&mut self, snapshot: &TreeSnapshot, dirty: &FxHashSet<u64>) {
+        fn apply(
+            &mut self,
+            snapshot: std::sync::Arc<TreeSnapshot>,
+            delta: &crate::passes::A11yDelta,
+        ) {
             self.updates += 1;
-            self.last_dirty = dirty.clone();
-            self.tree = Some(snapshot.clone());
+            self.last_delta = delta.clone();
+            self.tree = Some((*snapshot).clone());
         }
 
         fn resolved_tree(&self) -> Option<&TreeSnapshot> {

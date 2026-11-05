@@ -22,6 +22,7 @@
 
 pub mod arena;
 pub mod color;
+pub mod damage;
 pub mod events;
 pub mod flux;
 pub mod geom;
@@ -32,20 +33,25 @@ pub mod passes;
 pub mod scene;
 pub mod style;
 pub mod text_seam;
+pub mod utf16;
 pub mod widget;
 
 pub use arena::{Arena, NodeId, WidgetMut};
 pub use color::Color;
-pub use events::{EventPhase, MouseButton, PointerEvent};
+pub use damage::{DAMAGE_REGION_BUDGET, Damage, DamageBuilder};
+pub use events::{
+    EventPhase, ImeEvent, Key, KeyEvent, KeyState, Modifiers, MouseButton, PointerEvent,
+};
 pub use flux::{Flux, FluxCounters, FluxRwSignal, RenderBinding};
 pub use geom::{Point, Rect, Size, Vector};
 pub use mask::Change;
 pub use passes::{
-    A11ySink, FrameReport, LayoutEngine, LayoutError, PassKind, PassPipeline, PassRun,
-    SceneJournal, TreeNode, TreeSnapshot,
+    A11yDelta, A11ySink, FrameReport, ImePurpose, ImeRequest, LayoutEngine, LayoutError, PassKind,
+    PassPipeline, PassRun, SceneJournal, TreeNode, TreeSnapshot,
 };
 pub use scene::{
     Glyph, GlyphBitmap, GlyphSource, PaintCtx, PaintSink, Primitive, Quad, SceneSnapshot,
+    primitives_extent,
 };
 pub use style::{
     CrossAxisAlignment, Display, MainAxisAlignment, MeasureFn, MeasureSpec, Style, TextSpec,
@@ -57,7 +63,10 @@ pub use widget::{A11yAction, EventResponse, LabelSource, Role, Widget};
 pub mod prelude {
     pub use crate::arena::{Arena, NodeId, WidgetMut};
     pub use crate::color::Color;
-    pub use crate::events::{EventPhase, MouseButton, PointerEvent};
+    pub use crate::damage::Damage;
+    pub use crate::events::{
+        EventPhase, ImeEvent, Key, KeyEvent, KeyState, Modifiers, MouseButton, PointerEvent,
+    };
     pub use crate::flux::{Flux, RenderBinding};
     pub use crate::geom::{Point, Rect, Size, Vector};
     pub use crate::mask::Change;

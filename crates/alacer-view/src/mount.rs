@@ -494,6 +494,10 @@ mod tests {
 
         fn drop_layer(&mut self, _node: NodeId) {}
 
+        fn layer(&self, _node: NodeId) -> Option<Vec<alacer_core::scene::Primitive>> {
+            None
+        }
+
         fn clear(&mut self) {}
 
         fn snapshot(&self, _order: &[NodeId]) -> alacer_core::scene::SceneSnapshot {
@@ -511,8 +515,8 @@ mod tests {
     impl alacer_core::passes::A11ySink for NullA11y {
         fn apply(
             &mut self,
-            _snapshot: &alacer_core::passes::TreeSnapshot,
-            _dirty: &rustc_hash::FxHashSet<u64>,
+            _snapshot: std::sync::Arc<alacer_core::passes::TreeSnapshot>,
+            _delta: &alacer_core::passes::A11yDelta,
         ) {
         }
     }

@@ -63,6 +63,9 @@ impl SceneJournal for NullJournal {
     ) {
     }
     fn drop_layer(&mut self, _n: alacer_core::arena::NodeId) {}
+    fn layer(&self, _n: alacer_core::arena::NodeId) -> Option<Vec<alacer_core::scene::Primitive>> {
+        None
+    }
     fn snapshot(&self, _o: &[alacer_core::arena::NodeId]) -> alacer_core::scene::SceneSnapshot {
         alacer_core::scene::SceneSnapshot::default()
     }
@@ -72,7 +75,12 @@ impl SceneJournal for NullJournal {
 
 struct NullA11y;
 impl A11ySink for NullA11y {
-    fn apply(&mut self, _s: &alacer_core::passes::TreeSnapshot, _d: &rustc_hash::FxHashSet<u64>) {}
+    fn apply(
+        &mut self,
+        _s: std::sync::Arc<alacer_core::passes::TreeSnapshot>,
+        _d: &alacer_core::passes::A11yDelta,
+    ) {
+    }
 }
 
 fn viewport() -> Size {

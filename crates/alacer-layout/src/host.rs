@@ -539,7 +539,7 @@ mod tests {
     use alacer_core::passes::{LayoutEngine, PassPipeline};
     use alacer_core::style::{MeasureFn, MeasureSpec, Style, TextSpec};
     use alacer_core::widget::{LabelSource, Role, Widget};
-    use rustc_hash::{FxHashMap, FxHashSet};
+    use rustc_hash::FxHashMap;
     use std::sync::{Arc, Mutex};
 
     /// Deterministic pseudo-random generator for the equivalence property test.
@@ -894,6 +894,9 @@ mod tests {
         fn commit_layer(&mut self, _node: NodeId, _primitives: Vec<alacer_core::scene::Primitive>) {
         }
         fn drop_layer(&mut self, _node: NodeId) {}
+        fn layer(&self, _node: NodeId) -> Option<Vec<alacer_core::scene::Primitive>> {
+            None
+        }
         fn snapshot(&self, _order: &[NodeId]) -> alacer_core::scene::SceneSnapshot {
             alacer_core::scene::SceneSnapshot::default()
         }
@@ -906,8 +909,8 @@ mod tests {
     impl alacer_core::passes::A11ySink for NullA11y {
         fn apply(
             &mut self,
-            _snapshot: &alacer_core::passes::TreeSnapshot,
-            _dirty: &FxHashSet<u64>,
+            _snapshot: std::sync::Arc<alacer_core::passes::TreeSnapshot>,
+            _delta: &alacer_core::passes::A11yDelta,
         ) {
         }
     }

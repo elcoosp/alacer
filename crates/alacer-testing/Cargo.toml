@@ -1,0 +1,20 @@
+[package]
+name = "alacer-testing"
+description = "Alacer's headless testing harness: the real pass pipeline with a software rasterizer, a11y queries, and snapshots (A4, ADR-10)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+alacer-core.workspace = true
+alacer-layout.workspace = true
+alacer-text.workspace = true
+alacer-render.workspace = true
+alacer-a11y.workspace = true
+alacer-widgets.workspace = true
+tiny-skia.workspace = true
+reactive_graph.workspace = true
+rustc-hash.workspace = true

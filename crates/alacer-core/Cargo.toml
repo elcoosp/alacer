@@ -25,3 +25,7 @@ harness = false
 [[bench]]
 name = "arena"
 harness = false
+
+[[bench]]
+name = "pass_overhead"
+harness = false

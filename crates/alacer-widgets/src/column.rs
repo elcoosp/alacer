@@ -68,6 +68,13 @@ impl Column {
         self
     }
 
+    /// Shared-borrow layout style access for view reconciliation (§6.1):
+    /// patches write styles in place instead of rebuilding the widget.
+    #[must_use]
+    pub const fn style_mut(&mut self) -> &mut Style {
+        &mut self.style
+    }
+
     /// Builds the boxed widget.
     #[must_use]
     pub fn boxed(self) -> Box<dyn Widget> {
@@ -82,6 +89,9 @@ impl Default for Column {
 }
 
 impl Widget for Column {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
     fn role(&self) -> Role {
         Role::Container
     }
@@ -141,6 +151,12 @@ impl Row {
         self
     }
 
+    /// Shared-borrow layout style access for view reconciliation (§6.1).
+    #[must_use]
+    pub const fn style_mut(&mut self) -> &mut Style {
+        &mut self.style
+    }
+
     /// Builds the boxed widget.
     #[must_use]
     pub fn boxed(self) -> Box<dyn Widget> {
@@ -155,6 +171,9 @@ impl Default for Row {
 }
 
 impl Widget for Row {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
     fn role(&self) -> Role {
         Role::Container
     }
@@ -184,6 +203,11 @@ impl Spacer {
         Self { size }
     }
 
+    /// Resizes the spacer in place (view reconciliation, §6.1).
+    pub fn set_size(&mut self, size: f32) {
+        self.size = size;
+    }
+
     /// Builds the boxed widget.
     #[must_use]
     pub fn boxed(self) -> Box<dyn Widget> {
@@ -192,6 +216,9 @@ impl Spacer {
 }
 
 impl Widget for Spacer {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
     fn role(&self) -> Role {
         Role::Decoration
     }

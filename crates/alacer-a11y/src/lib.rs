@@ -1,20 +1,24 @@
-//! Alacer's accessibility: the AccessKit contract (ADR-5).
+//! Alacer's accessibility: the AccessKit contract (ADR-5, M3 edition).
 //!
 //! §11.1, implemented:
 //!
 //! - AccessKit `NodeId`s are the id-path hashes — the same identity as
 //!   hit-testing (§6.3); the a11y tree *is* the widget tree.
-//! - Updates are **incremental**: pass 9 hands us the snapshot plus the dirty
-//!   id set, and only dirty nodes are re-emitted in the [`TreeUpdate`]
-//!   (never a full-tree rebuild per frame, the egui cost we refuse).
+//! - Updates are **incremental deltas** (§11.1 item 4): pass 9 hands us an
+//!   [`A11yDelta`] — dirty ids, removals, focus — and only dirty nodes are
+//!   re-emitted in the [`TreeUpdate`] (never a full-tree rebuild per frame,
+//!   the egui cost we refuse). The M3 exit gate measures exactly this:
+//!   **TreeUpdate p99 < 0.5 ms @ 1k nodes** (`tests/m3_exit_criteria.rs`).
 //! - Roles map from [`alacer_core::Role`]; labels resolve through the
 //!   required `label()` source — an unnamed widget is impossible by
-//!   construction.
+//!   construction. Editable widgets expose their content as the node's value.
+//! - Focus travels in the delta: `TreeUpdate::focus` follows the pipeline's
+//!   pass-3 output every a11y frame.
 
 use accesskit::{Node, NodeId, Rect, Role as AccessKitRole, TreeId, TreeInfo, TreeUpdate};
 use alacer_core::Role;
 use alacer_core::geom::Rect as AlacerRect;
-use alacer_core::passes::{A11ySink, TreeSnapshot};
+use alacer_core::passes::{A11yDelta, A11ySink, TreeSnapshot};
 use rustc_hash::FxHashSet;
 use std::collections::VecDeque;
 
@@ -50,14 +54,16 @@ pub fn map_bounds(rect: AlacerRect) -> Rect {
     )
 }
 
-/// The AccessKit sink: incremental [`TreeUpdate`]s from dirty nodes only.
+/// The AccessKit sink: incremental [`TreeUpdate`]s from [`A11yDelta`]s.
 #[derive(Debug, Default)]
 pub struct AccessKitSink {
     updates: Vec<TreeUpdate>,
     initialized: bool,
-    last_snapshot: Option<TreeSnapshot>,
+    last_snapshot: Option<std::sync::Arc<TreeSnapshot>>,
     /// The ids included in the most recent update (harness/test introspection).
     last_update_ids: FxHashSet<u64>,
+    /// The ids the most recent update dropped (dead widgets; introspection).
+    last_removed_ids: Vec<u64>,
     update_count: u64,
 }
 
@@ -86,10 +92,35 @@ impl AccessKitSink {
         &self.last_update_ids
     }
 
+    /// The ids dropped by the most recent update (dead widgets).
+    #[must_use]
+    pub fn last_removed_ids(&self) -> &[u64] {
+        &self.last_removed_ids
+    }
+
     /// Whether the last update carried full tree (re)initialization data.
     #[must_use]
     pub const fn is_initialized(&self) -> bool {
         self.initialized
+    }
+
+    /// Converts one neutral snapshot node into an AccessKit node.
+    fn access_node(node: &alacer_core::passes::TreeNode) -> Node {
+        let mut access_node = Node::new(map_role(node.role));
+        access_node.set_label(node.label.as_str());
+        if let Some(bounds) = node.bounds {
+            access_node.set_bounds(map_bounds(bounds));
+        }
+        if let Some(value) = &node.value {
+            access_node.set_value(value.as_str());
+        }
+        access_node.set_children(
+            node.children
+                .iter()
+                .map(|c| accesskit_node_id(*c))
+                .collect::<Vec<_>>(),
+        );
+        access_node
     }
 }
 
@@ -103,42 +134,41 @@ impl AccessKitSink {
 }
 
 impl A11ySink for AccessKitSink {
-    fn apply(&mut self, snapshot: &TreeSnapshot, dirty: &FxHashSet<u64>) {
-        self.last_snapshot = Some(snapshot.clone());
+    fn apply(&mut self, snapshot: std::sync::Arc<TreeSnapshot>, delta: &A11yDelta) {
+        self.last_snapshot = Some(std::sync::Arc::clone(&snapshot));
+        let snapshot = &*snapshot;
+        self.last_removed_ids = delta.removed.clone();
         self.last_update_ids.clear();
         let mut update = TreeUpdate {
             nodes: Vec::new(),
             tree: None,
             tree_id: TreeId::ROOT,
-            focus: snapshot.root.map_or(NodeId(0), accesskit_node_id),
+            focus: delta.focus.map_or(NodeId(0), accesskit_node_id),
         };
 
-        // First update initializes the whole tree; afterwards only dirty ids.
-        if !self.initialized {
+        // Init deltas build the whole tree; incremental deltas emit only the
+        // updated ids (§11.1 item 4 — the p99 budget's whole point).
+        if delta.initializes || !self.initialized {
             update.tree = snapshot
                 .root
                 .map(|root| TreeInfo::new(accesskit_node_id(root)));
+            for node in &snapshot.nodes {
+                self.last_update_ids.insert(node.id);
+                update
+                    .nodes
+                    .push((accesskit_node_id(node.id), Self::access_node(node)));
+            }
             self.initialized = true;
-        }
-
-        let relevant = |id: u64| dirty.is_empty() || dirty.contains(&id);
-        for node in &snapshot.nodes {
-            if !relevant(node.id) {
-                continue;
+        } else {
+            for node in &snapshot.nodes {
+                if !delta.updated.contains(&node.id) {
+                    continue;
+                }
+                self.last_update_ids.insert(node.id);
+                update
+                    .nodes
+                    .push((accesskit_node_id(node.id), Self::access_node(node)));
             }
-            self.last_update_ids.insert(node.id);
-            let mut access_node = Node::new(map_role(node.role));
-            access_node.set_label(node.label.as_str());
-            if let Some(bounds) = node.bounds {
-                access_node.set_bounds(map_bounds(bounds));
-            }
-            access_node.set_children(
-                node.children
-                    .iter()
-                    .map(|c| accesskit_node_id(*c))
-                    .collect::<Vec<_>>(),
-            );
-            update.nodes.push((accesskit_node_id(node.id), access_node));
         }
 
         self.update_count += 1;
@@ -146,7 +176,7 @@ impl A11ySink for AccessKitSink {
     }
 
     fn resolved_tree(&self) -> Option<&TreeSnapshot> {
-        self.last_snapshot.as_ref()
+        self.last_snapshot.as_deref()
     }
 }
 
@@ -192,7 +222,7 @@ mod tests {
     use accesskit::Role as AkRole;
     use alacer_core::Role;
     use alacer_core::geom::{Point, Rect, Size};
-    use alacer_core::passes::{A11ySink, TreeNode, TreeSnapshot};
+    use alacer_core::passes::{A11yDelta, A11ySink, TreeNode, TreeSnapshot};
     use rustc_hash::FxHashSet;
     use std::collections::HashMap;
 
@@ -209,6 +239,7 @@ mod tests {
                     label: "app".into(),
                     bounds: Some(Rect::new(Point::zero(), Size::new(200.0, 100.0))),
                     children: vec![child_hash, other_hash],
+                    value: None,
                 },
                 TreeNode {
                     id: child_hash,
@@ -216,13 +247,15 @@ mod tests {
                     label: "Save".into(),
                     bounds: Some(Rect::new(Point::new(0.0, 0.0), Size::new(60.0, 24.0))),
                     children: Vec::new(),
+                    value: None,
                 },
                 TreeNode {
                     id: other_hash,
-                    role: Role::Label,
-                    label: "Hello".into(),
+                    role: Role::TextInput,
+                    label: "Search".into(),
                     bounds: Some(Rect::new(Point::new(0.0, 30.0), Size::new(60.0, 20.0))),
                     children: Vec::new(),
+                    value: Some("hello".into()),
                 },
             ],
         }
@@ -245,7 +278,7 @@ mod tests {
     fn first_update_initializes_the_whole_tree() {
         let mut sink = AccessKitSink::new();
         let snap = snapshot();
-        sink.apply(&snap, &FxHashSet::default());
+        sink.apply(std::sync::Arc::new(snap.clone()), &A11yDelta::empty());
 
         assert!(sink.is_initialized());
         assert_eq!(sink.update_count(), 1);
@@ -255,17 +288,21 @@ mod tests {
         let button = find_in_update(update, 222).expect("button");
         assert_eq!(button.role(), AkRole::Button);
         assert_eq!(button.label(), Some("Save"));
+        let input = find_in_update(update, 333).expect("input");
+        assert_eq!(input.value(), Some("hello"), "value exposed");
     }
 
     #[test]
     fn later_updates_are_dirty_node_only() {
         let mut sink = AccessKitSink::new();
         let snap = snapshot();
-        sink.apply(&snap, &FxHashSet::default());
+        sink.apply(std::sync::Arc::new(snap.clone()), &A11yDelta::empty());
 
-        let mut dirty = FxHashSet::default();
-        dirty.insert(222_u64); // only the button changed
-        sink.apply(&snap, &dirty);
+        let mut updated = FxHashSet::default();
+        updated.insert(222_u64); // only the button changed
+        let mut delta = A11yDelta::empty();
+        delta.updated = updated;
+        sink.apply(std::sync::Arc::new(snap.clone()), &delta);
 
         let update = sink.last_update().expect("second update");
         assert_eq!(update.nodes.len(), 1, "only the dirty node re-emitted");
@@ -274,6 +311,41 @@ mod tests {
             !sink.last_update_ids().contains(&333),
             "clean node not re-emitted"
         );
+    }
+
+    #[test]
+    fn focus_travels_in_the_delta() {
+        let mut sink = AccessKitSink::new();
+        let snap = snapshot();
+        sink.apply(std::sync::Arc::new(snap.clone()), &A11yDelta::empty());
+
+        let mut delta = A11yDelta::empty();
+        delta.focus = Some(222);
+        sink.apply(std::sync::Arc::new(snap.clone()), &delta);
+        let update = sink.last_update().expect("update");
+        assert_eq!(update.focus, accesskit::NodeId(222));
+    }
+
+    #[test]
+    fn removals_surface_in_the_sink() {
+        let mut sink = AccessKitSink::new();
+        let snap = snapshot();
+        sink.apply(std::sync::Arc::new(snap.clone()), &A11yDelta::empty());
+
+        // The tree loses the text input; its parent is updated (STRUCTURE
+        // propagation), the removed id surfaces in `delta.removed`.
+        let mut smaller = snapshot();
+        smaller.nodes.retain(|n| n.id != 333);
+        smaller.nodes[0].children = vec![222];
+        let mut delta = A11yDelta::empty();
+        delta.updated.insert(111);
+        delta.removed.push(333);
+        sink.apply(std::sync::Arc::new(smaller), &delta);
+
+        assert_eq!(sink.last_removed_ids(), &[333]);
+        let update = sink.last_update().expect("update");
+        let root = find_in_update(update, 111).expect("root re-emitted");
+        assert_eq!(root.children(), &[accesskit::NodeId(222)]);
     }
 
     #[test]
@@ -290,7 +362,7 @@ mod tests {
     fn walk_follows_children_in_order() {
         let mut sink = AccessKitSink::new();
         let snap = snapshot();
-        sink.apply(&snap, &FxHashSet::default());
+        sink.apply(std::sync::Arc::new(snap.clone()), &A11yDelta::empty());
         let update = sink.last_update().expect("update");
         let order = walk_update(update);
         assert_eq!(order, vec![111, 222, 333]);

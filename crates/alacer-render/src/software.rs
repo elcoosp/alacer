@@ -202,10 +202,13 @@ fn stamp_glyph(stamp: &mut Pixmap, bitmap: &alacer_core::scene::GlyphBitmap, col
         }
         let alpha = f32::from(*coverage) * cov_scale;
         let a = f32_to_u8(alpha);
+        // Premultiplied channels scale by alpha/255 — the raw 0..=255 alpha
+        // would push every non-black channel past 255 (clamped to white).
+        let ink = alpha / 255.0;
         let premul = PremultipliedColorU8::from_rgba(
-            f32_to_u8(f32::from(color.r) * alpha),
-            f32_to_u8(f32::from(color.g) * alpha),
-            f32_to_u8(f32::from(color.b) * alpha),
+            f32_to_u8(f32::from(color.r) * ink),
+            f32_to_u8(f32::from(color.g) * ink),
+            f32_to_u8(f32::from(color.b) * ink),
             a,
         );
         if let Some(p) = premul {
@@ -266,6 +269,7 @@ mod tests {
     use alacer_core::color::Color;
     use alacer_core::geom::{Point, Rect, Size};
     use alacer_core::scene::{Glyph, Primitive, Quad, SceneSnapshot};
+    use std::sync::Arc;
 
     fn render_with<F>(scene: &SceneSnapshot, source: &mut F) -> Option<tiny_skia::Pixmap>
     where
@@ -340,6 +344,89 @@ mod tests {
         let pixmap = render_with(&scene, &mut source).expect("pixmap");
         let inked = pixmap.pixel(10, 20).expect("in bounds");
         assert!(inked.red() < 50, "full coverage paints the glyph color");
+    }
+
+    #[test]
+    fn glyph_color_channels_survive_the_coverage_blend() {
+        // Non-black colors catch premultiply overflows: every channel scaled
+        // by the raw 0..=255 alpha would clamp to white.
+        let scene = SceneSnapshot {
+            primitives: vec![Primitive::Glyph(Glyph {
+                position: Point::new(10.0, 20.0),
+                size: 16.0,
+                color: Color::rgb(200, 30, 40),
+                font_id: 1,
+                glyph_id: 65,
+                clip: None,
+            })],
+        };
+        let mut source = |_f: u64, _g: u32, _s: f32| Some(solid_bitmap(4, 4, 0, 0));
+        let pixmap = render_with(&scene, &mut source).expect("pixmap");
+        let inked = pixmap.pixel(10, 20).expect("in bounds");
+        assert!(
+            (i32::from(inked.red()) - 200).abs() <= 6,
+            "red channel must match the glyph color, got {}",
+            inked.red()
+        );
+        assert!(
+            (i32::from(inked.green()) - 30).abs() <= 6,
+            "green channel must match the glyph color, got {}",
+            inked.green()
+        );
+        assert!(
+            (i32::from(inked.blue()) - 40).abs() <= 6,
+            "blue channel must match the glyph color, got {}",
+            inked.blue()
+        );
+        assert_eq!(inked.alpha(), 255, "full coverage is fully opaque");
+    }
+
+    #[test]
+    fn half_coverage_blends_to_half_alpha() {
+        let scene = SceneSnapshot {
+            primitives: vec![Primitive::Glyph(Glyph {
+                position: Point::new(10.0, 20.0),
+                size: 16.0,
+                color: Color::rgb(200, 30, 40),
+                font_id: 1,
+                glyph_id: 65,
+                clip: None,
+            })],
+        };
+        let mut source = |_f: u64, _g: u32, _s: f32| {
+            let mut bitmap = solid_bitmap(2, 2, 0, 0);
+            bitmap.coverage = Arc::from(vec![128_u8; 4].into_boxed_slice());
+            Some(bitmap)
+        };
+        let pixmap = render_with(&scene, &mut source).expect("pixmap");
+        let blended = pixmap.pixel(10, 20).expect("in bounds");
+        // Source-over onto the opaque white background: the result stays
+        // opaque, and red = premul_src + (1 - a_src)·dst
+        //             = 200·128/255 + (1 − 128/255)·255 ≈ 100 + 127 = 227.
+        assert!(
+            (i32::from(blended.red()) - 227).abs() <= 8,
+            "half coverage blends src over dst, got {}",
+            blended.red()
+        );
+        // A black stamp at the same coverage proves the dst contribution is
+        // the background, not a color error: 0 + 127 ≈ 127.
+        let scene_dark = SceneSnapshot {
+            primitives: vec![Primitive::Glyph(Glyph {
+                position: Point::new(10.0, 20.0),
+                size: 16.0,
+                color: Color::BLACK,
+                font_id: 1,
+                glyph_id: 65,
+                clip: None,
+            })],
+        };
+        let pixmap_dark = render_with(&scene_dark, &mut source).expect("pixmap");
+        let dark = pixmap_dark.pixel(10, 20).expect("in bounds");
+        assert!(
+            (i32::from(dark.red()) - 127).abs() <= 8,
+            "black at half coverage leaves the white background at half strength, got {}",
+            dark.red()
+        );
     }
 
     #[test]

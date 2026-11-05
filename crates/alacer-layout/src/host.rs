@@ -8,7 +8,7 @@ use alacer_core::geom::{Point, Rect, Size};
 use alacer_core::mask::Change;
 use alacer_core::passes::{LayoutEngine, LayoutError};
 use alacer_core::style::{MeasureFn, MeasureSpec};
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::sync::{Arc, RwLock};
 
 /// The per-node measure context stored inside the Taffy tree.
@@ -36,9 +36,31 @@ impl SpecCell {
 pub struct LayoutHost {
     tree: taffy::TaffyTree<SpecCell>,
     nodes: FxHashMap<NodeId, taffy::NodeId>,
+    /// Each container's last-synced taffy children — `set_children` fires
+    /// only on real order changes (an unconditional re-set would dirty the
+    /// whole persistent tree every frame and defeat taffy's caches).
+    children_cache: FxHashMap<NodeId, Vec<taffy::NodeId>>,
     measurer: Arc<dyn MeasureFn>,
     cache: LruMeasureCache,
     measure_calls: u64,
+    /// The synthetic viewport-fill root the arena root hangs from: taffy
+    /// shrink-wraps an auto-sized compute root, so filling the window needs a
+    /// sized ancestor (the classic `size: 100%` shell node).
+    fill_root: Option<taffy::NodeId>,
+    /// The arena root currently attached under [`Self::fill_root`].
+    fill_attached: Option<NodeId>,
+    /// The region the last compute produced, when it was candidate-bounded:
+    /// `(arena candidate, absolute origin of the candidate's box)`. Consumed
+    /// by the bounded publish; `None` means publish the whole tree.
+    pending_region: Option<(NodeId, Point)>,
+    /// The last computed viewport — a resize forces a full recomputation
+    /// even when no mask says so (the fill root's percent sizes resolve
+    /// against it).
+    last_viewport: Option<Size>,
+    /// Each node's last-published parent-relative location. Taffy zeroes a
+    /// compute root's location, so the engine keeps its own record for
+    /// candidate seeding (ADR-0008 item 1).
+    loc_cache: FxHashMap<NodeId, Point>,
 }
 
 impl LayoutHost {
@@ -48,9 +70,15 @@ impl LayoutHost {
         Self {
             tree: taffy::TaffyTree::new(),
             nodes: FxHashMap::default(),
+            children_cache: FxHashMap::default(),
             measurer,
             cache: LruMeasureCache::new(1024),
             measure_calls: 0,
+            fill_root: None,
+            fill_attached: None,
+            pending_region: None,
+            last_viewport: None,
+            loc_cache: FxHashMap::default(),
         }
     }
 
@@ -67,15 +95,25 @@ impl LayoutHost {
     }
 
     /// Syncs the persistent Taffy tree with the arena's current shape:
-    /// creates missing nodes, re-syncs child order at every container, and
-    /// removes nodes whose arena slot died. Structural work only — the tree
-    /// itself is never cleared (§8.1).
+    /// creates missing nodes, re-syncs child order **only where it changed**,
+    /// and removes nodes whose arena slot died. Structural work only — the
+    /// tree itself is never cleared (§8.1), and an unchanged frame pays
+    /// nothing: an unconditional `set_children` would dirty every container
+    /// and silently defeat taffy's caches (ADR-0008 item 3).
     fn sync_tree(&mut self, arena: &Arena, root: NodeId) {
+        // One pre-order walk defines liveness for this sync (a per-node
+        // ancestor walk would be O(n·depth)).
+        let mut live = FxHashSet::default();
+        arena.for_each_pre_order(&mut |id, _| {
+            live.insert(id);
+        });
+
+        // Create missing nodes.
         arena.for_each_pre_order(&mut |id, slot| {
             if self.nodes.contains_key(&id) {
                 return;
             }
-            let style = to_taffy(&slot.widget().style());
+            let style = mapped_style(&slot.widget().style(), id == root);
             let spec = slot.widget().measure_spec();
             let cell = SpecCell::default();
             cell.set(spec);
@@ -87,8 +125,10 @@ impl LayoutHost {
                 self.tree.new_leaf(style).expect("fresh node")
             };
             self.nodes.insert(id, taffy_id);
+            self.children_cache.entry(id).or_default();
         });
 
+        // Sync child order where it actually changed.
         arena.for_each_pre_order(&mut |id, slot| {
             let Some(parent_taffy) = self.nodes.get(&id).copied() else {
                 return;
@@ -98,33 +138,45 @@ impl LayoutHost {
                 .iter()
                 .filter_map(|c| self.nodes.get(c).copied())
                 .collect();
+            let unchanged = self
+                .children_cache
+                .get(&id)
+                .is_some_and(|cached| cached.as_slice() == children.as_slice());
+            if unchanged {
+                return;
+            }
             self.tree
                 .set_children(parent_taffy, &children)
                 .expect("parent is live");
+            self.children_cache.insert(id, children);
         });
 
-        let root = Some(root);
+        // Prune dead slots.
         let removed: Vec<NodeId> = self
             .nodes
             .keys()
             .copied()
-            .filter(|id| !is_live(arena, root, *id))
+            .filter(|id| !live.contains(id))
             .collect();
         for id in removed {
             if let Some(taffy_id) = self.nodes.remove(&id) {
                 let _ = self.tree.remove(taffy_id);
             }
+            self.children_cache.remove(&id);
+        }
+        if !live.contains(&root) {
+            self.fill_attached = None;
         }
     }
 
     /// Refreshes style + measure context for dirty nodes.
-    fn refresh_dirty(&mut self, arena: &Arena, dirty: &FxHashMap<NodeId, Change>) {
+    fn refresh_dirty(&mut self, arena: &Arena, root: NodeId, dirty: &FxHashMap<NodeId, Change>) {
         for (id, change) in dirty {
             let Some(taffy_id) = self.nodes.get(id).copied() else {
                 continue;
             };
             if change.contains(Change::LAYOUT) {
-                let style = to_taffy(&arena.widget(*id).style());
+                let style = mapped_style(&arena.widget(*id).style(), *id == root);
                 self.tree.set_style(taffy_id, style).expect("node is live");
                 self.tree.mark_dirty(taffy_id).expect("node is live");
             }
@@ -137,24 +189,142 @@ impl LayoutHost {
         }
     }
 
-    /// Marks Taffy dirty from the ancestor candidate and computes it.
+    /// Marks Taffy dirty and computes the frame's layout region.
     ///
-    /// Returns the Taffy node the computation was rooted at (the closest
-    /// common ancestor of the dirty set — torin's root candidate, §8.2 item 3).
+    /// Structural frames and viewport changes compute from the fill root.
+    /// Otherwise this is torin's root candidate (§8.2 item 3): the **closest
+    /// common ancestor** of the dirty set is recomputed against its cached
+    /// size, and if the candidate's own box changes, the candidate walks up
+    /// one level and recomputes — bounded by tree depth (ADR-0008 item 1).
+    /// Returns the Taffy node the computation was rooted at.
     #[must_use]
     fn compute_region(
         &mut self,
+        arena: &Arena,
         dirty: &FxHashMap<NodeId, Change>,
         root: NodeId,
         viewport: Size,
     ) -> taffy::NodeId {
-        // Compute at the root: `mark_dirty` propagates upward through the
-        // persistent tree and Taffy's per-node caches bound the recomputed
-        // region to the dirty path — the torin ancestor-candidate semantics
-        // (§8.2 item 3) expressed through the engine's own cache, with no
-        // second bookkeeping to keep coherent.
-        let compute_root_taffy = self.nodes.get(&root).copied().expect("root mapped");
+        let root_taffy = self.nodes.get(&root).copied().expect("root mapped");
+        let structural = dirty.values().any(|m| m.contains(Change::STRUCTURE));
+        let resized = self.last_viewport != Some(viewport);
 
+        if structural || resized {
+            let fill_root = self.ensure_fill_root(root_taffy, root);
+            self.mark_layout_dirty(dirty);
+            self.compute_from(fill_root, definite_available(viewport));
+            self.pending_region = None;
+            self.last_viewport = Some(viewport);
+            return fill_root;
+        }
+
+        // Candidate path (torin's root candidate, §8.2 item 3): the compute
+        // root is the LCA's **arranger** — its parent container (or the fill
+        // root for the arena root) — because a standalone compute loses the
+        // flex context (stretch, grow, position) that only a parent supplies.
+        // If the compute root's own box changes, it walks up one level and
+        // recomputes, bounded by tree depth (ADR-0008 item 1).
+        let dirty_nodes: Vec<NodeId> = dirty
+            .iter()
+            .filter(|(_, m)| m.intersects(Change::LAYOUT))
+            .map(|(id, _)| *id)
+            .collect();
+        self.mark_layout_dirty(dirty);
+
+        let lca = self.closest_common_ancestor(arena, &dirty_nodes);
+        // The compute root is the LCA's **arranger** — its parent container —
+        // because a standalone compute loses the flex context (stretch, grow,
+        // position) that only a parent supplies. One exception: a candidate
+        // whose style fixes BOTH axes has a parent-independent box, so it can
+        // compute standalone — that keeps a fixed-size card's churn entirely
+        // inside the card (the W1 workload's active section). The arena root
+        // still arranges under the fill root.
+        let lca_style = arena.widget(lca).style();
+        let lca_definite = lca_style.size.width.is_some() && lca_style.size.height.is_some();
+        let mut compute_root: Option<NodeId> = if lca == root {
+            None // the fill root arranges the arena root
+        } else if lca_definite {
+            Some(lca)
+        } else {
+            arena.parent(lca)
+        };
+        let region = loop {
+            match compute_root {
+                None => {
+                    let fill_root = self.ensure_fill_root(root_taffy, root);
+                    self.compute_from(fill_root, definite_available(viewport));
+                    break (root, Point::zero());
+                }
+                Some(node) => {
+                    let node_taffy = self.nodes.get(&node).copied().expect("region root mapped");
+                    let cached_size = {
+                        let layout = self.tree.layout(node_taffy).expect("region root layout");
+                        Size::new(layout.size.width, layout.size.height)
+                    };
+                    // Parent-relative location from the publish cache — taffy
+                    // zeroes a compute root's location, so its own layout
+                    // store is not authoritative for compute roots.
+                    let cached_loc = self.loc_cache.get(&node).copied().unwrap_or(Point::zero());
+                    self.compute_from(node_taffy, definite_available(cached_size));
+                    let new_size = {
+                        let layout = self.tree.layout(node_taffy).expect("layout");
+                        Size::new(layout.size.width, layout.size.height)
+                    };
+                    if new_size == cached_size {
+                        let parent_abs = arena
+                            .bounds(arena.parent(node).expect("non-root has a parent"))
+                            .map(|r| r.origin)
+                            .unwrap_or(Point::zero());
+                        break (
+                            node,
+                            Point::new(parent_abs.x + cached_loc.x, parent_abs.y + cached_loc.y),
+                        );
+                    }
+                    // The compute root's box changed: its own arrangement is
+                    // stale — walk up (torin's dependants walk).
+                    compute_root = arena.parent(node);
+                }
+            }
+        };
+
+        self.pending_region = Some(region);
+        self.last_viewport = Some(viewport);
+        let (region_root, _) = region;
+        self.nodes
+            .get(&region_root)
+            .copied()
+            .expect("region root mapped")
+    }
+
+    /// The synthetic viewport-fill root, attached under the arena root.
+    fn ensure_fill_root(&mut self, root_taffy: taffy::NodeId, root: NodeId) -> taffy::NodeId {
+        let fill_root = *self.fill_root.get_or_insert_with(|| {
+            self.tree
+                .new_leaf(taffy::Style {
+                    // Fill the viewport both ways: column direction puts the
+                    // arena root on the main axis (`flex_grow: 1` fills the
+                    // height), stretch covers the width.
+                    flex_direction: taffy::FlexDirection::Column,
+                    align_items: taffy::AlignItems::STRETCH,
+                    size: taffy::Size {
+                        width: taffy::Dimension::percent(1.0),
+                        height: taffy::Dimension::percent(1.0),
+                    },
+                    ..taffy::Style::default()
+                })
+                .expect("fill root")
+        });
+        if self.fill_attached != Some(root) {
+            self.tree
+                .set_children(fill_root, &[root_taffy])
+                .expect("fill root is live");
+            self.fill_attached = Some(root);
+        }
+        fill_root
+    }
+
+    /// Marks every layout-relevant dirty node in the taffy tree.
+    fn mark_layout_dirty(&mut self, dirty: &FxHashMap<NodeId, Change>) {
         for (id, change) in dirty {
             if change.intersects(Change::LAYOUT.union(Change::STRUCTURE))
                 && let Some(taffy_id) = self.nodes.get(id)
@@ -162,45 +332,56 @@ impl LayoutHost {
                 let _ = self.tree.mark_dirty(*taffy_id);
             }
         }
+    }
 
-        let available = taffy::Size {
-            width: taffy::AvailableSpace::Definite(viewport.width),
-            height: taffy::AvailableSpace::Definite(viewport.height),
-        };
-
+    /// One taffy compute over `compute_root` with the shared measure closure.
+    fn compute_from(
+        &mut self,
+        compute_root: taffy::NodeId,
+        available: taffy::Size<taffy::AvailableSpace>,
+    ) {
         let mut calls = 0_u64;
         let mut cache = std::mem::take(&mut self.cache);
         let measurer = Arc::clone(&self.measurer);
         let compute = self.tree.compute_layout_with_measure(
-            compute_root_taffy,
+            compute_root,
             available,
             |input, _node, ctx: Option<&mut SpecCell>, _style| {
                 let Some(cell) = ctx else {
                     return taffy::LayoutOutput::HIDDEN;
                 };
+                let known = input.known_dimensions;
                 let Some(spec) = cell.get() else {
-                    return taffy::LayoutOutput::from_outer_size(taffy::Size::ZERO);
+                    // No measure request: the node is content-less, but a
+                    // stretched or fixed known dimension still applies.
+                    return taffy::LayoutOutput::from_outer_size(taffy::Size {
+                        width: known.width.unwrap_or(0.0),
+                        height: known.height.unwrap_or(0.0),
+                    });
                 };
-                let max_width = definite_width(input.available_space.width);
+                // A definite known width is the wrap width for text.
+                let max_width = known
+                    .width
+                    .or_else(|| definite_width(input.available_space.width));
                 calls += 1;
                 match spec {
                     MeasureSpec::Fixed(size) => taffy::LayoutOutput::from_outer_size(taffy::Size {
-                        width: size.width,
-                        height: size.height,
+                        width: known.width.unwrap_or(size.width),
+                        height: known.height.unwrap_or(size.height),
                     }),
                     MeasureSpec::Text(text) => {
                         let key = MeasureKey::from_spec(&text, max_width);
                         if let Some(size) = cache.get(&key) {
                             return taffy::LayoutOutput::from_outer_size(taffy::Size {
-                                width: size.width,
-                                height: size.height,
+                                width: known.width.unwrap_or(size.width),
+                                height: known.height.unwrap_or(size.height),
                             });
                         }
                         let measured = measurer.measure(&text, max_width);
                         cache.put(key, measured);
                         taffy::LayoutOutput::from_outer_size(taffy::Size {
-                            width: measured.width,
-                            height: measured.height,
+                            width: known.width.unwrap_or(measured.width),
+                            height: known.height.unwrap_or(measured.height),
                         })
                     }
                 }
@@ -209,15 +390,50 @@ impl LayoutHost {
         compute.expect("taffy compute succeeds on well-formed trees");
         self.cache = cache;
         self.measure_calls += calls;
-        compute_root_taffy
     }
 
-    /// Writes absolute bounds for the whole tree back into the arena.
-    ///
-    /// Positions above the recomputed region are unchanged (Taffy keeps their
-    /// cached layouts), so this walk is cheap and keeps bounds coherent.
+    /// The closest common ancestor of `nodes` in the arena (root included).
+    /// Every node is live and mapped by the time layout runs.
+    fn closest_common_ancestor(&self, arena: &Arena, nodes: &[NodeId]) -> NodeId {
+        debug_assert!(!nodes.is_empty(), "the candidate path needs dirty nodes");
+        let paths: Vec<Vec<NodeId>> = nodes.iter().map(|n| self.root_path(arena, *n)).collect();
+        let shortest = paths
+            .iter()
+            .min_by_key(|p| p.len())
+            .expect("non-empty dirty set");
+        for depth in (0..shortest.len()).rev() {
+            let candidate = shortest[depth];
+            if paths
+                .iter()
+                .all(|path| path.len() > depth && path[depth] == candidate)
+            {
+                return candidate;
+            }
+        }
+        shortest[0]
+    }
+
+    /// The arena path `root → node`, parents via the arena's parent links.
+    fn root_path(&self, arena: &Arena, node: NodeId) -> Vec<NodeId> {
+        let mut path = vec![node];
+        let mut cursor = node;
+        while let Some(parent) = arena.parent(cursor) {
+            path.push(parent);
+            cursor = parent;
+        }
+        path.reverse();
+        path
+    }
+
+    /// Writes absolute bounds back into the arena — the recomputed region
+    /// only when the frame was candidate-bounded, the whole tree otherwise
+    /// (ADR-0008 item 2). Bounds outside a candidate region stay valid by
+    /// construction: nothing above or beside it was recomputed.
     fn publish_bounds(&mut self, arena: &mut Arena, root: NodeId) {
-        publish(self, arena, root, Point::zero());
+        match self.pending_region.take() {
+            Some((candidate, origin)) => publish(self, arena, candidate, origin),
+            None => publish(self, arena, root, Point::zero()),
+        }
     }
 }
 
@@ -227,6 +443,26 @@ fn layout_dirty_nodes(dirty: &FxHashMap<NodeId, Change>) -> Vec<NodeId> {
         .filter(|(_, c)| c.intersects(Change::LAYOUT.union(Change::STRUCTURE)))
         .map(|(id, _)| *id)
         .collect()
+}
+
+/// Definite available space for one size — a candidate is computed against
+/// its cached box.
+fn definite_available(size: Size) -> taffy::Size<taffy::AvailableSpace> {
+    taffy::Size {
+        width: taffy::AvailableSpace::Definite(size.width),
+        height: taffy::AvailableSpace::Definite(size.height),
+    }
+}
+
+/// Maps a widget style to Taffy; the arena root additionally grows into the
+/// synthetic fill root's main axis so the app fills the window both ways
+/// (cross-axis stretch covers width; `flex_grow` covers height).
+fn mapped_style(style: &alacer_core::style::Style, is_root: bool) -> taffy::Style {
+    let mut mapped = to_taffy(style);
+    if is_root {
+        mapped.flex_grow = 1.0;
+    }
+    mapped
 }
 
 fn publish(host: &mut LayoutHost, arena: &mut Arena, node: NodeId, origin: Point) {
@@ -240,29 +476,20 @@ fn publish(host: &mut LayoutHost, arena: &mut Arena, node: NodeId, origin: Point
     let size = Size::new(layout.size.width, layout.size.height);
     arena.update_bounds(node, Rect::new(abs, size));
     for child in arena.children(node).to_vec() {
+        let Some(child_taffy) = host.nodes.get(&child).copied() else {
+            continue;
+        };
+        let Ok(child_layout) = host.tree.layout(child_taffy) else {
+            continue;
+        };
+        // The parent-relative location cache: taffy zeroes a compute root's
+        // location, so the engine keeps the publish-derived record.
+        host.loc_cache.insert(
+            child,
+            Point::new(child_layout.location.x, child_layout.location.y),
+        );
         publish(host, arena, child, abs);
     }
-}
-
-fn is_live(arena: &Arena, root: Option<NodeId>, id: NodeId) -> bool {
-    // Dead slots (removed by the view reconciler or by hand) leave the index
-    // first — `parent()` on them would panic. Self-heal: the caller drops
-    // every dead id from the taffy map (ADR-3: the persistent tree is pruned,
-    // never cleared).
-    if !arena.is_live(id) {
-        return false;
-    }
-    let Some(root) = root else {
-        return false;
-    };
-    let mut cursor = Some(id);
-    while let Some(c) = cursor {
-        if c == root {
-            return true;
-        }
-        cursor = arena.parent(c);
-    }
-    false
 }
 
 impl LayoutEngine for LayoutHost {
@@ -273,14 +500,21 @@ impl LayoutEngine for LayoutHost {
         dirty: &FxHashMap<NodeId, Change>,
         viewport: Size,
     ) -> Result<(), LayoutError> {
-        self.sync_tree(arena, root);
+        // Structural frames sync the persistent tree with the arena's shape;
+        // style-churn frames cannot create, remove, or reorder nodes, so the
+        // whole sync (three O(n) walks) is skippable (ADR-0008 item 3).
+        let structural =
+            dirty.values().any(|m| m.contains(Change::STRUCTURE)) || self.nodes.is_empty();
+        if structural {
+            self.sync_tree(arena, root);
+        }
         if layout_dirty_nodes(dirty).is_empty() {
             // Paint- or a11y-only frame: the persistent tree is untouched and
             // cached layouts stay valid (§8.1 — never re-measure without need).
             return Ok(());
         }
-        self.refresh_dirty(arena, dirty);
-        let _region = self.compute_region(dirty, root, viewport);
+        self.refresh_dirty(arena, root, dirty);
+        let _region = self.compute_region(arena, dirty, root, viewport);
         self.publish_bounds(arena, root);
         Ok(())
     }
@@ -434,12 +668,12 @@ mod tests {
 
         assert_eq!(
             arena.bounds(a),
-            Some(Rect::new(Point::new(0.0, 0.0), Size::new(100.0, 30.0))),
-            "first child at the top"
+            Some(Rect::new(Point::new(0.0, 0.0), Size::new(400.0, 30.0))),
+            "first child at the top, stretched to the container width"
         );
         assert_eq!(
             arena.bounds(b),
-            Some(Rect::new(Point::new(0.0, 30.0), Size::new(50.0, 20.0))),
+            Some(Rect::new(Point::new(0.0, 30.0), Size::new(400.0, 20.0))),
             "second child below the first"
         );
     }
@@ -447,11 +681,16 @@ mod tests {
     #[test]
     fn text_leaves_measure_through_the_seam() {
         let mut arena = Arena::new();
+        // column → row → text leaf: the column fills the viewport, the row
+        // shrinks to its content, and the leaf's main axis (width) stays
+        // measured while its cross axis stretches to the row's height.
         let root = arena.set_root(TestBox::with_style(Style::column()));
-        let label = arena.add_child(root, TestBox::text("hello"));
+        let row = arena.add_child(root, TestBox::with_style(Style::row()));
+        let label = arena.add_child(row, TestBox::text("hello"));
 
         let mut dirty = FxHashMap::default();
         dirty.insert(root, Change::STRUCTURE);
+        dirty.insert(row, Change::STRUCTURE);
         dirty.insert(label, Change::STRUCTURE);
         let mut engine = host();
         engine
@@ -459,7 +698,7 @@ mod tests {
             .expect("layout");
 
         let bounds = arena.bounds(label).expect("label bounds");
-        assert_eq!(bounds.size.width, 30.0, "5 chars x 6 px");
+        assert_eq!(bounds.size.width, 30.0, "5 chars x 6 px, measured");
         assert_eq!(bounds.size.height, 14.0);
     }
 
@@ -559,13 +798,15 @@ mod tests {
     #[test]
     fn incremental_result_equals_full_rebuild_on_random_churn() {
         // §8.4: the Dioxus-oracle pattern — the churned incremental engine is
-        // compared against a fresh engine that rebuilds from scratch, over
-        // identically-constructed arenas, and the bounds must agree exactly.
+        // compared against a fresh engine that rebuilds from scratch. The
+        // oracle replays the *identical* churn onto the pristine tree first,
+        // so both engines lay out the same final tree and the bounds must
+        // agree exactly.
         let mut rng = Lcg(0x5EED_2026);
         for case in 0..64_u64 {
             let seed = rng.next();
             let (mut inc_arena, ids, cells) = build_tree(seed);
-            let (mut full_arena, full_ids, _full_cells) = build_tree(seed);
+            let (mut full_arena, full_ids, full_cells) = build_tree(seed);
 
             let mut inc = host();
             let initial = all_dirty(&inc_arena, &ids);
@@ -573,19 +814,23 @@ mod tests {
             inc.sync_and_layout(&mut inc_arena, inc_root, &initial, viewport())
                 .expect("initial");
 
+            // The churn: one child's grow factor changes per step; the same
+            // ops are recorded for the oracle.
+            let mut churn: Vec<(usize, Style)> = Vec::new();
             for _ in 0..6 {
-                // The churn: one child's grow factor changes for real.
                 let victim_idx = (rng.next() % ids.len() as u64) as usize;
                 let victim = ids[victim_idx];
                 let new_grow = ((rng.next() % 4) as f32) / 2.0;
+                let style = Style {
+                    grow: new_grow,
+                    ..Style::default()
+                };
                 *cells[victim_idx]
                     .as_ref()
                     .expect("churnable cell")
                     .lock()
-                    .expect("style cell") = Style {
-                    grow: new_grow,
-                    ..Style::default()
-                };
+                    .expect("style cell") = style.clone();
+                churn.push((victim_idx, style));
                 {
                     let mut guard = inc_arena.mutate(victim);
                     guard.request(Change::LAYOUT);
@@ -597,7 +842,15 @@ mod tests {
                     .expect("incremental");
             }
 
-            // Oracle: everything dirty on a fresh engine over the same tree.
+            // Oracle: replay the churn on the pristine tree, then lay
+            // everything out from scratch on a fresh engine.
+            for (victim_idx, style) in &churn {
+                *full_cells[*victim_idx]
+                    .as_ref()
+                    .expect("churnable cell")
+                    .lock()
+                    .expect("style cell") = style.clone();
+            }
             let mut full = host();
             let full_dirty = all_dirty(&full_arena, &full_ids);
             let full_root = full_arena.root().expect("root");
@@ -623,12 +876,14 @@ mod tests {
             Box::new(NullA11y),
         );
         let root = pipeline.mount_root(TestBox::with_style(Style::column()));
-        let a = pipeline.add_child(root, TestBox::fixed(100.0, 30.0));
+        let row = pipeline.add_child(root, TestBox::with_style(Style::row()));
+        let a = pipeline.add_child(row, TestBox::fixed(100.0, 30.0));
         let report = pipeline.tick(viewport()).expect("frame");
         assert!(report.layout_ran);
         assert_eq!(
             pipeline.arena().bounds(a).expect("bounds").size,
-            Size::new(100.0, 30.0)
+            Size::new(100.0, 30.0),
+            "row main axis leaves the measured width alone"
         );
     }
 

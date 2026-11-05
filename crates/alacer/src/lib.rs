@@ -36,6 +36,7 @@
 pub use alacer_a11y as a11y;
 pub use alacer_core as core;
 pub use alacer_layout as layout;
+pub use alacer_macro::rsx;
 pub use alacer_platform as platform;
 pub use alacer_render as render;
 pub use alacer_testing as testing;
@@ -47,18 +48,26 @@ pub use alacer_core::prelude::*;
 
 /// The public prelude: one import for the whole framework vocabulary.
 pub mod prelude {
+    pub use crate::rsx;
     pub use alacer_core::prelude::*;
     pub use alacer_core::{
         A11yAction, EventResponse, GlyphSource, LabelSource, MeasureFn, PaintSink, Role, Widget,
     };
+    pub use alacer_view::{PatchReport, ViewNode, ViewRoot};
+    pub use alacer_widgets::default_registry;
 }
 
+use std::rc::Rc;
 use std::sync::Arc;
 
 /// Assembles the default pipeline: persistent-Taffy layout over the
 /// thread-local text measurer, the scene journal, and the AccessKit sink.
+///
+/// The facade is an assembly site: it installs this thread's text seam so
+/// widgets (core-only dependencies) can shape and measure text (ADR-9).
 #[must_use]
 pub fn pipeline_default() -> PassPipeline {
+    alacer_core::text_seam::install(Rc::new(alacer_text::ThreadLocalTextSeam));
     alacer_core::passes::PassPipeline::new(
         alacer_core::Flux::new(),
         Box::new(alacer_layout::LayoutHost::new(Arc::new(
@@ -67,6 +76,21 @@ pub fn pipeline_default() -> PassPipeline {
         Box::new(alacer_render::SceneJournalImpl::new()),
         Box::new(alacer_a11y::AccessKitSink::new()),
     )
+}
+
+/// Mounts a [`alacer_view::ViewNode`] tree as the pipeline's root element,
+/// using the default M0 element registry (ADR-9: the concrete set registers
+/// itself where the widget types live).
+///
+/// # Panics
+///
+/// Panics when `view` names an unregistered element.
+#[must_use]
+pub fn mount_view(
+    view: &alacer_view::ViewNode,
+    pipeline: &mut alacer_core::passes::PassPipeline,
+) -> alacer_view::ViewRoot {
+    alacer_view::ViewRoot::mount(view, pipeline, alacer_widgets::default_registry())
 }
 
 /// Runs a mounted pipeline in a real window until it closes (M0's "on one

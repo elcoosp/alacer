@@ -5,7 +5,7 @@
 all-features = true
 
 [licenses]
-version = "2"
+version = 2
 allow = [
   "MIT",
   "Apache-2.0",
@@ -19,9 +19,10 @@ allow = [
   "CDLA-Permissive-2.0",
 ]
 # The workspace itself is MIT OR Apache-2.0; every adopted core dep is MIT
-# and/or Apache-2.0 (architecture section 20). GPL-family is denied outright:
-# sources are never copied (clean-room discipline), and AGPL is refused.
-deny = ["AGPL-1.0-only", "AGPL-3.0-only", "AGPL-3.0-or-later", "GPL-1.0-only", "GPL-2.0-only", "GPL-3.0-only", "GPL-2.0-or-later", "GPL-3.0-or-later"]
+# and/or Apache-2.0 (architecture section 20). GPL-family is denied outright by
+# the allow-list above (cargo-deny >= 0.18 removed the `deny` key — anything
+# outside `allow` fails the gate): sources are never copied (clean-room
+# discipline), and AGPL is refused.
 confidence-threshold = 0.93
 
 [bans]

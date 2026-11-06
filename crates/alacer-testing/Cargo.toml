@@ -23,3 +23,6 @@ alacer-inspect.workspace = true
 tiny-skia.workspace = true
 reactive_graph.workspace = true
 rustc-hash.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

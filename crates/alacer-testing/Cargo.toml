@@ -7,6 +7,8 @@ rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
 alacer-core.workspace = true
@@ -17,6 +19,7 @@ alacer-text.workspace = true
 alacer-render.workspace = true
 alacer-a11y.workspace = true
 alacer-widgets.workspace = true
+alacer-inspect.workspace = true
 tiny-skia.workspace = true
 reactive_graph.workspace = true
 rustc-hash.workspace = true

@@ -27,6 +27,7 @@ pub mod events;
 pub mod flux;
 pub mod geom;
 pub mod identity;
+pub mod inspect;
 pub mod mask;
 pub mod num;
 pub mod passes;
@@ -42,8 +43,12 @@ pub use damage::{DAMAGE_REGION_BUDGET, Damage, DamageBuilder};
 pub use events::{
     EventPhase, ImeEvent, Key, KeyEvent, KeyState, Modifiers, MouseButton, PointerEvent,
 };
-pub use flux::{Flux, FluxCounters, FluxRwSignal, RenderBinding};
+pub use flux::{Flux, FluxCounters, FluxRwSignal, FluxWriter, RenderBinding};
 pub use geom::{Point, Rect, Size, Vector};
+pub use inspect::{
+    BindingId, DirtyNode, EdgeActivation, FrameSummary, InputKind, InputRecord, InspectEvent,
+    InspectObserver, PassTiming, SignalKey, SignalWrite,
+};
 pub use mask::Change;
 pub use passes::{
     A11yDelta, A11ySink, FrameReport, ImePurpose, ImeRequest, LayoutEngine, LayoutError, PassKind,
@@ -69,6 +74,7 @@ pub mod prelude {
     };
     pub use crate::flux::{Flux, RenderBinding};
     pub use crate::geom::{Point, Rect, Size, Vector};
+    pub use crate::inspect::{InspectEvent, InspectObserver};
     pub use crate::mask::Change;
     pub use crate::passes::{PassKind, PassPipeline};
     pub use crate::style::{CrossAxisAlignment, Display, MainAxisAlignment, Style};

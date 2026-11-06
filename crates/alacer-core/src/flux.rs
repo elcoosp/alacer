@@ -11,11 +11,13 @@
 //! 3. **Reactive work is upstream of invalidation, never tangled with it.**
 
 use crate::arena::NodeId;
+use crate::inspect::{BindingId, EdgeActivation, SignalKey, SignalWrite, signal_key_of};
 use crate::mask::Change;
 use reactive_graph::computed::Memo;
 use reactive_graph::effect::{ImmediateEffect, batch};
 use reactive_graph::owner::Owner;
 use reactive_graph::signal::RwSignal;
+use reactive_graph::traits::Set;
 
 /// The reactive signal handle the flux issues (`reactive_graph::RwSignal`).
 ///
@@ -55,6 +57,70 @@ struct MaskQueue {
     pending: FxHashMap<NodeId, Change>,
 }
 
+/// The dev-mode causal capture (§13.3, ADR-0010): edge registrations,
+/// activations, and provenance-tagged writes. Off by default — an effect
+/// run pays one boolean check to find out, and nothing allocates. Both
+/// event buffers are bounded rings (§14.3: every buffer has an eviction
+/// policy); the edge table is keyed and bounded by binding count.
+#[derive(Debug, Default)]
+struct CausalCapture {
+    enabled: bool,
+    next_binding: u64,
+    write_sequence: u64,
+    /// The binding table: binding id → (signal key, node). The "who
+    /// subscribes" answer.
+    edges: FxHashMap<BindingId, (SignalKey, NodeId)>,
+    /// Activations since the last drain (the pipeline folds them into the
+    /// frame's [`FrameSummary`](crate::inspect::FrameSummary)).
+    activations: std::collections::VecDeque<EdgeActivation>,
+    /// Provenance-tagged writes since the last drain.
+    writes: std::collections::VecDeque<SignalWrite>,
+}
+
+/// The activation ring's cap (oldest dropped first).
+const ACTIVATION_RING_CAP: usize = 4_096;
+/// The write-provenance ring's cap (oldest dropped first).
+const WRITE_RING_CAP: usize = 1_024;
+
+impl CausalCapture {
+    fn register(&mut self, signal: SignalKey, node: NodeId) -> BindingId {
+        self.next_binding += 1;
+        let binding = self.next_binding;
+        self.edges.insert(binding, (signal, node));
+        binding
+    }
+
+    fn record_activation(
+        &mut self,
+        binding: BindingId,
+        signal: SignalKey,
+        node: NodeId,
+        masks: Change,
+    ) {
+        if self.activations.len() >= ACTIVATION_RING_CAP {
+            self.activations.pop_front();
+        }
+        self.activations.push_back(EdgeActivation {
+            binding,
+            signal,
+            node,
+            masks,
+        });
+    }
+
+    fn record_write(&mut self, signal: SignalKey, origin: std::borrow::Cow<'static, str>) {
+        if self.writes.len() >= WRITE_RING_CAP {
+            self.writes.pop_front();
+        }
+        self.write_sequence += 1;
+        self.writes.push_back(SignalWrite {
+            signal,
+            sequence: self.write_sequence,
+            origin,
+        });
+    }
+}
+
 impl MaskQueue {
     fn add(&mut self, node: NodeId, change: Change) {
         *self.pending.entry(node).or_default() |= change;
@@ -62,6 +128,40 @@ impl MaskQueue {
 
     fn take(&mut self) -> FxHashMap<NodeId, Change> {
         std::mem::take(&mut self.pending)
+    }
+}
+
+/// Drains a bounded ring into a vector (drain order: oldest first).
+fn drain_ring<T>(ring: &mut std::collections::VecDeque<T>) -> Vec<T> {
+    ring.drain(..).collect()
+}
+
+/// The provenance-tagged write handle ([`Flux::writer`]): event handlers
+/// capture this instead of the flux instance. The write path itself is one
+/// capture-lock + the signal set.
+#[derive(Debug, Clone)]
+pub struct FluxWriter {
+    capture: Arc<Mutex<CausalCapture>>,
+}
+
+impl FluxWriter {
+    /// Writes `value` into `signal` with a declared origin (§13.3 "who
+    /// wrote this signal").
+    pub fn write<T>(
+        &self,
+        signal: &RwSignal<T>,
+        value: T,
+        origin: impl Into<std::borrow::Cow<'static, str>>,
+    ) where
+        T: Send + Sync + 'static,
+    {
+        let key = signal_key_of(signal);
+        if let Ok(mut capture) = self.capture.lock()
+            && capture.enabled
+        {
+            capture.record_write(key, origin.into());
+        }
+        signal.set(value);
     }
 }
 
@@ -86,6 +186,7 @@ pub fn batch_test_lock() -> std::sync::MutexGuard<'static, ()> {
 pub struct Flux {
     queue: Arc<Mutex<MaskQueue>>,
     counters: Arc<FluxCounters>,
+    capture: Arc<Mutex<CausalCapture>>,
     owner: Owner,
     effects: Vec<ImmediateEffect>,
 }
@@ -104,9 +205,91 @@ impl Flux {
         Self {
             queue: Arc::new(Mutex::new(MaskQueue::default())),
             counters: Arc::new(FluxCounters::default()),
+            capture: Arc::new(Mutex::new(CausalCapture::default())),
             owner,
             effects: Vec::new(),
         }
+    }
+
+    /// Enables the dev-mode causal capture (§13.3). Off by default; when on,
+    /// every binding registration and effect rerun lands in the log the
+    /// pipeline folds into the frame summary (ADR-0010).
+    pub fn set_causal_capture(&self, on: bool) {
+        if let Ok(mut capture) = self.capture.lock() {
+            capture.enabled = on;
+        }
+    }
+
+    /// Whether the causal capture is on.
+    #[must_use]
+    pub fn causal_capture_enabled(&self) -> bool {
+        self.capture
+            .lock()
+            .map(|capture| capture.enabled)
+            .unwrap_or(false)
+    }
+
+    /// Writes `value` into `signal` with a declared origin — the write
+    /// provenance the Causality inspector reports (§13.3 "who wrote this
+    /// signal"). A plain `signal.set(..)` bypasses provenance (recorded only
+    /// when the write flows through this helper with capture on).
+    pub fn write<T>(
+        &self,
+        signal: &RwSignal<T>,
+        value: T,
+        origin: impl Into<std::borrow::Cow<'static, str>>,
+    ) where
+        T: Send + Sync + 'static,
+    {
+        self.writer().write(signal, value, origin);
+    }
+
+    /// A thread-independent write handle: the provenance-tagged write path
+    /// without holding the flux (event handlers capture this, not the
+    /// flux instance). One clone of the capture arc — cheap, `Send`.
+    #[must_use]
+    pub fn writer(&self) -> FluxWriter {
+        FluxWriter {
+            capture: Arc::clone(&self.capture),
+        }
+    }
+
+    /// The binding table: every registered signal→node edge as
+    /// `(binding, signal, node)` — the "who subscribes" answer (§13.3).
+    #[must_use]
+    pub fn edge_table(&self) -> Vec<(BindingId, SignalKey, NodeId)> {
+        self.capture
+            .lock()
+            .map(|capture| {
+                let mut edges: Vec<(BindingId, SignalKey, NodeId)> = capture
+                    .edges
+                    .iter()
+                    .map(|(binding, (signal, node))| (*binding, *signal, *node))
+                    .collect();
+                edges.sort_unstable_by_key(|(binding, _, _)| *binding);
+                edges
+            })
+            .unwrap_or_default()
+    }
+
+    /// Drains the pending provenance-tagged writes (the pipeline's frame
+    /// summary source).
+    #[must_use]
+    pub fn take_signal_writes(&self) -> Vec<SignalWrite> {
+        self.capture
+            .lock()
+            .map(|mut capture| drain_ring(&mut capture.writes))
+            .unwrap_or_default()
+    }
+
+    /// Drains the pending edge activations (the pipeline's frame summary
+    /// source).
+    #[must_use]
+    pub fn take_edge_activations(&self) -> Vec<EdgeActivation> {
+        self.capture
+            .lock()
+            .map(|mut capture| drain_ring(&mut capture.activations))
+            .unwrap_or_default()
     }
 
     /// Creates a signal.
@@ -147,10 +330,30 @@ impl Flux {
     {
         let queue = Arc::clone(&self.queue);
         let counters = Arc::clone(&self.counters);
+        let capture = Arc::clone(&self.capture);
+        // Register the edge up front (the "who subscribes" table); the id is
+        // captured by the effect so every rerun records its activation.
+        let binding = self
+            .capture
+            .lock()
+            .map(|mut capture| {
+                if capture.enabled {
+                    capture.register(signal_key_of(&signal), node)
+                } else {
+                    0
+                }
+            })
+            .unwrap_or(0);
+        let signal_key = signal_key_of(&signal);
         let effect = self.owner.with(|| {
             ImmediateEffect::new(move || {
                 let value = signal.get();
                 let change = on_change(&value);
+                if let Ok(mut capture) = capture.lock()
+                    && capture.enabled
+                {
+                    capture.record_activation(binding, signal_key, node, change);
+                }
                 if let Ok(mut q) = queue.lock() {
                     q.add(node, change);
                 }

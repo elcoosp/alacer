@@ -32,6 +32,17 @@ python3 scripts/check_dag.py
 cargo bench --workspace --no-run
 ```
 
+## The perf contracts (M5, ADR-0011)
+
+A new benchmark case is not done until it is *published*: run
+`cargo bench`, then `python3 scripts/collect_baseline.py`, then add its
+regression gate to `benchmarks/contracts.json` — the checker fails on an
+uncontracted benchmark, and the M5 exit suite enforces the
+contracts ↔ baseline bijection. Budget ratios (the architecture's gates,
+e.g. W1 ≥ 2×) are enforced everywhere; same-host absolute gates fire on
+your machine against the published baseline, and regenerate the dashboard
+(`python3 scripts/perf_dashboard.py`) when the baseline moves.
+
 ## Snapshot updates
 
 Snapshot drift means *either* a real regression or an intended visual change.

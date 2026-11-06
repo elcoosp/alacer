@@ -126,6 +126,28 @@ jobs:
       - name: Smoke the reconciliation bench
         run: cargo bench -p alacer-view --bench view -- --warm-up-time 1 --measurement-time 2
 
+  perf-contracts:
+    name: perf contracts (M5, ADR-0011)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install Rust (rust-toolchain.toml)
+        run: rustup show active-toolchain
+      - uses: Swatinem/rust-cache@v2
+      - name: Bench (reduced sampling — the ratio budgets are the portable contracts)
+        run: cargo bench --workspace -- --warm-up-time 1 --measurement-time 2
+      - name: Enforce the budget contracts against the published baseline
+        run: python3 scripts/check_perf_contracts.py
+      - name: Regenerate the published dashboard
+        run: python3 scripts/perf_dashboard.py
+      - name: Upload the dashboard artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-dashboard
+          path: benchmarks/dashboard/index.html
+
   windows:
     name: windows build (smoke)
     runs-on: windows-latest

@@ -35,6 +35,10 @@ pub enum PlatformEvent {
     AccessKit(AccessKitEvent),
     /// The tree changed; AccessKit wants the update applied.
     TreeChanged,
+    /// A hot patch landed; the app's patch hook re-renders the view scoped
+    /// (§13.2, ADR-0010). The hook owns the how; the loop owns the when —
+    /// exactly one regenerate per patch event.
+    Patch,
 }
 
 impl From<AccessKitEvent> for PlatformEvent {
@@ -114,6 +118,53 @@ pub struct AlacerApp {
     /// The softbuffer path's persistent framebuffer: partial paint repaints
     /// damage regions onto this instead of re-rasterizing everything (§9.3).
     framebuffer: Option<tiny_skia::Pixmap>,
+    /// The hot-reload patch channel: `Patch` user events wake the loop for
+    /// the patch hook (§13.2). `None` in every default path.
+    patch_channel: Option<PatchChannel>,
+    /// The patch hook: re-renders the view scoped, exactly once per patch
+    /// event. `None` in every default path.
+    patch_hook: Option<PatchHook>,
+}
+
+/// The patch hook type: one scoped re-render per patch event (§13.2).
+pub type PatchHook = Box<dyn FnMut(&mut PassPipeline)>;
+
+/// A thread-safe wake-up channel for hot-reload patches (§13.2, ADR-0010).
+///
+/// The framework installs the loop's proxy into the channel when the app
+/// starts; `fire` then wakes the loop from any thread — the subsecond patch
+/// handler's thread, a watcher thread, or the app's own UI code. One `fire`
+/// equals one `Patch` user event equals one hook call.
+#[derive(Clone, Default)]
+pub struct PatchChannel {
+    proxy: Arc<std::sync::Mutex<Option<EventLoopProxy<PlatformEvent>>>>,
+}
+
+impl PatchChannel {
+    /// A channel not yet attached to a loop (the app attaches it on start).
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Wakes the loop with one patch event. Safe to call from any thread;
+    /// silently dropped before the loop attaches (nothing is running to
+    /// wake — the flag loss is harmless, the next fire works).
+    pub fn fire(&self) {
+        if let Ok(guard) = self.proxy.lock()
+            && let Some(proxy) = guard.as_ref()
+            && proxy.send_event(PlatformEvent::Patch).is_err()
+        {
+            // The loop is gone (window closed); a patch arriving then is a
+            // race the process is already exiting from.
+        }
+    }
+
+    fn attach(&self, proxy: EventLoopProxy<PlatformEvent>) {
+        if let Ok(mut guard) = self.proxy.lock() {
+            *guard = Some(proxy);
+        }
+    }
 }
 
 impl AlacerApp {
@@ -147,7 +198,24 @@ impl AlacerApp {
             modifiers: alacer_core::events::Modifiers::default(),
             applied_ime: None,
             framebuffer: None,
+            patch_channel: None,
+            patch_hook: None,
         }
+    }
+
+    /// Attaches a patch channel: the loop's proxy is installed into it on
+    /// start, so `PatchChannel::fire` wakes this app (§13.2, ADR-0010).
+    #[must_use]
+    pub fn with_patch_channel(mut self, channel: PatchChannel) -> Self {
+        self.patch_channel = Some(channel);
+        self
+    }
+
+    /// Installs the patch hook — the closure that answers one `Patch` event
+    /// with one scoped re-render (`HotView::regenerate` in the facade's hot
+    /// runtime). Exactly one hook call per event.
+    pub fn set_patch_hook(&mut self, hook: PatchHook) {
+        self.patch_hook = Some(hook);
     }
 
     /// Runs until the window closes.
@@ -160,7 +228,11 @@ impl AlacerApp {
             .build()
             .map_err(PlatformError::Loop)?;
         event_loop.set_control_flow(ControlFlow::Wait);
-        self.proxy = Some(event_loop.create_proxy());
+        let proxy = event_loop.create_proxy();
+        if let Some(channel) = self.patch_channel.take() {
+            channel.attach(proxy.clone());
+        }
+        self.proxy = Some(proxy);
         event_loop.run_app(&mut self).map_err(PlatformError::Loop)
     }
 
@@ -632,6 +704,17 @@ impl ApplicationHandler<PlatformEvent> for AlacerApp {
             },
             PlatformEvent::TreeChanged => {
                 self.tree_dirty = true;
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            PlatformEvent::Patch => {
+                // §13.2: the patch lands, the hook re-renders scoped — one
+                // regenerate per patch event, then one layout+paint cycle.
+                if let Some(hook) = self.patch_hook.as_mut() {
+                    hook(&mut self.pipeline);
+                }
+                self.needs_present = true;
                 if let Some(window) = &self.window {
                     window.request_redraw();
                 }

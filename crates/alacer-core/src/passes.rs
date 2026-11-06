@@ -26,6 +26,10 @@ use crate::damage::{Damage, DamageBuilder};
 use crate::events::{EventPhase, ImeEvent, KeyEvent, PointerEvent};
 use crate::flux::Flux;
 use crate::geom::{Point, Rect, Size, Vector};
+use crate::inspect::{
+    DIRTY_HEATMAP_CAP, DirtyNode, FrameSummary, InputKind, InputRecord, InspectEvent,
+    InspectObserver, PassTiming,
+};
 use crate::mask::Change;
 use crate::scene::{PaintCtx, Primitive, SceneSnapshot};
 use crate::style::Style;
@@ -471,6 +475,11 @@ pub struct PassPipeline {
     /// The id-path hashes pass 9 emitted last time — the removals source for
     /// the a11y delta (dead widgets leave the set; their ids surface once).
     last_a11y_ids: Option<FxHashSet<u64>>,
+    /// The devtools observer (§13.3, ADR-0010). `None` in every default
+    /// path: the frame event is built only when someone is listening.
+    observer: Option<Box<dyn InspectObserver>>,
+    /// Monotonic frame counter (the frame summary's number).
+    frames: u64,
 }
 
 impl PassPipeline {
@@ -501,7 +510,26 @@ impl PassPipeline {
             pending_focus: None,
             ime_request: None,
             last_a11y_ids: None,
+            observer: None,
+            frames: 0,
         }
+    }
+
+    /// Installs the devtools observer (§13.3): the pipeline forwards frame
+    /// summaries and routed-input records. Replaces any previous observer.
+    pub fn set_observer(&mut self, observer: Box<dyn InspectObserver>) {
+        self.observer = Some(observer);
+    }
+
+    /// Removes the observer (back to zero-cost silence).
+    pub fn clear_observer(&mut self) {
+        self.observer = None;
+    }
+
+    /// Whether an observer is installed.
+    #[must_use]
+    pub const fn has_observer(&self) -> bool {
+        self.observer.is_some()
     }
 
     /// Enables per-pass wall timing and the overhead ledger (the M1 gate
@@ -620,18 +648,24 @@ impl PassPipeline {
         let start = self.timings.then(std::time::Instant::now);
         let _guard = span.enter();
 
-        let response = self.route_pointer(event, &mut run.ran);
+        let (response, target) = self.route_pointer(event, &mut run.ran);
 
         run.nanos = start.map_or(0, |t| crate::num::u128_to_u64(t.elapsed().as_nanos()));
         drop(_guard);
         self.interframe.push(run);
+        self.notify_input(Self::pointer_kind(event), target);
         response
     }
 
-    /// The event pass body: capture walk, then bubble walk.
-    fn route_pointer(&mut self, event: &PointerEvent, ran: &mut bool) -> EventResponse {
+    /// The event pass body: capture walk, then bubble walk. Returns the
+    /// deepest hit (the target the inspector records).
+    fn route_pointer(
+        &mut self,
+        event: &PointerEvent,
+        ran: &mut bool,
+    ) -> (EventResponse, Option<NodeId>) {
         let Some(position) = event.position() else {
-            return EventResponse::Ignored;
+            return (EventResponse::Ignored, None);
         };
         let mut chain = Vec::new();
         self.arena.for_each_pre_order(&mut |id, slot| {
@@ -642,7 +676,7 @@ impl PassPipeline {
             }
         });
         if chain.is_empty() {
-            return EventResponse::Ignored;
+            return (EventResponse::Ignored, None);
         }
         *ran = true;
 
@@ -650,7 +684,7 @@ impl PassPipeline {
         for node in &chain {
             let response = self.visit_with_phase(*node, EventPhase::Capture, event);
             if response == EventResponse::Handled {
-                return EventResponse::Handled;
+                return (EventResponse::Handled, chain.last().copied());
             }
         }
         // Bubble: target → root. Reverse pre-order tail = deepest, topmost
@@ -658,10 +692,10 @@ impl PassPipeline {
         for node in chain.iter().rev() {
             let response = self.visit_with_phase(*node, EventPhase::Bubble, event);
             if response == EventResponse::Handled {
-                return EventResponse::Handled;
+                return (EventResponse::Handled, chain.last().copied());
             }
         }
-        EventResponse::Ignored
+        (EventResponse::Ignored, chain.last().copied())
     }
 
     /// One capture/bubble visit: route the event with the phase set, merge
@@ -726,6 +760,7 @@ impl PassPipeline {
         run.nanos = start.map_or(0, |t| crate::num::u128_to_u64(t.elapsed().as_nanos()));
         drop(_guard);
         self.interframe.push(run);
+        self.notify_input(InputKind::Key, self.focused);
         response
     }
 
@@ -767,7 +802,97 @@ impl PassPipeline {
         run.nanos = start.map_or(0, |t| crate::num::u128_to_u64(t.elapsed().as_nanos()));
         drop(_guard);
         self.interframe.push(run);
+        self.notify_input(InputKind::Ime, self.focused);
         response
+    }
+
+    /// Forwards one routed-input record to the observer, when installed
+    /// (§13.3: the input trail that ends in "why did this render").
+    fn notify_input(&mut self, kind: InputKind, target: Option<NodeId>) {
+        if let Some(observer) = self.observer.as_mut() {
+            observer.observe(InspectEvent::Input(InputRecord { kind, target }));
+        }
+    }
+
+    /// Builds and forwards the frame's causal summary (§13.3): the drained
+    /// edge activations and provenance writes, then the frame itself with
+    /// the mask heatmap resolved to roles/labels/bounds. No-op without an
+    /// observer.
+    fn notify_frame(
+        &mut self,
+        report: &FrameReport,
+        dirty: &FxHashMap<NodeId, Change>,
+        viewport: Size,
+    ) {
+        let Some(observer) = self.observer.as_mut() else {
+            return;
+        };
+        for write in self.flux.take_signal_writes() {
+            observer.observe(InspectEvent::Write(write));
+        }
+        for activation in self.flux.take_edge_activations() {
+            observer.observe(InspectEvent::Edge(activation));
+        }
+        let mut dirty_nodes: Vec<DirtyNode> =
+            Vec::with_capacity(dirty.len().min(DIRTY_HEATMAP_CAP));
+        let mut truncated = 0_usize;
+        for (node, mask) in dirty {
+            if dirty_nodes.len() >= DIRTY_HEATMAP_CAP {
+                truncated += 1;
+                continue;
+            }
+            let (role, label, bounds) = if self.arena.is_live(*node) {
+                let widget = self.arena.widget(*node);
+                (
+                    widget.role(),
+                    widget.label().resolve(),
+                    self.arena.bounds(*node),
+                )
+            } else {
+                (Role::Decoration, String::new(), None)
+            };
+            dirty_nodes.push(DirtyNode {
+                node: *node,
+                mask: *mask,
+                role,
+                label,
+                bounds,
+            });
+        }
+        observer.observe(InspectEvent::Frame(FrameSummary {
+            number: self.frames,
+            layout_ran: report.layout_ran,
+            paint_ran: report.paint_ran,
+            a11y_ran: report.a11y_ran,
+            focus_changed: report.focus_changed,
+            damage: report.damage.clone(),
+            viewport,
+            a11y_updated: report.a11y_delta.updated.len(),
+            a11y_removed: report.a11y_delta.removed.len(),
+            total_nanos: report.total_nanos,
+            passes: report
+                .passes
+                .iter()
+                .map(|run| PassTiming {
+                    kind: run.kind,
+                    ran: run.ran,
+                    nanos: run.nanos,
+                })
+                .collect(),
+            dirty: dirty_nodes,
+            dirty_truncated: truncated,
+        }));
+    }
+
+    /// The input-kind half of a pointer event (the inspector's vocabulary).
+    fn pointer_kind(event: &PointerEvent) -> InputKind {
+        match event {
+            PointerEvent::Down { .. } => InputKind::PointerDown,
+            PointerEvent::Up { .. } => InputKind::PointerUp,
+            PointerEvent::Move { .. } => InputKind::PointerMove,
+            PointerEvent::Wheel { .. } => InputKind::Wheel,
+            PointerEvent::Leave => InputKind::PointerLeave,
+        }
     }
 
     /// One focus-routed key visit: route with the phase set, merge masks.
@@ -1054,7 +1179,8 @@ impl PassPipeline {
         let scene = scene
             .or_else(|| self.scene_cache.as_ref().map(std::sync::Arc::clone))
             .unwrap_or_default();
-        Ok(FrameReport {
+        self.frames += 1;
+        let report = FrameReport {
             layout_ran,
             paint_ran,
             a11y_ran,
@@ -1064,7 +1190,9 @@ impl PassPipeline {
             passes: ledger,
             focus_changed,
             total_nanos,
-        })
+        };
+        self.notify_frame(&report, &dirty, viewport);
+        Ok(report)
     }
 
     /// Runs one pass under its tracing span, recording the ledger entry.

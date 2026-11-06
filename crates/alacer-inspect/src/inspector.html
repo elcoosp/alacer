@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Alacer — Causality Inspector</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #10141a; --panel: #171d26; --panel2: #1d2530; --line: #2a3442;
+    --text: #d7e0ea; --dim: #8fa0b3; --accent: #4fc3f7; --ok: #66bb6a;
+    --warn: #ffa726; --hot: #ef5350; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { display: flex; align-items: baseline; gap: 12px; padding: 10px 16px;
+           border-bottom: 1px solid var(--line); background: var(--panel); }
+  header h1 { font-size: 15px; margin: 0; letter-spacing: .4px; }
+  header .app { color: var(--accent); font-family: var(--mono); }
+  #state { margin-left: auto; font-family: var(--mono); font-size: 12px; }
+  #state.on { color: var(--ok); } #state.off { color: var(--hot); }
+  main { display: grid; grid-template-columns: 1.1fr .9fr; gap: 12px; padding: 12px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  section { background: var(--panel); border: 1px solid var(--line);
+            border-radius: 8px; padding: 10px 12px; min-width: 0; }
+  section h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .8px;
+               color: var(--dim); margin: 0 0 8px; }
+  .kv { font-family: var(--mono); font-size: 12px; color: var(--dim); }
+  .kv b { color: var(--text); font-weight: 600; }
+  .badges { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
+  .badge { font-family: var(--mono); font-size: 11px; padding: 2px 8px;
+           border-radius: 999px; background: var(--panel2); border: 1px solid var(--line); }
+  .badge.on { color: var(--ok); border-color: var(--ok); }
+  .badge.off { color: var(--dim); }
+  .badge.damage-full { color: var(--hot); border-color: var(--hot); }
+  .badge.damage-partial { color: var(--warn); border-color: var(--warn); }
+  .badge.damage-none { color: var(--dim); }
+  table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12px; }
+  th { text-align: left; color: var(--dim); font-weight: 500; padding: 3px 6px;
+       border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--panel); }
+  td { padding: 3px 6px; border-bottom: 1px solid rgba(42,52,66,.4); white-space: nowrap; }
+  .mask { color: var(--accent); }
+  .mask:focus { color: var(--warn); }
+  .bar { height: 8px; border-radius: 4px; background: var(--accent); min-width: 1px; }
+  .ledger td:first-child { width: 130px; }
+  .scroll { max-height: 300px; overflow: auto; }
+  ul.log { list-style: none; margin: 0; padding: 0; font-family: var(--mono);
+           font-size: 12px; max-height: 340px; overflow: auto; }
+  ul.log li { padding: 3px 4px; border-bottom: 1px solid rgba(42,52,66,.4);
+              display: flex; gap: 8px; }
+  ul.log li .t { color: var(--dim); flex: 0 0 92px; }
+  ul.log li.edge .t { color: var(--accent); }
+  ul.log li.write .t { color: var(--warn); }
+  ul.log li.input .t { color: var(--ok); }
+  ul.log li.frame .t { color: var(--text); }
+  .hint { color: var(--dim); font-size: 12px; margin: 8px 0 0; }
+  .zero { color: var(--dim); font-family: var(--mono); font-size: 12px; padding: 6px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Alacer — Causality Inspector</h1>
+  <span class="app" id="app">connecting…</span>
+  <span id="state" class="off">disconnected</span>
+</header>
+<main>
+  <section>
+    <h2>Latest frame — the pass ledger (§7.2)</h2>
+    <div id="frame-badges" class="badges"></div>
+    <table class="ledger"><tbody id="ledger"></tbody></table>
+    <p class="hint">"Why is this frame slow?" — per-pass wall time; skipped
+    passes cost nothing (the idle contract, A7).</p>
+  </section>
+  <section>
+    <h2>Mask heatmap — what this frame touched (§13.3)</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>node</th><th>role</th><th>label</th><th>masks</th><th>bounds</th></tr></thead>
+        <tbody id="heatmap"><tr><td colspan="5" class="zero">no frames yet</td></tr></tbody>
+      </table>
+    </div>
+    <p class="hint" id="heatmap-note"></p>
+  </section>
+  <section style="grid-column: 1 / -1;">
+    <h2>Causal log — why did this render, who wrote, who subscribed</h2>
+    <ul class="log" id="log">
+      <li class="zero">waiting for events…</li>
+    </ul>
+    <p class="hint">Streams the documented WS protocol
+    (<code>docs/inspector-protocol.md</code>, version 1): <code>edge</code> =
+    a reactive edge activation queued masks (why this rendered);
+    <code>write</code> = a provenance-tagged signal write (who wrote);
+    <code>input</code> = a routed input; <code>frame</code> = the frame
+    summary. "Who subscribes" is the edge table the flux publishes —
+    every <code>edge</code> line names its binding.</p>
+  </section>
+</main>
+<script>
+"use strict";
+const MAX_LOG = 240;
+const MAX_HEATMAP = 120;
+const logEl = document.getElementById("log");
+const logSeed = logEl.innerHTML;
+
+function el(tag, cls, text) {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+function trimLog() {
+  while (logEl.children.length > MAX_LOG) logEl.removeChild(logEl.lastChild);
+}
+function addLog(cls, tag, text) {
+  if (logEl.firstElementChild && logEl.firstElementChild.classList.contains("zero"))
+    logEl.innerHTML = "";
+  const li = el("li", cls);
+  li.append(el("span", "t", tag), el("span", null, text));
+  logEl.prepend(li);
+  trimLog();
+}
+
+function maskText(masks) {
+  return masks.length ? masks : "none";
+}
+
+function renderFrame(frame) {
+  const badges = document.getElementById("frame-badges");
+  badges.innerHTML = "";
+  const ran = (name, on) => {
+    const b = el("span", "badge " + (on ? "on" : "off"), name + (on ? "" : " ·skip"));
+    badges.append(b);
+  };
+  ran("layout", frame.layout_ran);
+  ran("paint", frame.paint_ran);
+  ran("a11y", frame.a11y_ran);
+  const dmg = el("span", "badge damage-" + frame.damage,
+                 "damage: " + frame.damage + (frame.regions ? " ×" + frame.regions : ""));
+  badges.append(dmg);
+  if (frame.focus_changed) badges.append(el("span", "badge on", "focus moved"));
+  badges.append(el("span", "badge",
+    "a11y Δ +" + frame.a11y_updated + "/−" + frame.a11y_removed));
+  badges.append(el("span", "badge",
+    frame.total_nanos ? (frame.total_nanos / 1e6).toFixed(2) + " ms" : "timings off"));
+
+  const ledger = document.getElementById("ledger");
+  ledger.innerHTML = "";
+  let max = 1;
+  for (const pass of frame.passes) max = Math.max(max, pass.nanos);
+  for (const pass of frame.passes) {
+    const tr = el("tr");
+    const name = el("td", null, pass.name + (pass.ran ? "" : " (skip)"));
+    const cell = el("td");
+    const bar = el("div", "bar");
+    const share = pass.ran ? Math.max(2, Math.round(100 * pass.nanos / max)) : 0;
+    bar.style.width = share + "%";
+    if (!pass.ran) bar.style.background = "var(--line)";
+    cell.append(bar);
+    const nanos = el("td", "kv", pass.ran ? pass.nanos.toLocaleString() + " ns" : "—");
+    tr.append(name, cell, nanos);
+    ledger.append(tr);
+  }
+
+  const heat = document.getElementById("heatmap");
+  heat.innerHTML = "";
+  const rows = frame.dirty.slice(0, MAX_HEATMAP);
+  if (!rows.length) {
+    heat.append(el("tr", null, "")).append(el("td", "zero", "clean frame — nothing dirty"));
+    heat.lastElementChild.colSpan = 5;
+  }
+  for (const node of rows) {
+    const tr = el("tr");
+    tr.append(
+      el("td", null, "#" + node.node),
+      el("td", null, node.role),
+      el("td", null, node.label || "—"),
+      el("td", "mask" + (node.masks.includes("focus") ? " focus" : ""), maskText(node.masks)),
+      el("td", "kv", node.bounds
+        ? node.bounds.map(v => Math.round(v)).join(", ")
+        : "—")
+    );
+    heat.append(tr);
+  }
+  document.getElementById("heatmap-note").textContent =
+    frame.dirty_truncated > 0
+      ? "+" + frame.dirty_truncated + " more dirty nodes truncated (the heatmap cap)"
+      : "";
+}
+
+function connect() {
+  const state = document.getElementById("state");
+  const wsUrl = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws";
+  const socket = new WebSocket(wsUrl);
+  socket.onopen = () => { state.textContent = "connected"; state.className = "on"; };
+  socket.onclose = () => {
+    state.textContent = "disconnected — retrying"; state.className = "off";
+    setTimeout(connect, 1200);
+  };
+  socket.onerror = () => { state.textContent = "error"; state.className = "off"; };
+  socket.onmessage = (message) => {
+    let event;
+    try { event = JSON.parse(message.data); } catch { return; }
+    switch (event.kind) {
+      case "hello":
+        document.getElementById("app").textContent = event.app + " · protocol v" + event.version;
+        logEl.innerHTML = logSeed;
+        addLog("frame", "hello", "inspecting “" + event.app + "” (protocol v" + event.version + ")");
+        break;
+      case "edge":
+        addLog("edge", "edge #" + event.binding,
+          "signal " + event.signal + " → node #" + event.node +
+          " queued [" + maskText(event.masks) + "]");
+        break;
+      case "write":
+        addLog("write", "write", "signal " + event.signal +
+          " ← “" + event.origin + "” (seq " + event.sequence + ")");
+        break;
+      case "input":
+        addLog("input", "input", event.input +
+          (event.target != null ? " → node #" + event.target : " (unrouted)"));
+        break;
+      case "frame":
+        renderFrame(event);
+        addLog("frame", "frame " + event.number,
+          "layout=" + (event.layout_ran ? 1 : 0) + " paint=" + (event.paint_ran ? 1 : 0) +
+          " a11y=" + (event.a11y_ran ? 1 : 0) + " dirty=" + event.dirty.length +
+          " damage=" + event.damage);
+        break;
+      default:
+        break;
+    }
+  };
+  window.addEventListener("beforeunload", () => {
+    try { socket.send(JSON.stringify({ kind: "bye" })); } catch {}
+  });
+}
+connect();
+</script>
+</body>
+</html>

@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alacer performance dashboard</title>
+<style>
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: #101418; color: #d7dde3;
+       font: 14px/1.5 ui-sans-serif, system-ui, "Segoe UI", sans-serif; }
+header { padding: 28px 32px 20px; border-bottom: 1px solid #232b33; }
+h1 { margin: 0 0 4px; font-size: 22px; color: #f2f5f7; letter-spacing: 0.2px; }
+h1 span { color: #55b46a; }
+h2 { font-size: 15px; color: #9fb0bd; margin: 28px 0 10px; text-transform: uppercase;
+     letter-spacing: 1.2px; }
+main { padding: 8px 32px 40px; max-width: 1100px; }
+p.sub { margin: 0; color: #7d8b97; }
+table { border-collapse: collapse; width: 100%; margin-top: 6px; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid #1d252c; }
+th { color: #8395a3; font-weight: 600; font-size: 12px; text-transform: uppercase;
+     letter-spacing: 0.8px; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.badge { display: inline-block; padding: 1px 9px; border-radius: 999px;
+         font-size: 12px; font-weight: 600; }
+.pass  { background: #173425; color: #6fd28a; }
+.fail  { background: #3c1a1e; color: #ef7285; }
+.skip  { background: #33301a; color: #d9c36b; }
+.meta  { color: #8b98a4; font-size: 13px; }
+code   { background: #1a2129; padding: 1px 6px; border-radius: 4px;
+         font: 12.5px ui-monospace, "Cascadia Code", Menlo, monospace; color: #b7c4cf; }
+.bar { position: relative; height: 6px; background: #1a2129; border-radius: 3px;
+       min-width: 120px; overflow: hidden; }
+.bar i { position: absolute; inset: 0 auto 0 0; border-radius: 3px; }
+footer { padding: 18px 32px; border-top: 1px solid #232b33; color: #66727d;
+         font-size: 12.5px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Alacer <span>perf contracts</span> — baselines as contracts</h1>
+  <p class="sub">M5 (architecture §18, ADR-0011): every criterion benchmark is a published
+     baseline; the budget gates are the architecture's falsifiable numbers.</p>
+</header>
+<main>
+  <p class="meta">Baseline measured on <code>fa2e43844446</code> · rustc 1.99.1 (58cf8f9c3 2026-10-13) ·
+     host <code>ee37c3efc5995352</code> · Intel(R) Xeon(R) Processor × 2 · generated 2026-11-06T10:29:45+00:00.</p>
+
+  <h2>Budget contracts (host-independent)</h2>
+  <table>
+    <tr><th>Contract</th><th class="num">Baseline ratio</th><th class="num">Latest ratio</th><th>Gate</th><th>Status</th><th>Cite</th></tr>
+    <tr><td><code>w1_incremental_speedup</code></td><td class="num">14.01×</td><td class="num">14.01× <small class="meta">(+0.0%)</small></td><td class="num">>= 2×</td><td><div class="bar"><i style="width:50%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td><td class="meta">architecture §18 M2 exit gate (W1 ≥ 2× vs full relayout), ADR-0008; test-enforced in alacer-layout/tests/w1_gate.rs, here measured by criterion</td></tr>
+  </table>
+
+  <h2>Published baselines — same-host regression gates</h2>
+  <p class="meta">Gate: fresh median ≤ published median × (1 + 25%) on the baseline's host
+     fingerprint; foreign hosts (CI runners) skip absolute gates by design and enforce the
+     budget contracts instead.</p>
+  <table>
+    <tr><th>Benchmark</th><th class="num">Published median</th><th class="num">Latest median</th><th class="num">Δ</th><th>vs gate</th><th>Status</th></tr>
+    <tr><td><code>arena_build/100</code></td><td class="num">7.7 µs</td><td class="num">7.7 µs</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>arena_build/1000</code></td><td class="num">91.3 µs</td><td class="num">91.3 µs</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>arena_build/10000</code></td><td class="num">948.3 µs</td><td class="num">948.3 µs</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>arena_masks/100</code></td><td class="num">5.0 µs</td><td class="num">5.0 µs</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>arena_masks/1000</code></td><td class="num">53.5 µs</td><td class="num">53.5 µs</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>arena_masks/10000</code></td><td class="num">653.5 µs</td><td class="num">653.5 µs</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>arena_walk/100</code></td><td class="num">7.0 µs</td><td class="num">7.0 µs</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>arena_walk/1000</code></td><td class="num">78.6 µs</td><td class="num">78.6 µs</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>arena_walk/10000</code></td><td class="num">906.1 µs</td><td class="num">906.1 µs</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>flux_batch/1</code></td><td class="num">1.5 µs</td><td class="num">1.5 µs</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>flux_batch/10</code></td><td class="num">3.1 µs</td><td class="num">3.1 µs</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>flux_batch/100</code></td><td class="num">19.3 µs</td><td class="num">19.3 µs</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>flux_batch/1000</code></td><td class="num">184.7 µs</td><td class="num">184.7 µs</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>flux_drain/1000_nodes_take_pending</code></td><td class="num">19 ns</td><td class="num">19 ns</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>pass_overhead/1000</code></td><td class="num">263.6 µs</td><td class="num">263.6 µs</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>pass_overhead/10000</code></td><td class="num">3.5 ms</td><td class="num">3.5 ms</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>layout_mini_w1/full/100</code></td><td class="num">17.0 µs</td><td class="num">17.0 µs</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>layout_mini_w1/full/1000</code></td><td class="num">139.8 µs</td><td class="num">139.8 µs</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>layout_mini_w1/full/10000</code></td><td class="num">1.5 ms</td><td class="num">1.5 ms</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>layout_mini_w1/incremental/100</code></td><td class="num">41.1 µs</td><td class="num">41.1 µs</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>layout_mini_w1/incremental/1000</code></td><td class="num">1.1 ms</td><td class="num">1.1 ms</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>layout_mini_w1/incremental/10000</code></td><td class="num">76.9 ms</td><td class="num">76.9 ms</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>w1/full_rebuild</code></td><td class="num">16.9 ms</td><td class="num">16.9 ms</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>w1/incremental_churn_10pct</code></td><td class="num">1.2 ms</td><td class="num">1.2 ms</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>journal/snapshot_1000_nodes/100</code></td><td class="num">7.8 µs</td><td class="num">7.8 µs</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>journal/snapshot_1000_nodes/1000</code></td><td class="num">49.5 µs</td><td class="num">49.5 µs</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>journal/snapshot_1000_nodes/10000</code></td><td class="num">254.8 µs</td><td class="num">254.8 µs</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>journal/recommit_100_of_1000</code></td><td class="num">13.1 µs</td><td class="num">13.1 µs</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>text_layout/cold/1</code></td><td class="num">10.5 ms</td><td class="num">10.5 ms</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>text_layout/cold/10</code></td><td class="num">10.8 ms</td><td class="num">10.8 ms</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>text_layout/cold/100</code></td><td class="num">10.8 ms</td><td class="num">10.8 ms</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>text_layout/cached/1</code></td><td class="num">39 ns</td><td class="num">39 ns</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>text_layout/cached/10</code></td><td class="num">96 ns</td><td class="num">96 ns</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>text_layout/cached/100</code></td><td class="num">397 ns</td><td class="num">397 ns</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>text_measure/measure_cached</code></td><td class="num">47 ns</td><td class="num">47 ns</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>view_reconcile/100</code></td><td class="num">7.8 µs</td><td class="num">7.8 µs</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>view_reconcile/1000</code></td><td class="num">80.5 µs</td><td class="num">80.5 µs</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+    <tr><td><code>view_reconcile/10000</code></td><td class="num">919.7 µs</td><td class="num">919.7 µs</td><td class="num">+0.0%</td><td><div class="bar"><i style="width:40%;background:#4caf7d"></i></div></td><td><span class="badge pass">PASS</span></td></tr>
+  </table>
+
+  <h2>Test-enforced gates (outside criterion's model)</h2>
+  <table>
+    <tr><th>Gate</th><th>Cite</th><th>Enforced by</th></tr>
+    <tr><td>pass-system overhead &lt; 15% on 10k-node churn</td><td class="meta">architecture §18 M1 gate, §7.2</td><td><code>alacer_core::passes tests + benches/pass_overhead.rs</code></td></tr>
+    <tr><td>incremental TreeUpdate p99 &lt; 0.5 ms @ 1k nodes</td><td class="meta">architecture §18 M3 exit gate, ADR-0009</td><td><code>alacer-testing/tests/m3_exit_criteria.rs</code></td></tr>
+    <tr><td>one hot patch ⇒ exactly one layout+paint cycle</td><td class="meta">architecture §18 M4 exit gate, ADR-0010</td><td><code>alacer-testing/tests/m4_exit_criteria.rs</code></td></tr>
+    <tr><td>translation-only scrolling: zero measure calls</td><td class="meta">architecture §8.2, ADR-0008</td><td><code>alacer-testing/tests/m0_exit_criteria.rs</code></td></tr>
+  </table>
+</main>
+<footer>Generated by <code>scripts/perf_dashboard.py</code> from
+<code>benchmarks/contracts.json</code> + <code>benchmarks/baselines/baselines.json</code>.
+Regenerate after re-benching; the M5 exit suite checks that every contract is published here.</footer>
+</body>
+</html>

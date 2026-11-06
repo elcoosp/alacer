@@ -2,26 +2,27 @@
   <img src="docs/logo.png" alt="Alacer Logo" width="300"/>
   <p>
     <strong>A retained-mode Rust UI framework where reactivity, layout, paint, and accessibility consume one shared invalidation currency — engineered for best-in-class performance and developer experience, with zero-config accessibility.</strong><br/>
-    <em>Alacer</em> (Latin for <em>swift, eager, lively</em>) implements a unified per-node change-mask pipeline, so every subsystem sees exactly what changed and nothing more. It combines winit, wgpu, reactive_graph, taffy, parley, and accesskit into a cohesive 11-crate workspace with snapshot testing, criterion benchmarks, and both GPU and software rendering backends.
+    <em>Alacer</em> (Latin for <em>swift, eager, lively</em>) implements a unified per-node change-mask pipeline, so every subsystem sees exactly what changed and nothing more. It combines winit, wgpu, reactive_graph, taffy, parley, and accesskit into a cohesive 12-crate workspace with snapshot testing, criterion benchmarks, both GPU and software rendering backends, a subsecond hot-reload contract, and the Causality inspector.
   </p>
   <p>
     <img src="https://img.shields.io/badge/Rust-1.99%20%7C%202024-000000?style=flat-square&logo=rust" alt="Rust 1.99 / Edition 2024"/>
     <img src="https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue?style=flat-square" alt="License MIT OR Apache-2.0"/>
     <img src="https://img.shields.io/badge/Backend-wgpu%20%2B%20software-6A0DAD?style=flat-square" alt="Backend wgpu + software"/>
-    <img src="https://img.shields.io/badge/Crates-11-6F4E37?style=flat-square" alt="11 crates"/>
-    <img src="https://img.shields.io/badge/Tests-245%20passing-brightgreen?style=flat-square" alt="245 tests passing"/>
+    <img src="https://img.shields.io/badge/Crates-12-6F4E37?style=flat-square" alt="12 crates"/>
+    <img src="https://img.shields.io/badge/Tests-276%20passing-brightgreen?style=flat-square" alt="275 tests passing"/>
     <img src="https://img.shields.io/badge/A11y-AccessKit-4B32C3?style=flat-square" alt="AccessKit accessibility"/>
     <img src="https://img.shields.io/badge/Layout-Taffy-228B22?style=flat-square" alt="Taffy layout"/>
     <img src="https://img.shields.io/badge/Text-Parley-007ACC?style=flat-square" alt="Parley text"/>
     <img src="https://img.shields.io/badge/Reactivity-reactive__graph-FF4500?style=flat-square" alt="reactive_graph reactivity"/>
+    <img src="https://img.shields.io/badge/Hot--reload-subsecond-FF8800?style=flat-square" alt="subsecond hot reload"/>
   </p>
 </div>
 
 ---
 
-## Status: M0 + M1 + M2 + M3 exit criteria, all green
+## Status: M0 + M1 + M2 + M3 + M4 exit criteria, all green
 
-The repository implements milestone **M0** (the skeleton: winit + wgpu + reactive_graph + taffy + parley + accesskit on one window), milestone **M1** (the view DSL, the pass contract, and the test corpus), milestone **M2** (the invalidation currency: masks + persistent Taffy + torin-style deltas + scene journal replay), and milestone **M3** (the a11y contract + partial paint + the IME contract) of the architecture document in `docs/architecture.md`.
+The repository implements milestone **M0** (the skeleton: winit + wgpu + reactive_graph + taffy + parley + accesskit on one window), milestone **M1** (the view DSL, the pass contract, and the test corpus), milestone **M2** (the invalidation currency: masks + persistent Taffy + torin-style deltas + scene journal replay), milestone **M3** (the a11y contract + partial paint + the IME contract), and milestone **M4** (the hot-reload contract on subsecond + the CI hot-patch suite + the Causality inspector + publish readiness) of the architecture document in `docs/architecture.md`.
 
 | Criterion | Evidence |
 |---|---|
@@ -48,6 +49,9 @@ The repository implements milestone **M0** (the skeleton: winit + wgpu + reactiv
 | **Partial == full, pixel-exact (Q8)** | the equivalence fuzz: over clicks, typing, CJK IME composition and surrogate-pair commits, the accumulated partial framebuffer equals a fresh full render after every step — both backends implement identical damage semantics |
 | **IME contract: UTF-16 end to end** | key/IME routing to the focused widget, Tab cycling, inline preedit + commit via `TextInput`; winit's byte-wise preedit cursor converts at the platform seam (`alacer-platform::keys`); mid-surrogate offsets floor, never slice |
 | **`TextInput` widget** | the IME contract's reference implementation: caret editing, secure mode, focus ring, a11y value |
+| **Hot-patch contract: state intact, scoped, one frame** | the M4 kill-switch as tests (`alacer-testing/tests/m4_exit_criteria.rs`): a patched generation renders its new values with the old state; node identity stable; exactly one layout+paint cycle per patch; 10-generation churn with interleaved mutations stays consistent; untouched subtrees stay out of the patch frame |
+| **`subsecond` wiring** | the facade's `hot-reload` feature: generations wrapped in `subsecond::call`, `register_handler` → patch channel → one scoped re-render (`crates/alacer/tests/hot_reload_subsecond.rs` pins the headless passthrough) |
+| **Causality inspector** | `alacer-inspect`: the `inspect` seam (edge activations, provenance writes, inputs, frame summaries with the pass ledger + mask heatmap), bounded ring buffers with tested eviction, the documented WS protocol (`docs/inspector-protocol.md`, version 1), and the embedded single-file client — the five §13.3 questions answered from recorded truth |
 
 ## Quick start
 
@@ -56,6 +60,10 @@ cargo run -p alacer --example counter          # wgpu window
 ALACER_SOFTWARE=1 cargo run -p alacer --example counter   # softbuffer window
 cargo run -p alacer --example scrolling_list
 cargo run -p alacer --example text_input      # the M3 IME contract live
+cargo run -p alacer --example hot_reload      # the M4 hot-reload demo (state intact across patches)
+cargo run -p alacer --features hot-reload --example hot_reload
+#                                              # … the same demo accepting `dx serve --hotpatch`
+cargo run -p alacer --example inspector_demo  # the M4 Causality inspector (open the printed URL)
 cargo test --workspace                        # headless: real pipeline + software raster (A4)
 cargo bench                                   # criterion suites (A6)
 ```
@@ -76,6 +84,12 @@ Headless machines (and CI) run the **same pipeline** through the software backen
 2. **Partial paint with an escape hatch (§9.3).** The paint pass merges every repainted node's old journal extent and new primitive extent into at most three regions (least-growth merging, clean-room from documented Slint behavior), with `NONE` (skip the present) and `FULL` (structural frames, ≥75% coverage) as the ladder's ends. Both backends implement identical damage semantics — software clears-and-redraws regions on a persistent framebuffer, wgpu `LoadOp::Load`s an offscreen frame texture with scissor rects — and the equivalence fuzz pins them pixel-equal to full renders over a real interaction script (Q8).
 3. **The IME contract counts UTF-16 (§10.3).** Keys and IME events route to the focused widget only; Tab cycles; the caret, preedit cursors, and commits all count UTF-16 code units with mid-surrogate offsets flooring left. The platform seam converts winit's byte-wise preedit cursor; `TextInput` is the reference widget; the pipeline derives the frame's `ImeRequest` (purpose + caret anchor) for the windowing system.
 
+## The M4 design, in three points (ADR-0010)
+
+1. **The hot-reload contract is a generation swap (§13.2).** All UI-adjacent state lives outside the patched code — signals in the flux's reactive owner, dynamic values in `RenderBinding` slots, retained widget state in the arena — so a patch swaps *code*, never *state*. The facade's `hot-reload` feature wraps the view generation in `subsecond::call` (the jump-table detour point) and registers a patch handler; the loop answers every patch with exactly one `HotView::regenerate`: the reconciler patches in place and queues masks — one layout+paint cycle, scoped, nothing rebuilt. The CI hot-patch suite pins the contract headlessly; `cargo run --features hot-reload --example hot_reload` under `dx serve --hotpatch` is the sub-second demo.
+2. **The Causality inspector answers *why*, not just *what* (§13.3).** `alacer-core::inspect` is the opt-in seam: the pipeline forwards frame summaries (pass ledger, damage, the dirty-node mask heatmap), the flux records edge activations (the masks each signal write queued) and provenance-tagged writes. `alacer-inspect` records them into bounded rings and streams them over a documented WebSocket protocol to the embedded single-file client. Without an observer and with capture off, the default paths pay a branch.
+3. **Publish readiness is kept verifiable.** Every manifest carries the crates.io metadata set, the workspace ships as 0.4.0, and the CHANGELOG documents the release (ADR-0010 §3).
+
 ## The crate DAG (ADR-9)
 
 ```text
@@ -89,6 +103,8 @@ alacer-layout alacer-text alacer-render alacer-a11y
 └──────────┴──────┬──────┴───────────┘
 alacer-macro         alacer-core
 (rsx!)               (Change masks · arena · pass system · flux bridge)
+        alacer-inspect
+        (causal capture · WS protocol · inspector client)
 ```
 
 Layering is a DAG: no upward dependencies, no cycles (the build system makes cycles impossible; `scripts/check_dag.py` enforces the layer order in CI). Public API surface is confined to `alacer` + leaf crates.
@@ -104,8 +120,9 @@ Layering is a DAG: no upward dependencies, no cycles (the build system makes cyc
 | `crates/alacer-a11y` | AccessKit sink, incremental `TreeUpdates` |
 | `crates/alacer-view` | keyed reconciliation (peel → key map → LIS) |
 | `crates/alacer-widgets` | label, button, text input, column/row/spacer, list, panel, the default element registry |
-| `crates/alacer-platform` | winit loop, wgpu backend (offscreen frame + scissored damage), softbuffer present (persistent framebuffer), key/IME translation, coalescing |
-| `crates/alacer-testing` | headless harness, a11y queries, snapshots, M0 + M1 + M3 suites |
+| `crates/alacer-platform` | winit loop, wgpu backend (offscreen frame + scissored damage), softbuffer present (persistent framebuffer), key/IME translation, coalescing, the patch channel |
+| `crates/alacer-inspect` | the Causality inspector: causal recorder, RFC 6455 server, embedded client, the documented WS protocol |
+| `crates/alacer-testing` | headless harness, a11y queries, snapshots, M0 + M1 + M3 + M4 suites |
 | `crates/alacer-macro` | the `rsx!` view DSL compiler (proc-macro leaf) |
 | `crates/alacer` | facade: prelude, `rsx!` re-export, `mount_view`, window runner |
 | `docs/` | architecture document, ADRs |
@@ -114,6 +131,6 @@ Layering is a DAG: no upward dependencies, no cycles (the build system makes cyc
 ## Engineering discipline
 
 - **Lint regime**: clippy `pedantic` **denied** workspace-wide, plus `missing_docs` and `unsafe_code = forbid`. There is no `#[allow]` anywhere; the documented cast seams (`alacer-core/src/num.rs`, the `rsx!` number narrowing in `alacer-view`) carry the single `#[expect]`s with reasons.
-- **TDD**: every module grew tests first; **245 tests** across the workspace (unit + integration + doctest), all green locally and in CI.
+- **TDD**: every module grew tests first; **276 tests** across the workspace (unit + integration + doctest), all green locally and in CI.
 - **Benchmarks as contracts (A6)**: criterion suites for the flux batch drain, mask propagation, journal replay, incremental-vs-full relayout, the W1 churn workload, text layout, and the §7.2 pass-overhead churn gate.
 - **CI/CD**: fmt + clippy + tests + doc + `cargo-deny` + DAG check on push/PR; `git-cliff`-generated changelogs; GitHub Releases on tags (`v*`).

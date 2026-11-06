@@ -194,7 +194,7 @@ pub trait Widget: 'static {
 
     /// Handles a key event routed to this widget because it holds focus
     /// (§10.3 — keyboard input is focus-routed, never hit-tested). Editing
-    /// widgets act on [`KeyState::Pressed`] only; returning [`EventResponse::
+    /// widgets act on [`crate::events::KeyState::Pressed`] only; returning [`EventResponse::
     /// Ignored`] lets the framework take the key (Tab's focus cycling).
     fn on_key_event(&mut self, ctx: &mut EventCtx, event: &KeyEvent) -> EventResponse {
         let _ = (ctx, event);

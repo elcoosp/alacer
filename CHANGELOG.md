@@ -7,6 +7,8 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-11-06
+
 ### Added
 
 - **M3 — the a11y contract**: the a11y pass produces `A11yDelta`s (updated /
@@ -28,6 +30,41 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
   secure mode, focus ring, a11y value)
 - `TextInput` widget + the `text_input` example
 - ADR-0009: the M3 scope decision record
+- **M4 — the hot-reload contract (§13.2, ADR-7)**: `alacer-view::HotView`,
+  the view-generation runtime — a patch swaps the generation, the
+  reconciler re-renders scoped (patch-in-place, keyed LIS, exact
+  differences), and state survives by construction; the facade's
+  `hot-reload` feature links `subsecond`, wraps generations in
+  `subsecond::call` (the jump-table detour point) and registers the patch
+  handler; the platform's `PatchChannel` wakes the winit loop from any
+  thread and answers one patch event with exactly one scoped re-render
+  (`PlatformEvent::Patch` + `AlacerApp::set_patch_hook`)
+- **M4 — the CI hot-patch suite**: `alacer-testing/tests/m4_exit_criteria.rs`
+  pins the framework's half of the contract headlessly — a patched
+  generation renders its new values with the old state (signal, binding,
+  node identity), a patch costs exactly one layout+paint cycle and leaves
+  the tree idle (A7), ten-generation churn with interleaved mutations stays
+  consistent, untouched subtrees stay out of the patch frame, and the
+  unobserved path stays silent (capture off, zero recording); the facade's
+  `hot_reload_subsecond` tests pin the subsecond passthrough headless, and
+  the `hot_reload` example is the sub-second demo (`dx serve --hotpatch`
+  upgrades it to real binary patching, no code change)
+- **M4 — the Causality inspector (§13.3)**: the `alacer-core::inspect` seam
+  (`InspectEvent`: edge activations, provenance writes, routed inputs,
+  frame summaries with the pass ledger + the dirty-node mask heatmap) and
+  the `alacer-inspect` crate — `CausalRecorder` over bounded ring buffers
+  (every ring's eviction is test-proven, §14.3), a dependency-light RFC
+  6455 WebSocket server (`sha1` + `base64`, no async runtime), the
+  documented WS protocol (`docs/inspector-protocol.md`, version 1), and the
+  embedded single-file HTML client; the five §13.3 questions — why did
+  this render, who wrote this signal, who subscribes, why is this frame
+  slow, what did this mask touch — answered from recorded truth;
+  `Flux::write` / `FluxWriter` is the opt-in write-provenance path;
+  `Flux::set_causal_capture` gates activation capture; the protocol suite
+  (`alacer-inspect/tests/protocol.rs`) pins the handshake (the RFC 6455
+  reference vector), the greeting shape, streaming order, and the controls;
+  the `inspector_demo` example is the live demo
+- ADR-0010: the M4 scope decision record
 
 ### Changed
 
@@ -40,6 +77,14 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 - `Widget` gains `on_key_event`, `on_ime_event`, `set_focused`, `ime_purpose`,
   `value` (all defaulted)
 - Buttons take keyboard focus on press (click-to-focus, §10.3)
+- The workspace is 12 crates (ADR-9's target): `alacer-inspect` joins as
+  the devtools layer (`alacer-core` only; `scripts/check_dag.py` enforces
+  the order; `alacer-testing` may consume it for the M4 suite)
+- `PassPipeline` gains `set_observer` / `clear_observer` — the devtools
+  sink; `None` in every default path (the A7 idle contract and the M1
+  overhead gate are unchanged and re-verified)
+- The workspace ships as 0.4.0 with the full crates.io metadata set on
+  every manifest
 
 ## [0.3.0] — 2026-11-05
 

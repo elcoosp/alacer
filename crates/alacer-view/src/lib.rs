@@ -18,10 +18,12 @@
 //! pairs; the concrete M0 set registers itself from `alacer-widgets`
 //! (`alacer_widgets::default_registry`).
 
+pub mod hot;
 pub mod mount;
 pub mod registry;
 pub mod view;
 
+pub use hot::{HotView, ViewGeneration};
 pub use mount::{PatchReport, ViewRoot};
 pub use registry::{ElementProps, WidgetRegistry};
 pub use view::{PropValue, ViewNode};

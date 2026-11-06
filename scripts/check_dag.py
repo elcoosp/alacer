@@ -16,12 +16,14 @@ import tomllib
 from pathlib import Path
 
 # Layer order: bottom of the stack first. A crate may only depend on crates
-# in its own layer or LOWER layers.
+# in its own layer or LOWER layers. The devtools observe the core seam only;
+# the harness consumes them for the M4 exit suite (ADR-0010).
 LAYERS: dict[str, list[str]] = {
     "foundation": ["alacer-core", "alacer-macro", "alacer-view"],
     "surfaces": ["alacer-layout", "alacer-text", "alacer-render", "alacer-a11y"],
     "widgets": ["alacer-widgets"],
     "platform": ["alacer-platform"],
+    "devtools": ["alacer-inspect"],
     "harness": ["alacer-testing"],
     "facade": ["alacer"],
 }
@@ -57,7 +59,8 @@ ALLOWED: dict[str, set[str]] = {
     },
     # Harness drives everything except the facade (which re-exports it).
     # The rsx! macro + view tree are foundation leaves: snapshot scenarios
-    # are written in the same view DSL the users get (ADR-10).
+    # are written in the same view DSL the users get (ADR-10). The M4 exit
+    # suite drives the inspector through the real pipeline (ADR-0010).
     "alacer-testing": {
         "alacer-core",
         "alacer-macro",
@@ -67,7 +70,11 @@ ALLOWED: dict[str, set[str]] = {
         "alacer-render",
         "alacer-a11y",
         "alacer-widgets",
+        "alacer-inspect",
     },
+    # Devtools observe the core seam only (ADR-0010): the causal vocabulary,
+    # the observer sink, and nothing above the foundation.
+    "alacer-inspect": {"alacer-core"},
     # Facade re-exports everything.
     "alacer": {
         "alacer-core",
@@ -80,6 +87,7 @@ ALLOWED: dict[str, set[str]] = {
         "alacer-widgets",
         "alacer-platform",
         "alacer-testing",
+        "alacer-inspect",
     },
 }
 

@@ -7,11 +7,16 @@ rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [features]
 default = ["backend-wgpu", "backend-softbuffer"]
 backend-wgpu = ["alacer-platform/backend-wgpu"]
 backend-softbuffer = ["alacer-platform/backend-softbuffer"]
+# Hot reload (ADR-7, §13.2): links `subsecond`, wraps the view generation in
+# `subsecond::call`, and answers binary patches with one scoped re-render.
+hot-reload = ["dep:subsecond"]
 
 [dependencies]
 alacer-core.workspace = true
@@ -23,5 +28,7 @@ alacer-a11y.workspace = true
 alacer-view.workspace = true
 alacer-widgets.workspace = true
 alacer-platform.workspace = true
+alacer-inspect.workspace = true
 reactive_graph.workspace = true
 alacer-testing.workspace = true
+subsecond = { workspace = true, optional = true }

@@ -7,6 +7,61 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-11-06
+
+### Added
+
+- **M5 — criterion baselines published as contracts (ADR-0011)**: all 38
+  criterion benchmark cases across the five benching crates distilled into
+  `benchmarks/baselines/baselines.json` by `scripts/collect_baseline.py` —
+  median/mean/MAD/sample count per case plus the environment that produced
+  them (git commit, dirty flag, toolchain, host fingerprint); the
+  architecture's falsifiable gates published as measured **budget
+  contracts** (W1 ≥ 2× incremental relayout, measured 14.01×) and one
+  **same-host regression gate** per case (fresh median ≤ published × 1.25
+  on a matching host fingerprint; foreign hosts skip by policy,
+  `--strict-host` for pinned hardware); the uncontracted-benchmark rule
+  fails any bench case without a published gate
+- **M5 — the perf-contract checker** (`scripts/check_perf_contracts.py`):
+  enforces the budgets everywhere (ratios are host-independent), the
+  same-host regressions on matching fingerprints, and the contracts ↔
+  baseline bijection; exit codes for CI
+- **M5 — the perf dashboard** (`scripts/perf_dashboard.py` →
+  `benchmarks/dashboard/index.html`): one self-contained HTML file — the
+  measured environment, budget contracts with ratios and PASS/FAIL, the
+  full baseline table with delta bars, and the four test-enforced gates
+  (pass overhead < 15%, TreeUpdate p99 < 0.5 ms, the patch frame budget,
+  zero-measure scrolling) each naming its enforcement site; CI
+  regenerates and uploads it on main
+- **M5 — the examples gallery**: `crates/alacer/examples/gallery.rs` — the
+  whole core widget vocabulary (labels, buttons, text input, panels,
+  scrolling list, rows, spacers, the shared theme) in one window through
+  the canonical write seam (signals in, masks out, one batch one frame);
+  `docs/examples.md` catalogs every example with its contract and the
+  bless workflow
+- **M5 — the egui/Iced migration guides** (`docs/migration/from-egui.md`,
+  `from-iced.md`): the two audited reference frameworks mapped
+  section-for-section (mental model, app shell, widget mapping,
+  reactivity, layout, input and events, accessibility, testing, interop
+  limits) with real API on both sides and the version-scope honesty note
+- ADR-0011: the M5 scope decision record
+- The M5 exit suite (`alacer-testing/tests/m5_exit_criteria.rs`): the
+  baseline schema + environment header, the contracts ↔ baseline bijection
+  at the pinned corpus size (38), the budgets holding on the published
+  data (including the architecture's own 2× W1 value), dashboard
+  coverage, catalog coverage, the gallery exercising the widget
+  vocabulary through `Flux::batch_of` + `RenderBinding`, and both guides
+  carrying the required section set
+
+### Changed
+
+- The workspace ships as 0.5.0
+- CI gains the `perf-contracts` job: benches run at reduced sampling, the
+  budget contracts are enforced against the published baseline, and the
+  dashboard is regenerated and uploaded as an artifact
+- `alacer-testing` gains a `serde_json` dev-dependency (the M5 exit suite
+  reads the published contracts and baseline)
+
 ## [0.4.0] — 2026-11-06
 
 ### Added

@@ -35,6 +35,7 @@
 
 pub use alacer_a11y as a11y;
 pub use alacer_core as core;
+pub use alacer_inspect as inspect;
 pub use alacer_layout as layout;
 pub use alacer_macro::rsx;
 pub use alacer_platform as platform;
@@ -46,6 +47,11 @@ pub use alacer_widgets as widgets;
 
 pub use alacer_core::prelude::*;
 
+/// The hot-reload runtime (§13.2, ADR-7): the view generation contract
+/// wrapped in `subsecond::call` (feature `hot-reload`) plus the patch
+/// channel the loop answers with one scoped re-render.
+pub mod hot;
+
 /// The public prelude: one import for the whole framework vocabulary.
 pub mod prelude {
     pub use crate::rsx;
@@ -53,7 +59,7 @@ pub mod prelude {
     pub use alacer_core::{
         A11yAction, EventResponse, GlyphSource, LabelSource, MeasureFn, PaintSink, Role, Widget,
     };
-    pub use alacer_view::{PatchReport, ViewNode, ViewRoot};
+    pub use alacer_view::{HotView, PatchReport, ViewNode, ViewRoot};
     pub use alacer_widgets::default_registry;
 }
 

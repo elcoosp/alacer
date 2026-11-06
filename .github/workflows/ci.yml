@@ -82,6 +82,23 @@ jobs:
       - name: Check the crate layering
         run: python3 scripts/check_dag.py
 
+  hot-patch:
+    name: hot-patch suite (M4, ADR-7/ADR-0010)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install Rust (rust-toolchain.toml)
+        run: rustup show active-toolchain
+      - uses: Swatinem/rust-cache@v2
+      - name: The hot-patch contract (state intact, scoped, one frame)
+        run: cargo test -p alacer-testing --test m4_exit_criteria
+      - name: The subsecond wiring (feature-gated)
+        run: cargo test -p alacer --features hot-reload --test hot_reload_subsecond
+      - name: The hot-reload demo compiles under the feature
+        run: cargo build -p alacer --features hot-reload --examples
+
   deny:
     name: cargo-deny (licenses/bans)
     runs-on: ubuntu-latest

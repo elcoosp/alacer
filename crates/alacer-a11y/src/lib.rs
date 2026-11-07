@@ -15,10 +15,11 @@
 //! - Focus travels in the delta: `TreeUpdate::focus` follows the pipeline's
 //!   pass-3 output every a11y frame.
 
-use accesskit::{Node, NodeId, Rect, Role as AccessKitRole, TreeId, TreeInfo, TreeUpdate};
+use accesskit::{Node, NodeId, Rect, Role as AccessKitRole, Toggled, TreeId, TreeInfo, TreeUpdate};
 use alacer_core::Role;
 use alacer_core::geom::Rect as AlacerRect;
 use alacer_core::passes::{A11yDelta, A11ySink, TreeSnapshot};
+use alacer_core::widget::TableSlot;
 use rustc_hash::FxHashSet;
 use std::collections::VecDeque;
 
@@ -28,7 +29,9 @@ pub fn accesskit_node_id(hash: u64) -> NodeId {
     NodeId(hash)
 }
 
-/// Maps Alacer's semantic roles onto AccessKit roles.
+/// Maps Alacer's semantic roles onto AccessKit roles. The M6 canon roles
+/// (checkbox, table family) land on their AccessKit counterparts so a real
+/// platform adapter sees a checkbox and a navigable grid.
 #[must_use]
 pub fn map_role(role: Role) -> AccessKitRole {
     match role {
@@ -40,6 +43,11 @@ pub fn map_role(role: Role) -> AccessKitRole {
         Role::ScrollArea => AccessKitRole::ScrollView,
         Role::ListItem => AccessKitRole::ListItem,
         Role::List => AccessKitRole::List,
+        Role::CheckBox => AccessKitRole::CheckBox,
+        Role::Table => AccessKitRole::Table,
+        Role::TableRow => AccessKitRole::Row,
+        Role::TableCell => AccessKitRole::Cell,
+        Role::ColumnHeader => AccessKitRole::ColumnHeader,
     }
 }
 
@@ -104,7 +112,10 @@ impl AccessKitSink {
         self.initialized
     }
 
-    /// Converts one neutral snapshot node into an AccessKit node.
+    /// Converts one neutral snapshot node into an AccessKit node. The M6
+    /// vocabulary rides along: toggle state becomes the `Toggled` property,
+    /// and table slots become the grid attributes (row/column counts and
+    /// zero-based indexes) that make a table navigable, not just visible.
     fn access_node(node: &alacer_core::passes::TreeNode) -> Node {
         let mut access_node = Node::new(map_role(node.role));
         access_node.set_label(node.label.as_str());
@@ -113,6 +124,28 @@ impl AccessKitSink {
         }
         if let Some(value) = &node.value {
             access_node.set_value(value.as_str());
+        }
+        if let Some(toggled) = node.toggled {
+            access_node.set_toggled(match toggled {
+                alacer_core::widget::ToggleState::Off => Toggled::False,
+                alacer_core::widget::ToggleState::On => Toggled::True,
+                alacer_core::widget::ToggleState::Mixed => Toggled::Mixed,
+            });
+        }
+        match node.table_slot {
+            Some(TableSlot::Table { rows, columns }) => {
+                access_node.set_row_count(rows);
+                access_node.set_column_count(columns);
+            }
+            Some(TableSlot::Header { column }) => {
+                access_node.set_row_index(0);
+                access_node.set_column_index(column);
+            }
+            Some(TableSlot::Cell { row, column }) => {
+                access_node.set_row_index(row);
+                access_node.set_column_index(column);
+            }
+            None => {}
         }
         access_node.set_children(
             node.children
@@ -220,9 +253,11 @@ pub fn walk_update(update: &TreeUpdate) -> Vec<u64> {
 mod tests {
     use super::{AccessKitSink, find_in_update, map_bounds, map_role, walk_update};
     use accesskit::Role as AkRole;
+    use accesskit::Toggled;
     use alacer_core::Role;
     use alacer_core::geom::{Point, Rect, Size};
     use alacer_core::passes::{A11yDelta, A11ySink, TreeNode, TreeSnapshot};
+    use alacer_core::widget::TableSlot;
     use rustc_hash::FxHashSet;
     use std::collections::HashMap;
 
@@ -240,6 +275,8 @@ mod tests {
                     bounds: Some(Rect::new(Point::zero(), Size::new(200.0, 100.0))),
                     children: vec![child_hash, other_hash],
                     value: None,
+                    toggled: None,
+                    table_slot: None,
                 },
                 TreeNode {
                     id: child_hash,
@@ -248,6 +285,8 @@ mod tests {
                     bounds: Some(Rect::new(Point::new(0.0, 0.0), Size::new(60.0, 24.0))),
                     children: Vec::new(),
                     value: None,
+                    toggled: None,
+                    table_slot: None,
                 },
                 TreeNode {
                     id: other_hash,
@@ -256,6 +295,8 @@ mod tests {
                     bounds: Some(Rect::new(Point::new(0.0, 30.0), Size::new(60.0, 20.0))),
                     children: Vec::new(),
                     value: Some("hello".into()),
+                    toggled: None,
+                    table_slot: None,
                 },
             ],
         }
@@ -266,6 +307,12 @@ mod tests {
         assert_eq!(map_role(Role::Button), AkRole::Button);
         assert_eq!(map_role(Role::Label), AkRole::Label);
         assert_eq!(map_role(Role::Container), AkRole::GenericContainer);
+        // The M6 canon roles.
+        assert_eq!(map_role(Role::CheckBox), AkRole::CheckBox);
+        assert_eq!(map_role(Role::Table), AkRole::Table);
+        assert_eq!(map_role(Role::TableRow), AkRole::Row);
+        assert_eq!(map_role(Role::TableCell), AkRole::Cell);
+        assert_eq!(map_role(Role::ColumnHeader), AkRole::ColumnHeader);
     }
 
     #[test]
@@ -375,5 +422,67 @@ mod tests {
                 assert!(map.contains_key(&child.0), "child of {id} exists");
             }
         }
+    }
+
+    /// The M6 vocabulary: a checkbox's toggle state and a data table's grid
+    /// geometry must survive the neutral snapshot → AccessKit conversion.
+    #[test]
+    fn toggled_and_table_slots_map_onto_accesskit_attributes() {
+        let mut sink = AccessKitSink::new();
+        let snap = TreeSnapshot {
+            root: Some(1),
+            nodes: vec![
+                TreeNode {
+                    id: 1,
+                    role: Role::Table,
+                    label: "Inventory".into(),
+                    bounds: None,
+                    children: vec![2, 3],
+                    value: None,
+                    toggled: None,
+                    table_slot: Some(TableSlot::Table {
+                        rows: 2,
+                        columns: 3,
+                    }),
+                },
+                TreeNode {
+                    id: 2,
+                    role: Role::ColumnHeader,
+                    label: "Name".into(),
+                    bounds: None,
+                    children: Vec::new(),
+                    value: None,
+                    toggled: None,
+                    table_slot: Some(TableSlot::Header { column: 0 }),
+                },
+                TreeNode {
+                    id: 3,
+                    role: Role::CheckBox,
+                    label: "Ship in bulk".into(),
+                    bounds: None,
+                    children: Vec::new(),
+                    value: None,
+                    toggled: Some(alacer_core::widget::ToggleState::On),
+                    table_slot: Some(TableSlot::Cell { row: 1, column: 2 }),
+                },
+            ],
+        };
+        sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
+
+        let update = sink.last_update().expect("update");
+        let table = find_in_update(update, 1).expect("table node");
+        assert_eq!(table.role(), AkRole::Table);
+        assert_eq!(table.row_count(), Some(2), "grid rows published");
+        assert_eq!(table.column_count(), Some(3), "grid columns published");
+
+        let header = find_in_update(update, 2).expect("header node");
+        assert_eq!(header.role(), AkRole::ColumnHeader);
+        assert_eq!(header.column_index(), Some(0), "header column index");
+
+        let checkbox = find_in_update(update, 3).expect("checkbox node");
+        assert_eq!(checkbox.role(), AkRole::CheckBox);
+        assert_eq!(checkbox.toggled(), Some(Toggled::True), "checked state");
+        assert_eq!(checkbox.row_index(), Some(1), "cell row position");
+        assert_eq!(checkbox.column_index(), Some(2), "cell column position");
     }
 }

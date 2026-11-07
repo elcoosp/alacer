@@ -27,3 +27,7 @@ harness = false
 [[bench]]
 name = "w1_churn"
 harness = false
+
+[[bench]]
+name = "w2_text"
+harness = false

@@ -81,7 +81,9 @@ pub trait LayoutEngine {
 }
 
 /// One node of the accessibility snapshot: role, name, bounds, children — the
-/// neutral vocabulary `alacer-a11y` converts into AccessKit nodes.
+/// neutral vocabulary `alacer-a11y` converts into AccessKit nodes. M6 adds
+/// the toggle state and the table slot: the checkbox's checked state and the
+/// data-table grid geometry ride the same snapshot.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TreeNode {
     /// AccessKit-stable node id: the id-path hash (§6.3).
@@ -97,6 +99,10 @@ pub struct TreeNode {
     /// The widget's exposed value (editable widgets: their text). `None` for
     /// valueless roles (M3 a11y contract: inputs carry their content).
     pub value: Option<String>,
+    /// The widget's toggle state (M6): `Some` for checkbox-like roles.
+    pub toggled: Option<crate::widget::ToggleState>,
+    /// The widget's table geometry (M6): `Some` for tables, headers, cells.
+    pub table_slot: Option<crate::widget::TableSlot>,
 }
 
 /// The full accessibility snapshot of the widget tree, built by pass 9.
@@ -1494,6 +1500,8 @@ impl PassPipeline {
                 bounds: slot.bounds,
                 children: slot.children.iter().map(|c| self.id_hash(*c)).collect(),
                 value: slot.widget().value(),
+                toggled: slot.widget().toggled(),
+                table_slot: slot.widget().table_slot(),
             };
             if snapshot.root.is_none() {
                 snapshot.root = Some(node.id);
@@ -1505,12 +1513,21 @@ impl PassPipeline {
 
     /// Pass 10 (`action`): routes an accessibility action to the widget whose
     /// id-path hash is `target` (§7.2 pass 10: side-channel, never masks).
+    ///
+    /// A *consumed* action invalidates through the one currency: the widget's
+    /// state changed, so `PAINT | A11Y` merge on the target — the repaint and
+    /// the re-announcement ride the same masks a user interaction would queue
+    /// (A1; the §13.3 inspector sees the action as an input event).
     pub fn dispatch_a11y_action(&mut self, target: u64, action: crate::widget::A11yAction) -> bool {
         let Some(node) = self.node_for_hash(target) else {
             return false;
         };
         let mut guard = self.arena.mutate(node);
-        guard.widget_mut().on_a11y_action(action)
+        let consumed = guard.widget_mut().on_a11y_action(action);
+        if consumed {
+            guard.request(Change::PAINT.union(Change::A11Y));
+        }
+        consumed
     }
 
     /// Maps an id-path hash back to its arena node (walk = id-path rebuild).

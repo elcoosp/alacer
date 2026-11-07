@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "description": "Declared benchmark rig (M7, ADR-0013): the environment the committed comparison results were collected on, the 5-run median protocol, and the measured frameworks' pinned versions. Regenerate with scripts/collect_rig.py; the runner refuses to mix fingerprints.",
+  "generated_at": "2026-11-07T21:28:03+00:00",
+  "host": {
+    "os": "Linux 5.10.134-013.15.kangaroo.al8.x86_64",
+    "arch": "x86_64",
+    "cpu_model": "Intel(R) Xeon(R) Processor",
+    "cpu_count": "2",
+    "fingerprint": "ee37c3efc5995352"
+  },
+  "toolchain": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+  "git": {
+    "commit": "6da8e9f35885245789cd07294dd696d53c452595",
+    "dirty": false
+  },
+  "backend_mode": "headless-cpu (software measurement path; no GPU device)",
+  "vsync": "not-applicable-headless",
+  "protocol": {
+    "runs": 5,
+    "estimator": "median-of-medians (criterion median per run, median across runs)",
+    "sample_size": 30,
+    "measurement_time_ms": 3000,
+    "warm_up_ms": 500
+  },
+  "dependencies": {
+    "workspace": {
+      "accesskit": "0.25.2",
+      "parley": "0.12.0",
+      "reactive_graph": "0.2.16",
+      "taffy": "0.15.1",
+      "wgpu": "30.0.1",
+      "winit": "0.30.13"
+    },
+    "frameworks": {
+      "egui": {
+        "egui": "0.37.0"
+      },
+      "masonry": {
+        "masonry": "0.4.0"
+      }
+    }
+  }
+}

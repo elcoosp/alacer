@@ -31,3 +31,7 @@ harness = false
 [[bench]]
 name = "pass_overhead"
 harness = false
+
+[[bench]]
+name = "w5_signal_graph"
+harness = false

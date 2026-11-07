@@ -23,6 +23,9 @@ use alacer_core::widget::{EventResponse, LabelSource, Role, Widget};
 /// The value-change callback of [`TextInput`].
 type ChangeHandler = Box<dyn FnMut(&str)>;
 
+/// The submit callback of [`TextInput`] (M6: the todo canon's Enter seam).
+type SubmitHandler = Box<dyn FnMut(&str)>;
+
 /// A single-line editable text input (role `TextInput`, name mandatory —
 /// ADR-5; the accessible name is the constructor's, the *value* is the
 /// content).
@@ -43,6 +46,7 @@ pub struct TextInput {
     font_size: f32,
     style: Style,
     on_changed: Option<ChangeHandler>,
+    on_submit: Option<SubmitHandler>,
 }
 
 impl TextInput {
@@ -60,6 +64,7 @@ impl TextInput {
             font_size: crate::theme::FONT_SIZE,
             style: Style::default(),
             on_changed: None,
+            on_submit: None,
         }
     }
 
@@ -81,6 +86,14 @@ impl TextInput {
     /// the value (key edits and IME commits alike).
     pub fn on_changed(mut self, handler: impl FnMut(&str) + 'static) -> Self {
         self.on_changed = Some(Box::new(handler));
+        self
+    }
+
+    /// Installs the submit handler (M6): invoked on Enter with the current
+    /// value, then the field clears — the todo canon's `input { on_submit:
+    /// … }` seam. Without a handler Enter stays ignored (Tab cycling).
+    pub fn on_submit(mut self, handler: impl FnMut(&str) + 'static) -> Self {
+        self.on_submit = Some(Box::new(handler));
         self
     }
 
@@ -113,6 +126,23 @@ impl TextInput {
     /// Replaces the accessible name in place (view reconciliation).
     pub fn set_name(&mut self, name: impl Into<String>) {
         self.name = name.into();
+    }
+
+    /// Replaces the placeholder in place (view reconciliation).
+    pub fn set_placeholder(&mut self, placeholder: impl Into<String>) {
+        self.placeholder = placeholder.into();
+    }
+
+    /// Replaces the change handler in place (view reconciliation). `None`
+    /// detaches it.
+    pub fn set_on_changed(&mut self, handler: Option<ChangeHandler>) {
+        self.on_changed = handler;
+    }
+
+    /// Replaces the submit handler in place (view reconciliation). `None`
+    /// detaches it.
+    pub fn set_on_submit(&mut self, handler: Option<SubmitHandler>) {
+        self.on_submit = handler;
     }
 
     fn notify_changed(&mut self) {
@@ -359,6 +389,24 @@ impl Widget for TextInput {
             alacer_core::events::Key::ArrowRight => self.move_right(),
             alacer_core::events::Key::Home => self.caret_utf16 = 0,
             alacer_core::events::Key::End => self.caret_utf16 = utf16::len_utf16(&self.text),
+            alacer_core::events::Key::Enter => {
+                // The submit seam (M6): fire with the current value, then
+                // clear. The widget mutates only itself (rule 1); the
+                // handler's writes ride the batch the caller chose.
+                if let Some(handler) = &mut self.on_submit {
+                    let value = self.text.clone();
+                    handler(&value);
+                    self.text.clear();
+                    self.caret_utf16 = 0;
+                    ctx.request(
+                        alacer_core::Change::PAINT
+                            .union(alacer_core::Change::LAYOUT)
+                            .union(alacer_core::Change::A11Y),
+                    );
+                    return EventResponse::Handled;
+                }
+                changed = false;
+            }
             _ => changed = false,
         }
         if changed {
@@ -429,6 +477,47 @@ mod tests {
         assert_eq!(input.value(), "");
         assert!(input.focusable());
         assert_eq!(input.ime_purpose(), ImePurpose::Text);
+    }
+
+    #[test]
+    fn enter_submits_then_clears_the_field() {
+        let seen = std::rc::Rc::new(std::cell::RefCell::new(Vec::<String>::new()));
+        let sink = std::rc::Rc::clone(&seen);
+        let mut input = TextInput::new("Add a todo")
+            .on_submit(move |value| sink.borrow_mut().push(value.to_string()));
+        for ch in "write docs".chars() {
+            let mut ctx = EventCtx::new();
+            let _ = input.on_key_event(&mut ctx, &KeyEvent::char(ch));
+        }
+        let mut ctx = EventCtx::new();
+        let enter = KeyEvent {
+            key: Key::Enter,
+            state: KeyState::Pressed,
+            modifiers: Modifiers::default(),
+            text: None,
+        };
+        assert_eq!(input.on_key_event(&mut ctx, &enter), EventResponse::Handled);
+        assert_eq!(seen.borrow().as_slice(), ["write docs"]);
+        assert_eq!(input.value(), "", "the field clears after submit");
+        assert_eq!(input.caret_utf16(), 0);
+        let masks = ctx.take();
+        assert!(
+            masks.contains(alacer_core::Change::A11Y) && masks.contains(alacer_core::Change::PAINT),
+            "submit repaints the cleared field and re-announces, got {masks:?}"
+        );
+    }
+
+    #[test]
+    fn enter_without_a_handler_stays_ignored() {
+        let mut input = TextInput::new("Search");
+        let mut ctx = EventCtx::new();
+        let enter = KeyEvent {
+            key: Key::Enter,
+            state: KeyState::Pressed,
+            modifiers: Modifiers::default(),
+            text: None,
+        };
+        assert_eq!(input.on_key_event(&mut ctx, &enter), EventResponse::Ignored);
     }
 
     #[test]

@@ -1,7 +1,8 @@
 //! The M5 examples gallery: one window exercising the whole core widget
-//! vocabulary — labels, buttons with a bound counter, a text input, panels,
-//! a scrolling list, rows, spacers — so a new contributor can see everything
-//! in one runnable file.
+//! vocabulary — labels, buttons with a bound counter, a text input, a
+//! checkbox, a data table, panels, a scrolling list, rows, spacers — so a
+//! new contributor can see everything in one runnable file (M6 adds the
+//! canon widgets to the tour).
 //!
 //! Every dynamic value rides the one currency: handlers write signals in one
 //! batch, the flux bridge queues masks, the next tick is one layout+paint
@@ -14,7 +15,8 @@ use alacer::pipeline_default;
 use alacer::platform::BackendPreference;
 use alacer::widgets::theme;
 use alacer::widgets::{
-    BoxedWidget as _, Button, Column, Label, List, Panel, Row, Spacer, TextInput,
+    BoxedWidget as _, Button, Checkbox, Column, ColumnHeader, Label, List, Panel, Row, Spacer,
+    Table, TableCell, TableRow, TextInput,
 };
 use alacer_core::color::Color;
 use alacer_core::flux::RenderBinding;
@@ -118,6 +120,57 @@ fn main() {
         |value: &String| format!("echo: {}", if value.is_empty() { "(empty)" } else { value }),
     );
 
+    // The checkbox (M6): click, Space, or the a11y default action all toggle
+    // it; the count rides a signal in one batch.
+    let toggles = pipeline.flux().signal(0_i32);
+    let toggle_binding = RenderBinding::new("toggled 0 times".to_string());
+    let toggle_label = pipeline.add_child(
+        root,
+        Label::bound(toggle_binding.clone())
+            .font_size(13.0)
+            .color(theme::TEXT_MUTED)
+            .boxed(),
+    );
+    let _ = pipeline.add_child(
+        root,
+        Checkbox::new("Ship in bulk")
+            .on_toggle(move |_checked| {
+                alacer_core::flux::Flux::batch_of(|| {
+                    let current = toggles.try_get_untracked().unwrap_or_default();
+                    toggles.set(current + 1);
+                });
+            })
+            .boxed(),
+    );
+    pipeline.flux_mut().bind_value(
+        toggles,
+        toggle_label,
+        &toggle_binding,
+        alacer_core::Change::LAYOUT.union(alacer_core::Change::PAINT),
+        |n: &i32| format!("toggled {n} times"),
+    );
+
+    // The data table (M6): headers + positioned cells, the navigable-grid
+    // a11y contract live.
+    let table = pipeline.add_child(root, Table::new("Inventory", 3).boxed());
+    let header_row = pipeline.add_child(table, TableRow::new().boxed());
+    for (column, name) in ["Item", "Quantity", "Location"].iter().enumerate() {
+        let _ = pipeline.add_child(header_row, ColumnHeader::new(*name, column).boxed());
+    }
+    for (row_index, row_data) in [
+        ["Nails", "12", "A1"],
+        ["Screws", "5", "B2"],
+        ["Bolts", "40", "C3"],
+    ]
+    .iter()
+    .enumerate()
+    {
+        let row = pipeline.add_child(table, TableRow::new().boxed());
+        for (column, cell) in row_data.iter().enumerate() {
+            let _ = pipeline.add_child(row, TableCell::new(*cell, row_index, column).boxed());
+        }
+    }
+
     // The scrolling list: translation-only wheel updates, zero measure calls
     // per scroll tick (§8.2). Panel + label rows cycle the accent ramp.
     let list = List::new(120.0);
@@ -150,14 +203,16 @@ fn main() {
     let _ = pipeline.add_child(root, Spacer::new(8.0).boxed());
     let _ = pipeline.add_child(
         root,
-        Label::new("labels · buttons · bindings · text input · panels · list · rows · spacers")
-            .font_size(11.0)
-            .color(theme::BORDER)
-            .boxed(),
+        Label::new(
+            "labels · buttons · bindings · text input · checkbox · table · panels · list · rows · spacers",
+        )
+        .font_size(11.0)
+        .color(theme::BORDER)
+        .boxed(),
     );
 
     if let Err(error) =
-        alacer::run_window(pipeline, "Alacer gallery", (420.0, 480.0), backend_choice())
+        alacer::run_window(pipeline, "Alacer gallery", (460.0, 620.0), backend_choice())
     {
         eprintln!("alacer: {error}");
         std::process::exit(1);

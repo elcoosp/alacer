@@ -69,8 +69,18 @@ impl MountedView {
         self.props.len() != new.props.len()
             || self.props.iter().zip(new.props.iter()).any(|(a, b)| {
                 (a.0 != b.0 || a.1 != b.1)
-                    && !matches!(a.1, crate::view::PropValue::Handler(_))
-                    && !matches!(b.1, crate::view::PropValue::Handler(_))
+                    && !matches!(
+                        a.1,
+                        crate::view::PropValue::Handler(_)
+                            | crate::view::PropValue::TextHandler(_)
+                            | crate::view::PropValue::FlagHandler(_)
+                    )
+                    && !matches!(
+                        b.1,
+                        crate::view::PropValue::Handler(_)
+                            | crate::view::PropValue::TextHandler(_)
+                            | crate::view::PropValue::FlagHandler(_)
+                    )
             })
     }
 }
@@ -96,6 +106,13 @@ pub struct ViewRoot {
 }
 
 impl ViewRoot {
+    /// The arena node the view was mounted on (assembly-site introspection:
+    /// binding the footer label needs its node).
+    #[must_use]
+    pub const fn root(&self) -> NodeId {
+        self.root_id
+    }
+
     /// Mounts `view` as the pipeline's root element.
     ///
     /// # Panics

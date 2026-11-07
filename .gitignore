@@ -10,3 +10,7 @@
 
 # OS debris
 .DS_Store
+
+# Competitor harness build artifacts (standalone projects, ADR-0013)
+benchmarks/competitors/*/target
+__pycache__/

@@ -80,6 +80,11 @@ impl ViewNode {
     }
 }
 
+/// A shared text-carrying handler cell (the `PropValue::TextHandler` slot).
+pub type SharedTextHandler = Rc<RefCell<dyn FnMut(&str)>>;
+/// A shared state-carrying handler cell (the `PropValue::FlagHandler` slot).
+pub type SharedFlagHandler = Rc<RefCell<dyn FnMut(bool)>>;
+
 /// A property value: the small, typed vocabulary `rsx!` props compile to.
 #[derive(Clone)]
 pub enum PropValue {
@@ -93,6 +98,12 @@ pub enum PropValue {
     Flag(bool),
     /// An event handler (`on_click`, …). Shared so re-renders can reuse it.
     Handler(Rc<RefCell<dyn FnMut()>>),
+    /// A text-carrying handler (`on_submit`, `on_changed` — M6): the event's
+    /// payload is the committed text.
+    TextHandler(SharedTextHandler),
+    /// A state-carrying handler (`on_toggle` — M6): the event's payload is
+    /// the widget's new state.
+    FlagHandler(SharedFlagHandler),
     /// A reactive text binding (`binding: my_binding`) — the label re-renders
     /// when the bound signal changes, no view re-run required (§6.1).
     Binding(alacer_core::flux::RenderBinding<String>),
@@ -106,6 +117,8 @@ impl std::fmt::Debug for PropValue {
             Self::Color(c) => f.debug_tuple("Color").field(c).finish(),
             Self::Flag(b) => f.debug_tuple("Flag").field(b).finish(),
             Self::Handler(_) => f.debug_tuple("Handler").field(&"<fn>").finish(),
+            Self::TextHandler(_) => f.debug_tuple("TextHandler").field(&"<fn>").finish(),
+            Self::FlagHandler(_) => f.debug_tuple("FlagHandler").field(&"<fn>").finish(),
             Self::Binding(_) => f.debug_tuple("Binding").field(&"<bound>").finish(),
         }
     }
@@ -121,6 +134,8 @@ impl PartialEq for PropValue {
             (Self::Color(a), Self::Color(b)) => a == b,
             (Self::Flag(a), Self::Flag(b)) => a == b,
             (Self::Handler(a), Self::Handler(b)) => Rc::ptr_eq(a, b),
+            (Self::TextHandler(a), Self::TextHandler(b)) => Rc::ptr_eq(a, b),
+            (Self::FlagHandler(a), Self::FlagHandler(b)) => Rc::ptr_eq(a, b),
             // Bindings never compare equal: a rebuild re-hangs the same
             // binding slot, and the patcher re-hangs idempotently.
             (Self::Binding(_), Self::Binding(_)) => false,

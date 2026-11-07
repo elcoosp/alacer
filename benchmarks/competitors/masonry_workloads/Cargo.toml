@@ -1,0 +1,28 @@
+[package]
+name = "masonry_workloads"
+description = "The Masonry side of the cross-framework comparison (M7, ADR-0013): idiomatic Masonry implementations of the shared beat workloads W1/W2/W3, driven headlessly through the public RenderRoot pass pipeline"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Standalone on purpose (ADR-0013 §2): its own lockfile, its own silicon —
+# competitor dependencies never enter the Alacer workspace graph.
+[workspace]
+
+[dependencies]
+masonry = "0.4.0"
+
+[dev-dependencies]
+criterion = "0.8.2"
+
+[[bench]]
+name = "w1_churn"
+harness = false
+
+[[bench]]
+name = "w2_text"
+harness = false
+
+[[bench]]
+name = "w3_animation"
+harness = false

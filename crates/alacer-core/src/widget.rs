@@ -31,14 +31,25 @@ pub enum Role {
     ListItem,
     /// A collection of list items.
     List,
+    /// A binary toggle control (the todo canon's item switch, M6).
+    CheckBox,
+    /// A data table: headers, rows, cells (the data-table canon, M6).
+    Table,
+    /// One row of a data table.
+    TableRow,
+    /// One cell of a data table row.
+    TableCell,
+    /// A table's column header.
+    ColumnHeader,
 }
 
 impl Role {
     /// Roles whose accessible name is mandatory; the CI walker fails on
-    /// unnamed widgets of these roles (§11.1).
+    /// unnamed widgets of these roles (§11.1). The checkbox joins the set in
+    /// M6: an unnamed toggle is unusable with a screen reader.
     #[must_use]
     pub const fn requires_name(self) -> bool {
-        matches!(self, Self::Button | Self::TextInput)
+        matches!(self, Self::Button | Self::TextInput | Self::CheckBox)
     }
 
     /// Human-readable role name, used by the CI walker's diagnostics.
@@ -53,6 +64,11 @@ impl Role {
             Self::ScrollArea => "scroll_area",
             Self::ListItem => "list_item",
             Self::List => "list",
+            Self::CheckBox => "checkbox",
+            Self::Table => "table",
+            Self::TableRow => "table_row",
+            Self::TableCell => "table_cell",
+            Self::ColumnHeader => "column_header",
         }
     }
 }
@@ -124,8 +140,53 @@ impl LabelSource {
 /// An accessibility action requested by an assistive technology.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum A11yAction {
-    /// The default action — "press" for buttons.
+    /// The default action — "press" for buttons, "toggle" for checkboxes.
     DefaultPress,
+}
+
+/// A toggle control's checked state, carried neutrally to the a11y sink
+/// (M6): `alacer-a11y` maps it onto AccessKit's `Toggled` property.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ToggleState {
+    /// Unchecked.
+    Off,
+    /// Checked.
+    On,
+    /// Partially checked (tri-state parents).
+    Mixed,
+}
+
+impl From<bool> for ToggleState {
+    fn from(checked: bool) -> Self {
+        if checked { Self::On } else { Self::Off }
+    }
+}
+
+/// A node's position inside a data table, carried neutrally to the a11y
+/// sink (M6). `alacer-a11y` maps the variants onto AccessKit's table
+/// attributes — a grid a screen reader can navigate needs positions, not
+/// just roles.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TableSlot {
+    /// The table itself: its live geometry (rows × columns).
+    Table {
+        /// Number of data rows currently mounted.
+        rows: usize,
+        /// Number of columns (header count).
+        columns: usize,
+    },
+    /// A column header for zero-based `column`.
+    Header {
+        /// Zero-based column index.
+        column: usize,
+    },
+    /// A data cell at zero-based `(row, column)`.
+    Cell {
+        /// Zero-based row index.
+        row: usize,
+        /// Zero-based column index.
+        column: usize,
+    },
 }
 
 /// What happened to a routed event.
@@ -234,6 +295,20 @@ pub trait Widget: 'static {
         None
     }
 
+    /// The widget's toggle state for the a11y tree (M6): checkboxes report
+    /// their checked state so screen readers announce "checked"/"not
+    /// checked". Non-toggle roles return `None`.
+    fn toggled(&self) -> Option<ToggleState> {
+        None
+    }
+
+    /// The widget's position inside a data table (M6): the table, its
+    /// headers, and its cells report their geometry so the AccessKit update
+    /// carries navigable grid attributes. Non-table roles return `None`.
+    fn table_slot(&self) -> Option<TableSlot> {
+        None
+    }
+
     /// Handles an accessibility action targeting this widget. Returns `true`
     /// when consumed. Making widgets *actionable* completes the contract in
     /// §11.5: reachable, named, and actionable.
@@ -254,7 +329,7 @@ pub trait Widget: 'static {
     /// The default derives from the semantic role: actionable inputs are
     /// focusable. Override for custom controls.
     fn focusable(&self) -> bool {
-        matches!(self.role(), Role::Button | Role::TextInput)
+        matches!(self.role(), Role::Button | Role::TextInput | Role::CheckBox)
     }
 
     /// The `Any` escape hatch for in-place patching (§6.1: view diffs mutate

@@ -140,6 +140,9 @@ pub enum Key {
     Delete,
     /// Tab (focus cycling; Shift+Tab reverses).
     Tab,
+    /// Space (the checkbox's keyboard toggle, M6; also text input via the
+    /// character path).
+    Space,
     /// Escape.
     Escape,
     /// Left arrow.

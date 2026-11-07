@@ -1,5 +1,6 @@
-//! Alacer's M0 widget library: the pieces the counter and the scrolling list
-//! need, and nothing else (§18: the M0 canon).
+//! Alacer's widget library: the M0 set the counter and the scrolling list
+//! need, plus the M6 canon (checkbox, data table) the todo and data-table
+//! apps need.
 //!
 //! Widgets are retained: created once, mutated in place, painted on demand.
 //! Reactive text lands through `RenderBinding`s; input lands through
@@ -7,18 +8,25 @@
 //! required role and label (ADR-5).
 
 mod button;
+mod canon;
+mod checkbox;
 mod column;
 mod label;
 mod list;
 mod panel;
+mod registry;
+mod table;
 mod text_input;
 
 pub use button::Button;
+pub use canon::{DataTableHandles, TodoHandles, TodoItem, data_table_app, todo_app};
+pub use checkbox::Checkbox;
 pub use column::{Column, Row, Spacer};
 pub use label::Label;
 pub use list::{List, ListHandle};
 pub use panel::Panel;
 pub use registry::default_registry;
+pub use table::{ColumnHeader, Table, TableCell, TableRow};
 pub use text_input::TextInput;
 
 use alacer_core::widget::Widget;
@@ -35,8 +43,6 @@ impl<W: Widget> BoxedWidget for W {}
 
 use alacer_core::color::Color;
 use alacer_core::scene::PaintCtx;
-/// Visual constants shared by the M0 widget set.
-pub mod registry;
 
 pub mod theme {
     use super::Color;

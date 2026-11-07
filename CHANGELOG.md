@@ -7,6 +7,90 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-11-07
+
+### Added
+
+- **M6 — the widget canon completes the v1 definition of done
+  (ADR-0012)**: the `Checkbox` (role `CheckBox`, click / Space / AccessKit
+  default action all toggle, the checked state travels the a11y tree as the
+  neutral `ToggleState` and lands as AccessKit's `Toggled` property) and the
+  `Table` / `TableRow` / `TableCell` / `ColumnHeader` family (roles mapped
+  onto AccessKit's `Table` / `Row` / `Cell` / `ColumnHeader`; the neutral
+  `TableSlot` carries the grid geometry, so the AccessKit update publishes
+  row/column counts and zero-based cell positions — a *navigable* grid, not
+  just a pile of roles); `Key::Space` joins the key vocabulary (winit's
+  `NamedKey::Space` maps at the platform seam) and a consumed a11y action
+  now invalidates through the one currency (`PAINT | A11Y` on the target —
+  A1)
+- **M6 — the canon apps as shared builders** (`alacer-widgets::canon`):
+  `todo_app` (the §5 shape — input submits on Enter via the new
+  `TextInput::on_submit`, rows toggle and delete through the a11y tree, the
+  footer binding counts what is left) and `data_table_app` (toolbar +
+  "Add row" seam + positioned cells that renumber on removal); one
+  implementation, two consumers — the `todo` and `data_table` examples
+  assemble them behind a window, the M6 exit suite drives them headlessly
+  through the a11y queries; `TextInput::on_submit` is the Enter-to-commit
+  seam the canon needs
+- **M6 — the view vocabulary grows the typed handler props**:
+  `PropValue::TextHandler` (`on_submit`, `on_changed` — the event carries
+  the committed text) and `PropValue::FlagHandler` (`on_toggle` — the event
+  carries the widget's new state), with `ElementProps::text_handler` /
+  `flag_handler` accessors; the default registry registers the canon
+  elements (`checkbox`, `text_input`, `table`, `table_row`, `table_cell`,
+  `column_header`)
+- **M6 — the shared workloads W2/W3/W5 as measured, gated benches**:
+  W2 text-dense relayout (`alacer-layout/benches/w2_text.rs` — 1k
+  paragraphs under ±5% width jitter, incremental + full denominator), W3
+  animation loop (`alacer-testing/benches/w3_animation.rs` — 1k nodes,
+  translation advance + 10% paint churn through the *real* pipeline and the
+  damaged software raster), W5 signal-graph churn
+  (`alacer-core/benches/w5_signal_graph.rs` — 10k signals, 1k memos,
+  batched writes → one rerun → mask drain); the corpus grows 38 → 43 (the
+  M5 and M6 suites pin the same number), every new case carries its
+  contracts.json regression gate, the baseline was republished by
+  `scripts/collect_baseline.py`, and the dashboard regenerated
+- **M6 — the integer wrap rounding, adopted as ALGO** (§8.3): the layout
+  host floors text wrap widths to whole device pixels before they reach the
+  measurer or the cache key — sub-pixel container jitter cannot flip a line
+  break; the no-re-wrap-oscillation gate is test-enforced
+  (`alacer-layout/tests/w2_gate.rs`: integrality, sub-pixel stability, and
+  cache-hit-on-revisit) and published on the dashboard as
+  `w2_no_rewrap_oscillation`
+- **M6 — record/replay** (`alacer-testing::recording`, §13.4): the `.alc`
+  format (versioned JSON; semantic steps — `press` by role + name, typed
+  text, keys, wheel, click — so recordings survive layout drift), the
+  `Session` recorder (record + execute in one pass), `Recording::replay` /
+  `replay_with` (the per-step hook is where apps with explicit re-render
+  seams plug in), and the committed canonical recording
+  (`crates/alacer-testing/recordings/todo.alc`, re-blessed with
+  `ALACER_RECORD=1 cargo test -p alacer-testing`) replayed green by the
+  exit suite — bug reports that are also regression tests
+- **M6 — the exit suite** (`alacer-testing/tests/m6_exit_criteria.rs`):
+  the checkbox toggles through every input path with the state reaching the
+  a11y snapshot; the data table is reachable, named, and positioned; the
+  canon apps work end-to-end; the committed recording replays green; the
+  workload corpus is published and contracted at 43; the W5 scheduling
+  contract holds at graph scale (one write batch ⇒ one effect rerun, memos
+  never glitch); the gallery exercises the canon widgets; the M5 pin agrees
+- ADR-0012: the M6 scope decision record
+
+### Changed
+
+- The workspace ships as 0.6.0
+- The M6 canon builders (`todo_app`, `data_table_app`) take a `WakeUp`
+  trigger (the patch-channel fire) so windowed apps re-render with the same
+  one-frame contract the exit suite drives headlessly; headless callers
+  pass `None` and call `rerender` explicitly
+- The M5 corpus pin moves 38 → 43 and the "five benching crates" language
+  becomes six (the harness crate now benches W3)
+- The perf-contract corpus on the dashboard: 43 baselines, 6 test-enforced
+  gates (the W2 no-oscillation gate and the W5 one-rerun gate join the four
+  M5 gates)
+- The gallery exercises the canon widgets (checkbox + data table tour
+  sections)
+- The examples catalog lists the canon examples with their contracts
+
 ## [0.5.0] — 2026-11-06
 
 ### Added

@@ -64,6 +64,7 @@ fn map_named_key(named: NamedKey) -> Key {
         NamedKey::Backspace => Key::Backspace,
         NamedKey::Delete => Key::Delete,
         NamedKey::Tab => Key::Tab,
+        NamedKey::Space => Key::Space,
         NamedKey::Escape => Key::Escape,
         NamedKey::ArrowLeft => Key::ArrowLeft,
         NamedKey::ArrowRight => Key::ArrowRight,
@@ -125,6 +126,19 @@ mod tests {
         assert!(event.presses(&Key::Enter));
         assert_eq!(event.state, KeyState::Pressed);
         assert_eq!(event.text, None);
+    }
+
+    #[test]
+    fn space_maps_for_the_checkbox_toggle() {
+        // winit reports the space bar as a named key; the M6 checkbox's
+        // keyboard contract needs it as `Key::Space`.
+        let event = map_key(
+            &WinitKey::Named(NamedKey::Space),
+            Some(" "),
+            ElementState::Pressed,
+            Modifiers::default(),
+        );
+        assert!(event.presses(&Key::Space), "space maps onto Key::Space");
     }
 
     #[test]

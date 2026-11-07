@@ -7,6 +7,74 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-11-08
+
+### Added
+
+- **M7 — the reproducible benchmark rig (ADR-0013)**:
+  `scripts/collect_rig.py` writes `benchmarks/rig.json` — the host identity
+  (the same sha256-truncated fingerprint basis the baseline uses, so a rig
+  and a baseline cross-reference), the toolchain, the measurement protocol
+  (5 process runs per case, median-of-medians, criterion sample size and
+  window), the backend mode (headless CPU; vsync labeled
+  not-applicable-headless rather than omitted), and the pinned dependency
+  versions of every measured framework, read from the lockfiles
+- **M7 — the competitor harnesses** (`benchmarks/competitors/`): two
+  standalone cargo projects — `egui_workloads` (egui 0.37, the named
+  immediate-mode DX baseline, driven headlessly through `Context::run_ui` +
+  `Context::tessellate`) and `masonry_workloads` (Masonry 0.4, the audit's
+  retained pass-contract reference, driven through the public `RenderRoot`
+  API with the accessibility tree enabled) — each implementing the §14.2
+  beat workloads W1/W2/W3 idiomatically, with selfcheck tests pinning what
+  a bench frame claims (the full 10k walk, the re-wrapping paragraphs, the
+  1k paint ops) and a README carrying the no-strawman provenance table
+  (the framework APIs used, and the virtualization answers — egui's
+  `show_rows`, Masonry's `Portal` — deliberately not taken, documented)
+- **M7 — the comparison runner** (`scripts/run_comparison.py`): builds the
+  competitor projects, runs each case five times, reads the Alacer side
+  from the published baseline (same-host by fingerprint, or re-measured
+  with `--remeasure-alacer`), and publishes
+  `benchmarks/comparisons/results.json` — schema 1, one labeled entry per
+  (workload, framework) with median, run medians, scope note, and pinned
+  version, plus the same-host beat verdict; `--validate` checks the
+  committed artifacts cheaply (the mode the exit suite and CI call)
+- **M7 — the first published comparison**: collected on the declared rig
+  (fingerprint `ee37c3efc5995352`, same host as the published baseline):
+  W1 — incremental relayout of the 10k-node churn frame — measures
+  **1.10 ms against egui's 20.7 ms full immediate frame (18.8×) and
+  Masonry's 4.6 ms full pass pipeline (4.2×): the beat holds**; W2 and W3
+  are published as measured, including the rows where the competitors win
+  (Masonry's 0.62 ms re-wrap pipeline beats Alacer's 1.00 ms incremental
+  text relayout; both competitors beat Alacer's 23.5 ms W3 frame, whose row
+  includes the damaged software raster the competitors' rows exclude —
+  the scope labels say so); every row conservative against the thesis per
+  ADR-0013 §3
+- **M7 — the publication surface**: `benchmarks/contracts.json` grows the
+  `comparison_corpus_published` test-enforced gate (enforced by the M7 exit
+  suite); the perf dashboard grows the cross-framework comparison section —
+  per-workload medians with scope labels, the beat badges, and the advisory
+  note when the collecting rig differs from the baseline's
+- **M7 — the exit suite** (`alacer-testing/tests/m7_exit_criteria.rs`): the
+  rig is declared and referenced by the results; the competitor corpus
+  covers {egui, masonry} × {W1, W2, W3} as standalone, pinned,
+  no-strawman projects; the runner validates the committed artifacts; the
+  beat is computable and same-host with every measurement scoped; the
+  contract gate and the dashboard publish the comparison; the M5/M6 corpus
+  pins do not move (43 workspace cases — M7 adds competitor data outside
+  the corpus, never inside it); the ADR names the harness pieces
+- ADR-0013: the M7 scope decision record
+
+### Changed
+
+- The workspace ships as 0.7.0
+- The README status reflects M0–M7 and carries the measured beat in the
+  features list; the perf-features bullet says 43 criterion cases (it had
+  drifted back to 38)
+- The `regressions` corpus stays at 43 gates: competitor absolute medians
+  are deliberately not regression-gated (ADR-0011's same-host rule —
+  absolute gates on silicon the project does not own are benchmark
+  theatre)
+
 ## [0.6.0] — 2026-11-07
 
 ### Added

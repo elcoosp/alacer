@@ -44,6 +44,9 @@ pub use events::{
     EventPhase, ImeEvent, Key, KeyEvent, KeyState, Modifiers, MouseButton, PointerEvent,
 };
 pub use flux::{Flux, FluxCounters, FluxRwSignal, FluxWriter, RenderBinding};
+// The reactive trait seam: the framework's signal handles are
+// `reactive_graph`'s, so its read/write traits ride the same re-export
+// (call sites never need a direct reactive_graph dependency).
 pub use geom::{Point, Rect, Size, Vector};
 pub use inspect::{
     BindingId, DirtyNode, EdgeActivation, FrameSummary, InputKind, InputRecord, InspectEvent,
@@ -54,6 +57,7 @@ pub use passes::{
     A11yDelta, A11ySink, FrameReport, ImePurpose, ImeRequest, LayoutEngine, LayoutError, PassKind,
     PassPipeline, PassRun, SceneJournal, TreeNode, TreeSnapshot,
 };
+pub use reactive_graph::traits::{Get, GetUntracked, Set};
 pub use scene::{
     Glyph, GlyphBitmap, GlyphSource, PaintCtx, PaintSink, Primitive, Quad, SceneSnapshot,
     primitives_extent,
@@ -62,7 +66,7 @@ pub use style::{
     CrossAxisAlignment, Display, MainAxisAlignment, MeasureFn, MeasureSpec, Style, TextSpec,
 };
 pub use text_seam::{GlyphRun, PlacedGlyph, TextSeam};
-pub use widget::{A11yAction, EventResponse, LabelSource, Role, Widget};
+pub use widget::{A11yAction, EventResponse, LabelSource, Role, TableSlot, ToggleState, Widget};
 
 /// The Alacer prelude: import this once and the framework vocabulary is in scope.
 pub mod prelude {
@@ -78,5 +82,63 @@ pub mod prelude {
     pub use crate::mask::Change;
     pub use crate::passes::{PassKind, PassPipeline};
     pub use crate::style::{CrossAxisAlignment, Display, MainAxisAlignment, Style};
-    pub use crate::widget::{EventResponse, LabelSource, Role, Widget};
+    pub use crate::widget::{EventResponse, LabelSource, Role, TableSlot, ToggleState, Widget};
+}
+
+#[cfg(test)]
+mod tests {
+    use super::widget::{Role, TableSlot, ToggleState};
+
+    #[test]
+    fn checkbox_requires_a_name_like_every_input_control() {
+        assert!(Role::CheckBox.requires_name());
+        assert!(!Role::Label.requires_name());
+    }
+
+    #[test]
+    fn toggle_state_maps_from_bool() {
+        assert_eq!(ToggleState::from(true), ToggleState::On);
+        assert_eq!(ToggleState::from(false), ToggleState::Off);
+    }
+
+    #[test]
+    fn table_slot_variants_carry_their_geometry() {
+        let table = TableSlot::Table {
+            rows: 3,
+            columns: 4,
+        };
+        assert_eq!(
+            table,
+            TableSlot::Table {
+                rows: 3,
+                columns: 4
+            }
+        );
+        let header = TableSlot::Header { column: 1 };
+        assert_ne!(header, TableSlot::Header { column: 2 });
+        let cell = TableSlot::Cell { row: 2, column: 3 };
+        assert_ne!(cell, TableSlot::Cell { row: 3, column: 2 });
+    }
+
+    #[test]
+    fn role_names_cover_every_variant() {
+        let roles = [
+            Role::Decoration,
+            Role::Container,
+            Role::Label,
+            Role::Button,
+            Role::TextInput,
+            Role::ScrollArea,
+            Role::ListItem,
+            Role::List,
+            Role::CheckBox,
+            Role::Table,
+            Role::TableRow,
+            Role::TableCell,
+            Role::ColumnHeader,
+        ];
+        for role in roles {
+            assert!(!role.name().is_empty(), "{role:?} has a name");
+        }
+    }
 }

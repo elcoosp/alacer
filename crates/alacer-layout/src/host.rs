@@ -359,10 +359,15 @@ impl LayoutHost {
                         height: known.height.unwrap_or(0.0),
                     });
                 };
-                // A definite known width is the wrap width for text.
+                // A definite known width is the wrap width for text. The
+                // wrap decision is **integral** (§8.3, egui's re-wrap
+                // feedback lesson): sub-pixel container jitter must never
+                // flip a line break, so the width floors to whole device
+                // pixels before it reaches the measurer or the cache key.
                 let max_width = known
                     .width
-                    .or_else(|| definite_width(input.available_space.width));
+                    .or_else(|| definite_width(input.available_space.width))
+                    .map(f32::floor);
                 calls += 1;
                 match spec {
                     MeasureSpec::Fixed(size) => taffy::LayoutOutput::from_outer_size(taffy::Size {

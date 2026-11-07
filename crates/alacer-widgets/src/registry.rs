@@ -6,8 +6,10 @@
 use alacer_core::style::Style;
 use alacer_view::{ElementProps, WidgetRegistry};
 
-/// Creates the registry pre-loaded with the M0 element set: `label`,
-/// `button`, `column`, `row`, `spacer`, `panel`, `list` (§5).
+/// Creates the registry pre-loaded with the element set: the M0 canon
+/// (`label`, `button`, `column`, `row`, `spacer`, `panel`, `list`) plus the
+/// M6 canon (`checkbox`, `text_input`, `table`, `table_row`, `table_cell`,
+/// `column_header`).
 #[must_use]
 pub fn default_registry() -> WidgetRegistry {
     let mut registry = WidgetRegistry::new();
@@ -18,6 +20,12 @@ pub fn default_registry() -> WidgetRegistry {
     registry.register("spacer", spacer_create, spacer_patch);
     registry.register("panel", panel_create, panel_patch);
     registry.register("list", list_create, list_patch);
+    registry.register("checkbox", checkbox_create, checkbox_patch);
+    registry.register("text_input", text_input_create, text_input_patch);
+    registry.register("table", table_create, table_patch);
+    registry.register("table_row", table_row_create, table_row_patch);
+    registry.register("table_cell", table_cell_create, table_cell_patch);
+    registry.register("column_header", column_header_create, column_header_patch);
     registry
 }
 
@@ -213,6 +221,159 @@ fn list_patch(list: &mut crate::List, props: &ElementProps<'_>) -> bool {
     visual
 }
 
+/// `f32` prop → grid index (rounds; prop numbers are small).
+fn prop_index(props: &ElementProps<'_>, name: &str) -> Option<usize> {
+    props
+        .number(name)
+        .map(|value| value.round().max(0.0) as usize)
+}
+
+// ---------------------------------------------------------------------------
+// The M6 canon elements
+// ---------------------------------------------------------------------------
+
+fn checkbox_create(props: &ElementProps<'_>) -> crate::Checkbox {
+    let mut checkbox = crate::Checkbox::new(props.text("name").unwrap_or_default());
+    if let Some(checked) = props.flag("checked") {
+        checkbox = checkbox.checked(checked);
+    }
+    if let Some(handler) = props.flag_handler("on_toggle") {
+        checkbox = checkbox.on_toggle(handler);
+    }
+    if let Some(color) = props.color("accent") {
+        checkbox = checkbox.accent(color);
+    }
+    checkbox
+}
+
+fn checkbox_patch(checkbox: &mut crate::Checkbox, props: &ElementProps<'_>) -> bool {
+    let mut visual = false;
+    if let Some(name) = props.text("name") {
+        checkbox.set_name(name);
+        visual = true;
+    }
+    if let Some(checked) = props.flag("checked") {
+        checkbox.set_checked(checked);
+        visual = true;
+    }
+    if let Some(handler) = props.flag_handler("on_toggle") {
+        checkbox.set_on_toggle(Some(handler));
+    }
+    visual
+}
+
+fn text_input_create(props: &ElementProps<'_>) -> crate::TextInput {
+    let mut input = crate::TextInput::new(props.text("name").unwrap_or_default());
+    if let Some(placeholder) = props.text("placeholder") {
+        input = input.placeholder(placeholder);
+    }
+    if props.flag("secure") == Some(true) {
+        input = input.secure();
+    }
+    if let Some(handler) = props.text_handler("on_changed") {
+        input = input.on_changed(handler);
+    }
+    if let Some(handler) = props.text_handler("on_submit") {
+        input = input.on_submit(handler);
+    }
+    input
+}
+
+fn text_input_patch(input: &mut crate::TextInput, props: &ElementProps<'_>) -> bool {
+    let mut visual = false;
+    if let Some(name) = props.text("name") {
+        input.set_name(name);
+        visual = true;
+    }
+    if let Some(placeholder) = props.text("placeholder") {
+        input.set_placeholder(placeholder);
+        visual = true;
+    }
+    if let Some(handler) = props.text_handler("on_changed") {
+        input.set_on_changed(Some(handler));
+    }
+    if let Some(handler) = props.text_handler("on_submit") {
+        input.set_on_submit(Some(handler));
+    }
+    visual
+}
+
+fn table_create(props: &ElementProps<'_>) -> crate::Table {
+    let mut table = crate::Table::new(
+        props.text("name").unwrap_or_default(),
+        prop_index(props, "columns").unwrap_or(0),
+    );
+    table.set_row_count(prop_index(props, "rows").unwrap_or(0));
+    style_apply(table.style_mut(), props);
+    table
+}
+
+fn table_patch(table: &mut crate::Table, props: &ElementProps<'_>) -> bool {
+    let mut visual = false;
+    if let Some(name) = props.text("name") {
+        table.set_name(name);
+        visual = true;
+    }
+    if let Some(rows) = prop_index(props, "rows") {
+        table.set_row_count(rows);
+        visual = true;
+    }
+    if let Some(columns) = prop_index(props, "columns") {
+        table.set_column_count(columns);
+        visual = true;
+    }
+    style_apply(table.style_mut(), props);
+    visual
+}
+
+fn table_row_create(props: &ElementProps<'_>) -> crate::TableRow {
+    let mut row = crate::TableRow::new();
+    style_apply(row.style_mut(), props);
+    row
+}
+
+fn table_row_patch(row: &mut crate::TableRow, props: &ElementProps<'_>) -> bool {
+    style_apply(row.style_mut(), props);
+    style_visual_diff(props)
+}
+
+fn table_cell_create(props: &ElementProps<'_>) -> crate::TableCell {
+    crate::TableCell::new(
+        props.text("text").unwrap_or_default(),
+        prop_index(props, "row").unwrap_or(0),
+        prop_index(props, "column").unwrap_or(0),
+    )
+}
+
+fn table_cell_patch(cell: &mut crate::TableCell, props: &ElementProps<'_>) -> bool {
+    let mut visual = false;
+    if let Some(text) = props.text("text") {
+        cell.set_text(text);
+        visual = true;
+    }
+    if let (Some(row), Some(column)) = (prop_index(props, "row"), prop_index(props, "column")) {
+        cell.set_slot(row, column);
+        visual = true;
+    }
+    visual
+}
+
+fn column_header_create(props: &ElementProps<'_>) -> crate::ColumnHeader {
+    crate::ColumnHeader::new(
+        props.text("text").unwrap_or_default(),
+        prop_index(props, "column").unwrap_or(0),
+    )
+}
+
+fn column_header_patch(header: &mut crate::ColumnHeader, props: &ElementProps<'_>) -> bool {
+    let mut visual = false;
+    if let Some(text) = props.text("text") {
+        header.set_text(text);
+        visual = true;
+    }
+    visual
+}
+
 #[cfg(test)]
 mod tests {
     use super::default_registry;
@@ -220,15 +381,147 @@ mod tests {
     use alacer_core::color::Color;
     use alacer_view::ViewNode;
 
+    /// Downcasts the erased widget to `Checkbox` (the test's introspection).
+    fn downcast_checkbox(widget: &mut dyn alacer_core::Widget) -> Option<&mut crate::Checkbox> {
+        widget.as_any_mut().downcast_mut::<crate::Checkbox>()
+    }
+
     #[test]
-    fn the_default_registry_knows_the_m0_set() {
+    fn the_default_registry_knows_the_canon_set() {
         let registry = default_registry();
         for name in [
-            "label", "button", "column", "row", "spacer", "panel", "list",
+            "label",
+            "button",
+            "column",
+            "row",
+            "spacer",
+            "panel",
+            "list",
+            // The M6 canon elements.
+            "checkbox",
+            "text_input",
+            "table",
+            "table_row",
+            "table_cell",
+            "column_header",
         ] {
             assert!(registry.contains(name), "{name} is a default element");
         }
         assert!(!registry.contains("video"));
+    }
+
+    #[test]
+    fn checkbox_props_create_and_patch_in_place() {
+        let registry = default_registry();
+        let toggled = std::rc::Rc::new(std::cell::RefCell::new(false));
+        let sink = toggled.clone();
+        let node = ViewNode::element("checkbox")
+            .prop("name", "Ship in bulk")
+            .prop("checked", false)
+            .prop(
+                "on_toggle",
+                alacer_view::PropValue::FlagHandler(std::rc::Rc::new(std::cell::RefCell::new(
+                    move |checked: bool| *sink.borrow_mut() = checked,
+                ))),
+            );
+        let mut widget = registry.create(&node);
+        assert_eq!(widget.label().resolve(), "Ship in bulk");
+        assert!(
+            downcast_checkbox(widget.as_mut()).is_some_and(|c| !c.is_checked()),
+            "created unchecked"
+        );
+
+        let updated = ViewNode::element("checkbox").prop("checked", true);
+        assert!(
+            registry.patch(widget.as_mut(), &updated),
+            "checked is visual"
+        );
+        assert!(
+            downcast_checkbox(widget.as_mut()).is_some_and(|c| c.is_checked()),
+            "patched in place"
+        );
+
+        // The view-driven toggle path: the flag handler rides the widget.
+        let mut ctx = alacer_core::events::EventCtx::new();
+        let up = alacer_core::events::PointerEvent::Up {
+            position: alacer_core::geom::Point::new(4.0, 4.0),
+            button: alacer_core::events::MouseButton::Left,
+        };
+        let _ = widget.on_pointer_event(&mut ctx, &up);
+        assert!(
+            downcast_checkbox(widget.as_mut()).is_some_and(|c| !c.is_checked()),
+            "user toggle flips the widget"
+        );
+        assert!(
+            !*toggled.borrow(),
+            "the view handler observed the new state (false)"
+        );
+    }
+
+    #[test]
+    fn text_input_props_carry_handlers() {
+        let registry = default_registry();
+        let submitted = std::rc::Rc::new(std::cell::RefCell::new(String::new()));
+        let sink = submitted.clone();
+        let node = ViewNode::element("text_input")
+            .prop("name", "Add a todo")
+            .prop(
+                "on_submit",
+                alacer_view::PropValue::TextHandler(std::rc::Rc::new(std::cell::RefCell::new(
+                    move |text: &str| *sink.borrow_mut() = text.to_string(),
+                ))),
+            );
+        let mut widget = registry.create(&node);
+        assert_eq!(widget.label().resolve(), "Add a todo");
+
+        for ch in "hello".chars() {
+            let mut ctx = alacer_core::events::EventCtx::new();
+            let _ = widget.on_key_event(&mut ctx, &alacer_core::events::KeyEvent::char(ch));
+        }
+        let mut ctx = alacer_core::events::EventCtx::new();
+        let enter = alacer_core::events::KeyEvent {
+            key: alacer_core::events::Key::Enter,
+            state: alacer_core::events::KeyState::Pressed,
+            modifiers: alacer_core::events::Modifiers::default(),
+            text: None,
+        };
+        assert_eq!(
+            widget.on_key_event(&mut ctx, &enter),
+            alacer_core::widget::EventResponse::Handled
+        );
+        assert_eq!(
+            *submitted.borrow(),
+            "hello",
+            "the view handler got the text"
+        );
+    }
+
+    #[test]
+    fn table_elements_carry_grid_props() {
+        let registry = default_registry();
+        let node = ViewNode::element("table")
+            .prop("name", "Inventory")
+            .prop("rows", 3.0_f32)
+            .prop("columns", 4.0_f32);
+        let widget = registry.create(&node);
+        assert_eq!(
+            widget.table_slot(),
+            Some(alacer_core::TableSlot::Table {
+                rows: 3,
+                columns: 4
+            })
+        );
+
+        let cell_node = ViewNode::element("table_cell")
+            .prop("text", "Nails")
+            .prop("row", 2.0_f32)
+            .prop("column", 1.0_f32);
+        let cell = registry.create(&cell_node);
+        assert_eq!(cell.label().resolve(), "Nails");
+        assert_eq!(
+            cell.table_slot(),
+            Some(alacer_core::TableSlot::Cell { row: 2, column: 1 })
+        );
     }
 
     #[test]

@@ -1,0 +1,146 @@
+{
+  "schema": 1,
+  "description": "Published cross-framework comparison (M7, ADR-0013): the \u00a718 beat workloads, 5-run medians per framework, everything labeled with its measured scope. Regenerate with scripts/run_comparison.py; validate with --validate.",
+  "generated_at": "2026-11-07T21:10:30+00:00",
+  "rig_fingerprint": "ee37c3efc5995352",
+  "same_host": true,
+  "advisory": false,
+  "protocol": {
+    "runs": 5,
+    "estimator": "median-of-medians (criterion median per run, median across runs)"
+  },
+  "beat": {
+    "definition": "alacer median < every competitor median on the same host, per workload (\u00a71: beats both egui and the best audited retained stack in at least one shared workload)",
+    "workloads_won": [
+      "w1_churn_10k"
+    ]
+  },
+  "workloads": [
+    {
+      "id": "w1_churn_10k",
+      "cite": "architecture \u00a714.2 W1",
+      "alacer": {
+        "baseline_id": "w1/incremental_churn_10pct",
+        "median_ns": 1098995.1666666665,
+        "source": "published-baseline",
+        "scope": "incremental relayout of the churned frame through the persistent taffy tree (layout only \u2014 the framework's own published bench)"
+      },
+      "competitors": [
+        {
+          "framework": "egui",
+          "version": "0.37.0",
+          "case": "egui/w1_churn_full_10k",
+          "median_ns": 20694615.416666664,
+          "runs": 5,
+          "run_medians_ns": [
+            20659709.166666664,
+            20694615.416666664,
+            20404131.0,
+            21156512.5,
+            21030925.5
+          ],
+          "scope": "full immediate-mode frame: widget walk + layout + galley shaping + tessellation over the whole 10k tree; row virtualization deliberately not taken (mechanism under test \u2014 see the project README)"
+        },
+        {
+          "framework": "masonry",
+          "version": "0.4.0",
+          "case": "masonry/w1_churn_10k",
+          "median_ns": 4571565.274137931,
+          "runs": 5,
+          "run_medians_ns": [
+            4571565.274137931,
+            4196344.458333334,
+            5318378.390625,
+            4618310.055555556,
+            4561827.471273292
+          ],
+          "scope": "full pass pipeline through redraw(): update + layout + compose + paint-scene build + a11y tree update over the whole 10k tree; vello rasterization excluded (no GPU device on this rig \u2014 labeled, conservative)"
+        }
+      ]
+    },
+    {
+      "id": "w2_text_jitter_1k",
+      "cite": "architecture \u00a714.2 W2",
+      "alacer": {
+        "baseline_id": "w2/jitter_incremental_1k",
+        "median_ns": 1003564.55,
+        "source": "published-baseline",
+        "scope": "incremental text relayout under the \u00b15% width jitter through the persistent taffy tree (layout only \u2014 the framework's own bench)"
+      },
+      "competitors": [
+        {
+          "framework": "egui",
+          "version": "0.37.0",
+          "case": "egui/w2_text_jitter_1k",
+          "median_ns": 17633105.5,
+          "runs": 5,
+          "run_medians_ns": [
+            17633105.5,
+            17643217.583333336,
+            17527291.0,
+            17653689.666666668,
+            17586124.5
+          ],
+          "scope": "full immediate-mode frame at the jittered width: widget walk + layout + galley re-shaping (the galley cache's real behavior) + tessellation; virtualization not taken"
+        },
+        {
+          "framework": "masonry",
+          "version": "0.4.0",
+          "case": "masonry/w2_text_jitter_1k",
+          "median_ns": 622589.3666666667,
+          "runs": 5,
+          "run_medians_ns": [
+            635825.036111111,
+            652887.7103535354,
+            619332.0909090908,
+            622589.3666666667,
+            621847.7384559885
+          ],
+          "scope": "full pass pipeline through redraw() at the jittered width: parley re-breaking on changed constraints + layout + paint-scene build + a11y tree update; vello rasterization excluded (labeled, conservative)"
+        }
+      ]
+    },
+    {
+      "id": "w3_animation_1k",
+      "cite": "architecture \u00a714.2 W3",
+      "alacer": {
+        "baseline_id": "w3/animation_frame_1k",
+        "median_ns": 23515415.5,
+        "source": "published-baseline",
+        "scope": "one animation frame through the real ten-pass pipeline INCLUDING the damaged software raster (the framework's own bench)"
+      },
+      "competitors": [
+        {
+          "framework": "egui",
+          "version": "0.37.0",
+          "case": "egui/w3_animation_1k",
+          "median_ns": 1195438.1833333333,
+          "runs": 5,
+          "run_medians_ns": [
+            1186553.1458333333,
+            1200807.2884920635,
+            1224374.25,
+            1195438.1833333333,
+            1185884.8020833335
+          ],
+          "scope": "full immediate-mode frame: widget walk + per-frame paint ops (1k rects, 10% fading) + tessellation; pixel rasterization excluded (as for every competitor row)"
+        },
+        {
+          "framework": "masonry",
+          "version": "0.4.0",
+          "case": "masonry/w3_animation_1k",
+          "median_ns": 601585.5738636364,
+          "runs": 5,
+          "run_medians_ns": [
+            587685.6679292929,
+            591549.8839039749,
+            601585.5738636364,
+            604189.1386363637,
+            632787.3088842975
+          ],
+          "scope": "full pass pipeline through redraw() with compose-level transforms on 1k nodes (translation-only path); no fade churn and no vello rasterization (labeled, conservative)"
+        }
+      ]
+    }
+  ]
+}

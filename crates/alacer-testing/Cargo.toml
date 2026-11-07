@@ -12,6 +12,8 @@ categories.workspace = true
 
 [dependencies]
 alacer-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 alacer-macro.workspace = true
 alacer-view.workspace = true
 alacer-layout.workspace = true
@@ -26,3 +28,8 @@ rustc-hash.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true
+criterion.workspace = true
+
+[[bench]]
+name = "w3_animation"
+harness = false

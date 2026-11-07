@@ -7,7 +7,16 @@
 //! - the a11y-driven query API — the *only* official query API (§11.5);
 //! - the debug CI walker that fails on unnamed input widgets (§11.1);
 //! - snapshot testing with `ALACER_BLESS=1` re-blessing (§13.4);
+//! - record/replay: user interactions saved as `.alc` files and replayed
+//!   in `cargo test` — bug reports that are also regression tests (§13.4,
+//!   M6);
 //! - scheduling-contract counters for the ADR-6 kill-switch.
+
+pub mod recording;
+
+pub use recording::{
+    RECORDING_SCHEMA, Recording, Session, Step, key_from_name, key_name, role_from_name,
+};
 
 use alacer_a11y::AccessKitSink;
 use alacer_core::arena::NodeId;

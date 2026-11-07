@@ -266,6 +266,12 @@
       "gate": "one write batch \u21d2 one effect rerun at 10k-signal scale; memos never glitch",
       "cite": "architecture \u00a714.2 W5, ADR-6",
       "enforced_by": "alacer-testing/tests/m6_exit_criteria.rs"
+    },
+    {
+      "id": "comparison_corpus_published",
+      "gate": "the cross-framework comparison (declared rig + results + dashboard section) is committed, schema-valid, and same-host; the beat verdict is computable from the committed file",
+      "cite": "architecture \u00a71 (the v1 definition of done's beat), \u00a714.1, ADR-0013",
+      "enforced_by": "alacer-testing/tests/m7_exit_criteria.rs"
     }
   ]
 }

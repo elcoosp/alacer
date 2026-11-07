@@ -127,7 +127,7 @@ jobs:
         run: cargo bench -p alacer-view --bench view -- --warm-up-time 1 --measurement-time 2
 
   perf-contracts:
-    name: perf contracts (M5, ADR-0011)
+    name: perf contracts (M5+M6, ADR-0011/0012)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

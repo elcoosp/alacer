@@ -88,7 +88,40 @@ impl<'a> ElementProps<'a> {
             _ => None,
         }
     }
+
+    /// A text-carrying handler prop (`on_submit`, `on_changed` — M6): the
+    /// widget calls it with the committed text.
+    #[must_use]
+    pub fn text_handler(&self, name: &str) -> Option<BoxedTextHandler> {
+        match self.props.get(name)? {
+            PropValue::TextHandler(handler) => {
+                let handler = Rc::clone(handler);
+                Some(Box::new(move |text: &str| (handler.borrow_mut())(text)))
+            }
+            _ => None,
+        }
+    }
+
+    /// A state-carrying handler prop (`on_toggle` — M6): the widget calls it
+    /// with its new state.
+    #[must_use]
+    pub fn flag_handler(&self, name: &str) -> Option<BoxedFlagHandler> {
+        match self.props.get(name)? {
+            PropValue::FlagHandler(handler) => {
+                let handler = Rc::clone(handler);
+                Some(Box::new(move |checked: bool| {
+                    (handler.borrow_mut())(checked)
+                }))
+            }
+            _ => None,
+        }
+    }
 }
+
+/// A boxed text-carrying handler, ready to hang on a widget.
+pub type BoxedTextHandler = Box<dyn FnMut(&str)>;
+/// A boxed state-carrying handler, ready to hang on a widget.
+pub type BoxedFlagHandler = Box<dyn FnMut(bool)>;
 
 /// A boxed widget factory over a view node.
 type CreateFn = Box<dyn Fn(&ViewNode) -> Box<dyn alacer_core::Widget>>;

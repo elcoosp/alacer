@@ -9,7 +9,8 @@
     <img src="https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue?style=flat-square" alt="License MIT OR Apache-2.0"/>
     <img src="https://img.shields.io/badge/Backend-wgpu%20%2B%20software-6A0DAD?style=flat-square" alt="Backend wgpu + software"/>
     <img src="https://img.shields.io/badge/Crates-12-6F4E37?style=flat-square" alt="12 crates"/>
-    <img src="https://img.shields.io/badge/Tests-283%20passing-brightgreen?style=flat-square" alt="283 tests passing"/>
+    <img src="https://img.shields.io/badge/Milestones-M0%20--%20M6-green?style=flat-square" alt="M0 through M6 complete"/>
+    <img src="https://img.shields.io/badge/Tests-330%20passing-brightgreen?style=flat-square" alt="330 tests passing"/>
     <img src="https://img.shields.io/badge/A11y-AccessKit-4B32C3?style=flat-square" alt="AccessKit accessibility"/>
     <img src="https://img.shields.io/badge/Layout-Taffy-228B22?style=flat-square" alt="Taffy layout"/>
     <img src="https://img.shields.io/badge/Text-Parley-007ACC?style=flat-square" alt="Parley text"/>
@@ -20,9 +21,9 @@
 
 ---
 
-## Status: M0 + M1 + M2 + M3 + M4 + M5 exit criteria, all green
+## Status: M0 + M1 + M2 + M3 + M4 + M5 + M6 exit criteria, all green
 
-The repository implements milestone **M0** (the skeleton: winit + wgpu + reactive_graph + taffy + parley + accesskit on one window), milestone **M1** (the view DSL, the pass contract, and the test corpus), milestone **M2** (the invalidation currency: masks + persistent Taffy + torin-style deltas + scene journal replay), milestone **M3** (the a11y contract + partial paint + the IME contract), milestone **M4** (the hot-reload contract on subsecond + the CI hot-patch suite + the Causality inspector + publish readiness), and milestone **M5** (the examples gallery + the egui/Iced migration guides + the perf dashboard with criterion baselines published as contracts) of the architecture document in `docs/architecture.md`.
+The repository implements milestone **M0** (the skeleton: winit + wgpu + reactive_graph + taffy + parley + accesskit on one window), milestone **M1** (the view DSL, the pass contract, and the test corpus), milestone **M2** (the invalidation currency: masks + persistent Taffy + torin-style deltas + scene journal replay), milestone **M3** (the a11y contract + partial paint + the IME contract), milestone **M4** (the hot-reload contract on subsecond + the CI hot-patch suite + the Causality inspector + publish readiness), milestone **M5** (the examples gallery + the egui/Iced migration guides + the perf dashboard with criterion baselines published as contracts), and milestone **M6** (the benchmark canon: the todo/data-table widget canon, the W2/W3/W5 shared workloads as gated benches, and the `.alc` record/replay format) of the architecture document in `docs/architecture.md` — completing the §1 definition of done's widget canon.
 
 | Criterion | Evidence |
 |---|---|
@@ -51,11 +52,15 @@ The repository implements milestone **M0** (the skeleton: winit + wgpu + reactiv
 | **`TextInput` widget** | the IME contract's reference implementation: caret editing, secure mode, focus ring, a11y value |
 | **Hot-patch contract: state intact, scoped, one frame** | the M4 kill-switch as tests (`alacer-testing/tests/m4_exit_criteria.rs`): a patched generation renders its new values with the old state; node identity stable; exactly one layout+paint cycle per patch; 10-generation churn with interleaved mutations stays consistent; untouched subtrees stay out of the patch frame |
 | **`subsecond` wiring** | the facade's `hot-reload` feature: generations wrapped in `subsecond::call`, `register_handler` → patch channel → one scoped re-render (`crates/alacer/tests/hot_reload_subsecond.rs` pins the headless passthrough) |
-| **Criterion baselines published as contracts (M5)** | `benchmarks/contracts.json` + `benchmarks/baselines/baselines.json`: all 38 criterion cases published with their environment; the W1 ≥ 2× gate as a measured budget contract (14.01× at publication); a regression gate per case, scoped same-host via the recorded host fingerprint; the uncontracted-benchmark rule fails a bench without a published gate |
-| **The perf dashboard (M5)** | `benchmarks/dashboard/index.html` — self-generated, dependency-free; budgets with measured ratios and status, the full baseline table with delta bars, the four test-enforced gates with their enforcement sites |
+| **Criterion baselines published as contracts (M5)** | `benchmarks/contracts.json` + `benchmarks/baselines/baselines.json`: all 43 criterion cases published with their environment; the W1 ≥ 2× gate as a measured budget contract (14.37× at republication); a regression gate per case, scoped same-host via the recorded host fingerprint; the uncontracted-benchmark rule fails a bench without a published gate |
+| **The perf dashboard (M5)** | `benchmarks/dashboard/index.html` — self-generated, dependency-free; budgets with measured ratios and status, the full baseline table with delta bars, the six test-enforced gates with their enforcement sites |
 | **The examples gallery (M5)** | `docs/examples.md` catalogs every example with its contract; `gallery.rs` is the one-window widget tour (`cargo run -p alacer --example gallery`) |
 | **Migration guides (M5)** | `docs/migration/from-egui.md` + `docs/migration/from-iced.md` — the same required section set (mental model → interop limits), real API on both sides, the version-scope honesty note; enforced by the exit suite |
 | **Causality inspector** | `alacer-inspect`: the `inspect` seam (edge activations, provenance writes, inputs, frame summaries with the pass ledger + mask heatmap), bounded ring buffers with tested eviction, the documented WS protocol (`docs/inspector-protocol.md`, version 1), and the embedded single-file client — the five §13.3 questions answered from recorded truth |
+| **The benchmark canon: todo + data-table (M6)** | `Checkbox` and the `Table`/`TableRow`/`TableCell`/`ColumnHeader` family with a *navigable* AccessKit grid (counts + zero-based positions); `alacer_widgets::canon::{todo_app, data_table_app}` — the same builders behind the `todo`/`data_table` examples and the headless exit suite; §1's counter/todo/data-table canon complete |
+| **W2/W3/W5 measured as contracts (M6)** | W2 text-dense relayout under ±5% width jitter, W3 the animation frame through the real pipeline + damaged raster, W5 10k-signal/1k-memo batched churn — each a published baseline with a same-host regression gate; the W5 scheduling contract test-enforced at graph scale (one batch ⇒ one rerun, no memo glitches) |
+| **No re-wrap oscillation (M6)** | the §8.3 integer wrap rounding adopted in the layout host; `alacer-layout/tests/w2_gate.rs` (integrality, sub-pixel stability, cache-hit-on-revisit) |
+| **Record/replay: `.alc` files (M6)** | `alacer-testing::recording` — versioned JSON with semantic steps (press by role + name, typed text, keys, wheel, click); `Session` records + executes in one pass; the committed canonical recording (`crates/alacer-testing/recordings/todo.alc`) replays green in the M6 suite; re-bless with `ALACER_RECORD=1` |
 
 ## Quick start
 
@@ -69,8 +74,11 @@ cargo run -p alacer --features hot-reload --example hot_reload
 #                                              # … the same demo accepting `dx serve --hotpatch`
 cargo run -p alacer --example inspector_demo  # the M4 Causality inspector (open the printed URL)
 cargo run -p alacer --example gallery         # the M5 widget gallery (one window, every widget)
+cargo run -p alacer --example todo            # the M6 todo canon (the §5 shape, live)
+cargo run -p alacer --example data_table      # the M6 data-table canon (a navigable grid)
 cargo test --workspace                        # headless: real pipeline + software raster (A4)
 cargo bench                                   # criterion suites (A6)
+ALACER_RECORD=1 cargo test -p alacer-testing  # re-bless the committed .alc recording (M6)
 python3 scripts/collect_baseline.py           # publish the baseline after benching (M5)
 python3 scripts/check_perf_contracts.py       # enforce budgets + same-host regressions (M5)
 python3 scripts/perf_dashboard.py             # regenerate benchmarks/dashboard/index.html (M5)
@@ -100,9 +108,15 @@ Headless machines (and CI) run the **same pipeline** through the software backen
 
 ## The M5 design, in three points (ADR-0011)
 
-1. **Baselines are contracts, not screenshots of hope.** `scripts/collect_baseline.py` distills every criterion run into `benchmarks/baselines/baselines.json` — all 38 cases with median/mean/MAD/sample count and the environment that produced them (commit, toolchain, host fingerprint). `benchmarks/contracts.json` gates them: the architecture's falsifiable gates as **ratio budgets** (host-independent, enforced everywhere — W1 ≥ 2× measured 14.01× at publication) and one **same-host regression gate** per case (fresh median ≤ published × 1.25 on a matching host fingerprint; foreign hosts skip, pinned hardware enforces with `--strict-host`). `scripts/check_perf_contracts.py` enforces the set and fails on an uncontracted benchmark, so the corpus cannot grow unmeasured.
-2. **The perf dashboard publishes the regime.** `scripts/perf_dashboard.py` renders `benchmarks/dashboard/index.html` — one self-contained file, no external assets, no JavaScript: the measured environment, the budget contracts with ratios and PASS/FAIL, the full baseline table with delta bars, and the four test-enforced gates (pass overhead < 15%, TreeUpdate p99 < 0.5 ms, the patch frame budget, zero-measure scrolling) each naming its enforcement site. CI re-generates it on main and uploads it as an artifact.
+1. **Baselines are contracts, not screenshots of hope.** `scripts/collect_baseline.py` distills every criterion run into `benchmarks/baselines/baselines.json` — all 43 cases with median/mean/MAD/sample count and the environment that produced them (commit, toolchain, host fingerprint). `benchmarks/contracts.json` gates them: the architecture's falsifiable gates as **ratio budgets** (host-independent, enforced everywhere — W1 ≥ 2× measured 14.37× at republication) and one **same-host regression gate** per case (fresh median ≤ published × 1.25 on a matching host fingerprint; foreign hosts skip, pinned hardware enforces with `--strict-host`). `scripts/check_perf_contracts.py` enforces the set and fails on an uncontracted benchmark, so the corpus cannot grow unmeasured.
+2. **The perf dashboard publishes the regime.** `scripts/perf_dashboard.py` renders `benchmarks/dashboard/index.html` — one self-contained file, no external assets, no JavaScript: the measured environment, the budget contracts with ratios and PASS/FAIL, the full baseline table with delta bars, and the six test-enforced gates (pass overhead < 15%, TreeUpdate p99 < 0.5 ms, the patch frame budget, zero-measure scrolling, W2 no-re-wrap oscillation, W5 one-rerun-per-batch) each naming its enforcement site. CI re-generates it on main and uploads it as an artifact.
 3. **The gallery and the guides are documentation with a regression net.** `gallery.rs` tours the widget vocabulary through the canonical write seam (signals in, masks out, one batch one frame); `docs/examples.md` catalogs every example with its contract; `docs/migration/from-egui.md` and `from-iced.md` map the two audited reference frameworks section-for-section — with an honesty header, real API on both sides, and the interop limits stated plainly. The M5 exit suite (`alacer-testing/tests/m5_exit_criteria.rs`) enforces all of it: baseline schema + environment, the contracts ↔ baseline bijection at the pinned corpus size, budgets holding on the published data, dashboard coverage, catalog coverage, and the guides' required sections.
+
+## The M6 design, in three points (ADR-0012)
+
+1. **The canon completes the definition of done.** The `Checkbox` toggles through click, Space (a first-class key now), and the AccessKit default action, and its checked state rides the neutral snapshot as `ToggleState` → AccessKit's `Toggled`. The data-table family (`Table`/`TableRow`/`TableCell`/`ColumnHeader`) maps onto AccessKit's table roles *with geometry* — row/column counts and zero-based cell positions from the neutral `TableSlot` — so a screen reader navigates a grid, not a pile of roles. The todo and data-table apps live once, in `alacer_widgets::canon`: the examples assemble them behind a window (the patch channel carries the one-wake ⇒ one-scoped-re-render path), and the M6 exit suite drives the same builders headlessly through the a11y queries.
+2. **The remaining shared workloads are measured, not promised.** W2 (1k paragraphs, ±5% width jitter), W3 (the animation frame through the real pipeline and the damaged software raster), and W5 (10k signals, 1k memos, batched writes) join the M5 contract regime: published baselines, per-case regression gates, and the corpus pinned at 43 in both suites. The W2 gate is *stability*: the §8.3 integer wrap rounding floors wrap widths to whole pixels (egui's re-wrap-oscillation lesson, adopted as ALGO) and `w2_gate.rs` proves sub-pixel jitter cannot flip a line break. The W5 gate is the ADR-6 contract at graph scale: one write batch ⇒ one effect rerun, memos never glitch.
+3. **Bug reports are regression tests.** `alacer-testing::recording` defines the `.alc` format — versioned JSON, semantic steps (`press` by role + name, not pixels) — with `Session` recording and executing in one pass and `replay`/`replay_with` running a committed file back through the real harness. The committed canonical recording of the todo canon replays green in the M6 suite; `ALACER_RECORD=1` re-blesses it the way `ALACER_BLESS=1` re-blesses snapshots.
 
 ## The crate DAG (ADR-9)
 
@@ -133,10 +147,10 @@ Layering is a DAG: no upward dependencies, no cycles (the build system makes cyc
 | `crates/alacer-render` | scene journal, software rasterizer (full + damage-scissored partial), batching |
 | `crates/alacer-a11y` | AccessKit sink, incremental `TreeUpdates` |
 | `crates/alacer-view` | keyed reconciliation (peel → key map → LIS) |
-| `crates/alacer-widgets` | label, button, text input, column/row/spacer, list, panel, the default element registry |
+| `crates/alacer-widgets` | label, button, text input, checkbox, table family, column/row/spacer, list, panel, the canon apps, the default element registry |
 | `crates/alacer-platform` | winit loop, wgpu backend (offscreen frame + scissored damage), softbuffer present (persistent framebuffer), key/IME translation, coalescing, the patch channel |
 | `crates/alacer-inspect` | the Causality inspector: causal recorder, RFC 6455 server, embedded client, the documented WS protocol |
-| `crates/alacer-testing` | headless harness, a11y queries, snapshots, M0 + M1 + M3 + M4 + M5 suites |
+| `crates/alacer-testing` | headless harness, a11y queries, snapshots, record/replay (`.alc`), M0 + M1 + M3 + M4 + M5 + M6 suites |
 | `crates/alacer-macro` | the `rsx!` view DSL compiler (proc-macro leaf) |
 | `crates/alacer` | facade: prelude, `rsx!` re-export, `mount_view`, window runner |
 | `benchmarks/` | the M5 perf-contract regime: published baselines, the contract set, the generated dashboard |
@@ -147,6 +161,6 @@ Layering is a DAG: no upward dependencies, no cycles (the build system makes cyc
 ## Engineering discipline
 
 - **Lint regime**: clippy `pedantic` **denied** workspace-wide, plus `missing_docs` and `unsafe_code = forbid`. There is no `#[allow]` anywhere; the documented cast seams (`alacer-core/src/num.rs`, the `rsx!` number narrowing in `alacer-view`) carry the single `#[expect]`s with reasons.
-- **TDD**: every module grew tests first; **283 tests** across the workspace (unit + integration + doctest), all green locally and in CI.
-- **Benchmarks as contracts (A6)**: criterion suites for the flux batch drain, mask propagation, journal replay, incremental-vs-full relayout, the W1 churn workload, text layout, and the §7.2 pass-overhead churn gate.
+- **TDD**: every module grew tests first; **330 tests** across the workspace (unit + integration + doctest), all green locally and in CI.
+- **Benchmarks as contracts (A6)**: criterion suites for the flux batch drain, mask propagation, journal replay, incremental-vs-full relayout, the W1/W2/W3/W5 shared workloads, text layout, and the §7.2 pass-overhead churn gate.
 - **CI/CD**: fmt + clippy + tests + doc + `cargo-deny` + DAG check on push/PR; the perf-contracts job enforces the published budgets and republishes the dashboard; `git-cliff`-generated changelogs; GitHub Releases on tags (`v*`).

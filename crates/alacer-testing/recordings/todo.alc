@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "viewport": [
+    400.0,
+    400.0
+  ],
+  "created_unix": 0,
+  "steps": [
+    {
+      "kind": "press_key",
+      "key": "tab"
+    },
+    {
+      "kind": "type_text",
+      "text": "write docs"
+    },
+    {
+      "kind": "press_key",
+      "key": "enter"
+    },
+    {
+      "kind": "press",
+      "role": "checkbox",
+      "name": "write docs"
+    },
+    {
+      "kind": "type_text",
+      "text": "ship it"
+    },
+    {
+      "kind": "press_key",
+      "key": "enter"
+    },
+    {
+      "kind": "press",
+      "role": "button",
+      "name": "Delete write docs"
+    }
+  ]
+}

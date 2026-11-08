@@ -149,6 +149,13 @@ impl TestHarness {
         self.settle();
     }
 
+    /// Queues a raw pointer event into the pipeline's frame-batched input
+    /// queue (§10.2, ADR-0014): the storm coalesces and routes on the next
+    /// tick — exactly as the platform loop delivers it. Settle separately.
+    pub fn queue_pointer(&mut self, event: PointerEvent) {
+        self.pipeline.queue_pointer(event);
+    }
+
     /// Dispatches a wheel event at `position`, then settles.
     ///
     /// # Panics
@@ -299,7 +306,10 @@ impl TestHarness {
             return;
         }
         let bytes = std::fs::read(&path).unwrap_or_else(|e| {
-            panic!("blessed snapshot {path:?} missing ({e}); run with ALACER_BLESS=1")
+            panic!(
+                "blessed snapshot {} missing ({e}); run with ALACER_BLESS=1",
+                path.display()
+            )
         });
         let blessed = Pixmap::decode_png(&bytes).expect("blessed snapshot decodes");
         let diff = pixel_diff_ratio(&pixmap, &blessed);

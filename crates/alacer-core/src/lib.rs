@@ -69,7 +69,8 @@ pub use style::{
 };
 pub use text_seam::{GlyphRun, PlacedGlyph, TextSeam};
 pub use widget::{
-    A11yAction, EventResponse, LabelSource, Role, ScrollUnit, TableSlot, ToggleState, Widget,
+    A11yAction, EventResponse, LabelSource, Role, ScrollUnit, TableSlot, TextSelection,
+    ToggleState, Widget,
 };
 
 /// The Alacer prelude: import this once and the framework vocabulary is in scope.
@@ -86,7 +87,9 @@ pub mod prelude {
     pub use crate::mask::Change;
     pub use crate::passes::{PassKind, PassPipeline};
     pub use crate::style::{CrossAxisAlignment, Display, MainAxisAlignment, Style};
-    pub use crate::widget::{EventResponse, LabelSource, Role, TableSlot, ToggleState, Widget};
+    pub use crate::widget::{
+        EventResponse, LabelSource, Role, TableSlot, TextSelection, ToggleState, Widget,
+    };
 }
 
 #[cfg(test)]

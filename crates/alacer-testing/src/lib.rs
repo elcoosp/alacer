@@ -290,6 +290,20 @@ impl TestHarness {
         consumed
     }
 
+    /// The selection the a11y tree carries for the first node with `role`
+    /// named `name` (M11, ADR-0017): the widget's reported range as
+    /// `(start, end)` UTF-16 offsets in ascending order. `None` when the
+    /// widget exposes no selection (unfocused, composing, or a valueless
+    /// role) — the AT sees exactly what the sink sees.
+    #[must_use]
+    pub fn selection(&self, role: Role, name: &str) -> Option<(usize, usize)> {
+        self.pipeline
+            .a11y_snapshot()
+            .and_then(|tree| tree.find(role, name))
+            .and_then(|node| node.selection)
+            .map(|selection| selection.normalized())
+    }
+
     /// Renders the current frame's pixels — same as [`Self::pixels`].
     ///
     /// # Panics

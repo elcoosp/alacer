@@ -103,6 +103,10 @@ pub struct TreeNode {
     pub toggled: Option<crate::widget::ToggleState>,
     /// The widget's table geometry (M6): `Some` for tables, headers, cells.
     pub table_slot: Option<crate::widget::TableSlot>,
+    /// The widget's text selection (M11, ADR-0017): anchor and caret in
+    /// UTF-16 units, `Some` on the focused editable — the range a screen
+    /// reader announces, riding the same snapshot as the value it selects.
+    pub selection: Option<crate::widget::TextSelection>,
 }
 
 /// The full accessibility snapshot of the widget tree, built by pass 9.
@@ -1564,6 +1568,7 @@ impl PassPipeline {
                 value: slot.widget().value(),
                 toggled: slot.widget().toggled(),
                 table_slot: slot.widget().table_slot(),
+                selection: slot.widget().selection(),
             };
             if snapshot.root.is_none() {
                 snapshot.root = Some(node.id);

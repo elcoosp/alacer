@@ -9,6 +9,29 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M11 — the UTF-16 selection model joins the editing and a11y contracts (ADR-0017)**:
+  the text input grows the anchor+caret selection in the §10.3 contract
+  unit — Shift+arrows/Home/End extend from the anchor, Ctrl/Cmd+A selects
+  all, a plain arrow collapses to the near edge first (GTK semantics), and
+  every edit consumes the selection: typing replaces it, Backspace/Delete
+  clear the whole range, a click collapses it, and an IME commit is an
+  insertion like any other; the highlight paints from the prefix widths
+  the text seam already measures; the focused input exposes the range as
+  tree vocabulary (`Widget::selection()` → `TreeNode.selection` →
+  AccessKit `TextSelection`), dropping the report while a preedit composes;
+  and the AT value tier joins the faithful mapping — `SetValue`,
+  `ReplaceSelectedText`, and `SetTextSelection` carry their payload or are
+  dropped at the boundary, a refused value action costs an idle frame (a
+  button refuses the value tier, an input refuses the press tier), and the
+  pre-M11 bug that typed an `a` on Ctrl+A is deleted
+- **M11 — the harness and the corpus**: `TestHarness::selection(role,
+  name)` reads the range exactly as the AT sees it (normalized UTF-16
+  offsets from the a11y snapshot); the corpus grows 48 → 49 by the
+  coordinated rule — the new `a11y_action/route_100_setvalue_1k` criterion
+  bench (100 payload-carrying `SetValue` actions routed through pass 10 on
+  a 1,000-node arena, worst-case target) is published with a same-host
+  regression gate, and the M5/M6/M7/M8/M9/M10 pin suites move together with
+  the new M11 exit suite
 - **M10 — the a11y action tier joins the dispatch contract (ADR-0016)**:
   the platform maps every AccessKit `ActionRequest` faithfully instead of
   forcing it to `DefaultPress` — `Click`, `Increment`, `Decrement`, and

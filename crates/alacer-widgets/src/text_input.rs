@@ -18,7 +18,7 @@ use alacer_core::passes::ImePurpose;
 use alacer_core::scene::PaintCtx;
 use alacer_core::style::{MeasureSpec, Style};
 use alacer_core::utf16;
-use alacer_core::widget::{EventResponse, LabelSource, Role, Widget};
+use alacer_core::widget::{A11yAction, EventResponse, LabelSource, Role, TextSelection, Widget};
 
 /// The value-change callback of [`TextInput`].
 type ChangeHandler = Box<dyn FnMut(&str)>;
@@ -36,6 +36,11 @@ pub struct TextInput {
     text: String,
     /// The caret as a UTF-16 offset into `text` (the contract's unit).
     caret_utf16: usize,
+    /// The selection anchor as a UTF-16 offset (M11, ADR-0017): where the
+    /// selection started and does not move while the caret extends it.
+    /// Equal to `caret_utf16` whenever the selection is degenerate — the
+    /// bare caret every edit and collapse keeps the invariant on.
+    anchor_utf16: usize,
     /// The composing preedit: `(text, cursor within preedit in UTF-16 units)`.
     /// `Some` while an IME composition is in progress.
     preedit: Option<(String, Option<usize>)>,
@@ -57,6 +62,7 @@ impl TextInput {
             name: name.into(),
             text: String::new(),
             caret_utf16: 0,
+            anchor_utf16: 0,
             preedit: None,
             focused: false,
             placeholder: String::new(),
@@ -118,10 +124,12 @@ impl TextInput {
     }
 
     /// Replaces the whole value and puts the caret at the end (§6.1
-    /// reconciliation; fires `on_changed`).
+    /// reconciliation; fires `on_changed`). The selection collapses with
+    /// the caret — a new value has no remembered range.
     pub fn set_value(&mut self, value: impl Into<String>) {
         self.text = value.into();
         self.caret_utf16 = utf16::len_utf16(&self.text);
+        self.anchor_utf16 = self.caret_utf16;
         self.notify_changed();
     }
 
@@ -154,16 +162,24 @@ impl TextInput {
     }
 
     /// Inserts `insertion` at the caret (UTF-16 units of it — commits may
-    /// carry any text, including surrogate pairs).
+    /// carry any text, including surrogate pairs). An active selection is
+    /// consumed first (M11): the insertion replaces it, like every editor.
     fn insert(&mut self, insertion: &str) {
+        self.delete_selection();
         let at = utf16::byte_offset(&self.text, self.caret_utf16);
         self.text.insert_str(at, insertion);
         self.caret_utf16 += utf16::len_utf16(insertion);
+        self.anchor_utf16 = self.caret_utf16;
         self.notify_changed();
     }
 
-    /// Deletes `count` scalar values before the caret (backspace).
+    /// Deletes the text before the caret (backspace). An active selection
+    /// is consumed whole (M11): the range goes, not one scalar value.
     fn backspace(&mut self) {
+        if self.delete_selection() {
+            self.notify_changed();
+            return;
+        }
         if self.caret_utf16 == 0 {
             return;
         }
@@ -171,11 +187,17 @@ impl TextInput {
         let before = utf16::byte_offset(&self.text, self.caret_utf16 - 1);
         self.text.replace_range(before..at, "");
         self.caret_utf16 = utf16::floor_boundary(&self.text, self.caret_utf16 - 1);
+        self.anchor_utf16 = self.caret_utf16;
         self.notify_changed();
     }
 
-    /// Deletes the scalar value after the caret (forward delete).
+    /// Deletes the scalar value after the caret (forward delete). An active
+    /// selection is consumed whole (M11), like under backspace.
     fn delete(&mut self) {
+        if self.delete_selection() {
+            self.notify_changed();
+            return;
+        }
         let at = utf16::byte_offset(&self.text, self.caret_utf16);
         if at >= self.text.len() {
             return;
@@ -188,16 +210,73 @@ impl TextInput {
         self.notify_changed();
     }
 
-    /// Moves the caret one scalar value left (never into a surrogate pair).
-    fn move_left(&mut self) {
+    /// Whether a non-degenerate selection is active.
+    fn has_selection(&self) -> bool {
+        self.anchor_utf16 != self.caret_utf16
+    }
+
+    /// The selection's edges in ascending order: `(start, end)`.
+    fn selection_range(&self) -> (usize, usize) {
+        (
+            self.anchor_utf16.min(self.caret_utf16),
+            self.anchor_utf16.max(self.caret_utf16),
+        )
+    }
+
+    /// Removes the active selection and collapses at its start. Returns
+    /// whether a range was removed — the edit paths' one decision point
+    /// between "replace the range" and "act at the caret".
+    fn delete_selection(&mut self) -> bool {
+        if !self.has_selection() {
+            return false;
+        }
+        let (min, max) = self.selection_range();
+        let from = utf16::byte_offset(&self.text, min);
+        let to = utf16::byte_offset(&self.text, max);
+        self.text.replace_range(from..to, "");
+        self.caret_utf16 = min;
+        self.anchor_utf16 = min;
+        true
+    }
+
+    /// Collapses both ends of the selection at `at` — the invariant that a
+    /// caret move without Shift forgets the range.
+    fn collapse_at(&mut self, at: usize) {
+        self.caret_utf16 = at;
+        self.anchor_utf16 = at;
+    }
+
+    /// Selects the whole value (Ctrl+A; the AT's select-all chord).
+    fn select_all(&mut self) {
+        self.anchor_utf16 = 0;
+        self.caret_utf16 = utf16::len_utf16(&self.text);
+    }
+
+    /// Moves the caret one scalar value left, keeping the anchor (a
+    /// Shift+Left extension; never into a surrogate pair).
+    fn extend_left(&mut self) {
         if self.caret_utf16 == 0 {
             return;
         }
         self.caret_utf16 = utf16::floor_boundary(&self.text, self.caret_utf16 - 1);
     }
 
-    /// Moves the caret one scalar value right (never into a surrogate pair).
-    fn move_right(&mut self) {
+    /// Moves the caret one scalar value left without Shift. A first press
+    /// over a live selection collapses to its start (GTK semantics) and
+    /// does not move; only a second press steps.
+    fn caret_left(&mut self) {
+        if self.has_selection() {
+            let (min, _) = self.selection_range();
+            self.collapse_at(min);
+            return;
+        }
+        self.extend_left();
+        self.anchor_utf16 = self.caret_utf16;
+    }
+
+    /// Moves the caret one scalar value right, keeping the anchor (a
+    /// Shift+Right extension; never into a surrogate pair).
+    fn extend_right(&mut self) {
         let len = utf16::len_utf16(&self.text);
         if self.caret_utf16 >= len {
             return;
@@ -207,6 +286,18 @@ impl TextInput {
             next += 1;
         }
         self.caret_utf16 = next;
+    }
+
+    /// Moves the caret one scalar value right without Shift — the mirror
+    /// of [`Self::caret_left`]: collapse to the selection's end first.
+    fn caret_right(&mut self) {
+        if self.has_selection() {
+            let (_, max) = self.selection_range();
+            self.collapse_at(max);
+            return;
+        }
+        self.extend_right();
+        self.anchor_utf16 = self.caret_utf16;
     }
 
     /// The painted run: committed text with the preedit spliced in at the
@@ -245,6 +336,19 @@ impl Widget for TextInput {
         Some(self.text.clone())
     }
 
+    /// The M11 a11y contract (ADR-0017): the focused input exposes its
+    /// selection — anchor and caret, UTF-16 units — and nothing while a
+    /// composition is in flight (the IME owns the canvas; a stale range
+    /// would lie to the AT). Losing focus drops the report with it: the
+    /// selection is focus's editing half.
+    fn selection(&self) -> Option<TextSelection> {
+        if self.focused && self.preedit.is_none() {
+            Some(TextSelection::new(self.anchor_utf16, self.caret_utf16))
+        } else {
+            None
+        }
+    }
+
     fn style(&self) -> Style {
         Style {
             padding: 8.0,
@@ -262,6 +366,31 @@ impl Widget for TextInput {
             // Losing focus cancels any in-flight composition (the platform
             // detaches the IME; a stale preedit would be a ghost).
             self.preedit = None;
+        }
+    }
+
+    fn on_a11y_action(&mut self, action: A11yAction) -> bool {
+        // The value tier (M11, ADR-0017): a faithful AT mapping, same masks
+        // as a key edit. `DefaultPress` and the scroll/step tier are not an
+        // input's contract — refused, never munged into an edit.
+        match action {
+            A11yAction::SetValue(value) => {
+                self.set_value(value);
+                true
+            }
+            A11yAction::ReplaceSelectedText(value) => {
+                self.insert(&value);
+                true
+            }
+            A11yAction::SetTextSelection(selection) => {
+                // Forgiving read side: offsets floor to scalar boundaries
+                // and clamp to the value's end, exactly like the IME's.
+                let len = utf16::len_utf16(&self.text);
+                self.anchor_utf16 = utf16::floor_boundary(&self.text, selection.anchor.min(len));
+                self.caret_utf16 = utf16::floor_boundary(&self.text, selection.focus.min(len));
+                true
+            }
+            _ => false,
         }
     }
 
@@ -295,6 +424,32 @@ impl Widget for TextInput {
             } else {
                 crate::theme::TEXT
             };
+
+            // The selection highlight (M11, ADR-0017): one quad behind the
+            // selected committed range, from the prefix widths the seam
+            // already measures for the caret. Only while focused and not
+            // composing — the IME owns the canvas during composition, and
+            // its preedit splices committed-text offsets anyway.
+            if self.focused && self.preedit.is_none() && self.has_selection() {
+                let (min, max) = self.selection_range();
+                let from = utf16::byte_offset(&self.text, min);
+                let to = utf16::byte_offset(&self.text, max);
+                let left = seam
+                    .layout_glyphs(&self.text[..from], self.font_size, None)
+                    .width;
+                let right = seam
+                    .layout_glyphs(&self.text[..to], self.font_size, None)
+                    .width;
+                let top = (height - self.font_size) * 0.5;
+                ctx.push_quad(alacer_core::scene::Quad::filled(
+                    alacer_core::geom::Rect::new(
+                        Point::new(2.0 + left, top),
+                        alacer_core::geom::Size::new(right - left, self.font_size),
+                    ),
+                    crate::theme::SELECTION,
+                ));
+            }
+
             // The visible text: committed prefix + composing preedit +
             // committed suffix (the preedit composes *inline* at the caret).
             let visible = format!("{}{}{}", before, preedit.clone().unwrap_or_default(), after);
@@ -367,7 +522,12 @@ impl Widget for TextInput {
     fn on_pointer_event(&mut self, ctx: &mut EventCtx, event: &PointerEvent) -> EventResponse {
         // Clicking the field requests focus (the pipeline resolves it in
         // pass 3; the ring repaints via the FOCUS/PAINT masks it merges).
+        // A press also collapses any selection (M11): a fresh click is a
+        // caret gesture, and without the hit-test seam (bounds-aware
+        // offset mapping, the ADR's recorded follow-up) the honest
+        // collapse point is the caret itself — never a stale range.
         if matches!(event, PointerEvent::Down { .. }) {
+            self.anchor_utf16 = self.caret_utf16;
             ctx.request(alacer_core::Change::FOCUS);
             return EventResponse::Handled;
         }
@@ -380,17 +540,62 @@ impl Widget for TextInput {
         if event.state != alacer_core::events::KeyState::Pressed || self.preedit.is_some() {
             return EventResponse::Ignored;
         }
+        let shift = event.modifiers.shift;
+        let command = event.modifiers.control || event.modifiers.meta;
         let mut changed = true;
         match &event.key {
             alacer_core::events::Key::Char(ch) => {
-                self.insert(&ch.to_string());
+                if command {
+                    // Command chords are edits, not text: Ctrl/Cmd+A selects
+                    // the whole value; anything else is ignored — the
+                    // pre-M11 path *inserted* the character, which turned
+                    // Ctrl+A into typing an 'a' (the bug this arm deletes).
+                    if matches!(ch, 'a' | 'A') {
+                        self.select_all();
+                    } else {
+                        changed = false;
+                    }
+                } else {
+                    self.insert(&ch.to_string());
+                }
             }
             alacer_core::events::Key::Backspace => self.backspace(),
             alacer_core::events::Key::Delete => self.delete(),
-            alacer_core::events::Key::ArrowLeft => self.move_left(),
-            alacer_core::events::Key::ArrowRight => self.move_right(),
-            alacer_core::events::Key::Home => self.caret_utf16 = 0,
-            alacer_core::events::Key::End => self.caret_utf16 = utf16::len_utf16(&self.text),
+            // Arrows and Home/End: Shift extends from the anchor (M11), a
+            // plain press over a live selection collapses to its near edge
+            // first (GTK semantics), and only a second press steps.
+            alacer_core::events::Key::ArrowLeft => {
+                if shift {
+                    self.extend_left();
+                } else {
+                    self.caret_left();
+                }
+            }
+            alacer_core::events::Key::ArrowRight => {
+                if shift {
+                    self.extend_right();
+                } else {
+                    self.caret_right();
+                }
+            }
+            alacer_core::events::Key::ArrowUp | alacer_core::events::Key::ArrowDown => {
+                changed = false;
+            }
+            alacer_core::events::Key::Home => {
+                if shift {
+                    self.caret_utf16 = 0;
+                } else {
+                    self.collapse_at(0);
+                }
+            }
+            alacer_core::events::Key::End => {
+                let len = utf16::len_utf16(&self.text);
+                if shift {
+                    self.caret_utf16 = len;
+                } else {
+                    self.collapse_at(len);
+                }
+            }
             alacer_core::events::Key::Enter => {
                 // The submit seam (M6): fire with the current value, then
                 // clear. The widget mutates only itself (rule 1); the
@@ -425,13 +630,16 @@ impl Widget for TextInput {
         match event {
             // Composition in progress: show the marked text inline. An empty
             // preedit cancels the composition (winit's synthetic clear).
+            // A11Y rides the request (M11): the field's composing state is
+            // part of its accessible state — the selection report drops
+            // while the IME owns the canvas, and re-arms after commit.
             ImeEvent::Preedit { text, cursor_utf16 } => {
                 if text.is_empty() {
                     self.preedit = None;
                 } else {
                     self.preedit = Some((text.clone(), *cursor_utf16));
                 }
-                ctx.request(alacer_core::Change::PAINT);
+                ctx.request(alacer_core::Change::PAINT.union(alacer_core::Change::A11Y));
                 EventResponse::Handled
             }
             // Final text: insert at the caret, clear the preedit. Commits may

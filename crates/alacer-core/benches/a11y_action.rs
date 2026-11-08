@@ -122,6 +122,19 @@ fn action(i: usize) -> A11yAction {
     }
 }
 
+/// The value tier's payloads (M11, ADR-0017): 100 distinct `SetValue`
+/// actions, built once and cloned per routed action — the clone *is* the
+/// adapter's real mapping cost, because a `SetValue` `ActionRequest`
+/// carries its payload and `map_action_request` allocates the core action
+/// from it. Routing then walks to the worst-case target and the leaf
+/// refuses: the measured cost is the route plus the faithful payload
+/// transport, never an a11y re-materialization.
+fn set_value_actions() -> Vec<A11yAction> {
+    (0..ACTIONS)
+        .map(|i| A11yAction::SetValue(format!("value-{i}")))
+        .collect()
+}
+
 fn bench_a11y_action_route(c: &mut Criterion) {
     let mut group = c.benchmark_group("a11y_action");
     group.throughput(Throughput::Elements(
@@ -154,6 +167,40 @@ fn bench_a11y_action_route(c: &mut Criterion) {
             let mut consumed = 0;
             for i in 0..ACTIONS {
                 if pipeline.dispatch_a11y_action(target, black_box(action(i))) {
+                    consumed += 1;
+                }
+            }
+            black_box(consumed);
+        });
+    });
+
+    group.bench_function("route_100_setvalue_1k", |b| {
+        let mut pipeline = PassPipeline::new(
+            Flux::new(),
+            Box::new(StackLayout),
+            Box::new(NullJournal),
+            Box::new(NullA11y),
+        );
+        let root = pipeline.mount_root(Box::new(FixedBox {
+            size: Size::new(800.0, 0.0),
+        }));
+        let mut last_child = root;
+        for _ in 0..1000 {
+            last_child = pipeline.add_child(
+                root,
+                Box::new(FixedBox {
+                    size: Size::new(20.0, 0.4),
+                }),
+            );
+        }
+        pipeline.tick(VIEWPORT).expect("bench layout");
+        let target = deepest_target(root, last_child);
+        let actions = set_value_actions();
+
+        b.iter(|| {
+            let mut consumed = 0;
+            for action in &actions {
+                if pipeline.dispatch_a11y_action(target, black_box(action.clone())) {
                     consumed += 1;
                 }
             }

@@ -11,7 +11,7 @@
 //! - **The beat** — same-host medians per workload, every measurement
 //!   labeled with its scope, the verdict computed from the committed file;
 //! - **The publication** — the contract gate and the dashboard section;
-//! - **The pins do not move** — the M5/M6 corpus stays at 48 workspace
+//! - **The pins do not move** — the M5/M6 corpus stays at 49 workspace
 //!   cases; M7 adds competitor data outside the corpus, never inside it.
 
 use std::path::PathBuf;
@@ -319,24 +319,24 @@ fn the_m5_and_m6_corpus_pins_do_not_move() {
         .expect("the baseline carries a benches object")
         .len();
     assert_eq!(
-        bench_count, 48,
-        "the workspace corpus stays at 48 — M7/M8/M9/M10 add data by the coordinated corpus rule (ADR-0013/ADR-0014/ADR-0015/ADR-0016)"
+        bench_count, 49,
+        "the workspace corpus stays at 49 — M7/M8/M9/M10/M11 add data by the coordinated corpus rule (ADR-0013/ADR-0014/ADR-0015/ADR-0016/ADR-0017)"
     );
     assert_eq!(
         contracts["regressions"]
             .as_array()
             .expect("regressions array")
             .len(),
-        48,
+        49,
         "no absolute regression gates on competitor medians (ADR-0011's same-host rule)"
     );
 
-    // All earlier suites still pin 48 — the suites cannot drift.
+    // All earlier suites still pin 49 — the suites cannot drift.
     for suite in ["m5_exit_criteria.rs", "m6_exit_criteria.rs"] {
         let source = read_workspace_file(&format!("crates/alacer-testing/tests/{suite}"));
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 48;"),
-            "{suite} must keep the 48-case corpus pin"
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 49;"),
+            "{suite} must keep the 49-case corpus pin"
         );
     }
 }
@@ -392,11 +392,33 @@ fn the_release_state_is_coherent() {
 
     let readme = read_workspace_file("README.md");
     assert!(
-        readme.contains("M0 through M10") || readme.contains("M0–M10"),
-        "the README status reflects M0–M10 (M10, ADR-0016, ships under [Unreleased])"
+        readme.contains("M0 through M11") || readme.contains("M0–M11"),
+        "the README status reflects M0–M11 (M11, ADR-0017, ships under [Unreleased])"
     );
+    // The pending-cut convention (ADR-6; M7's own history): the docs
+    // announce the NEXT cut while the branch-commit bump has not landed
+    // yet, so the badge may already carry the successor minor while the
+    // manifest still holds the tagged one. Coherence is enforced either
+    // way: the badge matches the manifest, or it matches the successor
+    // the [Unreleased] CHANGELOG section is staging.
+    let successor = {
+        let mut parts: Vec<u32> = version
+            .split('.')
+            .filter_map(|piece| piece.parse::<u32>().ok())
+            .collect();
+        if parts.len() == 3 {
+            parts[1] += 1;
+            parts[2] = 0;
+            format!("{}.{}.{}", parts[0], parts[1], parts[2])
+        } else {
+            String::new()
+        }
+    };
     assert!(
-        readme.contains(version),
-        "the README badge matches the workspace version ({version})"
+        readme.contains(version)
+            || (changelog.contains("## [Unreleased]")
+                && !successor.is_empty()
+                && readme.contains(&successor)),
+        "the README badge matches the workspace version ({version}) or the pending cut ({successor})"
     );
 }

@@ -148,14 +148,58 @@ pub enum ScrollUnit {
     Page,
 }
 
+/// A range of text, expressed in the contract's unit — **UTF-16 code
+/// units** into the widget's value (§10.3; the same unit as the caret).
+///
+/// `anchor` is where the selection started and does not move as the
+/// selection grows; `focus` is the active end (the caret while extending).
+/// `anchor == focus` is the degenerate selection — a bare caret. Every
+/// conversion to Rust's UTF-8 strings funnels through
+/// [`crate::utf16`], so surrogate pairs never slice.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TextSelection {
+    /// Where the selection began, as a UTF-16 offset into the value.
+    pub anchor: usize,
+    /// The active end (the caret while extending), as a UTF-16 offset.
+    pub focus: usize,
+}
+
+impl TextSelection {
+    /// A selection from `anchor` to `focus` (both UTF-16 offsets).
+    #[must_use]
+    pub const fn new(anchor: usize, focus: usize) -> Self {
+        Self { anchor, focus }
+    }
+
+    /// The selection's edges in ascending order: `(start, end)`.
+    #[must_use]
+    pub const fn normalized(&self) -> (usize, usize) {
+        if self.anchor <= self.focus {
+            (self.anchor, self.focus)
+        } else {
+            (self.focus, self.anchor)
+        }
+    }
+
+    /// Whether this is the degenerate selection — a bare caret.
+    #[must_use]
+    pub const fn is_degenerate(&self) -> bool {
+        self.anchor == self.focus
+    }
+}
+
 /// An accessibility action requested by an assistive technology.
 ///
 /// The vocabulary is the routing contract (ADR-0016): the platform maps each
 /// AccessKit action onto exactly one variant — an action a widget does not
 /// implement is *refused* by that widget, never munged into a different
 /// action. Growing the enum is how the AT tier widens; every variant gains
-/// a consuming widget in the same milestone.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// a consuming widget in the same milestone. M11 (ADR-0017) adds the value
+/// tier: `SetValue`, `ReplaceSelectedText`, and `SetTextSelection` carry
+/// their payload, so the enum is `Clone` but no longer `Copy` — the price
+/// of a faithful mapping, and the reason refusal (no allocation, no move)
+/// stays observable.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum A11yAction {
     /// The default action — "press" for buttons, "toggle" for checkboxes.
     DefaultPress,
@@ -167,6 +211,16 @@ pub enum A11yAction {
     ScrollUp(ScrollUnit),
     /// Scroll down by `unit` (the AT's scroll command on a scroll area).
     ScrollDown(ScrollUnit),
+    /// Replace the widget's whole value and reset the selection (M11,
+    /// ADR-0017) — the AccessKit `SetValue` mapping, faithful to the AT's
+    /// request.
+    SetValue(String),
+    /// Delete any selected text and insert `value` in its place (M11,
+    /// ADR-0017) — the AT typing on the user's behalf, like a paste.
+    ReplaceSelectedText(String),
+    /// Move the selection directly to `anchor`/`focus` (M11, ADR-0017) —
+    /// the AT repositioning the caret or the range, UTF-16 units.
+    SetTextSelection(TextSelection),
 }
 
 /// A toggle control's checked state, carried neutrally to the a11y sink
@@ -331,6 +385,16 @@ pub trait Widget: 'static {
     /// headers, and its cells report their geometry so the AccessKit update
     /// carries navigable grid attributes. Non-table roles return `None`.
     fn table_slot(&self) -> Option<TableSlot> {
+        None
+    }
+
+    /// The widget's text selection for the a11y tree (M11, ADR-0017):
+    /// editable widgets report the focused selection — anchor and caret, in
+    /// UTF-16 units — so a screen reader reads the range, not just the
+    /// value. `None` when the widget exposes none (not focused, composing,
+    /// or a valueless role); a focused caret reports as the degenerate
+    /// selection.
+    fn selection(&self) -> Option<TextSelection> {
         None
     }
 

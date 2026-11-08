@@ -28,13 +28,16 @@ categories = ["gui", "development-tools"]
 readme = "README.md"
 
 # ADR-9 (workspace & discipline): `missing_docs` + `unsafe_code` deny, Iced precedent.
-# Clippy pedantic is denied outright — there is no allow-list anywhere in this workspace.
+# Clippy pedantic fires on every member (each crate opts in via
+# `[lints] workspace = true`) and the CI `-D warnings` denies it — there is
+# no allow-list anywhere in this workspace; the only suppressions are
+# reasoned `#[expect]`s at the documented cast seams.
 [workspace.lints.rust]
 missing_docs = "deny"
 unsafe_code = "forbid"
 
 [workspace.lints.clippy]
-pedantic = { level = "deny", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
 
 [workspace.dependencies]
 # Internal crates — layering is a DAG, enforced by `scripts/check_dag.py` in CI (ADR-9).

@@ -26,6 +26,10 @@ type ChangeHandler = Box<dyn FnMut(&str)>;
 /// The submit callback of [`TextInput`] (M6: the todo canon's Enter seam).
 type SubmitHandler = Box<dyn FnMut(&str)>;
 
+/// The glyph inset: the run starts 2 px inside the frame. Paint and the
+/// hit-test share the constant so a click maps onto what is drawn (M12).
+const TEXT_INSET: f32 = 2.0;
+
 /// A single-line editable text input (role `TextInput`, name mandatory —
 /// ADR-5; the accessible name is the constructor's, the *value* is the
 /// content).
@@ -41,6 +45,11 @@ pub struct TextInput {
     /// Equal to `caret_utf16` whenever the selection is degenerate — the
     /// bare caret every edit and collapse keeps the invariant on.
     anchor_utf16: usize,
+    /// Whether the pointer is pressed inside the field (M12, ADR-0018):
+    /// the drag-select arm. `true` from a press until the release (or a
+    /// focus loss — the drag ends when the field loses the pointer's
+    /// gesture owner); moves extend the selection only while it holds.
+    pressing: bool,
     /// The composing preedit: `(text, cursor within preedit in UTF-16 units)`.
     /// `Some` while an IME composition is in progress.
     preedit: Option<(String, Option<usize>)>,
@@ -63,6 +72,7 @@ impl TextInput {
             text: String::new(),
             caret_utf16: 0,
             anchor_utf16: 0,
+            pressing: false,
             preedit: None,
             focused: false,
             placeholder: String::new(),
@@ -315,6 +325,21 @@ impl TextInput {
             None => (self.text.clone(), None, String::new()),
         }
     }
+
+    /// Maps a pointer x (window coordinates) to a UTF-16 offset of the
+    /// committed text: the resolved frame the router carried in converts
+    /// it to field-local, the glyph inset moves it into the run's space,
+    /// and the text seam's hit-test does the bounds-aware offset mapping
+    /// (M12, ADR-0018). During a composition the committed text is what
+    /// offsets map to — the preedit is overlay spliced at the caret, not
+    /// a click target (the caret's placement decides where it re-splices).
+    fn caret_offset_at(&self, ctx: &EventCtx, window_x: f32) -> usize {
+        let local_x = ctx
+            .bounds()
+            .map_or(window_x, |frame| window_x - frame.origin.x);
+        let run_x = local_x - TEXT_INSET;
+        alacer_core::text_seam::with_seam(|seam| seam.hit_test(&self.text, self.font_size, run_x))
+    }
 }
 
 impl Widget for TextInput {
@@ -364,8 +389,12 @@ impl Widget for TextInput {
         self.focused = focused;
         if !focused {
             // Losing focus cancels any in-flight composition (the platform
-            // detaches the IME; a stale preedit would be a ghost).
+            // detaches the IME; a stale preedit would be a ghost) and ends
+            // any drag in flight — the pointer's gesture owner is the
+            // focused field, and a selection extended past a blur would
+            // keep moving under someone else's pointer.
             self.preedit = None;
+            self.pressing = false;
         }
     }
 
@@ -443,7 +472,7 @@ impl Widget for TextInput {
                 let top = (height - self.font_size) * 0.5;
                 ctx.push_quad(alacer_core::scene::Quad::filled(
                     alacer_core::geom::Rect::new(
-                        Point::new(2.0 + left, top),
+                        Point::new(TEXT_INSET + left, top),
                         alacer_core::geom::Size::new(right - left, self.font_size),
                     ),
                     crate::theme::SELECTION,
@@ -463,7 +492,7 @@ impl Widget for TextInput {
                 let layout = seam.layout_glyphs(&source_text, self.font_size, Some(width - 4.0));
                 for glyph in &layout.glyphs {
                     ctx.push_glyph(alacer_core::scene::Glyph {
-                        position: Point::new(2.0 + glyph.x, glyph.y),
+                        position: Point::new(TEXT_INSET + glyph.x, glyph.y),
                         size: glyph.size,
                         color: text_color,
                         font_id: glyph.font_id,
@@ -477,7 +506,7 @@ impl Widget for TextInput {
             // while focused (§10.3: the caret is focus's visible half).
             if self.focused {
                 let caret_x = if empty {
-                    2.0
+                    TEXT_INSET
                 } else {
                     let prefix = format!(
                         "{before}{}",
@@ -494,7 +523,7 @@ impl Widget for TextInput {
                 let caret_top = (height - self.font_size) * 0.5;
                 ctx.push_quad(alacer_core::scene::Quad::filled(
                     alacer_core::geom::Rect::new(
-                        Point::new(2.0 + caret_x, caret_top),
+                        Point::new(TEXT_INSET + caret_x, caret_top),
                         alacer_core::geom::Size::new(2.0, self.font_size),
                     ),
                     crate::theme::ACCENT,
@@ -507,7 +536,8 @@ impl Widget for TextInput {
                     ctx.push_quad(alacer_core::scene::Quad::filled(
                         alacer_core::geom::Rect::new(
                             Point::new(
-                                2.0 + seam.layout_glyphs(&before, self.font_size, None).width,
+                                TEXT_INSET
+                                    + seam.layout_glyphs(&before, self.font_size, None).width,
                                 caret_top + self.font_size + 1.0,
                             ),
                             alacer_core::geom::Size::new(preedit_width, 1.5),
@@ -520,18 +550,52 @@ impl Widget for TextInput {
     }
 
     fn on_pointer_event(&mut self, ctx: &mut EventCtx, event: &PointerEvent) -> EventResponse {
-        // Clicking the field requests focus (the pipeline resolves it in
-        // pass 3; the ring repaints via the FOCUS/PAINT masks it merges).
-        // A press also collapses any selection (M11): a fresh click is a
-        // caret gesture, and without the hit-test seam (bounds-aware
-        // offset mapping, the ADR's recorded follow-up) the honest
-        // collapse point is the caret itself — never a stale range.
-        if matches!(event, PointerEvent::Down { .. }) {
-            self.anchor_utf16 = self.caret_utf16;
-            ctx.request(alacer_core::Change::FOCUS);
-            return EventResponse::Handled;
+        match event {
+            PointerEvent::Down { position, .. } => {
+                // The M12 contract (ADR-0018): the caret answers the
+                // pointer. The click's window x maps through the text
+                // seam's hit-test into a UTF-16 offset of the committed
+                // text — the same prefix widths the caret and the highlight
+                // already measure, inverted — and the fresh click is a
+                // caret gesture: anchor and caret collapse onto the hit
+                // point (the pre-M12 honest fallback is deleted; the
+                // recorded hit-test seam is now real). The focus request
+                // is the click-to-focus seam (§10.3), unchanged.
+                let offset = self.caret_offset_at(ctx, position.x);
+                self.caret_utf16 = offset;
+                self.anchor_utf16 = offset;
+                self.pressing = true;
+                ctx.request(
+                    alacer_core::Change::PAINT
+                        .union(alacer_core::Change::A11Y)
+                        .union(alacer_core::Change::FOCUS),
+                );
+                EventResponse::Handled
+            }
+            PointerEvent::Move { position } => {
+                // A drag (press held) extends the selection from the
+                // anchor — the M11 anchor state is the pointer's drag
+                // anchor too. An unpressed move is hover, never selection.
+                // The routed Move may land outside the field (the drag left
+                // the frame): the routing seam's contains-test is the
+                // delivery contract, so out-of-frame moves simply do not
+                // arrive — no state to guard here.
+                if !self.pressing {
+                    return EventResponse::Ignored;
+                }
+                self.caret_utf16 = self.caret_offset_at(ctx, position.x);
+                ctx.request(alacer_core::Change::PAINT.union(alacer_core::Change::A11Y));
+                EventResponse::Handled
+            }
+            PointerEvent::Up { .. } => {
+                // The release ends the gesture; the selection it built is
+                // a state, not a gesture, and survives until an edit or a
+                // fresh click consumes it.
+                self.pressing = false;
+                EventResponse::Handled
+            }
+            PointerEvent::Leave | PointerEvent::Wheel { .. } => EventResponse::Ignored,
         }
-        EventResponse::Ignored
     }
 
     fn on_key_event(&mut self, ctx: &mut EventCtx, event: &KeyEvent) -> EventResponse {
@@ -659,7 +723,10 @@ impl Widget for TextInput {
 #[cfg(test)]
 mod tests {
     use super::TextInput;
-    use alacer_core::events::{EventCtx, ImeEvent, Key, KeyEvent, KeyState, Modifiers};
+    use alacer_core::events::{
+        EventCtx, ImeEvent, Key, KeyEvent, KeyState, Modifiers, PointerEvent,
+    };
+    use alacer_core::geom::Point;
     use alacer_core::passes::ImePurpose;
     use alacer_core::utf16;
     use alacer_core::widget::{EventResponse, Role, Widget};
@@ -912,5 +979,172 @@ mod tests {
         input.set_value("にほんご");
         assert_eq!(input.value(), "にほんご");
         assert_eq!(input.caret_utf16(), 4);
+    }
+
+    /// A deterministic seam: 10 px per character, no glyphs — the exact
+    /// prefix widths the hit-test inverts, so caret assertions are exact.
+    struct FixedWidthStub;
+
+    impl alacer_core::text_seam::TextSeam for FixedWidthStub {
+        fn measure(
+            &self,
+            _spec: &alacer_core::style::TextSpec,
+            _max_width: Option<f32>,
+        ) -> alacer_core::geom::Size {
+            alacer_core::geom::Size::new(10.0, 10.0)
+        }
+
+        fn layout_glyphs(
+            &self,
+            text: &str,
+            _font_size: f32,
+            _max_width: Option<f32>,
+        ) -> alacer_core::text_seam::GlyphRun {
+            alacer_core::text_seam::GlyphRun {
+                width: f32::from(u16::try_from(text.chars().count()).unwrap_or(u16::MAX)) * 10.0,
+                height: 10.0,
+                glyphs: Vec::new(),
+            }
+        }
+    }
+
+    /// The resolved frame every routed pointer event carries (M12's core
+    /// growth): the field sits at window (100, 50), 40 px wide.
+    fn field_frame() -> alacer_core::geom::Rect {
+        alacer_core::geom::Rect::new(
+            Point::new(100.0, 50.0),
+            alacer_core::geom::Size::new(40.0, 24.0),
+        )
+    }
+
+    fn down(x: f32) -> PointerEvent {
+        PointerEvent::Down {
+            position: Point::new(x, 62.0),
+            button: alacer_core::events::MouseButton::Left,
+        }
+    }
+
+    fn mv(x: f32) -> PointerEvent {
+        PointerEvent::Move {
+            position: Point::new(x, 62.0),
+        }
+    }
+
+    fn up(x: f32) -> PointerEvent {
+        PointerEvent::Up {
+            position: Point::new(x, 62.0),
+            button: alacer_core::events::MouseButton::Left,
+        }
+    }
+
+    /// A focused input in a frame at window (100, 50), with the stub seam
+    /// installed on this test's thread.
+    fn stubbed_focused_input(content: &str) -> TextInput {
+        alacer_core::text_seam::install(std::rc::Rc::new(FixedWidthStub));
+        let mut input = TextInput::new("Search");
+        input.set_value(content);
+        input.set_focused(true);
+        input
+    }
+
+    #[test]
+    fn a_click_moves_the_caret_to_the_nearest_boundary() {
+        let mut input = stubbed_focused_input("abcd");
+        let mut ctx = EventCtx::with_phase_and_bounds(
+            alacer_core::events::EventPhase::Bubble,
+            Some(field_frame()),
+        );
+
+        // Window x = 125 → local 25 → run x 23: boundaries at 0/10/20/30/40,
+        // nearest is 2 (width 20) — the caret parks there, anchor collapses.
+        let response = input.on_pointer_event(&mut ctx, &down(125.0));
+        assert_eq!(response, EventResponse::Handled);
+        assert_eq!(input.caret_utf16(), 2, "the click hit maps to offset 2");
+        assert_eq!(
+            input.selection().map(|s| s.normalized()),
+            Some((2, 2)),
+            "a fresh click is a degenerate selection at the hit point"
+        );
+        let masks = ctx.take();
+        assert!(
+            masks.contains(alacer_core::Change::FOCUS),
+            "the click still asks for focus (click-to-focus), got {masks:?}"
+        );
+        assert!(
+            masks.contains(alacer_core::Change::PAINT) && masks.contains(alacer_core::Change::A11Y),
+            "the caret move repaints and re-announces, got {masks:?}"
+        );
+    }
+
+    #[test]
+    fn a_drag_extends_the_selection_from_the_anchor() {
+        let mut input = stubbed_focused_input("abcd");
+
+        let mut ctx = EventCtx::with_phase_and_bounds(
+            alacer_core::events::EventPhase::Bubble,
+            Some(field_frame()),
+        );
+        let _ = input.on_pointer_event(&mut ctx, &down(125.0));
+        assert_eq!(input.caret_utf16(), 2);
+
+        // Move while the press is held: the anchor stays at 2, the caret
+        // rides to the drag's hit — window 145 → local 45 → run 43 → end.
+        let _ = input.on_pointer_event(&mut ctx, &mv(145.0));
+        assert_eq!(
+            input.selection().map(|s| s.normalized()),
+            Some((2, 4)),
+            "the drag selects from the anchor to the drag's hit"
+        );
+        let masks = ctx.take();
+        assert!(
+            masks.contains(alacer_core::Change::PAINT) && masks.contains(alacer_core::Change::A11Y),
+            "the selection is paint and a11y vocabulary, got {masks:?}"
+        );
+
+        // The release ends the gesture but the range survives; a later
+        // unpressed move must not extend it.
+        let _ = input.on_pointer_event(&mut ctx, &up(145.0));
+        let _ = input.on_pointer_event(&mut ctx, &mv(105.0));
+        assert_eq!(
+            input.selection().map(|s| s.normalized()),
+            Some((2, 4)),
+            "the release froze the range; hover never extends it"
+        );
+    }
+
+    #[test]
+    fn a_leftward_drag_selects_backwards_with_the_anchor_at_the_press() {
+        let mut input = stubbed_focused_input("abcd");
+        let mut ctx = EventCtx::with_phase_and_bounds(
+            alacer_core::events::EventPhase::Bubble,
+            Some(field_frame()),
+        );
+        let _ = input.on_pointer_event(&mut ctx, &down(145.0));
+        let _ = input.on_pointer_event(&mut ctx, &mv(105.0));
+        let selection = input.selection().expect("focused and not composing");
+        assert_eq!(selection.anchor, 4, "the anchor is where the press landed");
+        assert_eq!(selection.focus, 0, "the caret is where the drag ended");
+        assert_eq!(selection.normalized(), (0, 4), "normalized ascending");
+    }
+
+    #[test]
+    fn an_empty_field_clicks_to_the_start() {
+        let mut input = stubbed_focused_input("");
+        let mut ctx = EventCtx::with_phase_and_bounds(
+            alacer_core::events::EventPhase::Bubble,
+            Some(field_frame()),
+        );
+        let _ = input.on_pointer_event(&mut ctx, &down(125.0));
+        assert_eq!(input.caret_utf16(), 0, "an empty value has one boundary");
+    }
+
+    #[test]
+    fn a_click_without_a_resolved_frame_treats_x_as_local() {
+        let mut input = stubbed_focused_input("abcd");
+        // Direct dispatch without routing (harness probes, replay): no
+        // frame arrived, so the x is already field-local — 23 → offset 2.
+        let mut ctx = EventCtx::new();
+        let _ = input.on_pointer_event(&mut ctx, &down(23.0));
+        assert_eq!(input.caret_utf16(), 2);
     }
 }

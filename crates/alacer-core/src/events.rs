@@ -121,6 +121,13 @@ pub enum PointerEvent {
         position: Point,
         /// The button that went down.
         button: MouseButton,
+        /// The platform's click count for this press (§10.3, ADR-0019):
+        /// 1 a single click, 2 the second press of a double-click, and so
+        /// on — the platform computes it from the press chain's time and
+        /// distance, widgets consume what the gesture was. Direct
+        /// synthesizers (harness, probes, replay) state the count
+        /// themselves; a single click is always 1.
+        click_count: u8,
     },
     /// A button was released.
     Up {
@@ -322,6 +329,7 @@ mod tests {
         let down = PointerEvent::Down {
             position: Point::new(1.0, 2.0),
             button: MouseButton::Left,
+            click_count: 1,
         };
         assert_eq!(down.position(), Some(Point::new(1.0, 2.0)));
 

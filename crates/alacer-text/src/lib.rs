@@ -251,7 +251,9 @@ impl alacer_core::text_seam::TextSeam for ThreadLocalTextSeam {
 
 #[cfg(test)]
 mod tests {
-    use super::{TextContext, ThreadLocalGlyphSource, ThreadLocalMeasurer, with_text};
+    use super::{
+        TextContext, ThreadLocalGlyphSource, ThreadLocalMeasurer, ThreadLocalTextSeam, with_text,
+    };
     use alacer_core::style::{MeasureFn, TextSpec};
 
     fn spec(text: &str) -> TextSpec {
@@ -328,6 +330,41 @@ mod tests {
             bitmap.coverage.len(),
             (bitmap.width * bitmap.height) as usize,
             "coverage is w×h"
+        );
+    }
+
+    #[test]
+    fn hit_test_round_trips_the_prefix_widths_it_inverts() {
+        use alacer_core::text_seam::TextSeam as _;
+        use alacer_core::utf16;
+
+        let seam = ThreadLocalTextSeam;
+        let text = "hello world";
+        let total = utf16::len_utf16(text);
+
+        // Clicking exactly on boundary i's prefix width must land on that
+        // boundary: the hit-test inverts the same measurements the caret
+        // paints from, so the mapping closes (ASCII — every boundary has a
+        // distinct advance).
+        for i in 0..=total {
+            let at = utf16::byte_offset(text, i);
+            let x = seam.layout_glyphs(&text[..at], 16.0, None).width;
+            assert_eq!(
+                seam.hit_test(text, 16.0, x),
+                i,
+                "the prefix width of boundary {i} maps back to {i}"
+            );
+        }
+
+        // The clamped edges: before the run is the start, past it the end.
+        assert_eq!(seam.hit_test(text, 16.0, -10.0), 0);
+        assert_eq!(
+            seam.hit_test(
+                text,
+                16.0,
+                with_text(|ctx| ctx.layout_text(text, 16.0, None).width) + 500.0
+            ),
+            total
         );
     }
 

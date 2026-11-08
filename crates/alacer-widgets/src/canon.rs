@@ -77,6 +77,7 @@ impl TodoHandles {
     }
 
     /// How many items are not done (the footer memo's value).
+    #[must_use]
     pub fn remaining(&self) -> usize {
         self.with_todos(|todos| todos.iter().filter(|item| !item.done).count())
     }

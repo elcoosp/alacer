@@ -51,6 +51,7 @@ impl Checkbox {
 
     /// Installs the toggle handler; invoked with the *new* state after every
     /// toggle (click, Space, a11y action).
+    #[must_use]
     pub fn on_toggle(mut self, handler: impl FnMut(bool) + 'static) -> Self {
         self.on_toggle = Some(Box::new(handler));
         self

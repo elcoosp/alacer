@@ -128,7 +128,7 @@ fn build() -> Workload {
 
 /// Marks one section's leaves (10% of the tree) style-churned and dirty.
 fn churn(workload: &mut Workload, section_idx: usize, frame: usize) -> FxHashMap<NodeId, Change> {
-    let grow = ((frame % 4) as f32) / 2.0;
+    let grow = alacer_core::num::usize_to_f32(frame % 4) / 2.0;
     let range = section_idx * LEAVES_PER_SECTION..(section_idx + 1) * LEAVES_PER_SECTION;
     let mut dirty = FxHashMap::default();
     for idx in range {
@@ -175,7 +175,7 @@ fn bench_w1(c: &mut Criterion) {
                 engine
                     .sync_and_layout(&mut workload.arena, workload.root, &dirty, VIEWPORT)
                     .expect("incremental frame");
-            })
+            });
         });
     }
 
@@ -188,7 +188,7 @@ fn bench_w1(c: &mut Criterion) {
             engine
                 .sync_and_layout(&mut workload.arena, workload.root, &dirty, VIEWPORT)
                 .expect("full relayout");
-        })
+        });
     });
 
     group.finish();

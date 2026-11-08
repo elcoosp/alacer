@@ -8,7 +8,7 @@ use crate::color::Color;
 use crate::geom::{Point, Rect, Size};
 
 /// A filled (optionally rounded, optionally bordered) rectangle.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Quad {
     /// Rectangle in local coordinates (origin added by the pass system).
     pub rect: Rect,
@@ -40,7 +40,7 @@ impl Quad {
 }
 
 /// One positioned glyph, resolved by the renderers through the font registry.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Glyph {
     /// Absolute position of the glyph's baseline origin.
     pub position: Point,

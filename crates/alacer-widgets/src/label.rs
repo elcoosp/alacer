@@ -85,7 +85,7 @@ impl Label {
     fn current_text(&self) -> String {
         match &self.text {
             LabelText::Fixed(text) => text.clone(),
-            LabelText::Binding(binding) => binding.with(|v| v.clone()),
+            LabelText::Binding(binding) => binding.with(Clone::clone),
         }
     }
 

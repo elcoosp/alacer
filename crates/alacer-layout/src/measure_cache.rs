@@ -72,22 +72,24 @@ impl LruMeasureCache {
     /// Looks `key` up, refreshing its recency.
     #[must_use]
     pub fn get(&mut self, key: &MeasureKey) -> Option<alacer_core::geom::Size> {
-        match self.entries.get_mut(key) {
-            Some((size, stamp)) => {
-                self.tick += 1;
-                *stamp = self.tick;
-                self.hits += 1;
-                Some(*size)
-            }
-            None => {
-                self.misses += 1;
-                None
-            }
+        if let Some((size, stamp)) = self.entries.get_mut(key) {
+            self.tick += 1;
+            *stamp = self.tick;
+            self.hits += 1;
+            Some(*size)
+        } else {
+            self.misses += 1;
+            None
         }
     }
 
     /// Inserts (or refreshes) `key`, evicting the least-recently-used entry
     /// when at capacity.
+    ///
+    /// # Panics
+    ///
+    /// Never for well-formed input: the `expect` guards the just-checked
+    /// non-emptiness of the map at capacity, not caller state.
     pub fn put(&mut self, key: MeasureKey, size: alacer_core::geom::Size) {
         self.tick += 1;
         if self.entries.len() >= self.capacity && !self.entries.contains_key(&key) {

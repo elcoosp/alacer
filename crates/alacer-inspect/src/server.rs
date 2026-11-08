@@ -81,7 +81,7 @@ impl InspectorServer {
             let recorder = self.recorder.clone();
             let app = self.app.clone();
             std::thread::spawn(move || {
-                let _ = serve_connection(stream, recorder, &app);
+                let _ = serve_connection(stream, &recorder, &app);
             });
         }
     }
@@ -93,12 +93,16 @@ impl InspectorServer {
     /// Propagates [`std::io::Error`] from the accept or the connection.
     pub fn serve_once(&self) -> std::io::Result<()> {
         let (stream, _peer) = self.listener.accept()?;
-        serve_connection(stream, self.recorder.clone(), &self.app)
+        serve_connection(stream, &self.recorder, &self.app)
     }
 }
 
 /// Serves one HTTP-or-WS connection to completion.
-fn serve_connection(stream: TcpStream, recorder: CausalRecorder, app: &str) -> std::io::Result<()> {
+fn serve_connection(
+    stream: TcpStream,
+    recorder: &CausalRecorder,
+    app: &str,
+) -> std::io::Result<()> {
     let mut reader = BufReader::new(stream.try_clone()?);
     let request = read_request_head(&mut reader)?;
     let websocket = request.upgrade_key.as_deref();
@@ -181,7 +185,7 @@ fn accept_websocket(stream: &mut TcpStream, key: &str) -> std::io::Result<()> {
 fn run_session(
     stream: &mut TcpStream,
     reader: &mut BufReader<TcpStream>,
-    recorder: CausalRecorder,
+    recorder: &CausalRecorder,
     app: &str,
 ) -> std::io::Result<()> {
     let hello = Hello {
@@ -305,10 +309,10 @@ fn send_frame(stream: &mut TcpStream, opcode: u8, payload: &[u8]) -> std::io::Re
     frame.push(0x80 | opcode);
     let length = payload.len();
     if length < 126 {
-        frame.push(length as u8);
-    } else if length <= u16::MAX as usize {
+        frame.push(alacer_core::num::usize_to_u8(length));
+    } else if u16::try_from(length).is_ok() {
         frame.push(126);
-        frame.extend_from_slice(&(length as u16).to_be_bytes());
+        frame.extend_from_slice(&alacer_core::num::usize_to_u16(length).to_be_bytes());
     } else {
         frame.push(127);
         frame.extend_from_slice(&(length as u64).to_be_bytes());
@@ -340,15 +344,16 @@ pub(crate) fn push_broadcast(queue: &mut std::collections::VecDeque<WireEvent>, 
 }
 
 /// Makes the recorder's broadcast conversion available to the recorder
-/// module without a public cross-module dependency cycle.
-pub(crate) fn wire_event_of(event: &alacer_core::inspect::InspectEvent) -> Option<WireEvent> {
+/// module without a public cross-module dependency cycle. Total: every
+/// `InspectEvent` kind has a wire shape.
+pub(crate) fn wire_event_of(event: &alacer_core::inspect::InspectEvent) -> WireEvent {
     match event {
-        alacer_core::inspect::InspectEvent::Edge(activation) => Some(wire::wire_edge(activation)),
-        alacer_core::inspect::InspectEvent::Write(write) => Some(wire::wire_write(write)),
-        alacer_core::inspect::InspectEvent::Input(input) => Some(WireEvent::Input {
+        alacer_core::inspect::InspectEvent::Edge(activation) => wire::wire_edge(activation),
+        alacer_core::inspect::InspectEvent::Write(write) => wire::wire_write(write),
+        alacer_core::inspect::InspectEvent::Input(input) => WireEvent::Input {
             input: wire::input_name(input.kind).to_string(),
-            target: input.target.map(|node| node.raw()),
-        }),
-        alacer_core::inspect::InspectEvent::Frame(summary) => Some(wire::wire_frame(summary)),
+            target: input.target.map(alacer_core::NodeId::raw),
+        },
+        alacer_core::inspect::InspectEvent::Frame(summary) => wire::wire_frame(summary),
     }
 }

@@ -97,8 +97,8 @@ pub fn partition(scene: &SceneSnapshot) -> SceneBatches {
     let mut batches = SceneBatches::default();
     for primitive in &scene.primitives {
         match primitive {
-            Primitive::Quad(quad) => batches.quads.push(quad.clone()),
-            Primitive::Glyph(glyph) => batches.glyphs.push(glyph.clone()),
+            Primitive::Quad(quad) => batches.quads.push(*quad),
+            Primitive::Glyph(glyph) => batches.glyphs.push(*glyph),
         }
     }
     batches
@@ -179,7 +179,7 @@ mod tests {
 
         journal.clear();
         assert_eq!(journal.layer_count(), 0);
-        assert!(journal.snapshot(&[keep]).primitives.is_empty());
+        assert_eq!(journal.snapshot(&[keep]).primitives, []);
     }
 
     #[test]

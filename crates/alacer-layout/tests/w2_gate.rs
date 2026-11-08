@@ -187,7 +187,9 @@ fn sub_pixel_jitter_never_flips_a_line_break() {
         })
         .collect();
     assert!(
-        heights.windows(2).all(|pair| pair[0] == pair[1]),
+        heights
+            .windows(2)
+            .all(|pair| (pair[0] - pair[1]).abs() < f32::EPSILON),
         "line count oscillated under sub-pixel width jitter: {heights:?}"
     );
 }

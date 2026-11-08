@@ -28,7 +28,7 @@ pub use mount::{PatchReport, ViewRoot};
 pub use registry::{ElementProps, WidgetRegistry};
 pub use view::{PropValue, ViewNode};
 
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::hash::Hash;
 
 /// One reconciliation step. Keys are caller-owned identities (§6.3: id-path
@@ -37,13 +37,29 @@ use std::hash::Hash;
 pub enum DiffOp<K> {
     /// Append/insert a new key at `at` (after removals and moves are applied,
     /// indices refer to the state at the time the op runs).
-    Insert { key: K, at: usize },
+    Insert {
+        /// The inserted key.
+        key: K,
+        /// The index the op runs at.
+        at: usize,
+    },
     /// Remove an existing key (identified by key, not position).
-    Remove { key: K },
+    Remove {
+        /// The removed key.
+        key: K,
+    },
     /// Move an existing key to index `at` (removing it from its old slot).
-    Move { key: K, at: usize },
+    Move {
+        /// The moved key.
+        key: K,
+        /// The index the op runs at.
+        at: usize,
+    },
     /// The key stays exactly where it is (LIS member — nothing to do).
-    Keep { key: K },
+    Keep {
+        /// The kept key.
+        key: K,
+    },
 }
 
 /// The result of reconciling `old` against `new`.
@@ -177,7 +193,7 @@ pub fn apply<K: Copy + Eq + Hash>(old: &[K], ops: &[DiffOp<K>]) -> Vec<K> {
 }
 
 fn unique<K: Copy + Eq + Hash>(keys: &[K]) -> bool {
-    let set: FxHashMap<K, ()> = keys.iter().map(|k| (*k, ())).collect();
+    let set: FxHashSet<K> = keys.iter().copied().collect();
     set.len() == keys.len()
 }
 
@@ -330,19 +346,23 @@ mod tests {
             let mut pool: Vec<u64> = (0..24).collect();
             // Random old list.
             let mut old = Vec::new();
-            let old_len = (rng.next() % 10) as usize;
+            let old_len = usize::try_from(rng.next() % 10).expect("in range");
             for _ in 0..old_len {
-                let idx = (rng.next() % pool.len() as u64) as usize;
+                let idx =
+                    usize::try_from(rng.next() % u64::try_from(pool.len()).expect("countable"))
+                        .expect("in range");
                 old.push(pool.remove(idx));
             }
             // Random new list (may share keys, may not).
             let mut new = Vec::new();
-            let new_len = (rng.next() % 10) as usize;
+            let new_len = usize::try_from(rng.next() % 10).expect("in range");
             let mut fresh = pool.clone();
             for _ in 0..new_len {
                 let take_from_old = rng.next().is_multiple_of(2);
                 if take_from_old && !old.is_empty() {
-                    let idx = (rng.next() % old.len() as u64) as usize;
+                    let idx =
+                        usize::try_from(rng.next() % u64::try_from(old.len()).expect("countable"))
+                            .expect("in range");
                     let key = old[idx];
                     if !new.contains(&key) {
                         new.push(key);
@@ -352,7 +372,9 @@ mod tests {
                 if fresh.is_empty() {
                     break;
                 }
-                let idx = (rng.next() % fresh.len() as u64) as usize;
+                let idx =
+                    usize::try_from(rng.next() % u64::try_from(fresh.len()).expect("countable"))
+                        .expect("in range");
                 new.push(fresh.remove(idx));
             }
 

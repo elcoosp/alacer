@@ -31,8 +31,8 @@ pub enum ClientMessage {
     Bye,
 }
 
-/// One protocol event. The JSON tag vocabulary is snake_case; the shape
-/// mirrors [`alacer_core::inspect::InspectEvent`] with identities as plain
+/// One protocol event. The JSON tag vocabulary is `snake_case`; the shape
+/// mirrors the core `InspectEvent` with identities as plain
 /// integers.
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -59,7 +59,7 @@ pub enum WireEvent {
     },
     /// A routed input event.
     Input {
-        /// The input kind ("pointer_down", "key", …).
+        /// The input kind (`pointer_down`, `key`, …).
         input: String,
         /// The target widget node, when routed.
         target: Option<u64>,

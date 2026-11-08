@@ -21,6 +21,11 @@ pub struct SpecCell(Arc<RwLock<Option<MeasureSpec>>>);
 
 impl SpecCell {
     /// Writes the current spec (pass layer).
+    ///
+    /// # Panics
+    ///
+    /// If the cell's lock is poisoned — a panicked writer means the frame is
+    /// corrupt either way.
     pub fn set(&self, spec: Option<MeasureSpec>) {
         *self.0.write().expect("spec cell lock") = spec;
     }
@@ -231,7 +236,7 @@ impl LayoutHost {
             .collect();
         self.mark_layout_dirty(dirty);
 
-        let lca = self.closest_common_ancestor(arena, &dirty_nodes);
+        let lca = Self::closest_common_ancestor(arena, &dirty_nodes);
         // The compute root is the LCA's **arranger** — its parent container —
         // because a standalone compute loses the flex context (stretch, grow,
         // position) that only a parent supplies. One exception: a candidate
@@ -273,8 +278,7 @@ impl LayoutHost {
                     if new_size == cached_size {
                         let parent_abs = arena
                             .bounds(arena.parent(node).expect("non-root has a parent"))
-                            .map(|r| r.origin)
-                            .unwrap_or(Point::zero());
+                            .map_or(Point::zero(), |r| r.origin);
                         break (
                             node,
                             Point::new(parent_abs.x + cached_loc.x, parent_abs.y + cached_loc.y),
@@ -382,11 +386,11 @@ impl LayoutHost {
                                 height: known.height.unwrap_or(size.height),
                             });
                         }
-                        let measured = measurer.measure(&text, max_width);
-                        cache.put(key, measured);
+                        let size = measurer.measure(&text, max_width);
+                        cache.put(key, size);
                         taffy::LayoutOutput::from_outer_size(taffy::Size {
-                            width: known.width.unwrap_or(measured.width),
-                            height: known.height.unwrap_or(measured.height),
+                            width: known.width.unwrap_or(size.width),
+                            height: known.height.unwrap_or(size.height),
                         })
                     }
                 }
@@ -399,9 +403,9 @@ impl LayoutHost {
 
     /// The closest common ancestor of `nodes` in the arena (root included).
     /// Every node is live and mapped by the time layout runs.
-    fn closest_common_ancestor(&self, arena: &Arena, nodes: &[NodeId]) -> NodeId {
+    fn closest_common_ancestor(arena: &Arena, nodes: &[NodeId]) -> NodeId {
         debug_assert!(!nodes.is_empty(), "the candidate path needs dirty nodes");
-        let paths: Vec<Vec<NodeId>> = nodes.iter().map(|n| self.root_path(arena, *n)).collect();
+        let paths: Vec<Vec<NodeId>> = nodes.iter().map(|n| Self::root_path(arena, *n)).collect();
         let shortest = paths
             .iter()
             .min_by_key(|p| p.len())
@@ -419,7 +423,7 @@ impl LayoutHost {
     }
 
     /// The arena path `root → node`, parents via the arena's parent links.
-    fn root_path(&self, arena: &Arena, node: NodeId) -> Vec<NodeId> {
+    fn root_path(arena: &Arena, node: NodeId) -> Vec<NodeId> {
         let mut path = vec![node];
         let mut cursor = node;
         while let Some(parent) = arena.parent(cursor) {
@@ -568,37 +572,37 @@ mod tests {
     }
 
     impl TestBox {
-        fn fixed(w: f32, h: f32) -> Box<Self> {
-            Box::new(Self {
+        fn fixed(w: f32, h: f32) -> Self {
+            Self {
                 style: Style::default(),
                 shared: None,
                 spec: Some(MeasureSpec::Fixed(Size::new(w, h))),
-            })
+            }
         }
 
-        fn with_style(style: Style) -> Box<Self> {
-            Box::new(Self {
+        fn with_style(style: Style) -> Self {
+            Self {
                 style,
                 shared: None,
                 spec: None,
-            })
+            }
         }
 
         /// A box whose style can be churned externally between frames.
-        fn churnable(style: Style) -> (Box<Self>, Arc<Mutex<Style>>) {
+        fn churnable(style: Style) -> (Self, Arc<Mutex<Style>>) {
             let cell = Arc::new(Mutex::new(style.clone()));
             (
-                Box::new(Self {
+                Self {
                     style,
                     shared: Some(Arc::clone(&cell)),
                     spec: None,
-                }),
+                },
                 cell,
             )
         }
 
-        fn text(text: &str) -> Box<Self> {
-            Box::new(Self {
+        fn text(text: &str) -> Self {
+            Self {
                 style: Style::default(),
                 shared: None,
                 spec: Some(MeasureSpec::Text(TextSpec {
@@ -606,7 +610,7 @@ mod tests {
                     font_id: 1,
                     font_size: 14.0,
                 })),
-            })
+            }
         }
     }
 
@@ -640,7 +644,7 @@ mod tests {
 
     impl MeasureFn for FakeMeasure {
         fn measure(&self, spec: &TextSpec, max_width: Option<f32>) -> Size {
-            let width = (spec.text.len().min(200) as f32) * 6.0;
+            let width = alacer_core::num::usize_to_f32(spec.text.len().min(200)) * 6.0;
             let width = max_width.map_or(width, |mw| width.min(mw));
             Size::new(width, 14.0)
         }
@@ -657,9 +661,9 @@ mod tests {
     #[test]
     fn lays_out_a_vertical_stack_with_real_taffy() {
         let mut arena = Arena::new();
-        let root = arena.set_root(TestBox::with_style(Style::column()));
-        let a = arena.add_child(root, TestBox::fixed(100.0, 30.0));
-        let b = arena.add_child(root, TestBox::fixed(50.0, 20.0));
+        let root = arena.set_root(Box::new(TestBox::with_style(Style::column())));
+        let a = arena.add_child(root, Box::new(TestBox::fixed(100.0, 30.0)));
+        let b = arena.add_child(root, Box::new(TestBox::fixed(50.0, 20.0)));
 
         let mut dirty = FxHashMap::default();
         dirty.insert(root, Change::STRUCTURE);
@@ -689,9 +693,9 @@ mod tests {
         // column → row → text leaf: the column fills the viewport, the row
         // shrinks to its content, and the leaf's main axis (width) stays
         // measured while its cross axis stretches to the row's height.
-        let root = arena.set_root(TestBox::with_style(Style::column()));
-        let row = arena.add_child(root, TestBox::with_style(Style::row()));
-        let label = arena.add_child(row, TestBox::text("hello"));
+        let root = arena.set_root(Box::new(TestBox::with_style(Style::column())));
+        let row = arena.add_child(root, Box::new(TestBox::with_style(Style::row())));
+        let label = arena.add_child(row, Box::new(TestBox::text("hello")));
 
         let mut dirty = FxHashMap::default();
         dirty.insert(root, Change::STRUCTURE);
@@ -710,9 +714,9 @@ mod tests {
     #[test]
     fn persistent_tree_survives_across_frames() {
         let mut arena = Arena::new();
-        let root = arena.set_root(TestBox::with_style(Style::column()));
-        let a = arena.add_child(root, TestBox::fixed(100.0, 30.0));
-        let b = arena.add_child(root, TestBox::fixed(50.0, 20.0));
+        let root = arena.set_root(Box::new(TestBox::with_style(Style::column())));
+        let a = arena.add_child(root, Box::new(TestBox::fixed(100.0, 30.0)));
+        let b = arena.add_child(root, Box::new(TestBox::fixed(50.0, 20.0)));
 
         let mut dirty = FxHashMap::default();
         dirty.insert(root, Change::STRUCTURE);
@@ -742,8 +746,8 @@ mod tests {
     #[test]
     fn paint_only_dirty_never_measures() {
         let mut arena = Arena::new();
-        let root = arena.set_root(TestBox::with_style(Style::column()));
-        let child = arena.add_child(root, TestBox::fixed(100.0, 30.0));
+        let root = arena.set_root(Box::new(TestBox::with_style(Style::column())));
+        let child = arena.add_child(root, Box::new(TestBox::fixed(100.0, 30.0)));
         let mut dirty = FxHashMap::default();
         dirty.insert(root, Change::STRUCTURE);
         dirty.insert(child, Change::STRUCTURE);
@@ -769,20 +773,23 @@ mod tests {
     fn build_tree(seed: u64) -> BuiltTree {
         let mut rng = Lcg(seed);
         let mut arena = Arena::new();
-        let root = arena.set_root(TestBox::with_style(Style::column()));
+        let root = arena.set_root(Box::new(TestBox::with_style(Style::column())));
         let mut ids = Vec::new();
         let mut cells = Vec::new();
         for _ in 0..10 {
-            let grow = ((rng.next() % 4) as f32) / 2.0;
+            let grow = alacer_core::num::u64_to_f32(rng.next() % 4) / 2.0;
             let (child, cell) = TestBox::churnable(Style {
                 grow,
                 ..Style::default()
             });
-            let child_id = arena.add_child(root, child);
+            let child_id = arena.add_child(root, Box::new(child));
             if rng.next().is_multiple_of(3) {
                 arena.add_child(
                     child_id,
-                    TestBox::fixed(f32::from((rng.next() % 40) as u16) + 20.0, 14.0),
+                    Box::new(TestBox::fixed(
+                        f32::from((rng.next() % 40) as u16) + 20.0,
+                        14.0,
+                    )),
                 );
             }
             ids.push(child_id);
@@ -823,9 +830,11 @@ mod tests {
             // ops are recorded for the oracle.
             let mut churn: Vec<(usize, Style)> = Vec::new();
             for _ in 0..6 {
-                let victim_idx = (rng.next() % ids.len() as u64) as usize;
+                let victim_idx =
+                    usize::try_from(rng.next() % u64::try_from(ids.len()).expect("countable"))
+                        .expect("in range");
                 let victim = ids[victim_idx];
-                let new_grow = ((rng.next() % 4) as f32) / 2.0;
+                let new_grow = alacer_core::num::u64_to_f32(rng.next() % 4) / 2.0;
                 let style = Style {
                     grow: new_grow,
                     ..Style::default()
@@ -880,9 +889,9 @@ mod tests {
             Box::new(NullJournal),
             Box::new(NullA11y),
         );
-        let root = pipeline.mount_root(TestBox::with_style(Style::column()));
-        let row = pipeline.add_child(root, TestBox::with_style(Style::row()));
-        let a = pipeline.add_child(row, TestBox::fixed(100.0, 30.0));
+        let root = pipeline.mount_root(Box::new(TestBox::with_style(Style::column())));
+        let row = pipeline.add_child(root, Box::new(TestBox::with_style(Style::row())));
+        let a = pipeline.add_child(row, Box::new(TestBox::fixed(100.0, 30.0)));
         let report = pipeline.tick(viewport()).expect("frame");
         assert!(report.layout_ran);
         assert_eq!(

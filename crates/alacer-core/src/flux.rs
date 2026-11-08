@@ -223,10 +223,7 @@ impl Flux {
     /// Whether the causal capture is on.
     #[must_use]
     pub fn causal_capture_enabled(&self) -> bool {
-        self.capture
-            .lock()
-            .map(|capture| capture.enabled)
-            .unwrap_or(false)
+        self.capture.lock().is_ok_and(|capture| capture.enabled)
     }
 
     /// Writes `value` into `signal` with a declared origin — the write
@@ -333,17 +330,16 @@ impl Flux {
         let capture = Arc::clone(&self.capture);
         // Register the edge up front (the "who subscribes" table); the id is
         // captured by the effect so every rerun records its activation.
-        let binding = self
-            .capture
-            .lock()
-            .map(|mut capture| {
+        let binding = self.capture.lock().map_or_else(
+            |_| 0_u64,
+            |mut capture| {
                 if capture.enabled {
                     capture.register(signal_key_of(&signal), node)
                 } else {
                     0
                 }
-            })
-            .unwrap_or(0);
+            },
+        );
         let signal_key = signal_key_of(&signal);
         let effect = self.owner.with(|| {
             ImmediateEffect::new(move || {
@@ -365,6 +361,11 @@ impl Flux {
 
     /// Binds a signal to a [`RenderBinding`] slot and queues `mask` on change —
     /// the per-dynamic-slot render binding (§5.1, `RenderEffect` semantics).
+    ///
+    /// # Panics
+    ///
+    /// When the effect body runs, if the binding's lock is poisoned — a
+    /// panicked writer means the frame is corrupt either way.
     pub fn bind_value<T, U, F>(
         &mut self,
         signal: RwSignal<T>,
@@ -420,6 +421,11 @@ impl<T: Send + Sync + 'static> RenderBinding<T> {
     }
 
     /// Overwrites the value (effect side).
+    ///
+    /// # Panics
+    ///
+    /// If the binding's lock is poisoned — a panicked writer means the frame
+    /// is corrupt either way.
     pub fn set(&self, value: T) {
         *self.0.write().expect("render binding lock") = value;
     }

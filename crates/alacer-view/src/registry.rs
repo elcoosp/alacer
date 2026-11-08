@@ -110,7 +110,7 @@ impl<'a> ElementProps<'a> {
             PropValue::FlagHandler(handler) => {
                 let handler = Rc::clone(handler);
                 Some(Box::new(move |checked: bool| {
-                    (handler.borrow_mut())(checked)
+                    (handler.borrow_mut())(checked);
                 }))
             }
             _ => None,

@@ -24,7 +24,8 @@ const WRITES_PER_FRAME: usize = 100;
 struct Graph {
     flux: Flux,
     signals: Vec<alacer_core::FluxRwSignal<i64>>,
-    _memos: Vec<reactive_graph::computed::Memo<i64>>,
+    /// The memos, read by the churn loop to pin no-glitch consistency.
+    memos: Vec<reactive_graph::computed::Memo<i64>>,
 }
 
 fn build_graph() -> Graph {
@@ -43,7 +44,7 @@ fn build_graph() -> Graph {
     Graph {
         flux,
         signals,
-        _memos: memos,
+        memos,
     }
 }
 
@@ -73,7 +74,7 @@ fn bench_w5(c: &mut Criterion) {
                 }
                 // The memos read consistently inside the batch: no glitching
                 // (the mid-batch value is either all-old or all-new).
-                let sum = graph._memos[0].get() + graph._memos[1].get();
+                let sum = graph.memos[0].get() + graph.memos[1].get();
                 black_box(sum);
             });
             let drained = flux.take_pending_masks();

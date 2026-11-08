@@ -117,6 +117,11 @@ impl DamageBuilder {
 
     /// Adds one changed rect (empty rects are ignored; on geometry change
     /// callers add the *old* and the *new* rect as two adds).
+    ///
+    /// # Panics
+    ///
+    /// Never for well-formed input: the `expect` guards an invariant the
+    /// function just established (the builder is full), not caller state.
     pub fn add(&mut self, rect: Rect) {
         if rect.size.width <= 0.0 || rect.size.height <= 0.0 {
             return;
@@ -196,7 +201,7 @@ mod tests {
         let damage = DamageBuilder::new().finish(Size::new(100.0, 100.0));
         assert!(damage.is_empty());
         assert!(!damage.is_full());
-        assert!(damage.regions(Size::new(100.0, 100.0)).is_empty());
+        assert_eq!(damage.regions(Size::new(100.0, 100.0)), []);
     }
 
     #[test]
@@ -222,7 +227,12 @@ mod tests {
     fn disjoint_rects_fill_the_budget_before_merging() {
         let mut builder = DamageBuilder::new();
         for i in 0..DAMAGE_REGION_BUDGET {
-            builder.add(rect((i as f32) * 30.0 + 1.0, 0.0, 10.0, 10.0));
+            builder.add(rect(
+                crate::num::usize_to_f32(i) * 30.0 + 1.0,
+                0.0,
+                10.0,
+                10.0,
+            ));
         }
         let damage = builder.finish(Size::new(1000.0, 1000.0));
         assert_eq!(damage.regions(Size::new(1000.0, 1000.0)).len(), 3);
@@ -307,7 +317,7 @@ mod tests {
     fn scattered_small_damage_stays_partial() {
         let mut builder = DamageBuilder::new();
         for i in 0..DAMAGE_REGION_BUDGET {
-            builder.add(rect((i as f32) * 40.0, 0.0, 5.0, 5.0));
+            builder.add(rect(crate::num::usize_to_f32(i) * 40.0, 0.0, 5.0, 5.0));
         }
         let damage = builder.finish(Size::new(1000.0, 1000.0));
         assert!(!damage.is_full());

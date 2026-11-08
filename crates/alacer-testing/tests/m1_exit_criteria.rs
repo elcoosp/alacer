@@ -519,7 +519,7 @@ fn m1_a11y_queries_pass() {
     assert!(harness.query(Role::Button).named("Increment").exists());
     assert_eq!(harness.query(Role::Button).named("Increment").count(), 1);
     assert_eq!(harness.query(Role::Label).named("Item").count(), 0);
-    assert!(harness.query(Role::Button).named("Nonexistent").count() == 0);
+    assert_eq!(harness.query(Role::Button).named("Nonexistent").count(), 0);
 
     // Walk: the whole tree contains exactly the two mounted widgets + column.
     let tree = harness.pipeline().a11y_snapshot().expect("a11y tree");

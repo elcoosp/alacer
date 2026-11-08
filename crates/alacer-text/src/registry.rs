@@ -27,6 +27,11 @@ impl FontRegistry {
     }
 
     /// Interns a parley font, returning its stable tag.
+    ///
+    /// # Panics
+    ///
+    /// If the font blob's bytes cannot be read as a `&[u8]` — never for
+    /// real font data (the conversion is total for memory-backed blobs).
     #[must_use]
     pub fn intern(&mut self, font: &FontData) -> u64 {
         let blob_id = font.data.id();

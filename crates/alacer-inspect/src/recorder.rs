@@ -169,9 +169,8 @@ impl InspectObserver for RecorderHandle {
         };
         // The wire serialization happens on the observing thread: the
         // session drains ready-to-send payloads (push, not poll).
-        if let Some(wire_event) = crate::server::wire_event_of(&event) {
-            push_broadcast(&mut recording.broadcast, wire_event);
-        }
+        let wire_event = crate::server::wire_event_of(&event);
+        push_broadcast(&mut recording.broadcast, wire_event);
         match event {
             InspectEvent::Edge(activation) => {
                 push_bounded(&mut recording.edges, EDGE_RING_CAP, activation);

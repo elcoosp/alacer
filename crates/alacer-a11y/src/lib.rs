@@ -8,8 +8,8 @@
 //!   [`A11yDelta`] — dirty ids, removals, focus — and only dirty nodes are
 //!   re-emitted in the [`TreeUpdate`] (never a full-tree rebuild per frame,
 //!   the egui cost we refuse). The M3 exit gate measures exactly this:
-//!   **TreeUpdate p99 < 0.5 ms @ 1k nodes** (`tests/m3_exit_criteria.rs`).
-//! - Roles map from [`alacer_core::Role`]; labels resolve through the
+//!   **`TreeUpdate` p99 < 0.5 ms @ 1k nodes** (`tests/m3_exit_criteria.rs`).
+//! - Roles map from the core `Role` enum; labels resolve through the
 //!   required `label()` source — an unnamed widget is impossible by
 //!   construction. Editable widgets expose their content as the node's value.
 //! - Focus travels in the delta: `TreeUpdate::focus` follows the pipeline's
@@ -170,7 +170,7 @@ impl A11ySink for AccessKitSink {
     fn apply(&mut self, snapshot: std::sync::Arc<TreeSnapshot>, delta: &A11yDelta) {
         self.last_snapshot = Some(std::sync::Arc::clone(&snapshot));
         let snapshot = &*snapshot;
-        self.last_removed_ids = delta.removed.clone();
+        self.last_removed_ids.clone_from(&delta.removed);
         self.last_update_ids.clear();
         let mut update = TreeUpdate {
             nodes: Vec::new(),

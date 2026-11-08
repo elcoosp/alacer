@@ -163,7 +163,14 @@ pub enum Key {
 
 /// Keyboard modifier state, tracked by the platform and attached to every
 /// [`KeyEvent`].
+///
+/// Four independent flags is the honest shape: a bitflags type would add a
+/// dependency and zero clarity for exactly four modifiers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "keyboard modifier state is exactly four independent flags by domain definition"
+)]
 pub struct Modifiers {
     /// Shift.
     pub shift: bool,

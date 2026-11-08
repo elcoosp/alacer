@@ -271,7 +271,8 @@ fn w1_incremental_relayout_beats_full_rebuild_by_the_design_floor() {
 
     let inc_median = median(&mut inc_times);
     let full_median = median(&mut full_times);
-    let ratio = full_median as f64 / inc_median.max(1) as f64;
+    let ratio = f64::from(u32::try_from(full_median).expect("ns fits u32"))
+        / f64::from(u32::try_from(inc_median.max(1)).expect("ns fits u32"));
     println!(
         "W1 gate: inc median {inc_median} ns, full median {full_median} ns, ratio {ratio:.2}×"
     );

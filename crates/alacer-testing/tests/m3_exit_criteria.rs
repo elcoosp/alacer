@@ -3,7 +3,7 @@
 //! - **A11y contract** — the a11y pass produces [`A11yDelta`]s: dirty-node-only
 //!   [`TreeUpdate`]s, removals that surface exactly once, focus travelling in
 //!   the update, values exposed for editables;
-//! - **TreeUpdate p99 < 0.5 ms @ 1k nodes** — the §18 gate as a test, measured
+//! - **`TreeUpdate` p99 < 0.5 ms @ 1k nodes** — the §18 gate as a test, measured
 //!   over incremental frames (the init frame is a one-time cost, reported
 //!   separately);
 //! - **partial paint** — the damage ladder (NONE / partial / FULL) flows in
@@ -332,10 +332,8 @@ fn m3_tree_update_p99_stays_under_half_a_millisecond_at_1k_nodes() {
     let init_start = std::time::Instant::now();
     sink.apply(Arc::clone(&snapshot), &init);
     let init_nanos = u64::try_from(init_start.elapsed().as_nanos()).unwrap_or(u64::MAX);
-    println!(
-        "init TreeUpdate (1k nodes): {:.3} ms (one-time build, not gated)",
-        init_nanos as f64 / 1_000_000.0
-    );
+    let init_millis = init_start.elapsed().as_secs_f64() * 1_000.0;
+    println!("init TreeUpdate (1k nodes): {init_millis:.3} ms (one-time build, not gated)");
 
     // 200 incremental frames: one node flips each frame (the steady state
     // the gate protects — never a full rebuild).
@@ -466,7 +464,7 @@ fn m3_partial_frames_equal_full_frames_through_the_real_pipeline() {
                     text: "にほ".into(),
                     cursor_utf16: Some(1),
                 },
-            )
+            );
         }),
         Box::new(|h| {
             ime_raw(
@@ -474,7 +472,7 @@ fn m3_partial_frames_equal_full_frames_through_the_real_pipeline() {
                 &ImeEvent::Commit {
                     text: "日本".into(),
                 },
-            )
+            );
         }),
         Box::new(|h| key_raw(h, Key::Tab)),
         Box::new(|h| type_raw(h, "L")),
@@ -485,7 +483,7 @@ fn m3_partial_frames_equal_full_frames_through_the_real_pipeline() {
                 &ImeEvent::Commit {
                     text: "\u{1F600}".into(), // 😀 — surrogate pair commit
                 },
-            )
+            );
         }),
     ];
 
@@ -518,7 +516,7 @@ fn m3_damage_regions_bound_the_repaint_area_on_text_edits() {
         "one keystroke must not repaint all"
     );
     let regions = report.damage.regions(viewport);
-    assert!(!regions.is_empty());
+    assert!(!regions.is_empty(), "the edit damaged a region");
     // Locality: every damaged region touches the edited input — a keystroke
     // never repaints the rest of the window.
     for region in &regions {

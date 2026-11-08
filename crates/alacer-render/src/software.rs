@@ -61,7 +61,7 @@ impl SoftwareRenderer {
             let mut painter = pixmap.as_mut();
             for primitive in &scene.primitives {
                 match primitive {
-                    Primitive::Quad(quad) => self.draw_quad(&mut painter, quad, None),
+                    Primitive::Quad(quad) => Self::draw_quad(&mut painter, quad, None),
                     Primitive::Glyph(glyph) => {
                         self.draw_glyph(&mut painter, glyph, glyphs, None);
                     }
@@ -125,7 +125,7 @@ impl SoftwareRenderer {
                 }
                 match primitive {
                     Primitive::Quad(quad) => {
-                        self.draw_quad(&mut painter, quad, scissor.as_ref());
+                        Self::draw_quad(&mut painter, quad, scissor.as_ref());
                     }
                     Primitive::Glyph(glyph) => {
                         self.draw_glyph(&mut painter, glyph, glyphs, scissor.as_ref());
@@ -137,7 +137,6 @@ impl SoftwareRenderer {
     }
 
     fn draw_quad(
-        &self,
         painter: &mut tiny_skia::PixmapMut<'_>,
         quad: &Quad,
         extra_scissor: Option<&Mask>,
@@ -631,6 +630,10 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "the fuzz loop is one seeded scenario script; splitting it would separate the generator from its invariants"
+    )]
     fn equivalence_fuzz_partial_matches_full_over_random_edits() {
         let mut rng = Lcg(0x5EED);
         let width = 64_u32;
@@ -659,7 +662,9 @@ mod tests {
             match action {
                 0 if !primitives.is_empty() => {
                     let index = rng.below(u64::try_from(primitives.len()).unwrap_or(1));
-                    if let Some(Primitive::Quad(quad)) = primitives.get_mut(index as usize) {
+                    if let Some(Primitive::Quad(quad)) =
+                        primitives.get_mut(usize::try_from(index).expect("in range"))
+                    {
                         quad.color = Color::rgb(
                             u8::try_from(rng.below(256)).unwrap_or(0),
                             u8::try_from(rng.below(256)).unwrap_or(0),
@@ -669,7 +674,9 @@ mod tests {
                 }
                 1 if !primitives.is_empty() => {
                     let index = rng.below(u64::try_from(primitives.len()).unwrap_or(1));
-                    if let Some(Primitive::Quad(quad)) = primitives.get_mut(index as usize) {
+                    if let Some(Primitive::Quad(quad)) =
+                        primitives.get_mut(usize::try_from(index).expect("in range"))
+                    {
                         quad.rect = Rect::new(
                             Point::new(
                                 f32::from(u8::try_from(rng.below(50)).unwrap_or(0)),
@@ -703,7 +710,7 @@ mod tests {
                 }
                 _ if !primitives.is_empty() => {
                     let index = rng.below(u64::try_from(primitives.len()).unwrap_or(1));
-                    primitives.remove(index as usize);
+                    primitives.remove(usize::try_from(index).expect("in range"));
                 }
                 _ => {}
             }

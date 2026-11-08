@@ -105,7 +105,7 @@ impl fmt::Debug for LabelSource {
             }
             Self::Binding(b) => f
                 .debug_tuple("Binding")
-                .field(&b.with(|v| v.len()))
+                .field(&b.with(String::len))
                 .finish(),
             Self::FromChildren => f.write_str("FromChildren"),
         }
@@ -124,8 +124,8 @@ impl LabelSource {
     pub fn resolve(&self) -> String {
         match self {
             Self::Text(t) => t.to_string(),
-            Self::Computed(cell) => cell.lock().map(|g| g.clone()).unwrap_or_default(),
-            Self::Binding(binding) => binding.with(|v| v.clone()),
+            Self::Computed(cell) => cell.lock().map(|guard| guard.clone()).unwrap_or_default(),
+            Self::Binding(binding) => binding.with(Clone::clone),
             Self::FromChildren => String::new(),
         }
     }

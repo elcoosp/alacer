@@ -207,7 +207,7 @@ fn bench_w2(c: &mut Criterion) {
                 engine
                     .sync_and_layout(&mut workload.arena, workload.root, &dirty, VIEWPORT)
                     .expect("jitter frame");
-            })
+            });
         });
     }
 
@@ -227,7 +227,7 @@ fn bench_w2(c: &mut Criterion) {
             engine
                 .sync_and_layout(&mut workload.arena, workload.root, &dirty, VIEWPORT)
                 .expect("full relayout");
-        })
+        });
     });
 
     group.finish();

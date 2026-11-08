@@ -29,6 +29,11 @@ impl NodeId {
     ///
     /// Framework-internal in normal use (the arena hands ids out on attach);
     /// public for tests, benches, and tooling that key maps by node id.
+    ///
+    /// # Panics
+    ///
+    /// Only if the process-global counter wraps past `u64::MAX` and lands on
+    /// zero — roughly 18 quintillion allocations in one process.
     #[must_use]
     pub fn allocate() -> Self {
         static NEXT: AtomicU64 = AtomicU64::new(1);
@@ -74,6 +79,10 @@ impl Slot {
     }
 }
 
+#[expect(
+    clippy::missing_fields_in_debug,
+    reason = "the boxed widget has no Debug impl by design (dyn Widget); the tree shape is what debugging wants"
+)]
 impl fmt::Debug for Slot {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Slot")
@@ -483,6 +492,10 @@ impl Arena {
     }
 }
 
+#[expect(
+    clippy::missing_fields_in_debug,
+    reason = "the slot vector, its index map, the lease, and the scrollable set are derived or non-diagnostic bookkeeping; shape is what debugging wants"
+)]
 impl fmt::Debug for Arena {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Arena")
@@ -558,11 +571,11 @@ mod tests {
     }
 
     impl Probe {
-        fn named(name: &'static str) -> Box<Self> {
-            Box::new(Self {
+        fn named(name: &'static str) -> Self {
+            Self {
                 role: Role::Container,
                 name,
-            })
+            }
         }
     }
 
@@ -594,10 +607,10 @@ mod tests {
     #[test]
     fn mount_root_and_children_shapes_the_tree() {
         let mut arena = Arena::new();
-        let root = arena.set_root(Probe::named("root"));
-        let a = arena.add_child(root, Probe::named("a"));
-        let b = arena.add_child(root, Probe::named("b"));
-        let a1 = arena.add_child(a, Probe::named("a1"));
+        let root = arena.set_root(Box::new(Probe::named("root")));
+        let a = arena.add_child(root, Box::new(Probe::named("a")));
+        let b = arena.add_child(root, Box::new(Probe::named("b")));
+        let a1 = arena.add_child(a, Box::new(Probe::named("a1")));
 
         assert_eq!(arena.root(), Some(root));
         assert_eq!(arena.children(root), &[a, b]);
@@ -608,10 +621,10 @@ mod tests {
     #[test]
     fn pre_order_walk_matches_paint_order() {
         let mut arena = Arena::new();
-        let root = arena.set_root(Probe::named("root"));
-        let a = arena.add_child(root, Probe::named("a"));
-        arena.add_child(a, Probe::named("a1"));
-        let b = arena.add_child(root, Probe::named("b"));
+        let root = arena.set_root(Box::new(Probe::named("root")));
+        let a = arena.add_child(root, Box::new(Probe::named("a")));
+        arena.add_child(a, Box::new(Probe::named("a1")));
+        let b = arena.add_child(root, Box::new(Probe::named("b")));
 
         let mut order = Vec::new();
         arena.for_each_pre_order(&mut |id, slot| order.push((id, slot.widget().label().resolve())));
@@ -625,10 +638,10 @@ mod tests {
     #[test]
     fn reorder_children_permutes_paint_order_and_flags_structure() {
         let mut arena = Arena::new();
-        let root = arena.set_root(Probe::named("root"));
-        let a = arena.add_child(root, Probe::named("a"));
-        let b = arena.add_child(root, Probe::named("b"));
-        let c = arena.add_child(root, Probe::named("c"));
+        let root = arena.set_root(Box::new(Probe::named("root")));
+        let a = arena.add_child(root, Box::new(Probe::named("a")));
+        let b = arena.add_child(root, Box::new(Probe::named("b")));
+        let c = arena.add_child(root, Box::new(Probe::named("c")));
         let _ = arena.take_masks(Change::ALL); // isolate from mount masks
 
         arena.reorder_children(root, &[c, a, b]);
@@ -653,10 +666,10 @@ mod tests {
     #[test]
     fn reorder_children_rejects_foreign_and_missing_ids() {
         let mut arena = Arena::new();
-        let root = arena.set_root(Probe::named("root"));
-        let a = arena.add_child(root, Probe::named("a"));
-        let b = arena.add_child(root, Probe::named("b"));
-        let a1 = arena.add_child(a, Probe::named("a1"));
+        let root = arena.set_root(Box::new(Probe::named("root")));
+        let a = arena.add_child(root, Box::new(Probe::named("a")));
+        let b = arena.add_child(root, Box::new(Probe::named("b")));
+        let a1 = arena.add_child(a, Box::new(Probe::named("a1")));
 
         // A reordered list that drops a child, duplicates one, or adds a
         // stranger is a reconciler bug: refuse it wholesale.
@@ -678,9 +691,9 @@ mod tests {
     #[test]
     fn widget_mut_merges_masks_upward_on_drop() {
         let mut arena = Arena::new();
-        let root = arena.set_root(Probe::named("root"));
-        let a = arena.add_child(root, Probe::named("a"));
-        let a1 = arena.add_child(a, Probe::named("a1"));
+        let root = arena.set_root(Box::new(Probe::named("root")));
+        let a = arena.add_child(root, Box::new(Probe::named("a")));
+        let a1 = arena.add_child(a, Box::new(Probe::named("a1")));
         let _ = arena.take_masks(Change::ALL); // isolate from mount masks
 
         {
@@ -701,8 +714,8 @@ mod tests {
     #[test]
     fn add_child_marks_ancestors_structural() {
         let mut arena = Arena::new();
-        let root = arena.set_root(Probe::named("root"));
-        let a = arena.add_child(root, Probe::named("a"));
+        let root = arena.set_root(Box::new(Probe::named("root")));
+        let a = arena.add_child(root, Box::new(Probe::named("a")));
         assert_eq!(arena.mask(a), Change::STRUCTURE);
         assert!(arena.mask(root).contains(Change::LAYOUT));
         assert!(arena.mask(root).contains(Change::A11Y));
@@ -711,9 +724,9 @@ mod tests {
     #[test]
     fn remove_subtree_unindexes_and_notifies_parent() {
         let mut arena = Arena::new();
-        let root = arena.set_root(Probe::named("root"));
-        let a = arena.add_child(root, Probe::named("a"));
-        let a1 = arena.add_child(a, Probe::named("a1"));
+        let root = arena.set_root(Box::new(Probe::named("root")));
+        let a = arena.add_child(root, Box::new(Probe::named("a")));
+        let a1 = arena.add_child(a, Box::new(Probe::named("a1")));
         arena.remove_subtree(a);
 
         assert_eq!(arena.children(root), &[]);
@@ -730,18 +743,18 @@ mod tests {
         // handles). `mem::forget` drops the guard without running its cleanup,
         // exactly such a path.
         let mut arena = Arena::new();
-        let root = arena.set_root(Probe::named("root"));
+        let root = arena.set_root(Box::new(Probe::named("root")));
         let mut guard = arena.mutate(root);
         let _ = guard.widget_mut();
         std::mem::forget(guard); // lease never released
-        let _child = arena.add_child(root, Probe::named("child")); // panics
+        let _child = arena.add_child(root, Box::new(Probe::named("child"))); // panics
     }
 
     #[test]
     fn queued_mutations_drain_through_the_lease() {
         let mut arena = Arena::new();
-        let root = arena.set_root(Probe::named("root"));
-        let a = arena.add_child(root, Probe::named("a"));
+        let root = arena.set_root(Box::new(Probe::named("root")));
+        let a = arena.add_child(root, Box::new(Probe::named("a")));
         arena.queue_mutation(
             a,
             Box::new(|w| {
@@ -759,7 +772,7 @@ mod tests {
     #[test]
     fn take_masks_drains_only_the_filtered_bits() {
         let mut arena = Arena::new();
-        let root = arena.set_root(Probe::named("root"));
+        let root = arena.set_root(Box::new(Probe::named("root")));
         let _ = arena.take_masks(Change::ALL); // isolate from mount masks
         arena.merge_mask(root, Change::PAINT.union(Change::A11Y));
 
@@ -771,7 +784,7 @@ mod tests {
     #[test]
     fn update_bounds_writes_geometry_without_dirtying() {
         let mut arena = Arena::new();
-        let root = arena.set_root(Probe::named("root"));
+        let root = arena.set_root(Box::new(Probe::named("root")));
         let _ = arena.take_masks(Change::ALL); // isolate from mount masks
         let rect = Rect::new(crate::geom::Point::zero(), Size::new(100.0, 40.0));
         arena.update_bounds(root, rect);

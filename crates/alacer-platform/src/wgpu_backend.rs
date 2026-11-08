@@ -16,7 +16,7 @@ use std::num::NonZeroU64;
 
 /// WGSL: one pipeline for both primitive kinds; `kind` selects the fragment
 /// path (SDF rounded rect vs atlas sample).
-const SHADER: &str = r#"
+const SHADER: &str = r"
 struct Uniforms {
     view: vec2<f32>,
     pad: vec2<f32>,
@@ -86,7 +86,7 @@ fn fs_main(in: VOut) -> @location(0) vec4<f32> {
     let alpha = max(fill * (1.0 - ring), ring);
     return vec4<f32>(in.color.rgb * alpha, in.color.a * alpha);
 }
-"#;
+";
 
 /// Instance data, 64 bytes: one quad or one glyph.
 #[repr(C)]
@@ -278,6 +278,10 @@ impl WgpuRenderer {
     /// # Errors
     ///
     /// [`BackendError`] names the failing stage.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "GPU pipeline creation is one ordered setup narrative (instance, surface, device, pipeline, atlas); splitting it would scatter the setup state across helpers"
+    )]
     pub fn new(
         surface: &wgpu::Surface<'_>,
         window_size: (u32, u32),
@@ -412,7 +416,7 @@ impl WgpuRenderer {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: Some("vs_main"),
-                compilation_options: Default::default(),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
                 buffers: &[Some(wgpu::VertexBufferLayout {
                     array_stride: 64,
                     step_mode: wgpu::VertexStepMode::Instance,
@@ -443,7 +447,7 @@ impl WgpuRenderer {
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
                 entry_point: Some("fs_main"),
-                compilation_options: Default::default(),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
                 targets: &[Some(wgpu::ColorTargetState {
                     format,
                     blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
@@ -549,7 +553,7 @@ impl WgpuRenderer {
         glyphs: &mut dyn GlyphSource,
         surface: &wgpu::Surface<'_>,
     ) -> Result<(), BackendError> {
-        let Some(frame) = self.acquire(surface) else {
+        let Some(frame) = Self::acquire(surface) else {
             return Ok(());
         };
         let view = frame
@@ -614,7 +618,7 @@ impl WgpuRenderer {
         glyphs: &mut dyn GlyphSource,
         surface: &wgpu::Surface<'_>,
     ) -> Result<(), BackendError> {
-        let Some(frame) = self.acquire(surface) else {
+        let Some(frame) = Self::acquire(surface) else {
             return Ok(());
         };
         let view = frame
@@ -703,7 +707,7 @@ impl WgpuRenderer {
 
     /// The swapchain texture, `None` when the surface is unavailable this
     /// frame (the caller skips the present — the frame stands).
-    fn acquire(&self, surface: &wgpu::Surface<'_>) -> Option<wgpu::SurfaceTexture> {
+    fn acquire(surface: &wgpu::Surface<'_>) -> Option<wgpu::SurfaceTexture> {
         match surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(texture) => Some(texture),
             wgpu::CurrentSurfaceTexture::Suboptimal(texture) => {
@@ -739,7 +743,7 @@ impl WgpuRenderer {
                     if let Some(bitmap) =
                         glyphs.glyph_bitmap(glyph.font_id, glyph.glyph_id, glyph.size)
                     {
-                        glyph_slots.push((index, glyph.clone(), bitmap));
+                        glyph_slots.push((index, *glyph, bitmap));
                     }
                 }
             }
@@ -801,7 +805,7 @@ impl WgpuRenderer {
         true
     }
 
-    fn draw_all<'a>(&self, pass: &mut wgpu::RenderPass<'a>, data: &[Instance]) {
+    fn draw_all(&self, pass: &mut wgpu::RenderPass<'_>, data: &[Instance]) {
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &self.bind_group, &[]);
         let used = u64::try_from(data.len()).unwrap_or(0) * 64;

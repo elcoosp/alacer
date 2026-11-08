@@ -136,9 +136,9 @@ impl PartialEq for PropValue {
             (Self::Handler(a), Self::Handler(b)) => Rc::ptr_eq(a, b),
             (Self::TextHandler(a), Self::TextHandler(b)) => Rc::ptr_eq(a, b),
             (Self::FlagHandler(a), Self::FlagHandler(b)) => Rc::ptr_eq(a, b),
-            // Bindings never compare equal: a rebuild re-hangs the same
-            // binding slot, and the patcher re-hangs idempotently.
-            (Self::Binding(_), Self::Binding(_)) => false,
+            // Bindings never compare equal — nor does any other pairing:
+            // a rebuild re-hangs the same binding slot, and the patcher
+            // re-hangs idempotently.
             _ => false,
         }
     }

@@ -12,7 +12,10 @@ use std::hint::black_box;
 fn quad(i: usize) -> Primitive {
     Primitive::Quad(Quad::filled(
         Rect::new(
-            Point::new((i % 50) as f32, (i / 50) as f32),
+            Point::new(
+                alacer_core::num::usize_to_f32(i % 50),
+                alacer_core::num::usize_to_f32(i / 50),
+            ),
             Size::new(20.0, 20.0),
         ),
         Color::rgb(200, 200, 200),

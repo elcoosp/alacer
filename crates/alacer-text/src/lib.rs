@@ -346,7 +346,7 @@ mod tests {
         // An L has no descender: its ink must end exactly at the baseline
         // (the y-down contract: `top` is the bitmap's top row offset).
         assert_eq!(
-            bitmap.top + bitmap.height as i32,
+            bitmap.top + i32::try_from(bitmap.height).expect("raster extents fit i32"),
             0,
             "the L's last row sits on the baseline"
         );

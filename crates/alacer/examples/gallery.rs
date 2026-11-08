@@ -23,6 +23,10 @@ use alacer_core::flux::RenderBinding;
 use alacer_core::style::CrossAxisAlignment;
 use reactive_graph::traits::{GetUntracked as _, Set as _};
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "the gallery is one declarative walk through the widget vocabulary; splitting it would hide the catalog it exists to show"
+)]
 fn main() {
     let mut pipeline = pipeline_default();
     let root = pipeline.mount_root(
@@ -183,8 +187,9 @@ fn main() {
         Color::rgb(234, 179, 8),
         Color::rgb(239, 68, 68),
     ];
-    const ITEMS: usize = 20;
-    for (index, color) in ramp.iter().cycle().take(ITEMS).enumerate() {
+    // The list's churn floor: enough rows to scroll and to spot clipping.
+    let items: usize = 20;
+    for (index, color) in ramp.iter().cycle().take(items).enumerate() {
         let row = pipeline.add_child(list_node, Row::new().gap(8.0).boxed());
         let _ = pipeline.add_child(row, Panel::new(28.0, *color).boxed());
         let _ = pipeline.add_child(
@@ -196,7 +201,7 @@ fn main() {
         );
     }
     handle.set_content_height(
-        alacer_core::num::u32_to_f32(u32::try_from(ITEMS).unwrap_or(u32::MAX)) * 28.0,
+        alacer_core::num::u32_to_f32(u32::try_from(items).unwrap_or(u32::MAX)) * 28.0,
     );
 
     // Spacer: the flexible gap vocabulary.

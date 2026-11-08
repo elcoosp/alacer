@@ -79,22 +79,24 @@ impl LayoutCache {
     /// Looks `key` up, refreshing recency.
     #[must_use]
     pub fn get(&mut self, key: &CacheKey) -> Option<TextLayout> {
-        match self.entries.get_mut(key) {
-            Some(entry) => {
-                self.tick += 1;
-                entry.tick = self.tick;
-                entry.frame_stamp = self.frame;
-                self.hits += 1;
-                Some(entry.layout.clone())
-            }
-            None => {
-                self.misses += 1;
-                None
-            }
+        if let Some(entry) = self.entries.get_mut(key) {
+            self.tick += 1;
+            entry.tick = self.tick;
+            entry.frame_stamp = self.frame;
+            self.hits += 1;
+            Some(entry.layout.clone())
+        } else {
+            self.misses += 1;
+            None
         }
     }
 
     /// Inserts `key`, evicting the LRU entry when at capacity.
+    ///
+    /// # Panics
+    ///
+    /// Never for well-formed input: the `expect` guards the just-established
+    /// non-emptiness of the map at capacity, not caller state.
     pub fn put(&mut self, key: CacheKey, layout: TextLayout) {
         self.tick += 1;
         self.entries.insert(

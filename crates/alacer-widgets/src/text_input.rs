@@ -84,6 +84,7 @@ impl TextInput {
 
     /// Installs the change handler — invoked after every committed change to
     /// the value (key edits and IME commits alike).
+    #[must_use]
     pub fn on_changed(mut self, handler: impl FnMut(&str) + 'static) -> Self {
         self.on_changed = Some(Box::new(handler));
         self
@@ -92,6 +93,7 @@ impl TextInput {
     /// Installs the submit handler (M6): invoked on Enter with the current
     /// value, then the field clears — the todo canon's `input { on_submit:
     /// … }` seam. Without a handler Enter stays ignored (Tab cycling).
+    #[must_use]
     pub fn on_submit(mut self, handler: impl FnMut(&str) + 'static) -> Self {
         self.on_submit = Some(Box::new(handler));
         self

@@ -115,7 +115,7 @@ fn a_session_streams_hello_then_recorded_events_in_order() {
     let mut socket = reader.get_ref().try_clone().expect("clone");
     // Send a masked client text frame: {"kind":"bye"}.
     let text = br#"{"kind":"bye"}"#;
-    let mut frame_bytes = vec![0x81_u8, 0x80 | text.len() as u8];
+    let mut frame_bytes = vec![0x81_u8, 0x80 | alacer_core::num::usize_to_u8(text.len())];
     frame_bytes.extend_from_slice(&[0_u8, 0, 0, 0]);
     frame_bytes.extend_from_slice(text);
     socket.write_all(&frame_bytes).expect("bye");
@@ -144,7 +144,7 @@ fn the_clear_control_resets_the_recording() {
     // {"kind":"clear"} — masked client frame.
     let mut socket = reader.get_ref().try_clone().expect("clone");
     let text = br#"{"kind":"clear"}"#;
-    let mut frame_bytes = vec![0x81_u8, 0x80 | text.len() as u8];
+    let mut frame_bytes = vec![0x81_u8, 0x80 | alacer_core::num::usize_to_u8(text.len())];
     frame_bytes.extend_from_slice(&[0_u8, 0, 0, 0]);
     frame_bytes.extend_from_slice(text);
     socket.write_all(&frame_bytes).expect("clear");

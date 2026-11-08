@@ -131,6 +131,11 @@ pub struct ListHandle {
 
 impl ListHandle {
     /// Updates the content height (call after structural changes).
+    ///
+    /// # Panics
+    ///
+    /// If the shared scroll state's lock is poisoned — a panicked writer
+    /// means the frame is corrupt either way.
     pub fn set_content_height(&self, height: f32) {
         let mut state = self.state.lock().expect("scroll state");
         state.content_height = height;
@@ -140,12 +145,22 @@ impl ListHandle {
     }
 
     /// Programmatic scroll (tests, a11y actions).
+    ///
+    /// # Panics
+    ///
+    /// If the shared scroll state's lock is poisoned — a panicked writer
+    /// means the frame is corrupt either way.
     pub fn scroll_to(&self, offset: f32) {
         let mut state = self.state.lock().expect("scroll state");
         state.offset = offset.clamp(0.0, (state.content_height - state.viewport_height).max(0.0));
     }
 
     /// Current offset.
+    ///
+    /// # Panics
+    ///
+    /// If the shared scroll state's lock is poisoned — a panicked writer
+    /// means the frame is corrupt either way.
     #[must_use]
     pub fn offset(&self) -> f32 {
         self.state.lock().expect("scroll state").offset()

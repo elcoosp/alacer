@@ -177,11 +177,12 @@ fn expr_until_brace(input: ParseStream<'_>) -> syn::Result<syn::Expr> {
         }
         let tree: proc_macro2::TokenTree = input.parse()?;
         match &tree {
-            proc_macro2::TokenTree::Group(_) => {}
             proc_macro2::TokenTree::Punct(p) if "([{".contains(p.as_char()) => depth += 1,
             proc_macro2::TokenTree::Punct(p) if ")]}".contains(p.as_char()) => depth -= 1,
-            proc_macro2::TokenTree::Punct(_) | proc_macro2::TokenTree::Literal(_) => {}
-            proc_macro2::TokenTree::Ident(_) => {}
+            proc_macro2::TokenTree::Group(_)
+            | proc_macro2::TokenTree::Punct(_)
+            | proc_macro2::TokenTree::Literal(_)
+            | proc_macro2::TokenTree::Ident(_) => {}
         }
         tokens.extend(std::iter::once(tree));
     }
@@ -205,7 +206,7 @@ fn one_element(body: Body, what: &str, span: proc_macro2::Span) -> syn::Result<T
     }
 }
 
-/// Compiles `name { items }` into the ViewNode builder chain.
+/// Compiles `name { items }` into the `ViewNode` builder chain.
 fn compile_element(name: &proc_macro2::Ident, body: Body) -> syn::Result<TokenStream2> {
     let name_lit = name.to_string();
     let mut out = quote! { ::alacer_view::ViewNode::element(#name_lit) };
@@ -353,13 +354,13 @@ fn interpolate(literal: &syn::LitStr) -> syn::Result<TokenStream2> {
         rest = &rest[next_brace..];
     }
 
-    if !interpolating {
+    if interpolating {
+        let format_lit = syn::LitStr::new(&format_string, literal.span());
+        Ok(quote! { ::std::format!(#format_lit, #(#args),*) })
+    } else {
         // Unescape braces for the plain literal (format! semantics).
         let plain = value.replace("{{", "{").replace("}}", "}");
         Ok(quote! { #plain })
-    } else {
-        let format_lit = syn::LitStr::new(&format_string, literal.span());
-        Ok(quote! { ::std::format!(#format_lit, #(#args),*) })
     }
 }
 

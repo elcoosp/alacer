@@ -70,7 +70,7 @@ pub fn install(seam: Rc<dyn TextSeam>) {
 /// Whether a seam is installed on this thread.
 #[must_use]
 pub fn is_installed() -> bool {
-    SEAM.with_borrow(|seam| seam.is_some())
+    SEAM.with_borrow(Option::is_some)
 }
 
 /// Runs `f` with the installed seam.

@@ -117,6 +117,10 @@ pub struct DirtyNode {
 /// [`InspectEvent::Edge`] / [`InspectEvent::Write`] events, streamed
 /// immediately before this summary.
 #[derive(Debug, Clone)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "a frame ledger is genuinely four independent pass verdicts; packing them into bitflags would trade devtools readability for nothing"
+)]
 pub struct FrameSummary {
     /// Monotonic frame number (per pipeline).
     pub number: u64,

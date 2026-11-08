@@ -85,7 +85,7 @@ fn m0_counter_renders_and_updates_through_masks() {
 
     // The a11y tree is the query surface: reachable, named (§11.5).
     let label = harness.expect_a11y(Role::Label, "Clicked 0 times");
-    assert!(!label.id.to_string().is_empty());
+    assert_ne!(label.id.to_string(), "", "the a11y id renders");
 
     // Click the button through the event pass (hit-test + bubble).
     let bounds = harness.bounds(button);

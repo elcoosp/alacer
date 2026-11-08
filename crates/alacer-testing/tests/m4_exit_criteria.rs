@@ -36,7 +36,7 @@ const VIEWPORT: (f32, f32) = (320.0, 240.0);
 fn hot_app_view(
     binding: &RenderBinding<String>,
     generation: u32,
-    on_click: Rc<dyn Fn()>,
+    on_click: &Rc<dyn Fn()>,
 ) -> ViewNode {
     let binding = binding.clone();
     let marker = if generation == 0 {
@@ -71,7 +71,7 @@ fn hot_app_view(
             .prop(
                 "on_click",
                 PropValue::Handler(Rc::new(RefCell::new({
-                    let on_click = Rc::clone(&on_click);
+                    let on_click = Rc::clone(on_click);
                     move || on_click()
                 }))),
             ),
@@ -107,9 +107,10 @@ impl HotApp {
 
         let gen_reader = Rc::clone(&generation);
         let gen_binding = binding.clone();
+        let on_click_shared: Rc<dyn Fn()> = Rc::new(increment);
         let generate = move || {
             let generation_value = gen_reader.get();
-            hot_app_view(&gen_binding, generation_value, Rc::new(increment))
+            hot_app_view(&gen_binding, generation_value, &on_click_shared)
         };
 
         let hot = HotView::mount(harness.pipeline_mut(), default_registry(), generate);
@@ -390,11 +391,11 @@ fn the_inspector_answers_why_did_this_render() {
 
 #[test]
 fn the_inspector_answers_who_wrote_this_signal() {
-    let recorder = CausalRecorder::new("who-wrote");
+    let write_recorder = CausalRecorder::new("who-wrote");
     let mut app = HotApp::mount();
     app.harness
         .pipeline_mut()
-        .set_observer(Box::new(recorder.clone_handle()));
+        .set_observer(Box::new(write_recorder.clone_handle()));
     app.harness
         .pipeline_mut()
         .flux_mut()
@@ -406,10 +407,12 @@ fn the_inspector_answers_who_wrote_this_signal() {
     writer.write(&app.count, 42, "the M4 suite");
 
     app.harness.tick();
-    let writes = recorder.writes();
+    let recorded_writes = write_recorder.writes();
     assert!(
-        writes.iter().any(|write| write.origin == "the M4 suite"),
-        "the provenance write landed: {writes:?}"
+        recorded_writes
+            .iter()
+            .any(|write| write.origin == "the M4 suite"),
+        "the provenance write landed: {recorded_writes:?}"
     );
 }
 

@@ -225,7 +225,7 @@ fn list_patch(list: &mut crate::List, props: &ElementProps<'_>) -> bool {
 fn prop_index(props: &ElementProps<'_>, name: &str) -> Option<usize> {
     props
         .number(name)
-        .map(|value| value.round().max(0.0) as usize)
+        .map(|value| alacer_core::num::f32_to_usize(value.round().max(0.0)))
 }
 
 // ---------------------------------------------------------------------------
@@ -556,11 +556,11 @@ mod tests {
         let registry = default_registry();
         let node = ViewNode::element("panel").prop("height", 12.0_f32);
         let widget = registry.create(&node);
+        let Some(alacer_core::style::MeasureSpec::Fixed(size)) = widget.measure_spec() else {
+            panic!("panel height prop did not materialize into a fixed measure");
+        };
         assert!(
-            matches!(
-                widget.measure_spec(),
-                Some(alacer_core::style::MeasureSpec::Fixed(size)) if size.height == 12.0
-            ),
+            (size.height - 12.0).abs() < f32::EPSILON,
             "panel height prop materialized"
         );
         let _ = theme::SURFACE;

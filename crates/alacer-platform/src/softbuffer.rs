@@ -55,6 +55,11 @@ impl SoftbufferPresenter {
     /// # Errors
     ///
     /// Returns the softbuffer resize error.
+    ///
+    /// # Panics
+    ///
+    /// Never for well-formed input: zero/negative extents are clamped to 1
+    /// before the `NonZeroU32` conversion.
     pub fn resize(&mut self, width: u32, height: u32) -> Result<(), ::softbuffer::SoftBufferError> {
         self.width = width.max(1);
         self.height = height.max(1);

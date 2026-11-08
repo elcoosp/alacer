@@ -206,7 +206,7 @@ impl ViewRoot {
         report: &mut PatchReport,
     ) -> MountedView {
         if old.element != new.element {
-            return self.replace(old, new, pipeline, report);
+            return self.replace(&old, new, pipeline, report);
         }
         self.patch_and_reconcile(old, new, pipeline, report)
     }
@@ -214,20 +214,20 @@ impl ViewRoot {
     /// Subtree replace: the one path that re-creates widgets (§6.1).
     fn replace(
         &mut self,
-        old: MountedView,
+        old: &MountedView,
         new: &ViewNode,
         pipeline: &mut PassPipeline,
         report: &mut PatchReport,
     ) -> MountedView {
-        if old.parent == old.node {
-            panic!(
-                "the root element's type is fixed for the lifetime of a ViewRoot \
-                 (mounted {:?}, requested {:?}) — mount a new ViewRoot instead",
-                old.element, new.element
-            );
-        }
+        assert!(
+            old.parent != old.node,
+            "the root element's type is fixed for the lifetime of a ViewRoot \
+             (mounted {:?}, requested {:?}) — mount a new ViewRoot instead",
+            old.element,
+            new.element
+        );
         pipeline.arena_mut().remove_subtree(old.node);
-        report.removed += Self::count_of(&old);
+        report.removed += Self::count_of(old);
         let mounted = Self::mount_one(new, old.parent, pipeline, &self.registry);
         report.created += Self::count(new);
         mounted
@@ -391,7 +391,7 @@ impl ViewRoot {
         // is re-synced to the logical order — the same discipline the keyed
         // path applies.
         let mut out = Vec::with_capacity(new.len());
-        for child in new.iter() {
+        for child in new {
             if out.len() < mounted.len() {
                 let index = out.len();
                 let node = mounted[index].node;

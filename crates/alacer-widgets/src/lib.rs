@@ -44,6 +44,7 @@ impl<W: Widget> BoxedWidget for W {}
 use alacer_core::color::Color;
 use alacer_core::scene::PaintCtx;
 
+/// The shared color constants and type sizes every widget reads.
 pub mod theme {
     use super::Color;
 

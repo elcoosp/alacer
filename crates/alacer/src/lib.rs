@@ -27,7 +27,7 @@
 //! );
 //! ```
 //!
-//! The M0 dependency spine (architecture §18): winit + wgpu + reactive_graph
+//! The M0 dependency spine (architecture §18): `winit` + `wgpu` + `reactive_graph`
 //! + taffy + parley + accesskit on one window; the counter and the scrolling
 //! list are the canon.
 

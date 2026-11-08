@@ -188,8 +188,9 @@ fn animation_frame(rig: &mut Rig, frame: usize) {
     let section = frame % SECTIONS;
     let alpha = u8::try_from((frame * 17) % 255).unwrap_or(255);
     let fading = Color::rgb(37, 99, 235).with_alpha(alpha);
-    for color in rig.colors[section * LEAVES_PER_SECTION..(section + 1) * LEAVES_PER_SECTION].iter()
-    {
+    let section_colors =
+        &rig.colors[section * LEAVES_PER_SECTION..(section + 1) * LEAVES_PER_SECTION];
+    for color in section_colors {
         *color.lock().expect("leaf color") = fading;
     }
     // One tick + one damaged raster per frame (frame_pixels ticks the
@@ -208,7 +209,7 @@ fn bench_w3(c: &mut Criterion) {
         b.iter(|| {
             animation_frame(&mut rig, frame);
             frame += 1;
-        })
+        });
     });
     group.finish();
 }

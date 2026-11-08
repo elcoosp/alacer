@@ -38,6 +38,7 @@ impl Button {
     }
 
     /// Installs the click handler; invoked on release inside the button.
+    #[must_use]
     pub fn on_click(mut self, handler: impl FnMut() + 'static) -> Self {
         self.on_click = Some(Box::new(handler));
         self

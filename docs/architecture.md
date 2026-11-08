@@ -426,7 +426,7 @@ Event routing ships as a **written spec with committed performance baselines** �
 
 ### 10.2 Coalescing and pacing
 
-Adopt Freya's event-buffer discipline (`crates/ragnarok/src/event_buffer.rs:10-69` @ `0b13171`): compatible consecutive events merge; `MouseMove` coalesces on equal button state (`platform.rs:169-178`); same-direction wheel deltas accumulate (`platform.rs:179-198`); the release deadline derives from the monitor's refresh interval in mHz (`crates/freya-winit/src/window.rs:754-763`). Result: input storms cost one frame of work, not N events.
+Adopt Freya's event-buffer discipline (`crates/ragnarok/src/event_buffer.rs:10-69` @ `0b13171`): compatible consecutive events merge; `MouseMove` coalesces on equal button state (`platform.rs:169-178`); same-direction wheel deltas accumulate (`platform.rs:179-198`); the release deadline derives from the monitor's refresh interval in mHz (`crates/freya-winit/src/window.rs:754-763`). Result: input storms cost one frame of work, not N events. **Status:** delivered by M8 (ADR-0014) — the coalescer lives on the `PassPipeline` (`alacer_core::input::EventCoalescer`); the platform queues and never drains; `tick` routes the coalesced batch at its start, and the `input_storm_batching` budget publishes the ratio.
 
 ### 10.3 Focus, IME, shortcuts
 
@@ -620,6 +620,9 @@ Six months, ordered, each gate falsifiable (evolved from VISION.md; M-names alig
 | M3 | 13–18 | A11y contract + a11y-driven queries + partial paint on GPU path + IME contract | TreeUpdate p99 < 0.5 ms @ 1k nodes; fcitx5/ibus CI matrix green | a11y cost breaks frame budget → lazy-subtree a11y updates only |
 | M4 | 19–24 | DX: subsecond + CI hot-patch suite; Causality inspector spike; publish 0.1 + this architecture doc | sub-second hot reload demo with state intact; inspector demo | subsecond unstable in CI (segfault class) → template-only hot reload per ADR-7 |
 | M5 | cont. | Community: examples gallery, egui/Iced migration notes, perf dashboards | criterion baselines published as contracts | — |
+| M6 | cont. | Widget canon + record/replay + W2/W3/W5 published benches (ADR-0012) | todo/data-table canons end-to-end through the a11y tree; committed recording replays green; W5 one-rerun-per-batch at graph scale | — |
+| M7 | cont. | The reproducible rig + cross-framework beat (ADR-0013) | declared rig, no-strawman competitor harnesses, 5-run-median results committed, beat computed same-host (W1 won; W2/W3 published as lost, scoped) | competitor absolute medians gated → benchmark theatre (never done) |
+| M8 | cont. | Frame-batched input: the coalescer joins the scheduling contract (ADR-0014) | a 50-move storm routes one coalesced event (probe + counter + ledger agree); the `input_storm_batching` budget ≥ 2× | per-event dispatch semantics change observable widget behavior → route the batch per event behind a queue-depth knob |
 
 **Portfolio kill criterion (the whole thesis):** if by end of M3 the shared-harness benchmarks (W1, W2, W3) show **no workload where Alacer beats both egui (the DX baseline) and the best audited retained stack on the same hardware** — or the a11y CI gate cannot be maintained under feature velocity — then "composition beats specialization" is falsified. Pre-registered pivots: (a) extract the invalidation engine as a Masonry/egui backend crate; (b) reduce scope to an a11y + testing supercrate for egui/Iced. Killing a thesis cheaply is cheaper than marketing a failed one.
 

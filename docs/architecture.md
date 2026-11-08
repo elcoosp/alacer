@@ -448,10 +448,11 @@ The audit's sharpest finding is a market failure: AccessKit is the de-facto stan
 3. **Identity sharing.** AccessKit `NodeId` = id-path hash = hit-test id (§6.3) — the a11y tree is the same tree, not a parallel one.
 4. **Incremental updates.** TreeUpdates built from dirty nodes only (Freya's `accessibility/dirty_nodes.rs` @ `0b13171`), inside pass 9 — never a full-tree rebuild per frame (egui emits a full `TreeUpdate` every end-pass, `crates/egui/src/context.rs:3182-3207` @ `fc9d66d`; we do not inherit that cost).
 5. **Tests drive the a11y tree.** The official query API — `find(ROLE_BUTTON).named("Save")` — routes through AccessKit nodes with settle-or-error semantics (kittest: 8,131 LOC, `crates/egui_kittest/src/lib.rs:69-80`): a test can only pass if the widget is *reachable, named, and actionable* by a screen reader. Testing and accessibility reinforce each other; neither can rot silently.
+6. **Actions are routed, never munged** (M10, ADR-0016). The platform maps each AccessKit `ActionRequest` onto exactly one `A11yAction` variant (`Click`, `Increment`, `Decrement`, `ScrollUp/Down` with the request's `ScrollUnit`); pass 10 delivers it and the widget refuses what it does not implement — refusal queues no masks and fires nothing, so an AT is never silently lied to. The canon consumes the tier: the list answers scroll/step actions translation-only, and keyboard parity holds because a focused button answers Space/Enter like a pointer press-and-release.
 
 ### 11.2 Budgets
 
-TreeUpdate p99 < 0.5 ms at 1k nodes (M3 gate); a11y pass cost is a committed tracing baseline like every other phase. *Kill-switch:* if the budget breaks frame targets, scope updates to lazy-subtree mode — the type-level contract stays; the update granularity adapts.
+TreeUpdate p99 < 0.5 ms at 1k nodes (M3 gate); a11y pass cost is a committed tracing baseline like every other phase; and since M10 the action route is a published same-host regression gate (`a11y_action/route_100_actions_1k`) — routing an AT action stays in the cost class of routing a pointer event, never an a11y re-materialization. *Kill-switch:* if the budget breaks frame targets, scope updates to lazy-subtree mode — the type-level contract stays; the update granularity adapts.
 
 ---
 
@@ -590,7 +591,7 @@ Three differentiators, each hard to copy and disproportionately funded (the audi
 
 ## 17. ADR register
 
-ADRs 1–7 were ratified with the audit bundle (`adr/ADR-*.md`); each carries its own kill-switch. ADRs 8–11 are authored here to complete the architecture; ADR-0012…ADR-0015 scope milestones M6–M9 as they shipped (see `docs/adr/`).
+ADRs 1–7 were ratified with the audit bundle (`adr/ADR-*.md`); each carries its own kill-switch. ADRs 8–11 are authored here to complete the architecture; ADR-0012…ADR-0016 scope milestones M6–M10 as they shipped (see `docs/adr/`).
 
 | ADR | Decision | Status | Kill-switch (falsifiable) |
 |---|---|---|---|
@@ -609,6 +610,7 @@ ADRs 1–7 were ratified with the audit bundle (`adr/ADR-*.md`); each carries it
 | **ADR-0013** | M7 scope: the reproducible bench rig + cross-framework comparison beat | Accepted | competitor absolute medians gated → benchmark theatre (never done) |
 | **ADR-0014** | M8 scope: frame-batched input — the coalescer joins the scheduling contract | Accepted | per-event dispatch semantics change observable widget behavior → route the batch per event behind a queue-depth knob |
 | **ADR-0015** | M9 scope: the windowed a11y path joins the incremental contract — the pipeline's sink is the only `TreeUpdate` materialization path | Accepted | a platform adapter needs a shape the sink cannot express → re-open the seam with the shape as a trait method |
+| **ADR-0016** | M10 scope: the a11y action tier joins the dispatch contract — faithful `ActionRequest` mapping, the `Increment`/`Decrement`/`Scroll*` vocabulary, keyboard-operable buttons | Accepted | an action class needs a shape pass 10 cannot express → grow the vocabulary behind the same refuse-don't-munge contract |
 
 ---
 
@@ -628,6 +630,7 @@ Six months, ordered, each gate falsifiable (evolved from VISION.md; M-names alig
 | M7 | cont. | The reproducible rig + cross-framework beat (ADR-0013) | declared rig, no-strawman competitor harnesses, 5-run-median results committed, beat computed same-host (W1 won; W2/W3 published as lost, scoped) | competitor absolute medians gated → benchmark theatre (never done) |
 | M8 | cont. | Frame-batched input: the coalescer joins the scheduling contract (ADR-0014) | a 50-move storm routes one coalesced event (probe + counter + ledger agree); the `input_storm_batching` budget ≥ 2× | per-event dispatch semantics change observable widget behavior → route the batch per event behind a queue-depth knob |
 | M9 | cont. | The windowed a11y path joins the incremental contract (ADR-0015): the pipeline's `AccessKitSink` is the only `TreeUpdate` materialization path | the window drains dirty-only deltas with the full M6 vocabulary (values, toggle state, grid slots); the activation response is the sink's own full tree; the `a11y_incremental_speedup` budget ≥ 2×; corpus 45 → 47 | a platform adapter needs a shape the sink cannot express → re-open the seam with the shape as a trait method |
+| M10 | cont. | The a11y action tier joins the dispatch contract (ADR-0016): faithful `ActionRequest` mapping, the `Increment`/`Decrement`/`Scroll*` vocabulary, keyboard-operable buttons | the list canon scrolls from the AT side (translation-only, zero measure calls); a non-implemented action is refused with no masks and no effects (never munged into a press); a focused button activates on Space/Enter with GTK release semantics; the `a11y_action/route_100_actions_1k` gate is published; corpus 47 → 48 | an action class needs a shape pass 10 cannot express → grow the vocabulary behind the same refuse-don't-munge contract |
 
 **Portfolio kill criterion (the whole thesis):** if by end of M3 the shared-harness benchmarks (W1, W2, W3) show **no workload where Alacer beats both egui (the DX baseline) and the best audited retained stack on the same hardware** — or the a11y CI gate cannot be maintained under feature velocity — then "composition beats specialization" is falsified. Pre-registered pivots: (a) extract the invalidation engine as a Masonry/egui backend crate; (b) reduce scope to an a11y + testing supercrate for egui/Iced. Killing a thesis cheaply is cheaper than marketing a failed one.
 

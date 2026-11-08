@@ -17,3 +17,10 @@ workspace = true
 alacer-core.workspace = true
 accesskit.workspace = true
 rustc-hash.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "tree_update"
+harness = false

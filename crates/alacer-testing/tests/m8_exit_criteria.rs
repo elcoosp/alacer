@@ -272,7 +272,8 @@ fn m8_the_platform_pushes_and_never_drains() {
 fn m8_the_corpus_pin_agrees_with_the_published_data() {
     // M8 grows the corpus by the coordinated rule (the M5 suite's own doc):
     // one bench file, two criterion ids, two regression contracts, one
-    // budget — and every pin suite moves together.
+    // budget — and every pin suite moves together (M9 grew it again, by the
+    // same rule: ADR-0015's a11y ratio pair).
     let contracts = parse_workspace_json("benchmarks/contracts.json");
     let baselines = parse_workspace_json("benchmarks/baselines/baselines.json");
 
@@ -280,10 +281,14 @@ fn m8_the_corpus_pin_agrees_with_the_published_data() {
         .as_array()
         .expect("regressions array");
     let benches = baselines["benches"].as_object().expect("benches object");
-    assert_eq!(benches.len(), 45, "two M8 ids join the 43-case corpus");
+    assert_eq!(
+        benches.len(),
+        47,
+        "the M9 a11y pair joins the 45-case corpus"
+    );
     assert_eq!(
         regressions.len(),
-        45,
+        47,
         "every bench carries a regression gate"
     );
     for id in ["input/storm_50_moves_queued", "input/storm_50_moves_direct"] {
@@ -312,8 +317,8 @@ fn m8_the_corpus_pin_agrees_with_the_published_data() {
     ] {
         let source = read_workspace_file(&format!("crates/alacer-testing/tests/{suite}"));
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 45;"),
-            "{suite} must pin the 45-case corpus"
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 47;"),
+            "{suite} must pin the 47-case corpus"
         );
     }
 }

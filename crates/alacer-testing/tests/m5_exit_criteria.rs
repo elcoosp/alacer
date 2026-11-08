@@ -22,13 +22,13 @@ use serde_json::Value;
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
-/// The corpus pin, mirroring the M1 suite's 30-scenario pin: 45 criterion
-/// cases across the six benching crates (38 M5 cases + the M6 workloads:
-/// W2 ×2, W3 ×1, W5 ×2 — ADR-0012 + the M8 input-storm pair — ADR-0014).
-/// Growing the corpus is the coordinated bench + contracts.json +
-/// baseline-regeneration rule, reviewed here and by the M6/M7/M8 suites
-/// (which assert this pin agrees with their own).
-const EXPECTED_BENCH_COUNT: usize = 45;
+/// The corpus pin, mirroring the M1 suite's 30-scenario pin: 47 criterion
+/// cases across the seven benching crates (38 M5 cases + the M6 workloads:
+/// W2 ×2, W3 ×1, W5 ×2 — ADR-0012 + the M8 input-storm pair — ADR-0014 + the
+/// M9 a11y-ratio pair — ADR-0015). Growing the corpus is the coordinated
+/// bench + contracts.json + baseline-regeneration rule, reviewed here and by
+/// the M6/M7/M8/M9 suites (which assert this pin agrees with their own).
+const EXPECTED_BENCH_COUNT: usize = 47;
 
 /// The one criterion-expressible architecture budget in M5's contract set:
 /// the W1 gate (§18 M2, ADR-0008).

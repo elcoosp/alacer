@@ -20,6 +20,15 @@
       "op": ">=",
       "budget": 2.0,
       "cite": "architecture §10.2 (input storms cost one frame of work, not N events), ADR-0014; the queued batch routes one coalesced event where the pre-M8 wiring dispatched all 50"
+    },
+    {
+      "id": "a11y_incremental_speedup",
+      "metric": "median_ratio",
+      "numerator": "a11y/full_rebuild_1k",
+      "denominator": "a11y/incremental_1k_dirty_10pct",
+      "op": ">=",
+      "budget": 2.0,
+      "cite": "architecture §11.1 item 4 (never a full-tree rebuild per frame — the egui cost we refuse), ADR-0015; the M9 shape drains the sink's dirty-only delta where the pre-M9 window rebuilt the whole tree per a11y frame"
     }
   ],
   "regressions": [
@@ -246,6 +255,16 @@
     {
       "id": "input_storm_50_moves_direct",
       "baseline": "input/storm_50_moves_direct",
+      "scope": "same-host"
+    },
+    {
+      "id": "a11y_full_rebuild_1k",
+      "baseline": "a11y/full_rebuild_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "a11y_incremental_1k_dirty_10pct",
+      "baseline": "a11y/incremental_1k_dirty_10pct",
       "scope": "same-host"
     }
   ],

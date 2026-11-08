@@ -55,6 +55,66 @@ pub trait TextSeam: 'static {
 
     /// Shapes `text` at `font_size`, wrapping at `max_width` when given.
     fn layout_glyphs(&self, text: &str, font_size: f32, max_width: Option<f32>) -> GlyphRun;
+
+    /// The UTF-16 offset whose boundary is nearest to pixel `x` within the
+    /// run `text` shapes at `font_size` (unwrapped — the same shaping the
+    /// caret and the selection highlight measure their prefix widths with,
+    /// so the mapping closes against what paint draws). This is the
+    /// pointer side of the editing contract (§10.3, ADR-0018): a click's
+    /// x-coordinate becomes a caret offset through this seam.
+    ///
+    /// The provided implementation inverts the prefix widths
+    /// [`TextSeam::layout_glyphs`] already measures: a binary search over
+    /// the run's scalar boundaries, the nearest boundary wins, and ties
+    /// break to the earlier boundary — a click inside a cluster never
+    /// lands past it. Engines may override with a cluster-precise mapping
+    /// (parley carries cluster indexes); the inversion stays honest for
+    /// the single-line, left-to-right runs the contract covers because
+    /// prefix advances are non-decreasing along them.
+    fn hit_test(&self, text: &str, font_size: f32, x: f32) -> usize {
+        if text.is_empty() || x <= 0.0 {
+            return 0;
+        }
+        let total = crate::utf16::len_utf16(text);
+        // The run's scalar boundaries in UTF-16 units, ascending: one per
+        // scalar value, plus the end — every placement the caret legally
+        // takes.
+        let mut boundaries: Vec<usize> = Vec::with_capacity(total + 1);
+        boundaries.push(0);
+        let mut offset = 0_usize;
+        for ch in text.chars() {
+            offset += ch.len_utf16();
+            boundaries.push(offset);
+        }
+        debug_assert_eq!(offset, total, "the boundary walk covers the run");
+        let width_of = |boundary: usize| -> f32 {
+            let at = crate::utf16::byte_offset(text, boundary);
+            self.layout_glyphs(&text[..at], font_size, None).width
+        };
+        // The widths are non-decreasing along the boundaries: binary search
+        // for the last boundary whose width is <= x, then take the nearer
+        // of it and its successor; ties break to the earlier boundary.
+        let (mut lo, mut hi) = (0_usize, boundaries.len() - 1);
+        while lo < hi {
+            let mid = (lo + hi).div_ceil(2);
+            if width_of(boundaries[mid]) <= x {
+                lo = mid;
+            } else {
+                hi = mid - 1;
+            }
+        }
+        let left = lo;
+        let Some(&right) = boundaries.get(left + 1) else {
+            // x is at or past the run's width: the caret parks at the end.
+            return total;
+        };
+        let (left_width, right_width) = (width_of(boundaries[left]), width_of(right));
+        if x - left_width > right_width - x {
+            right
+        } else {
+            boundaries[left]
+        }
+    }
 }
 
 thread_local! {
@@ -149,5 +209,32 @@ mod tests {
         // Fresh thread: this test owns its own thread-local state, so the
         // install from the previous test is invisible here.
         let _ = with_seam(|_| 0_u8);
+    }
+
+    /// The stub's widths are the text's byte lengths (1 px per byte), so
+    /// the hit-test's boundaries are exactly the scalar offsets for ASCII.
+    #[test]
+    fn hit_test_returns_the_nearest_boundary() {
+        install(Rc::new(Stub));
+
+        let at = |x: f32| with_seam(|seam| seam.hit_test("abcd", 16.0, x));
+
+        assert_eq!(at(0.0), 0, "the run's origin is the first boundary");
+        assert_eq!(at(2.5), 2, "nearest boundary wins: 2 (width 2) over 3");
+        assert_eq!(at(3.2), 3, "past the midpoint the next boundary wins");
+        assert_eq!(at(-5.0), 0, "before the run clamps to the start");
+        assert_eq!(at(99.0), 4, "past the run clamps to the end");
+        assert_eq!(with_seam(|s| s.hit_test("", 16.0, 5.0)), 0, "empty is 0");
+    }
+
+    #[test]
+    fn hit_test_breaks_ties_toward_the_cluster_start() {
+        install(Rc::new(Stub));
+
+        // x = 2.0 sits exactly on boundary 2; x = 2.5 is equidistant from
+        // boundaries 2 and 3 — both resolve to the earlier boundary, so a
+        // click inside a cluster never lands past it.
+        assert_eq!(with_seam(|s| s.hit_test("abcd", 16.0, 2.0)), 2);
+        assert_eq!(with_seam(|s| s.hit_test("abcd", 16.0, 2.5)), 2);
     }
 }

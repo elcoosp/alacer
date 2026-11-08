@@ -68,7 +68,9 @@ pub use style::{
     CrossAxisAlignment, Display, MainAxisAlignment, MeasureFn, MeasureSpec, Style, TextSpec,
 };
 pub use text_seam::{GlyphRun, PlacedGlyph, TextSeam};
-pub use widget::{A11yAction, EventResponse, LabelSource, Role, TableSlot, ToggleState, Widget};
+pub use widget::{
+    A11yAction, EventResponse, LabelSource, Role, ScrollUnit, TableSlot, ToggleState, Widget,
+};
 
 /// The Alacer prelude: import this once and the framework vocabulary is in scope.
 pub mod prelude {

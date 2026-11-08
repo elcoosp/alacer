@@ -9,6 +9,30 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M10 — the a11y action tier joins the dispatch contract (ADR-0016)**:
+  the platform maps every AccessKit `ActionRequest` faithfully instead of
+  forcing it to `DefaultPress` — `Click`, `Increment`, `Decrement`, and
+  `ScrollUp`/`ScrollDown` (with the request's `ScrollUnit`) route through
+  pass 10, and an action a widget does not implement is refused with no
+  masks and no effects, never munged into a press; the `List` answers the
+  scroll/step vocabulary translation-only (an item is the 40 px line, a
+  page is the viewport, `Increment`/`Decrement` step by a page, clamped
+  like the wheel path), and a focused `Button` is keyboard-operable —
+  Space/Enter fire one click per press-and-release (GTK release
+  semantics, auto-repeat absorbed)
+- **M10 — the harness and the corpus**: `TestHarness::act(role, name,
+  action)` drives the full action tier through the a11y query API and
+  returns the consumption verdict (refusals are assertable); the corpus
+  grows 47 → 48 by the coordinated rule — the new
+  `a11y_action/route_100_actions_1k` criterion bench (100 mixed actions
+  routed through pass 10 on a 1,000-node arena) is published with a
+  same-host regression gate, and the M5/M6/M7/M8/M9 pin suites move
+  together with the new M10 exit suite
+- **M10 — housekeeping**: the CI perf-contracts bench invocation pins
+  `--benches` so criterion-only flags never reach a libtest harness; the
+  `arena_masks/10000` baseline entry was re-published after the same-host
+  checker flagged ~30% host drift that reproduces identically at the M9
+  tree (measured by stashing the working tree)
 - **M9 — the windowed a11y path joins the incremental contract (ADR-0015)**:
   the pipeline's own `AccessKitSink` becomes the only `TreeUpdate`
   materialization path — the real window drains the sink's dirty-only

@@ -259,22 +259,35 @@ impl TestHarness {
     /// Panics when no such node is reachable: a test that cannot find its
     /// target is a test bug.
     pub fn press(&mut self, role: Role, name: &str) {
+        let consumed = self.act(role, name, A11yAction::DefaultPress);
+        assert!(
+            consumed,
+            "the {role} named {name:?} did not consume the default a11y action"
+        );
+    }
+
+    /// Dispatches `action` to the first node with `role` named `name`, then
+    /// settles (M10, ADR-0016: the full action tier is drivable the same way
+    /// the platform drives it). Returns whether the target **consumed** the
+    /// action — `false` is a valid, assertable outcome: the no-munging
+    /// contract means a refused action fires nothing and queues no masks.
+    ///
+    /// # Panics
+    ///
+    /// Panics when no such node is reachable: a test that cannot find its
+    /// target is a test bug.
+    pub fn act(&mut self, role: Role, name: &str, action: A11yAction) -> bool {
         let node = self
             .pipeline
             .a11y_snapshot()
             .and_then(|tree| tree.find(role, name))
             .unwrap_or_else(|| {
-                panic!("a11y press failed: no {role} named {name:?} is reachable");
+                panic!("a11y action failed: no {role} named {name:?} is reachable");
             });
         let id = node.id;
-        let consumed = self
-            .pipeline
-            .dispatch_a11y_action(id, A11yAction::DefaultPress);
-        assert!(
-            consumed,
-            "the {role} named {name:?} did not consume the default a11y action"
-        );
+        let consumed = self.pipeline.dispatch_a11y_action(id, action);
         self.settle();
+        consumed
     }
 
     /// Renders the current frame's pixels — same as [`Self::pixels`].

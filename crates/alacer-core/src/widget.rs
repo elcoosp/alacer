@@ -137,11 +137,36 @@ impl LabelSource {
     }
 }
 
+/// How far an [`A11yAction::ScrollUp`] or [`A11yAction::ScrollDown`] should
+/// travel, normalized across platforms (the AccessKit `ScrollUnit` shape,
+/// mirrored in core so the DAG stays adapter-free — ADR-9).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScrollUnit {
+    /// A single item of a list (one line, the platform's 40 px wheel notch).
+    Item,
+    /// The amount of content that fits in the viewport.
+    Page,
+}
+
 /// An accessibility action requested by an assistive technology.
+///
+/// The vocabulary is the routing contract (ADR-0016): the platform maps each
+/// AccessKit action onto exactly one variant — an action a widget does not
+/// implement is *refused* by that widget, never munged into a different
+/// action. Growing the enum is how the AT tier widens; every variant gains
+/// a consuming widget in the same milestone.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum A11yAction {
     /// The default action — "press" for buttons, "toggle" for checkboxes.
     DefaultPress,
+    /// Increment a value by one step (a scroll area steps by one page).
+    Increment,
+    /// Decrement a value by one step (a scroll area steps by one page).
+    Decrement,
+    /// Scroll up by `unit` (the AT's scroll command on a scroll area).
+    ScrollUp(ScrollUnit),
+    /// Scroll down by `unit` (the AT's scroll command on a scroll area).
+    ScrollDown(ScrollUnit),
 }
 
 /// A toggle control's checked state, carried neutrally to the a11y sink

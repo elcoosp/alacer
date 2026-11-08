@@ -4,8 +4,13 @@
 use alacer_core::events::{EventCtx, PointerEvent};
 use alacer_core::geom::Vector;
 use alacer_core::style::Style;
-use alacer_core::widget::{EventResponse, LabelSource, Role, Widget};
+use alacer_core::widget::{A11yAction, EventResponse, LabelSource, Role, ScrollUnit, Widget};
 use std::sync::{Arc, Mutex};
+
+/// One line of a11y scroll, in pixels — the platform's wheel convention
+/// (`LineDelta` × 40 px/line, §10.2), so an assistive technology's
+/// "scroll one item" lands exactly where one wheel notch does.
+const A11Y_LINE: f32 = 40.0;
 
 /// Shared scroll state between the widget and its [`ListHandle`].
 #[derive(Debug, Default)]
@@ -121,6 +126,36 @@ impl Widget for List {
         }
         EventResponse::Ignored
     }
+
+    fn on_a11y_action(&mut self, action: A11yAction) -> bool {
+        // M10 (ADR-0016): a scroll area answers the AT vocabulary —
+        // `ScrollUp`/`ScrollDown` travel by the requested unit (an item is
+        // one line, a page is the viewport), and `Increment`/`Decrement`
+        // step by a page, the honest value-step for a scrollbar whose value
+        // *is* the offset. The pipeline merges `PAINT | A11Y` on consumption
+        // (§7.2 pass 10), so bounds re-announce without a measure call.
+        let mut state = self.state.lock().expect("scroll state");
+        let down = match action {
+            A11yAction::ScrollDown(_) | A11yAction::Increment => true,
+            A11yAction::ScrollUp(_) | A11yAction::Decrement => false,
+            A11yAction::DefaultPress => return false,
+        };
+        let unit = match action {
+            A11yAction::ScrollDown(unit) | A11yAction::ScrollUp(unit) => unit,
+            _ => ScrollUnit::Page,
+        };
+        let distance = match unit {
+            ScrollUnit::Item => A11Y_LINE,
+            ScrollUnit::Page => state.viewport_height,
+        };
+        let target = if down {
+            state.offset + distance
+        } else {
+            state.offset - distance
+        };
+        state.offset = target.clamp(0.0, (state.content_height - state.viewport_height).max(0.0));
+        true
+    }
 }
 
 /// Shared control over a [`List`]'s scroll offset.
@@ -178,7 +213,7 @@ mod tests {
     use super::{List, ScrollState};
     use alacer_core::events::{EventCtx, PointerEvent};
     use alacer_core::geom::{Point, Vector};
-    use alacer_core::widget::{EventResponse, Role, Widget};
+    use alacer_core::widget::{A11yAction, EventResponse, Role, ScrollUnit, Widget};
 
     #[test]
     fn list_clips_and_reports_scroll_area_role() {
@@ -261,5 +296,63 @@ mod tests {
             "handle and widget share state"
         );
         let _ = std::any::TypeId::of::<ScrollState>();
+    }
+
+    #[test]
+    fn a11y_scroll_actions_travel_by_their_unit_and_clamp() {
+        let mut list = List::new(100.0);
+        let handle = list.handle();
+        handle.set_content_height(500.0);
+        let ctx = EventCtx::new();
+
+        assert!(list.on_a11y_action(A11yAction::ScrollDown(ScrollUnit::Item)));
+        assert_eq!(handle.offset(), 40.0, "one item = one line = 40 px");
+
+        assert!(list.on_a11y_action(A11yAction::ScrollDown(ScrollUnit::Page)));
+        assert_eq!(handle.offset(), 140.0, "one page = the viewport (100 px)");
+
+        assert!(list.on_a11y_action(A11yAction::ScrollUp(ScrollUnit::Item)));
+        assert_eq!(handle.offset(), 100.0);
+
+        // Overscroll clamps at both ends, like the wheel path.
+        assert!(list.on_a11y_action(A11yAction::ScrollUp(ScrollUnit::Page)));
+        assert!(list.on_a11y_action(A11yAction::ScrollUp(ScrollUnit::Page)));
+        assert_eq!(handle.offset(), 0.0, "the top clamps at zero");
+        assert!(list.on_a11y_action(A11yAction::ScrollDown(ScrollUnit::Page)));
+        assert!(list.on_a11y_action(A11yAction::ScrollDown(ScrollUnit::Page)));
+        assert!(list.on_a11y_action(A11yAction::ScrollDown(ScrollUnit::Page)));
+        assert!(list.on_a11y_action(A11yAction::ScrollDown(ScrollUnit::Page)));
+        assert_eq!(
+            handle.offset(),
+            400.0,
+            "the bottom clamps at content minus viewport"
+        );
+        let _ = ctx;
+    }
+
+    #[test]
+    fn a11y_increment_and_decrement_step_by_a_page() {
+        let mut list = List::new(100.0);
+        let handle = list.handle();
+        handle.set_content_height(500.0);
+
+        // A scrollbar's value *is* the offset: the numeric step is a page.
+        assert!(list.on_a11y_action(A11yAction::Increment));
+        assert_eq!(handle.offset(), 100.0);
+        assert!(list.on_a11y_action(A11yAction::Increment));
+        assert_eq!(handle.offset(), 200.0);
+        assert!(list.on_a11y_action(A11yAction::Decrement));
+        assert_eq!(handle.offset(), 100.0);
+    }
+
+    #[test]
+    fn a11y_press_is_refused_and_the_offset_never_moves() {
+        let mut list = List::new(100.0);
+        let handle = list.handle();
+        handle.set_content_height(500.0);
+
+        assert!(!list.on_a11y_action(A11yAction::DefaultPress));
+        assert_eq!(handle.offset(), 0.0, "a press is not a scroll");
+        assert_eq!(list.role(), Role::ScrollArea);
     }
 }

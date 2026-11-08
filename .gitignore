@@ -15,5 +15,6 @@
 benchmarks/competitors/*/target
 __pycache__/
 
-# The operator's local release runner (never tracked)
+# The operator's local release runner and its generated PR body (never tracked)
 ship.sh
+.github/pr-body.md

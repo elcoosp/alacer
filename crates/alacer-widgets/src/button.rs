@@ -1,7 +1,7 @@
 //! The button: clickable, pressable, named.
 
 use alacer_core::color::Color;
-use alacer_core::events::{EventCtx, PointerEvent, PointerEvent as PE};
+use alacer_core::events::{EventCtx, Key, KeyEvent, KeyState, PointerEvent, PointerEvent as PE};
 use alacer_core::geom::Point;
 use alacer_core::scene::PaintCtx;
 use alacer_core::style::{MeasureSpec, Style, TextSpec};
@@ -212,5 +212,168 @@ impl Widget for Button {
             }
             PointerEvent::Move { .. } | PointerEvent::Wheel { .. } => EventResponse::Ignored,
         }
+    }
+
+    fn on_key_event(&mut self, ctx: &mut EventCtx, event: &KeyEvent) -> EventResponse {
+        // Keyboard activation (M10, §10.3 parity): a focused button answers
+        // Space and Enter exactly like a pointer press-and-release. GTK
+        // semantics — the click fires on key *release* — so an auto-repeat
+        // hold cannot machine-gun the handler.
+        let activation = matches!(event.key, Key::Enter | Key::Space);
+        if !activation {
+            return EventResponse::Ignored;
+        }
+        match event.state {
+            KeyState::Pressed => {
+                self.pressed = true;
+                ctx.request(alacer_core::Change::PAINT);
+            }
+            KeyState::Released => {
+                if self.pressed {
+                    self.pressed = false;
+                    ctx.request(alacer_core::Change::PAINT);
+                    if let Some(handler) = &mut self.on_click {
+                        handler();
+                    }
+                }
+            }
+        }
+        EventResponse::Handled
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Button;
+    use alacer_core::events::{EventCtx, Key, KeyEvent, KeyState, Modifiers, PointerEvent};
+    use alacer_core::geom::Point;
+    use alacer_core::widget::{A11yAction, EventResponse, Role, Widget};
+    use std::cell::Cell;
+    use std::rc::Rc;
+
+    fn key(key: Key, state: KeyState) -> KeyEvent {
+        KeyEvent {
+            key,
+            state,
+            modifiers: Modifiers::default(),
+            text: None,
+        }
+    }
+
+    fn counted_button() -> (Button, Rc<Cell<u32>>) {
+        let clicks = Rc::new(Cell::new(0));
+        let counter = Rc::clone(&clicks);
+        let button = Button::new("Increment").on_click(move || counter.set(counter.get() + 1));
+        (button, clicks)
+    }
+
+    #[test]
+    fn space_and_enter_activate_a_focused_button() {
+        let (mut button, clicks) = counted_button();
+        let mut ctx = EventCtx::new();
+
+        assert_eq!(
+            button.on_key_event(&mut ctx, &key(Key::Space, KeyState::Pressed)),
+            EventResponse::Handled,
+            "space press shows the pressed state"
+        );
+        assert!(button.is_pressed(), "space press shows the pressed state");
+        assert_eq!(clicks.get(), 0, "the click waits for the release (GTK)");
+
+        assert_eq!(
+            button.on_key_event(&mut ctx, &key(Key::Space, KeyState::Released)),
+            EventResponse::Handled
+        );
+        assert!(!button.is_pressed());
+        assert_eq!(clicks.get(), 1, "exactly one click per press-and-release");
+
+        assert_eq!(
+            button.on_key_event(&mut ctx, &key(Key::Enter, KeyState::Pressed)),
+            EventResponse::Handled
+        );
+        assert_eq!(
+            button.on_key_event(&mut ctx, &key(Key::Enter, KeyState::Released)),
+            EventResponse::Handled
+        );
+        assert_eq!(clicks.get(), 2, "enter activates too");
+
+        // A held key auto-repeats presses; the release guard must keep the
+        // handler to one run per physical press-and-release.
+        assert_eq!(
+            button.on_key_event(&mut ctx, &key(Key::Enter, KeyState::Pressed)),
+            EventResponse::Handled
+        );
+        assert_eq!(
+            button.on_key_event(&mut ctx, &key(Key::Enter, KeyState::Pressed)),
+            EventResponse::Handled,
+            "repeat presses on an already-pressed button are absorbed"
+        );
+        assert_eq!(
+            button.on_key_event(&mut ctx, &key(Key::Enter, KeyState::Released)),
+            EventResponse::Handled
+        );
+        assert_eq!(clicks.get(), 3, "still one click per release");
+    }
+
+    #[test]
+    fn a_stray_release_and_other_keys_do_not_activate() {
+        let (mut button, clicks) = counted_button();
+        let mut ctx = EventCtx::new();
+
+        assert_eq!(
+            button.on_key_event(&mut ctx, &key(Key::Space, KeyState::Released)),
+            EventResponse::Handled,
+            "space is an activation key, so the event is handled…"
+        );
+        assert_eq!(
+            clicks.get(),
+            0,
+            "…but a release without a press is not a click"
+        );
+
+        assert_eq!(
+            button.on_key_event(&mut ctx, &key(Key::Char('x'), KeyState::Pressed)),
+            EventResponse::Ignored,
+            "non-activation keys bubble to the framework (Tab cycling)"
+        );
+        assert_eq!(clicks.get(), 0);
+    }
+
+    #[test]
+    fn pointer_click_still_fires_on_release_inside() {
+        let (mut button, clicks) = counted_button();
+        let mut ctx = EventCtx::new();
+        let at = Point::new(10.0, 10.0);
+        let _ = button.on_pointer_event(
+            &mut ctx,
+            &PointerEvent::Down {
+                position: at,
+                button: alacer_core::events::MouseButton::Left,
+            },
+        );
+        let _ = button.on_pointer_event(
+            &mut ctx,
+            &PointerEvent::Up {
+                position: at,
+                button: alacer_core::events::MouseButton::Left,
+            },
+        );
+        assert_eq!(clicks.get(), 1, "the pointer path is unchanged by M10");
+    }
+
+    #[test]
+    fn a11y_default_press_fires_and_step_actions_are_refused() {
+        let (mut button, clicks) = counted_button();
+
+        assert!(
+            !button.on_a11y_action(A11yAction::Increment),
+            "an increment is not a press — the platform must not munge it"
+        );
+        assert_eq!(clicks.get(), 0, "the refused action fired nothing");
+
+        assert!(button.on_a11y_action(A11yAction::DefaultPress));
+        assert_eq!(clicks.get(), 1);
+
+        assert_eq!(button.role(), Role::Button);
     }
 }

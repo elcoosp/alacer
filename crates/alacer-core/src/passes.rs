@@ -2560,4 +2560,127 @@ mod tests {
         );
         assert!(median > 0.0, "the instrumentation measures something");
     }
+
+    /// A scroll-area widget that records every action routed to it, refusing
+    /// only `DefaultPress` (the vocabulary is the contract under test).
+    struct Stepper {
+        seen: std::sync::Arc<Mutex<Vec<crate::widget::A11yAction>>>,
+    }
+
+    impl Widget for Stepper {
+        fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+            self
+        }
+        fn role(&self) -> Role {
+            Role::ScrollArea
+        }
+        fn label(&self) -> LabelSource {
+            LabelSource::text("stepper")
+        }
+        fn measure_spec(&self) -> Option<crate::style::MeasureSpec> {
+            Some(crate::style::MeasureSpec::Fixed(Size::new(100.0, 30.0)))
+        }
+        fn on_a11y_action(&mut self, action: crate::widget::A11yAction) -> bool {
+            self.seen.lock().expect("seen lock").push(action);
+            true
+        }
+    }
+
+    #[test]
+    fn pass10_routes_the_full_a11y_action_vocabulary() {
+        use crate::widget::{A11yAction, ScrollUnit};
+
+        let _guard = crate::flux::batch_test_lock();
+        let seen = std::sync::Arc::new(Mutex::new(Vec::new()));
+        let mut p = pipeline();
+        let root = p.mount_root(Box::new(Fixed {
+            size: Size::new(200.0, 100.0),
+        }));
+        let _ = p.add_child(
+            root,
+            Box::new(Stepper {
+                seen: std::sync::Arc::clone(&seen),
+            }),
+        );
+        let _ = p.tick(viewport()).expect("first frame");
+
+        let snapshot = p.a11y_snapshot().expect("a11y snapshot after first frame");
+        let target = snapshot
+            .nodes
+            .iter()
+            .find(|node| node.role == Role::ScrollArea)
+            .map(|node| node.id)
+            .expect("the stepper is in the a11y tree");
+
+        let route =
+            |p: &mut PassPipeline, action: A11yAction| p.dispatch_a11y_action(target, action);
+        assert!(route(&mut p, A11yAction::Increment), "increment consumed");
+        assert!(route(&mut p, A11yAction::Decrement), "decrement consumed");
+        assert!(
+            route(&mut p, A11yAction::ScrollUp(ScrollUnit::Item)),
+            "scroll up by an item consumed"
+        );
+        assert!(
+            route(&mut p, A11yAction::ScrollDown(ScrollUnit::Page)),
+            "scroll down by a page consumed"
+        );
+        assert_eq!(
+            seen.lock().expect("seen lock").as_slice(),
+            [
+                A11yAction::Increment,
+                A11yAction::Decrement,
+                A11yAction::ScrollUp(ScrollUnit::Item),
+                A11yAction::ScrollDown(ScrollUnit::Page),
+            ],
+            "pass 10 delivers the action unchanged — routing, not munging"
+        );
+
+        // A consumed action invalidates through the one currency: the next
+        // tick runs paint and a11y for the target, exactly like a user
+        // interaction would (§7.2 pass 10).
+        let report = p.tick(viewport()).expect("post-action frame");
+        assert!(
+            report.pass(PassKind::Paint).is_some_and(|run| run.ran),
+            "a consumed action repaints its target"
+        );
+        assert!(
+            report
+                .pass(PassKind::Accessibility)
+                .is_some_and(|run| run.ran),
+            "a consumed action re-announces its target"
+        );
+    }
+
+    #[test]
+    fn pass10_reports_unconsumed_actions_without_masks() {
+        use crate::widget::A11yAction;
+
+        let _guard = crate::flux::batch_test_lock();
+        let mut p = pipeline();
+        let _root = p.mount_root(Box::new(Fixed {
+            size: Size::new(200.0, 100.0),
+        }));
+        let _ = p.tick(viewport()).expect("first frame");
+        let target = p
+            .a11y_snapshot()
+            .expect("snapshot")
+            .nodes
+            .iter()
+            .find(|node| node.role == Role::Container)
+            .map(|node| node.id)
+            .expect("the fixed root is in the a11y tree");
+
+        // `Fixed` implements no actions: the route reports `false` and — the
+        // M10 no-munging contract — leaves no masks behind.
+        assert!(
+            !p.dispatch_a11y_action(target, A11yAction::Increment),
+            "an action the widget does not implement is not consumed"
+        );
+        let report = p.tick(viewport()).expect("idle frame");
+        assert!(
+            report.is_idle(),
+            "an unconsumed action costs no pass work — it must never be \
+             munged into a press or any other action"
+        );
+    }
 }

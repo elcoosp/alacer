@@ -516,6 +516,41 @@ fn drain_a11y_updates(pipeline: &mut PassPipeline) -> Vec<accesskit::TreeUpdate>
         .unwrap_or_default()
 }
 
+/// Maps an AccessKit `ActionRequest` onto the core action vocabulary
+/// (ADR-0016): one variant per AccessKit action the framework has a widget
+/// contract for, the request's `ScrollUnit` data carried through. Actions
+/// with no consumer in the vocabulary map to `None` — they are dropped at
+/// the boundary (traced, once, with the action name) instead of being
+/// munged into a press: a `Focus` request that clicked something would be
+/// a correctness bug, not a fallback.
+fn map_action_request(
+    request: &accesskit::ActionRequest,
+) -> Option<alacer_core::widget::A11yAction> {
+    use accesskit::{Action, ActionData, ScrollUnit as PlatformUnit};
+    use alacer_core::widget::{A11yAction as Core, ScrollUnit};
+
+    // Carries the request's scroll unit through, defaulting to one item —
+    // the granularity an AT means when it sends no unit at all.
+    let unit = |data: Option<&ActionData>| -> ScrollUnit {
+        match data {
+            Some(ActionData::ScrollUnit(PlatformUnit::Page)) => ScrollUnit::Page,
+            _ => ScrollUnit::Item,
+        }
+    };
+
+    match request.action {
+        Action::Click => Some(Core::DefaultPress),
+        Action::Increment => Some(Core::Increment),
+        Action::Decrement => Some(Core::Decrement),
+        Action::ScrollUp => Some(Core::ScrollUp(unit(request.data.as_ref()))),
+        Action::ScrollDown => Some(Core::ScrollDown(unit(request.data.as_ref()))),
+        other => {
+            tracing::trace!(?other, "accesskit action dropped: no widget contract yet");
+            None
+        }
+    }
+}
+
 impl ApplicationHandler<PlatformEvent> for AlacerApp {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let attrs = Window::default_attributes()
@@ -685,11 +720,18 @@ impl ApplicationHandler<PlatformEvent> for AlacerApp {
                     self.push_initial_tree();
                 }
                 AccessKitWindowEvent::ActionRequested(request) => {
-                    let action = alacer_core::widget::A11yAction::DefaultPress;
-                    let handled = self
-                        .pipeline
-                        .dispatch_a11y_action(request.target_node.0, action);
-                    if handled {
+                    // M10 (ADR-0016): the request's own action is the
+                    // contract — map it faithfully onto the core vocabulary
+                    // and let the widget refuse what it does not implement.
+                    // The pre-M10 blanket press (every request munged to
+                    // `DefaultPress`) turned a braille display's Increment
+                    // into a click; that class of munging is the bug this
+                    // mapping deletes.
+                    if let Some(action) = map_action_request(&request)
+                        && self
+                            .pipeline
+                            .dispatch_a11y_action(request.target_node.0, action)
+                    {
                         self.needs_present = true;
                         if let Some(window) = &self.window {
                             window.request_redraw();

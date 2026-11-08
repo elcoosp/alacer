@@ -14,3 +14,6 @@
 # Competitor harness build artifacts (standalone projects, ADR-0013)
 benchmarks/competitors/*/target
 __pycache__/
+
+# The operator's local release runner (never tracked)
+ship.sh

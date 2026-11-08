@@ -56,6 +56,9 @@ pub mod theme {
     pub const ACCENT: Color = Color::rgb(37, 99, 235);
     /// Primary button fill while pressed.
     pub const ACCENT_PRESSED: Color = Color::rgb(29, 78, 216);
+    /// Text-selection highlight: the accent at a quarter opacity, behind
+    /// the selected range (M11, ADR-0017).
+    pub const SELECTION: Color = Color::rgb(37, 99, 235).with_alpha(64);
     /// Body text.
     pub const TEXT: Color = Color::rgb(15, 23, 42);
     /// Muted text.

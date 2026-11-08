@@ -9,6 +9,38 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M13 — the word joins the editing contract (ADR-0019)**: the caret —
+  scalar-addressable since M1, keyboard-extended since M11, pointer-placed
+  since M12 — is word-addressable. The text seam grows the required
+  `word_segments` — the run's UAX #29 word segmentation in the §10.3
+  UTF-16 contract unit, with no provided implementation on principle: a
+  whitespace-and-ASCII approximation would silently mis-hop `don't` and
+  every multi-script run, so the contract requires the engine's tables
+  (ICU's `WordSegmenter`, the same segmenter parley's line breaking
+  adopts, dictionary-backed for Thai and friends). Core fixes the hop
+  rule (`word_hop`) — a hop lands on the far edge of the word-like
+  segment that spans the caret, or on the near edge of the next one;
+  separators are never landings, so `", "` takes one hop; the edges
+  clamp. The editor consumes it: Alt/Ctrl/Meta+Left/Right hop word-wise
+  (Shift extends from the anchor, a plain press collapses a live
+  selection first — the GTK rules the arrows already follow),
+  Ctrl/Alt+Backspace and Delete delete exactly the span the caret would
+  hop (a selection is consumed whole first, the M11 edit rule), and a
+  double-click selects the word under the hit — anchor at its start,
+  caret at its end — collapsing on a separator rather than wandering to
+  the nearest word. The event contract carries the gesture fact the
+  widget cannot time: `PointerEvent::Down` grows `click_count`, computed
+  by the platform's click chain (400 ms, 4 px — GTK's defaults), and the
+  a11y tree rides unchanged — a word selection is the same anchor+caret
+  vocabulary every writer shares
+- **M13 — the harness and the corpus**: `TestHarness::double_click`
+  drives the gesture the way the platform's click chain reports it; the
+  corpus grows 50 → 51 by the coordinated rule — the new
+  `editing/route_100_word_moves_1k` criterion bench (100
+  direction-alternating word hops routed through the pipeline on a
+  1,000-node arena, measured on the shipped `TextInput`) is published
+  with a same-host regression gate, and the M5–M12 pin suites move
+  together with the new M13 exit suite
 - **M12 — the pointer joins the editing contract (ADR-0018)**: the
   caret — until now keyboard- and AT-addressable only — is
   pointer-addressable. A click inside the field places the caret at the

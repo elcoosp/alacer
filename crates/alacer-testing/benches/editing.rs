@@ -1,19 +1,19 @@
-//! The pointer-editing benchmark (§10.3, ADR-0018): one hundred caret
-//! placements routed through the pipeline on a 1,000-node arena — each a
-//! queued Down/Up pair the coalescer hands the tick at its start, the
-//! field answers with a seam hit-test and a caret move. The published
-//! `editing/route_100_caret_clicks_1k` regression gate keeps the pointer
-//! tier honest as the editing contract grows: placing a caret must stay
-//! in the cost class of routing a pointer event — the full pre-order
-//! walk, the resolved frame, the hit-test inversion — never a re-layout
-//! of the arena or a re-materialization of its a11y tree.
+//! The editing benchmarks (§10.3): the pointer tier (ADR-0018) and the
+//! word tier (ADR-0019) routed through the pipeline on a 1,000-node arena
+//! — each measured on the shipped `TextInput`, not a probe stand-in.
 //!
-//! The bench lives in the harness crate because that is where the whole
+//! The published regression gates keep the editing tiers honest as the
+//! contract grows: placing a caret must stay in the cost class of routing
+//! a pointer event (the full pre-order walk, the resolved frame, the
+//! hit-test inversion), and moving a word must stay in the cost class of
+//! moving a caret — a seam segmentation and a mask, never a re-layout of
+//! the arena or a re-materialization of its a11y tree.
+//!
+//! The benches live in the harness crate because that is where the whole
 //! pipeline is assembled with the real widget set (the DAG's harness
-//! layer drives every surface): the measured widget is the shipped
-//! `TextInput`, not a probe stand-in.
+//! layer drives every surface).
 
-use alacer_core::events::{MouseButton, PointerEvent};
+use alacer_core::events::{Key, KeyEvent, KeyState, Modifiers, MouseButton, PointerEvent};
 use alacer_core::geom::Point;
 use alacer_core::widget::Role;
 use alacer_testing::TestHarness;
@@ -21,7 +21,7 @@ use alacer_widgets::{BoxedWidget as _, Column, Panel, TextInput};
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use std::hint::black_box;
 
-const CLICKS: usize = 100;
+const EVENTS: usize = 100;
 const FILLER: usize = 1000;
 const PANEL_HEIGHT: f32 = 0.4;
 
@@ -37,8 +37,8 @@ fn click_xs(harness: &TestHarness) -> (Vec<f32>, f32) {
         .expect("the input has resolved bounds");
     let y = bounds.origin.y + bounds.size.height * 0.5;
     let inner = bounds.size.width - 8.0;
-    let step = inner / (alacer_core::num::usize_to_f32(CLICKS) - 1.0);
-    let xs = (0..CLICKS)
+    let step = inner / (alacer_core::num::usize_to_f32(EVENTS) - 1.0);
+    let xs = (0..EVENTS)
         .map(|i| bounds.origin.x + 4.0 + step * alacer_core::num::usize_to_f32(i))
         .collect();
     (xs, y)
@@ -47,7 +47,7 @@ fn click_xs(harness: &TestHarness) -> (Vec<f32>, f32) {
 fn bench_editing_caret_route(c: &mut Criterion) {
     let mut group = c.benchmark_group("editing");
     group.throughput(Throughput::Elements(
-        u64::try_from(CLICKS).expect("non-negative"),
+        u64::try_from(EVENTS).expect("non-negative"),
     ));
 
     group.bench_function("route_100_caret_clicks_1k", |b| {
@@ -70,6 +70,7 @@ fn bench_editing_caret_route(c: &mut Criterion) {
                 harness.queue_pointer(PointerEvent::Down {
                     position: Point::new(*x, y),
                     button: MouseButton::Left,
+                    click_count: 1,
                 });
                 harness.queue_pointer(PointerEvent::Up {
                     position: Point::new(*x, y),
@@ -84,5 +85,58 @@ fn bench_editing_caret_route(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_editing_caret_route);
+/// An Alt-arrow press (the word chords; ADR-0019) — the exact event the
+/// platform delivers when the user moves word-wise.
+fn alt_arrow(key: Key) -> KeyEvent {
+    KeyEvent {
+        key,
+        state: KeyState::Pressed,
+        modifiers: Modifiers {
+            alt: true,
+            ..Modifiers::default()
+        },
+        text: None,
+    }
+}
+
+fn bench_editing_word_route(c: &mut Criterion) {
+    let mut group = c.benchmark_group("editing");
+    group.throughput(Throughput::Elements(
+        u64::try_from(EVENTS).expect("non-negative"),
+    ));
+
+    group.bench_function("route_100_word_moves_1k", |b| {
+        let mut harness = TestHarness::new(800.0, 600.0);
+        let root = harness.mount(Column::new().boxed());
+        let node = harness.add_child(root, TextInput::new("Search").boxed());
+        for _ in 0..FILLER {
+            let _ = harness.add_child(
+                root,
+                Panel::new(PANEL_HEIGHT, alacer_widgets::theme::PANEL).boxed(),
+            );
+        }
+        harness.settle();
+        harness.pipeline_mut().request_focus(node);
+        harness.settle();
+        // A multi-word value: every press has a word to hop. The presses
+        // alternate direction so the caret oscillates and no press ever
+        // parks at a clamp doing nothing.
+        harness.type_text("hello brave new world of incremental editing ");
+
+        let right = alt_arrow(Key::ArrowRight);
+        let left = alt_arrow(Key::ArrowLeft);
+        b.iter(|| {
+            for i in 0..EVENTS {
+                let event = if i % 2 == 0 { &right } else { &left };
+                let _ = harness.pipeline_mut().dispatch_key(event);
+            }
+            let report = harness.tick();
+            black_box(report);
+        });
+    });
+
+    group.finish();
+}
+
+criterion_group!(benches, bench_editing_caret_route, bench_editing_word_route);
 criterion_main!(benches);

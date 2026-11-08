@@ -581,6 +581,35 @@ mod tests {
                 glyphs: Vec::new(),
             }
         }
+
+        /// The probe's segmentation: alphanumeric runs are word-like,
+        /// everything else separates — deterministic for the ASCII probe
+        /// values; the real tables ride the engine (alacer-text).
+        fn word_segments(&self, text: &str) -> Vec<alacer_core::text_seam::WordSegment> {
+            let mut segments = Vec::new();
+            let (mut start, mut word_like, mut units) = (0_usize, false, 0_usize);
+            for ch in text.chars() {
+                let like = ch.is_alphanumeric();
+                if units > 0 && like != word_like {
+                    segments.push(alacer_core::text_seam::WordSegment {
+                        start,
+                        end: units,
+                        word_like,
+                    });
+                    start = units;
+                }
+                word_like = like;
+                units += ch.len_utf16();
+            }
+            if units > start {
+                segments.push(alacer_core::text_seam::WordSegment {
+                    start,
+                    end: units,
+                    word_like,
+                });
+            }
+            segments
+        }
     }
 
     fn tick(pipeline: &mut PassPipeline) {

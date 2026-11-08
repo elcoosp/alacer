@@ -91,6 +91,7 @@ fn click_raw(harness: &mut TestHarness, role: Role, name: &str) {
         .dispatch_pointer(&PointerEvent::Down {
             position: center,
             button: MouseButton::Left,
+            click_count: 1,
         });
     harness.pipeline_mut().dispatch_pointer(&PointerEvent::Up {
         position: center,

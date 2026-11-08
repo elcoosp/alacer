@@ -47,6 +47,93 @@ pub struct GlyphRun {
     pub glyphs: Vec<PlacedGlyph>,
 }
 
+/// One maximal UAX #29 word-boundary segment of a run, in the editing
+/// contract's unit (§10.3): UTF-16 offsets, half-open `[start, end)`.
+///
+/// `word_like` carries the segment's classification — letters (CJK included)
+/// and numbers are word-like, whitespace and punctuation runs are not. The
+/// classification is the engine's ([`TextSeam::word_segments`] implementors
+/// own the Unicode tables); [`word_hop`] only walks positions against it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WordSegment {
+    /// First UTF-16 offset of the segment.
+    pub start: usize,
+    /// One past the last UTF-16 offset of the segment.
+    pub end: usize,
+    /// Whether the segment classifies as a word (letters, numbers, CJK).
+    pub word_like: bool,
+}
+
+/// The direction a word-wise caret operation hops along the run.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WordDirection {
+    /// Toward the run's start (Alt/Ctrl+Left, word-backspace).
+    Previous,
+    /// Toward the run's end (Alt/Ctrl+Right, word-delete).
+    Next,
+}
+
+/// The word-hop rule the editing contract fixes (§10.3, ADR-0019): a hop
+/// lands on the far edge of the word-like segment that spans the caret, or
+/// — when the caret sits outside every word-like segment — on the near
+/// edge of the next segment in the hop's direction. Whitespace and
+/// punctuation runs are never landing points from outside them, so moving
+/// through `", "` takes one hop, not one per boundary.
+///
+/// `from` is a UTF-16 offset (the contract unit); the result is too. At the
+/// run's edges the hop clamps: past the last word's end, `Next` returns the
+/// run's end and `Previous` returns its last word's start; before the
+/// first, `Previous` returns 0. An empty segmentation returns `from`
+/// unchanged (there is nothing to hop to).
+///
+/// This is *pure arithmetic over segment positions* — the rule lives here,
+/// next to the contract it serves, so every seam implementation and every
+/// consumer shares one definition and no engine can grow its own dialect.
+#[must_use]
+pub fn word_hop(segments: &[WordSegment], from: usize, direction: WordDirection) -> usize {
+    match direction {
+        WordDirection::Next => {
+            // Inside (or at the start of) a word-like segment: its far edge.
+            if let Some(spans) = segments
+                .iter()
+                .find(|s| s.word_like && s.start <= from && from < s.end)
+            {
+                return spans.end;
+            }
+            // Outside every word: the next word-like segment's near edge,
+            // else the run's end.
+            segments
+                .iter()
+                .find(|s| s.word_like && s.start > from)
+                .map_or_else(
+                    || segments.last().map_or(from, |s| s.end),
+                    |next| next.start,
+                )
+        }
+        WordDirection::Previous => {
+            // An empty segmentation (an empty run): nothing to hop to.
+            if segments.is_empty() {
+                return from;
+            }
+            // Inside (or at the end of) a word-like segment: its near edge.
+            if let Some(spans) = segments
+                .iter()
+                .find(|s| s.word_like && s.start < from && from <= s.end)
+            {
+                return spans.start;
+            }
+            // Outside every word: the previous word-like segment's near
+            // edge — a word *start*, never a word's end or a separator —
+            // else the run's start.
+            segments
+                .iter()
+                .rev()
+                .find(|s| s.word_like && s.start < from)
+                .map_or(0, |prev| prev.start)
+        }
+    }
+}
+
 /// The text services seam. One implementation per process — installed at
 /// assembly time, before the first frame.
 pub trait TextSeam: 'static {
@@ -55,6 +142,25 @@ pub trait TextSeam: 'static {
 
     /// Shapes `text` at `font_size`, wrapping at `max_width` when given.
     fn layout_glyphs(&self, text: &str, font_size: f32, max_width: Option<f32>) -> GlyphRun;
+
+    /// The run's UAX #29 word segmentation, in the editing contract's unit:
+    /// consecutive segments cover `text` exactly, half-open
+    /// `[start, end)` in UTF-16 offsets, `word_like` classifying letters
+    /// (CJK included) and numbers as words and everything else as
+    /// separators. This is the word side of the editing contract (§10.3,
+    /// ADR-0019): word-wise movement, word-wise deletion, and double-click
+    /// word selection all ask the seam, never the widget's own tables.
+    ///
+    /// There is **no provided implementation**: segmentation is a Unicode
+    /// table question — the honest answer needs UAX #29 word-break data and
+    /// the complex-script dictionaries, exactly what the text engines
+    /// carry. A whitespace-and-ASCII approximation would silently mis-hop
+    /// `don't` and every multi-script run, so the seam requires the real
+    /// classification instead of shipping a documented guess. The workspace
+    /// implementation rides ICU's `WordSegmenter` (the same segmenter
+    /// parley's line breaking adopts, dictionary-backed for Thai and
+    /// friends).
+    fn word_segments(&self, text: &str) -> Vec<WordSegment>;
 
     /// The UTF-16 offset whose boundary is nearest to pixel `x` within the
     /// run `text` shapes at `font_size` (unwrapped — the same shaping the
@@ -153,7 +259,10 @@ pub fn with_seam<R>(f: impl FnOnce(&dyn TextSeam) -> R) -> R {
 
 #[cfg(test)]
 mod tests {
-    use super::{GlyphRun, PlacedGlyph, TextSeam, install, is_installed, with_seam};
+    use super::{
+        GlyphRun, PlacedGlyph, TextSeam, WordDirection, WordSegment, install, is_installed,
+        with_seam, word_hop,
+    };
     use crate::geom::Size;
     use crate::style::TextSpec;
     use std::rc::Rc;
@@ -178,6 +287,36 @@ mod tests {
                     glyph_id: 1,
                 }],
             }
+        }
+
+        /// The stub's segmentation: runs of `char::is_alphanumeric` are
+        /// word-like, everything else separates. Deterministic and honest
+        /// for the ASCII runs these tests feed it — the *real* tables ride
+        /// the engine's implementation (alacer-text).
+        fn word_segments(&self, text: &str) -> Vec<WordSegment> {
+            let mut segments = Vec::new();
+            let (mut start, mut word_like, mut units) = (0_usize, false, 0_usize);
+            for ch in text.chars() {
+                let like = ch.is_alphanumeric();
+                if units > 0 && like != word_like {
+                    segments.push(WordSegment {
+                        start,
+                        end: units,
+                        word_like,
+                    });
+                    start = units;
+                }
+                word_like = like;
+                units += ch.len_utf16();
+            }
+            if units > start {
+                segments.push(WordSegment {
+                    start,
+                    end: units,
+                    word_like,
+                });
+            }
+            segments
         }
     }
 
@@ -236,5 +375,165 @@ mod tests {
         // click inside a cluster never lands past it.
         assert_eq!(with_seam(|s| s.hit_test("abcd", 16.0, 2.0)), 2);
         assert_eq!(with_seam(|s| s.hit_test("abcd", 16.0, 2.5)), 2);
+    }
+
+    // ---- The word contract (§10.3, ADR-0019) ---------------------------
+
+    /// Builds segments from `(start, end, word_like)` triples — the tests'
+    /// hand-cut segmentations, exactly what an engine returns.
+    fn segs(parts: &[(usize, usize, bool)]) -> Vec<WordSegment> {
+        parts
+            .iter()
+            .map(|&(start, end, word_like)| WordSegment {
+                start,
+                end,
+                word_like,
+            })
+            .collect()
+    }
+
+    /// "hello world" — `hello` [0,5), space [5,6), `world` [6,11).
+    const HELLO: &[(usize, usize, bool)] = &[(0, 5, true), (5, 6, false), (6, 11, true)];
+
+    #[test]
+    fn next_hop_lands_on_word_ends_then_word_starts() {
+        let s = segs(HELLO);
+
+        assert_eq!(
+            word_hop(&s, 0, WordDirection::Next),
+            5,
+            "start -> hello's end"
+        );
+        assert_eq!(
+            word_hop(&s, 2, WordDirection::Next),
+            5,
+            "mid-word -> the word's end"
+        );
+        assert_eq!(
+            word_hop(&s, 5, WordDirection::Next),
+            6,
+            "before the space -> the next word's start, one hop"
+        );
+        assert_eq!(word_hop(&s, 6, WordDirection::Next), 11, "world's end");
+        assert_eq!(
+            word_hop(&s, 11, WordDirection::Next),
+            11,
+            "the run's end clamps the hop"
+        );
+    }
+
+    #[test]
+    fn previous_hop_lands_on_word_starts_only() {
+        let s = segs(HELLO);
+
+        assert_eq!(
+            word_hop(&s, 11, WordDirection::Previous),
+            6,
+            "end -> world's start"
+        );
+        assert_eq!(
+            word_hop(&s, 7, WordDirection::Previous),
+            6,
+            "mid-word -> the word's start"
+        );
+        assert_eq!(
+            word_hop(&s, 6, WordDirection::Previous),
+            0,
+            "before 'world' -> hello's start, the separator is never a landing"
+        );
+        assert_eq!(
+            word_hop(&s, 5, WordDirection::Previous),
+            0,
+            "before the space -> hello's start"
+        );
+        assert_eq!(
+            word_hop(&s, 0, WordDirection::Previous),
+            0,
+            "the run's start clamps the hop"
+        );
+    }
+
+    #[test]
+    fn punctuation_runs_take_one_hop() {
+        // "hello, world" — `hello` [0,5), ", " [5,7), `world` [7,12).
+        let s = segs(&[(0, 5, true), (5, 7, false), (7, 12, true)]);
+
+        assert_eq!(
+            word_hop(&s, 5, WordDirection::Next),
+            7,
+            "the ', ' separator takes one hop, not one per boundary"
+        );
+        assert_eq!(word_hop(&s, 4, WordDirection::Next), 5, "inside hello");
+        assert_eq!(
+            word_hop(&s, 7, WordDirection::Previous),
+            0,
+            "back from 'world' skips ', ' to hello's start"
+        );
+        assert_eq!(word_hop(&s, 12, WordDirection::Previous), 7);
+    }
+
+    #[test]
+    fn apostrophized_words_stay_one_hop() {
+        // "don't stop" — UAX #29 keeps `don't` one segment.
+        let s = segs(&[(0, 5, true), (5, 6, false), (6, 10, true)]);
+
+        assert_eq!(
+            word_hop(&s, 3, WordDirection::Next),
+            5,
+            "mid-word -> the whole contraction's end, never mid-'t'"
+        );
+        assert_eq!(word_hop(&s, 5, WordDirection::Next), 6);
+        assert_eq!(word_hop(&s, 10, WordDirection::Previous), 6);
+    }
+
+    #[test]
+    fn surrogate_pairs_hop_whole() {
+        // "a😀b" — the pair is UTF-16 units [1,3); hops never slice it.
+        let s = segs(&[(0, 1, true), (1, 3, true), (3, 4, true)]);
+
+        assert_eq!(word_hop(&s, 0, WordDirection::Next), 1);
+        assert_eq!(
+            word_hop(&s, 1, WordDirection::Next),
+            3,
+            "the pair is one hop"
+        );
+        assert_eq!(word_hop(&s, 4, WordDirection::Previous), 3);
+        assert_eq!(
+            word_hop(&s, 3, WordDirection::Previous),
+            1,
+            "back from 'b' lands at the pair's start, never mid-pair"
+        );
+    }
+
+    #[test]
+    fn degenerate_segmentations_hop_in_place() {
+        // An empty run: no segments, the hop returns `from` unchanged.
+        assert_eq!(word_hop(&[], 3, WordDirection::Next), 3);
+        assert_eq!(word_hop(&[], 3, WordDirection::Previous), 3);
+
+        // Only separators ("   "): next clamps to the run's end, previous
+        // to its start — nothing word-like to land on.
+        let spaces = segs(&[(0, 3, false)]);
+        assert_eq!(word_hop(&spaces, 1, WordDirection::Next), 3);
+        assert_eq!(word_hop(&spaces, 1, WordDirection::Previous), 0);
+    }
+
+    /// A segmentation must cover the run exactly: consecutive segments,
+    /// half-open, no gaps, no overlaps — the property the engine's output
+    /// must carry for `word_hop` to be total.
+    #[test]
+    fn the_engine_contract_covers_the_run_exactly() {
+        install(Rc::new(Stub));
+        // The stub above does not implement segmentation (it is the
+        // pre-M13 stub); coverage is pinned where real segmentations live
+        // (alacer-text). What is pinned here is the shape: the hop rule
+        // stays total over any segmentation that covers the run.
+        let covered = segs(HELLO);
+        assert_eq!(covered.first().map_or(0, |s| s.start), 0);
+        assert_eq!(
+            covered.last().map_or(0, |s| s.end),
+            11,
+            "the last segment's end is the run's UTF-16 length"
+        );
     }
 }

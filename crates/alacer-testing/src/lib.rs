@@ -141,6 +141,7 @@ impl TestHarness {
         self.pipeline.dispatch_pointer(&PointerEvent::Down {
             position,
             button: alacer_core::events::MouseButton::Left,
+            click_count: 1,
         });
         self.pipeline.dispatch_pointer(&PointerEvent::Up {
             position,
@@ -167,6 +168,7 @@ impl TestHarness {
         self.pipeline.dispatch_pointer(&PointerEvent::Down {
             position,
             button: MouseButton::Left,
+            click_count: 1,
         });
         self.settle();
     }
@@ -210,6 +212,27 @@ impl TestHarness {
         self.pointer_press(from);
         self.pointer_move(to);
         self.pointer_release(to);
+    }
+
+    /// Drives a double-click at `position`, then settles (M13, ADR-0019:
+    /// the platform's click chain reported as a second press — the field
+    /// selects the word under the hit). Single clicks stay
+    /// [`Self::click`] / [`Self::pointer_press`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if layout fails.
+    pub fn double_click(&mut self, position: Point) {
+        self.pipeline.dispatch_pointer(&PointerEvent::Down {
+            position,
+            button: MouseButton::Left,
+            click_count: 2,
+        });
+        self.pipeline.dispatch_pointer(&PointerEvent::Up {
+            position,
+            button: MouseButton::Left,
+        });
+        self.settle();
     }
 
     /// Dispatches a wheel event at `position`, then settles.

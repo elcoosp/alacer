@@ -349,6 +349,7 @@ mod tests {
             &PointerEvent::Down {
                 position: at,
                 button: alacer_core::events::MouseButton::Left,
+                click_count: 1,
             },
         );
         let _ = button.on_pointer_event(

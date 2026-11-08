@@ -11,7 +11,7 @@
 //! - **The beat** — same-host medians per workload, every measurement
 //!   labeled with its scope, the verdict computed from the committed file;
 //! - **The publication** — the contract gate and the dashboard section;
-//! - **The pins do not move** — the M5/M6 corpus stays at 43 workspace
+//! - **The pins do not move** — the M5/M6 corpus stays at 45 workspace
 //!   cases; M7 adds competitor data outside the corpus, never inside it.
 
 use std::path::PathBuf;
@@ -27,7 +27,7 @@ fn workspace_root() -> PathBuf {
 fn read_workspace_file(path: &str) -> String {
     let path = workspace_root().join(path);
     std::fs::read_to_string(&path)
-        .unwrap_or_else(|error| panic!("required file {path:?} missing: {error}"))
+        .unwrap_or_else(|error| panic!("required file {} missing: {error}", path.display()))
 }
 
 fn parse_workspace_json(path: &str) -> serde_json::Value {
@@ -123,13 +123,14 @@ fn the_competitor_corpus_covers_the_beat_workloads() {
 
         // One bench per beat workload, registered and present.
         for (workload, _) in BEAT_WORKLOADS {
+            // The stem drops the workload suffix both harnesses share.
+            let stem = workload
+                .rsplit_once('_')
+                .map_or(workload, |(stem, _)| stem)
+                .replace("_jitter", "")
+                .replace("_10k", "");
             let stem = match (framework, workload) {
-                ("egui", "w1_churn_10k") => "w1_churn",
-                ("egui", "w2_text_jitter_1k") => "w2_text",
-                ("egui", "w3_animation_1k") => "w3_animation",
-                ("masonry", "w1_churn_10k") => "w1_churn",
-                ("masonry", "w2_text_jitter_1k") => "w2_text",
-                ("masonry", "w3_animation_1k") => "w3_animation",
+                _ if stem == "w1_churn" || stem == "w2_text" || stem == "w3_animation" => stem,
                 _ => panic!("unmapped bench stem for ({framework}, {workload})"),
             };
             assert!(
@@ -318,24 +319,24 @@ fn the_m5_and_m6_corpus_pins_do_not_move() {
         .expect("the baseline carries a benches object")
         .len();
     assert_eq!(
-        bench_count, 43,
-        "the workspace corpus stays at 43 — M7 adds competitor data outside it"
+        bench_count, 45,
+        "the workspace corpus stays at 45 — M7/M8 add data by the coordinated corpus rule (ADR-0013/ADR-0014)"
     );
     assert_eq!(
         contracts["regressions"]
             .as_array()
             .expect("regressions array")
             .len(),
-        43,
+        45,
         "no absolute regression gates on competitor medians (ADR-0011's same-host rule)"
     );
 
-    // Both earlier suites still pin 43 — the three suites cannot drift.
+    // Both earlier suites still pin 45 — the three suites cannot drift.
     for suite in ["m5_exit_criteria.rs", "m6_exit_criteria.rs"] {
         let source = read_workspace_file(&format!("crates/alacer-testing/tests/{suite}"));
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 43;"),
-            "{suite} must keep the 43-case corpus pin"
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 45;"),
+            "{suite} must keep the 45-case corpus pin"
         );
     }
 }
@@ -379,8 +380,8 @@ fn the_workspace_ships_as_0_7_0() {
     );
     let readme = read_workspace_file("README.md");
     assert!(
-        readme.contains("M0 through M7") || readme.contains("M0–M7"),
-        "the README status reflects M0–M7"
+        readme.contains("M0 through M8") || readme.contains("M0–M8"),
+        "the README status reflects M0–M8 (M8, ADR-0014, ships under [Unreleased])"
     );
     assert!(
         readme.contains("0.7.0"),

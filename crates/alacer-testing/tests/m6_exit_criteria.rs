@@ -25,11 +25,11 @@ use alacer_testing::{RECORDING_SCHEMA, Recording, Step};
 use std::path::PathBuf;
 
 /// The corpus pin, mirroring the M1 suite's 30-scenario pin and the M5
-/// suite's baseline pin: 43 criterion cases across the six benching crates
+/// suite's baseline pin: 45 criterion cases across the six benching crates
 /// (38 M5 cases + W2 ×2, W3 ×1, W5 ×2). Growing the corpus is the
 /// coordinated three-edit rule of ADR-0011: bench, contracts.json gate,
 /// baseline regeneration — plus this pin and the M5 pin.
-const EXPECTED_BENCH_COUNT: usize = 43;
+const EXPECTED_BENCH_COUNT: usize = 45;
 
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -41,7 +41,7 @@ fn workspace_root() -> PathBuf {
 fn read_workspace_file(path: &str) -> String {
     let path = workspace_root().join(path);
     std::fs::read_to_string(&path)
-        .unwrap_or_else(|error| panic!("required file {path:?} missing: {error}"))
+        .unwrap_or_else(|error| panic!("required file {} missing: {error}", path.display()))
 }
 
 fn parse_workspace_json(path: &str) -> serde_json::Value {
@@ -231,7 +231,7 @@ fn the_todo_canon_works_end_to_end_through_the_a11y_tree() {
 
     assert!(harness.query(Role::CheckBox).named("write docs").exists());
     assert_eq!(
-        handles.footer.with(|text| text.clone()),
+        handles.footer.with(Clone::clone),
         "1 items left",
         "the footer binding counts what is left"
     );
@@ -249,7 +249,7 @@ fn the_todo_canon_works_end_to_end_through_the_a11y_tree() {
         Some(ToggleState::On)
     );
     assert_eq!(
-        handles.footer.with(|text| text.clone()),
+        handles.footer.with(Clone::clone),
         "0 items left",
         "the memo counts the done item"
     );
@@ -425,7 +425,7 @@ fn the_committed_todo_recording_replays_green() {
         "ship it was never done"
     );
     assert_eq!(
-        handles.footer.with(|text| text.clone()),
+        handles.footer.with(Clone::clone),
         "1 items left",
         "the replayed session's footer is exact"
     );

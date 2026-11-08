@@ -22,12 +22,13 @@ use serde_json::Value;
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
-/// The corpus pin, mirroring the M1 suite's 30-scenario pin: 43 criterion
+/// The corpus pin, mirroring the M1 suite's 30-scenario pin: 45 criterion
 /// cases across the six benching crates (38 M5 cases + the M6 workloads:
-/// W2 ×2, W3 ×1, W5 ×2 — ADR-0012). Growing the corpus is the coordinated
-/// bench + contracts.json + baseline-regeneration rule, reviewed here and
-/// by the M6 suite (which asserts this pin agrees with its own).
-const EXPECTED_BENCH_COUNT: usize = 43;
+/// W2 ×2, W3 ×1, W5 ×2 — ADR-0012 + the M8 input-storm pair — ADR-0014).
+/// Growing the corpus is the coordinated bench + contracts.json +
+/// baseline-regeneration rule, reviewed here and by the M6/M7/M8 suites
+/// (which assert this pin agrees with their own).
+const EXPECTED_BENCH_COUNT: usize = 45;
 
 /// The one criterion-expressible architecture budget in M5's contract set:
 /// the W1 gate (§18 M2, ADR-0008).
@@ -43,7 +44,7 @@ fn workspace_root() -> PathBuf {
 fn read_workspace_file(path: &str) -> String {
     let path = workspace_root().join(path);
     std::fs::read_to_string(&path)
-        .unwrap_or_else(|error| panic!("required file {path:?} missing: {error}"))
+        .unwrap_or_else(|error| panic!("required file {} missing: {error}", path.display()))
 }
 
 fn parse_workspace_json(path: &str) -> Value {

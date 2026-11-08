@@ -40,5 +40,9 @@ name = "input"
 harness = false
 
 [[bench]]
+name = "a11y_action"
+harness = false
+
+[[bench]]
 name = "w5_signal_graph"
 harness = false

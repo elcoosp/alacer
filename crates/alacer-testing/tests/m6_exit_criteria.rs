@@ -25,12 +25,12 @@ use alacer_testing::{RECORDING_SCHEMA, Recording, Step};
 use std::path::PathBuf;
 
 /// The corpus pin, mirroring the M1 suite's 30-scenario pin and the M5
-/// suite's baseline pin: 47 criterion cases across the seven benching
+/// suite's baseline pin: 48 criterion cases across the seven benching
 /// crates (38 M5 cases + W2 ×2, W3 ×1, W5 ×2 + the M8 input pair + the M9
-/// a11y-ratio pair). Growing the corpus is the coordinated three-edit rule
-/// of ADR-0011: bench, contracts.json gate, baseline regeneration — plus
-/// this pin and the M5 pin.
-const EXPECTED_BENCH_COUNT: usize = 47;
+/// a11y-ratio pair + the M10 action route). Growing the corpus is the
+/// coordinated three-edit rule of ADR-0011: bench, contracts.json gate,
+/// baseline regeneration — plus this pin and the M5 pin.
+const EXPECTED_BENCH_COUNT: usize = 48;
 
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))

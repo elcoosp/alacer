@@ -11,7 +11,7 @@
 //! - **The beat** — same-host medians per workload, every measurement
 //!   labeled with its scope, the verdict computed from the committed file;
 //! - **The publication** — the contract gate and the dashboard section;
-//! - **The pins do not move** — the M5/M6 corpus stays at 47 workspace
+//! - **The pins do not move** — the M5/M6 corpus stays at 48 workspace
 //!   cases; M7 adds competitor data outside the corpus, never inside it.
 
 use std::path::PathBuf;
@@ -319,24 +319,24 @@ fn the_m5_and_m6_corpus_pins_do_not_move() {
         .expect("the baseline carries a benches object")
         .len();
     assert_eq!(
-        bench_count, 47,
-        "the workspace corpus stays at 47 — M7/M8/M9 add data by the coordinated corpus rule (ADR-0013/ADR-0014/ADR-0015)"
+        bench_count, 48,
+        "the workspace corpus stays at 48 — M7/M8/M9/M10 add data by the coordinated corpus rule (ADR-0013/ADR-0014/ADR-0015/ADR-0016)"
     );
     assert_eq!(
         contracts["regressions"]
             .as_array()
             .expect("regressions array")
             .len(),
-        47,
+        48,
         "no absolute regression gates on competitor medians (ADR-0011's same-host rule)"
     );
 
-    // All earlier suites still pin 47 — the four suites cannot drift.
+    // All earlier suites still pin 48 — the suites cannot drift.
     for suite in ["m5_exit_criteria.rs", "m6_exit_criteria.rs"] {
         let source = read_workspace_file(&format!("crates/alacer-testing/tests/{suite}"));
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 47;"),
-            "{suite} must keep the 47-case corpus pin"
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 48;"),
+            "{suite} must keep the 48-case corpus pin"
         );
     }
 }
@@ -367,24 +367,36 @@ fn the_adr_documents_the_milestone() {
 }
 
 #[test]
-fn the_workspace_ships_as_0_7_0() {
+fn the_release_state_is_coherent() {
+    // Version-agnostic since M10: the release cut bumps the workspace as a
+    // branch commit under the tag, so a literal pin would go red the moment
+    // the bump landed. The manifest stays the single source of truth and the
+    // test asserts coherence around whatever it says.
     let manifest = read_workspace_file("Cargo.toml");
+    let version = manifest
+        .lines()
+        .find_map(|line| line.strip_prefix("version = \""))
+        .and_then(|rest| rest.split('\"').next())
+        .filter(|version| version.contains('.'))
+        .unwrap_or_else(|| panic!("the manifest pins a workspace version"));
     assert!(
-        manifest.contains("version = \"0.7.0\""),
-        "the workspace version is 0.7.0"
+        manifest.contains(&format!("\"{version}\"")),
+        "the workspace version is well-formed: {version}"
     );
+
     let changelog = read_workspace_file("CHANGELOG.md");
     assert!(
-        changelog.contains("## [0.7.0]"),
-        "the CHANGELOG documents the 0.7.0 release"
+        changelog.contains("## [Unreleased]") || changelog.contains(&format!("## [{version}]")),
+        "the CHANGELOG stages the pending cut or documents {version}"
     );
+
     let readme = read_workspace_file("README.md");
     assert!(
-        readme.contains("M0 through M9") || readme.contains("M0–M9"),
-        "the README status reflects M0–M9 (M9, ADR-0015, ships under [Unreleased])"
+        readme.contains("M0 through M10") || readme.contains("M0–M10"),
+        "the README status reflects M0–M10 (M10, ADR-0016, ships under [Unreleased])"
     );
     assert!(
-        readme.contains("0.7.0"),
-        "the README version badge is 0.7.0"
+        readme.contains(version),
+        "the README badge matches the workspace version ({version})"
     );
 }

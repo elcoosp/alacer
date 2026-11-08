@@ -57,7 +57,8 @@ pub mod prelude {
     pub use crate::rsx;
     pub use alacer_core::prelude::*;
     pub use alacer_core::{
-        A11yAction, EventResponse, GlyphSource, LabelSource, MeasureFn, PaintSink, Role, Widget,
+        A11yAction, EventResponse, GlyphSource, LabelSource, MeasureFn, PaintSink, Role,
+        ScrollUnit, Widget,
     };
     pub use alacer_view::{HotView, PatchReport, ViewNode, ViewRoot};
     pub use alacer_widgets::default_registry;

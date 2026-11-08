@@ -270,7 +270,7 @@ fn m11_the_a11y_tree_carries_the_selection() {
 #[test]
 fn m11_the_corpus_grows_to_49_by_the_coordinated_rule() {
     // The new criterion case is published with its baseline and its
-    // regression contract; every M-suite pin moves to 49 together.
+    // regression contract; every M-suite pin moves to 50 together.
     let baselines = parse_workspace_json("benchmarks/baselines/baselines.json");
     let contracts = parse_workspace_json("benchmarks/contracts.json");
     let id = "a11y_action/route_100_setvalue_1k";
@@ -293,8 +293,8 @@ fn m11_the_corpus_grows_to_49_by_the_coordinated_rule() {
     ] {
         let source = read_workspace_file(suite);
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 49;"),
-            "{suite} must pin the 49-case corpus"
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 50;"),
+            "{suite} must pin the 50-case corpus"
         );
     }
 }

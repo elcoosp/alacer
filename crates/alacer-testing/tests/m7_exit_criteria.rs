@@ -319,24 +319,24 @@ fn the_m5_and_m6_corpus_pins_do_not_move() {
         .expect("the baseline carries a benches object")
         .len();
     assert_eq!(
-        bench_count, 49,
-        "the workspace corpus stays at 49 — M7/M8/M9/M10/M11 add data by the coordinated corpus rule (ADR-0013/ADR-0014/ADR-0015/ADR-0016/ADR-0017)"
+        bench_count, 50,
+        "the workspace corpus stays at 50 — M7/M8/M9/M10/M11/M12 add data by the coordinated corpus rule (ADR-0013/ADR-0014/ADR-0015/ADR-0016/ADR-0017/ADR-0018)"
     );
     assert_eq!(
         contracts["regressions"]
             .as_array()
             .expect("regressions array")
             .len(),
-        49,
+        50,
         "no absolute regression gates on competitor medians (ADR-0011's same-host rule)"
     );
 
-    // All earlier suites still pin 49 — the suites cannot drift.
+    // All earlier suites still pin 50 — the suites cannot drift.
     for suite in ["m5_exit_criteria.rs", "m6_exit_criteria.rs"] {
         let source = read_workspace_file(&format!("crates/alacer-testing/tests/{suite}"));
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 49;"),
-            "{suite} must keep the 49-case corpus pin"
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 50;"),
+            "{suite} must keep the 50-case corpus pin"
         );
     }
 }
@@ -392,8 +392,8 @@ fn the_release_state_is_coherent() {
 
     let readme = read_workspace_file("README.md");
     assert!(
-        readme.contains("M0 through M11") || readme.contains("M0–M11"),
-        "the README status reflects M0–M11 (M11, ADR-0017, ships under [Unreleased])"
+        readme.contains("M0 through M12") || readme.contains("M0–M12"),
+        "the README status reflects M0–M12 (M12, ADR-0018, ships under [Unreleased])"
     );
     // The pending-cut convention (ADR-6; M7's own history): the docs
     // announce the NEXT cut while the branch-commit bump has not landed

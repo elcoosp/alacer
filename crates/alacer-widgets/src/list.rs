@@ -138,7 +138,12 @@ impl Widget for List {
         let down = match action {
             A11yAction::ScrollDown(_) | A11yAction::Increment => true,
             A11yAction::ScrollUp(_) | A11yAction::Decrement => false,
-            A11yAction::DefaultPress => return false,
+            // The value tier (M11, ADR-0017) is not a scroll area's
+            // contract — refused, never munged into a scroll.
+            A11yAction::DefaultPress
+            | A11yAction::SetValue(_)
+            | A11yAction::ReplaceSelectedText(_)
+            | A11yAction::SetTextSelection(_) => return false,
         };
         let unit = match action {
             A11yAction::ScrollDown(unit) | A11yAction::ScrollUp(unit) => unit,

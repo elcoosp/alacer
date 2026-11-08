@@ -276,6 +276,11 @@
    "id": "a11y_action_route_100_setvalue_1k",
    "baseline": "a11y_action/route_100_setvalue_1k",
    "scope": "same-host"
+  },
+  {
+   "id": "editing_route_100_caret_clicks_1k",
+   "baseline": "editing/route_100_caret_clicks_1k",
+   "scope": "same-host"
   }
  ],
  "test_enforced_gates": [

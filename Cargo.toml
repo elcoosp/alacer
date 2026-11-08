@@ -68,6 +68,10 @@ wgpu = "30.0.1"
 tiny-skia = "0.12.0"
 softbuffer = "0.4.8"
 raw-window-handle = "0.6.2"
+# UAX #29 word segmentation — the text seam's word contract (ADR-0019).
+# Already in the graph through parley's engine; alacer-text adopts it
+# explicitly for the word-boundary tables the seam answers with.
+icu_segmenter = { version = "2.4.0", default-features = false, features = ["auto", "compiled_data"] }
 
 # Small, permissive utilities.
 bitflags = "2.13.2"

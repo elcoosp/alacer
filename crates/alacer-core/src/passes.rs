@@ -142,7 +142,7 @@ impl TreeSnapshot {
         self.find(role, name).is_some()
     }
 
-    /// The node with the exact id-path hash (the AccessKit NodeId).
+    /// The node with the exact id-path hash (the `AccessKit` `NodeId`).
     #[must_use]
     pub fn by_id(&self, id: u64) -> Option<&TreeNode> {
         self.nodes.iter().find(|n| n.id == id)
@@ -205,9 +205,9 @@ pub trait A11ySink {
     /// hashes) are re-emitted downstream (§11.1 item 4); `delta.focus` moves
     /// platform focus; `delta.initializes` marks a full (re)build.
     ///
-    /// The snapshot arrives shared (`Arc`): the pass builds it once, the sink
+    /// The snapshot arrives shared (`std::sync::Arc`): the pass builds it once, the sink
     /// keeps it for queries — no per-frame deep clone of the tree (the p99
-    /// budget measures TreeUpdate production, not bookkeeping).
+    /// budget measures `TreeUpdate` production, not bookkeeping).
     fn apply(&mut self, snapshot: std::sync::Arc<TreeSnapshot>, delta: &A11yDelta);
 
     /// The sink's resolved tree, for harness queries.
@@ -370,6 +370,10 @@ pub struct PassRun {
 
 /// One frame's outcome, returned by [`PassPipeline::tick`].
 #[derive(Debug, Clone)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "a frame report is genuinely independent pass verdicts plus focus state; packing them into bitflags would trade every match site's readability for nothing"
+)]
 pub struct FrameReport {
     /// `true` when the layout pass ran.
     pub layout_ran: bool,
@@ -484,6 +488,10 @@ pub struct PassPipeline {
     /// The devtools observer (§13.3, ADR-0010). `None` in every default
     /// path: the frame event is built only when someone is listening.
     observer: Option<Box<dyn InspectObserver>>,
+    /// The frame-batched input queue (§10.2, ADR-0014): raw platform
+    /// pointer events coalesce here and route at tick start — the same
+    /// one-frame currency the flux bridge gives signal writes (A1, ADR-2).
+    input: crate::input::EventCoalescer,
     /// Monotonic frame counter (the frame summary's number).
     frames: u64,
 }
@@ -517,6 +525,7 @@ impl PassPipeline {
             ime_request: None,
             last_a11y_ids: None,
             observer: None,
+            input: crate::input::EventCoalescer::new(),
             frames: 0,
         }
     }
@@ -554,6 +563,23 @@ impl PassPipeline {
     /// Requests for non-focusable or dead nodes are dropped silently.
     pub fn request_focus(&mut self, node: NodeId) {
         self.pending_focus = Some(node);
+    }
+
+    /// Queues a raw pointer event into the frame-batched input queue (§10.2,
+    /// ADR-0014). The event coalesces with the pending batch — compatible
+    /// consecutive moves merge, same-direction wheel deltas accumulate — and
+    /// the batch routes at the start of the next [`Self::tick`]: a storm
+    /// costs one frame of work, not N events. The platform layer pushes and
+    /// never drains.
+    pub fn queue_pointer(&mut self, event: crate::events::PointerEvent) {
+        self.input.push(event);
+    }
+
+    /// Whether pointer events are queued awaiting the next tick (§10.2,
+    /// ADR-0014) — the platform's redraw hint.
+    #[must_use]
+    pub fn has_queued_input(&self) -> bool {
+        self.input.pending() > 0
     }
 
     /// The focused node, if any (pass 3 output).
@@ -652,12 +678,12 @@ impl PassPipeline {
         let span =
             tracing::trace_span!(target: "alacer::pass", "pass", pass = PassKind::Event.name());
         let start = self.timings.then(std::time::Instant::now);
-        let _guard = span.enter();
+        let guard = span.enter();
 
         let (response, target) = self.route_pointer(event, &mut run.ran);
 
         run.nanos = start.map_or(0, |t| crate::num::u128_to_u64(t.elapsed().as_nanos()));
-        drop(_guard);
+        drop(guard);
         self.interframe.push(run);
         self.notify_input(Self::pointer_kind(event), target);
         response
@@ -744,7 +770,7 @@ impl PassPipeline {
         let span =
             tracing::trace_span!(target: "alacer::pass", "pass", pass = PassKind::Event.name());
         let start = self.timings.then(std::time::Instant::now);
-        let _guard = span.enter();
+        let guard = span.enter();
 
         let mut response = EventResponse::Ignored;
         if let Some(focused) = self.focused
@@ -764,7 +790,7 @@ impl PassPipeline {
         }
 
         run.nanos = start.map_or(0, |t| crate::num::u128_to_u64(t.elapsed().as_nanos()));
-        drop(_guard);
+        drop(guard);
         self.interframe.push(run);
         self.notify_input(InputKind::Key, self.focused);
         response
@@ -783,7 +809,7 @@ impl PassPipeline {
         let span =
             tracing::trace_span!(target: "alacer::pass", "pass", pass = PassKind::Event.name());
         let start = self.timings.then(std::time::Instant::now);
-        let _guard = span.enter();
+        let guard = span.enter();
 
         let mut response = EventResponse::Ignored;
         if let Some(focused) = self.focused
@@ -806,7 +832,7 @@ impl PassPipeline {
         }
 
         run.nanos = start.map_or(0, |t| crate::num::u128_to_u64(t.elapsed().as_nanos()));
-        drop(_guard);
+        drop(guard);
         self.interframe.push(run);
         self.notify_input(InputKind::Ime, self.focused);
         response
@@ -949,17 +975,36 @@ impl PassPipeline {
         true
     }
 
-    /// Runs exactly one frame through the pass contract (§7.2): mutate →
-    /// update_focusable → update_focus → style → layout → compose → paint →
-    /// accessibility. When no mask is pending every pass is skipped — idle
+    /// Runs exactly one frame through the pass contract (§7.2): `mutate` →
+    /// `update_focusable` → `update_focus` → `style` → `layout` → `compose` →
+    /// `paint` → `accessibility`. When no mask is pending every pass is
+    /// skipped — idle
     /// cost zero (A7). Every pass is traced (`alacer::pass`) and, with
     /// timings on, measured for the M1 overhead gate.
+    ///
+    /// # Panics
+    ///
+    /// When a layout-forcing mask exists but no root is mounted — mounting
+    /// before ticking is the arena's own contract, so this is a caller bug,
+    /// not a runtime condition.
     ///
     /// # Errors
     ///
     /// Propagates [`LayoutError`] from the layout pass.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "the ten-pass tick is one readable frame-by-frame narrative; splitting it would hide the pass ordering the contract is about"
+    )]
     pub fn tick(&mut self, viewport: Size) -> Result<FrameReport, LayoutError> {
         let total_start = self.timings.then(std::time::Instant::now);
+
+        // Frame-batched input (§10.2, ADR-0014): the queued storm coalesces
+        // and routes here, before the ledger is taken — its event passes are
+        // this frame's, exactly as if the platform had dispatched one event.
+        for event in self.input.drain() {
+            self.dispatch_pointer(&event);
+        }
+
         let mut ledger: Vec<PassRun> = std::mem::take(&mut self.interframe);
 
         // Flux drain: the mask bridge lands masks in the arena (A1). Bookkeeping
@@ -1206,10 +1251,10 @@ impl PassPipeline {
     fn run_pass(&mut self, kind: PassKind, body: impl FnOnce(&mut Self) -> bool) -> PassRun {
         let span = tracing::trace_span!(target: "alacer::pass", "pass", pass = kind.name());
         let start = self.timings.then(std::time::Instant::now);
-        let _guard = span.enter();
+        let guard = span.enter();
         let ran = body(self);
         let nanos = start.map_or(0, |t| crate::num::u128_to_u64(t.elapsed().as_nanos()));
-        drop(_guard);
+        drop(guard);
         PassRun {
             kind,
             ran,
@@ -2396,7 +2441,6 @@ mod tests {
         // the pass-system bookkeeping must stay under 15% of frame time, or
         // the contract collapses to three passes. Median over 40 churn
         // frames keeps the assertion stable against scheduler noise.
-        let _guard = crate::flux::batch_test_lock();
 
         /// A container whose style lives in a shared cell (churn driver).
         struct ChurnBox {
@@ -2425,6 +2469,10 @@ mod tests {
             }
         }
 
+        const CONTAINERS: usize = 100;
+        const CHILDREN: usize = 100;
+
+        let _guard = crate::flux::batch_test_lock();
         let mut p = pipeline();
         let root = p.mount_root(Box::new(ChurnBox {
             size: Size::new(400.0, 800.0),
@@ -2432,8 +2480,6 @@ mod tests {
         }));
 
         // 100 containers × 100 children = 10,101 nodes.
-        const CONTAINERS: usize = 100;
-        const CHILDREN: usize = 100;
         let mut churn_cells: Vec<(NodeId, std::sync::Arc<Mutex<Style>>)> = Vec::new();
         for _ in 0..CONTAINERS {
             let style = std::sync::Arc::new(Mutex::new(Style::default()));

@@ -33,7 +33,7 @@
 14. [Performance architecture](#14-performance-architecture) — the best-in-class performance plan
 15. [What Alacer will not build](#15-what-alacer-will-not-build)
 16. [Moats](#16-moats) — three defensible differentiators
-17. [ADR register](#17-adr-register) — 11 decision records
+17. [ADR register](#17-adr-register) — 16 decision records
 18. [Roadmap & kill criteria](#18-roadmap--kill-criteria)
 19. [Risks & open questions](#19-risks--open-questions)
 20. [Provenance, licensing, and honesty](#20-provenance-licensing-and-honesty)
@@ -69,7 +69,7 @@ Selection was evidence-driven, in the audit's spirit:
 
 - **crates.io** (checked live, 2026-11-05): `alacer` is **unregistered**. Nearly every other candidate was taken and rejected on collision grounds: `ferrite` (an image-loading crate), `keel` (an active "Keel Engine"), `pronghorn`, `iridium`, `flywheel`, `stator`, `escapement`, `carina`, `fovea`, `saccade`, `tessera`, `vivace`, `legato`, `cairn`, `heddle` — all occupied.
 - **GitHub** (checked live): 21 repos named `alacer`, none a software framework (max 7★, no Rust project).
-- **Crate family:** `alacer`, `alacer-core`, `alacer-view`, `alacer-layout`, `alacer-render`, `alacer-text`, `alacer-a11y`, `alacer-platform`, `alacer-widgets`, `alacer-testing`, `alacer-devtools`, `alacer-hot` (availability to be re-verified at first publish — `UNVERIFIED` until done).
+- **Crate family:** `alacer`, `alacer-core`, `alacer-macro`, `alacer-view`, `alacer-layout`, `alacer-render`, `alacer-text`, `alacer-a11y`, `alacer-widgets`, `alacer-platform`, `alacer-inspect`, `alacer-testing` (availability to be re-verified at first publish — `UNVERIFIED` until done).
 - The audit's internal codename "Meridian" is retired; all ADRs and audit references carry over unchanged.
 
 ---
@@ -189,12 +189,12 @@ Layering is a DAG, enforced in CI (no upward deps, no cycles, facade-only re-exp
 
 | Crate | Responsibility | Key dependencies (all MIT/Apache) | LOC budget [budget] |
 |---|---|---|---|
-| `alacer` | Facade: prelude, re-exports, docs, feature flags | all below | ≤ 3k |
-| `alacer-hot` | subsecond integration; hot-patch contract | `subsecond` | ≤ 2k |
-| `alacer-devtools` | Causality inspector, mask heatmap, frame journals (feature-gated) | `alacer-core`, serde, ws | ≤ 15k |
+| `alacer` | Facade: prelude, re-exports, docs, feature flags; hot-reload runtime (the `subsecond` integration + patch contract live here, not in a separate crate) | all below, `subsecond` (feature-gated) | ≤ 3k |
+| `alacer-macro` | The `rsx!` view-DSL compiler → `alacer_view::ViewNode` builder trees | `proc-macro2`, `quote`, `syn` | ≤ 2k |
+| `alacer-inspect` | Causality inspector: causal recorder, WebSocket wire protocol, embedded client (feature-gated at the facade) | `alacer-core`, serde, sha1, base64 | ≤ 15k |
 | `alacer-testing` | Headless harness, a11y queries, snapshots, record/replay, fuzz targets | `alacer` + tiny-skia | ≤ 20k |
 | `alacer-widgets` | Widget library (button, label, text input, list, table, scroll…) | `alacer-core` | ≤ 30k |
-| `alacer-platform` | winit integration, event coalescing, clipboard/menus/dialogs/tray | `winit`, `muda`, `rfd`, `arboard`, `tray-icon`, `accesskit_winit` | ≤ 15k |
+| `alacer-platform` | winit integration, frame-batched input queueing (M8: the coalescer lives in core; the platform pushes and never drains), window present over wgpu/softbuffer | `winit`, `wgpu`, `softbuffer`, `accesskit_winit` | ≤ 15k |
 | `alacer-a11y` | AccessKit contract, incremental TreeUpdates, id-path NodeIds | `accesskit` | ≤ 8k |
 | `alacer-text` | parley/fontique/swash façade, shaping caches, glyph atlas | `parley`, `fontique`, `swash` | ≤ 12k |
 | `alacer-render` | Scene journal, wgpu + tiny-skia backends, damage/partial paint | `wgpu`, `tiny-skia`, `softbuffer` | ≤ 35k |
@@ -590,7 +590,7 @@ Three differentiators, each hard to copy and disproportionately funded (the audi
 
 ## 17. ADR register
 
-ADRs 1–7 were ratified with the audit bundle (`adr/ADR-*.md`); each carries its own kill-switch. ADRs 8–11 are authored here to complete the architecture.
+ADRs 1–7 were ratified with the audit bundle (`adr/ADR-*.md`); each carries its own kill-switch. ADRs 8–11 are authored here to complete the architecture; ADR-0012…ADR-0015 scope milestones M6–M9 as they shipped (see `docs/adr/`).
 
 | ADR | Decision | Status | Kill-switch (falsifiable) |
 |---|---|---|---|
@@ -605,6 +605,10 @@ ADRs 1–7 were ratified with the audit bundle (`adr/ADR-*.md`); each carries it
 | **ADR-9** *(new)* | **Workspace & discipline:** 12-crate DAG (§4.2) with facade-only re-exports; `missing_docs` + `unsafe_code` deny (Iced precedent, `Cargo.toml:253-254` @ `8ff48c4`); zero unsafe outside platform crates; `cargo-deny` license gate (no AGPL, no unknown licenses); upstream-first patch policy | Accepted | DAG friction measurably slows feature work > 1 sprint → consolidate to 6 crates, re-vote |
 | **ADR-10** *(new)* | **Testing productization:** headless-with-real-pipeline as default `cargo test`; a11y-driven queries as the only official API; baselines-as-contracts; fuzz targets; hot-patch suite | Accepted | it *is* the validation (I6) — scope shrinks only via roadmap gates, not by removing the harness |
 | **ADR-11** *(new)* | **Versioning & stability:** 0.x semver; `alacer` + widget crates follow semver-style care from 0.1 (deprecations, migrate notes); internals (`alacer-core`, `-view`, `-render`) may break at minors with CHANGELOG; MSRV pinned; renaming the audit codename to Alacer is recorded as the first entry | Accepted | community pain signals (issue-labeled `stability`) > 10/month → adopt 1.0-RC freeze earlier |
+| **ADR-0012** | M6 scope: widget canon + record/replay + W2/W3/W5 published benches | Accepted | canon can't hold the a11y contract end-to-end → narrow the canon to what can |
+| **ADR-0013** | M7 scope: the reproducible bench rig + cross-framework comparison beat | Accepted | competitor absolute medians gated → benchmark theatre (never done) |
+| **ADR-0014** | M8 scope: frame-batched input — the coalescer joins the scheduling contract | Accepted | per-event dispatch semantics change observable widget behavior → route the batch per event behind a queue-depth knob |
+| **ADR-0015** | M9 scope: the windowed a11y path joins the incremental contract — the pipeline's sink is the only `TreeUpdate` materialization path | Accepted | a platform adapter needs a shape the sink cannot express → re-open the seam with the shape as a trait method |
 
 ---
 
@@ -623,6 +627,7 @@ Six months, ordered, each gate falsifiable (evolved from VISION.md; M-names alig
 | M6 | cont. | Widget canon + record/replay + W2/W3/W5 published benches (ADR-0012) | todo/data-table canons end-to-end through the a11y tree; committed recording replays green; W5 one-rerun-per-batch at graph scale | — |
 | M7 | cont. | The reproducible rig + cross-framework beat (ADR-0013) | declared rig, no-strawman competitor harnesses, 5-run-median results committed, beat computed same-host (W1 won; W2/W3 published as lost, scoped) | competitor absolute medians gated → benchmark theatre (never done) |
 | M8 | cont. | Frame-batched input: the coalescer joins the scheduling contract (ADR-0014) | a 50-move storm routes one coalesced event (probe + counter + ledger agree); the `input_storm_batching` budget ≥ 2× | per-event dispatch semantics change observable widget behavior → route the batch per event behind a queue-depth knob |
+| M9 | cont. | The windowed a11y path joins the incremental contract (ADR-0015): the pipeline's `AccessKitSink` is the only `TreeUpdate` materialization path | the window drains dirty-only deltas with the full M6 vocabulary (values, toggle state, grid slots); the activation response is the sink's own full tree; the `a11y_incremental_speedup` budget ≥ 2×; corpus 45 → 47 | a platform adapter needs a shape the sink cannot express → re-open the seam with the shape as a trait method |
 
 **Portfolio kill criterion (the whole thesis):** if by end of M3 the shared-harness benchmarks (W1, W2, W3) show **no workload where Alacer beats both egui (the DX baseline) and the best audited retained stack on the same hardware** — or the a11y CI gate cannot be maintained under feature velocity — then "composition beats specialization" is falsified. Pre-registered pivots: (a) extract the invalidation engine as a Masonry/egui backend crate; (b) reduce scope to an a11y + testing supercrate for egui/Iced. Killing a thesis cheaply is cheaper than marketing a failed one.
 

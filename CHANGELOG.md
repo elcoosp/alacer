@@ -9,6 +9,29 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M9 — the windowed a11y path joins the incremental contract (ADR-0015)**:
+  the pipeline's own `AccessKitSink` becomes the only `TreeUpdate`
+  materialization path — the real window drains the sink's dirty-only
+  deltas at every frame boundary and answers an adapter-activation request
+  (`InitialTreeRequested`) with the sink's own full-tree build, so the
+  pre-M9 per-frame full rebuild (and its dropped M6 vocabulary: values,
+  toggle state, grid slots) is gone; toggle state and table geometry now
+  reach the OS adapter, and the sink's produced-update buffer is ring-capped
+  instead of growing without bound in windowed runs
+- **M9 — the a11y contract as a number**: the criterion pair
+  `a11y/full_rebuild_1k` (the pre-M9 shape) vs
+  `a11y/incremental_1k_dirty_10pct` (the M9 shape), published with two
+  regression contracts and the `a11y_incremental_speedup` budget (full ÷
+  incremental ≥ 2.0×); the corpus grows 45 → 47 by the coordinated rule,
+  with the M5/M6/M7/M8 pin suites moving together and the new M9 suite
+  asserting all four
+- **M9 — the exit suite** (`alacer-testing/tests/m9_exit_criteria.rs`):
+  the first frame drains the init tree and quiet frames drain nothing; a
+  toggle reaches the window as a dirty-only update carrying its `Toggled`
+  state; text values ride the delta; removals surface through the sink's
+  removal record and the resolved tree shrinks; the activation response
+  equals a fresh sink's init build byte for byte; the ratio is a published
+  budget
 - **M8 — frame-batched input (ADR-0014)**: the event coalescer moves into
   `alacer-core` (`alacer_core::input::EventCoalescer`) and becomes a field
   of the `PassPipeline` — the platform *queues* pointer events and never
@@ -28,6 +51,11 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
   accumulated delta; a direction flip splits the run; horizontal wheel
   deltas reach widgets; the list scrolls through the queue with zero
   measure calls; the platform source pins push-don't-drain
+- **M8 — the cast seam completes**: `f64_to_f32`, `f32_to_usize`, and the
+  `usize_to_u8`/`usize_to_u16` rounding helpers join `alacer_core::num`,
+  the workspace's single documented rounding/casting point
+- **M8 — the harness can storm too**: `TestHarness::queue_pointer` exposes
+  the frame-batched input queue to headless suites
 
 ### Changed
 
@@ -52,8 +80,21 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 - `docs/architecture.md` §18 gains the M6/M7 roadmap rows (the README
   claimed them; the table had drifted) and the M8 row; §10.2 notes the
   delivered wiring
+- **M9 — the a11y seam drops the split-brain**: `alacer-platform` deletes
+  its snapshot-rebuilding `TreeUpdateBuilder` and the `tree_dirty` flag;
+  `alacer-core` gains `A11ySink::as_any_mut` (the `Widget::as_any_mut`
+  pattern — the trait stays adapter-free) and `PassPipeline::a11y_sink_mut`;
+  `alacer-a11y` factors one `build_update` behind `drain_updates` and the
+  pure `full_tree_update`; the producer-less `PlatformEvent::TreeChanged`
+  variant becomes the embedder's flush nudge it was named for
+- The baselines are re-published for M9 (corpus 47, one collecting host):
+  the `a11y_incremental_speedup` ratio joins the two existing ratio budgets
+  as the host-independent gates
+- `docs/architecture.md` gains the M9 roadmap row (ADR-0015) and the
+  ADR-0012…0015 register rows; §4.2's phantom `alacer-hot`/`alacer-devtools`
+  rows become the real `alacer-macro`/`alacer-inspect` and the facade row
+  names the hot-reload runtime it actually hosts
 
-## [0.7.0] — 2026-11-08
 ## [0.7.0] — 2026-11-08
 
 ### Added

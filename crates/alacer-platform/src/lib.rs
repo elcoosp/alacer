@@ -527,7 +527,7 @@ fn map_action_request(
     request: &accesskit::ActionRequest,
 ) -> Option<alacer_core::widget::A11yAction> {
     use accesskit::{Action, ActionData, ScrollUnit as PlatformUnit};
-    use alacer_core::widget::{A11yAction as Core, ScrollUnit};
+    use alacer_core::widget::{A11yAction as Core, ScrollUnit, TextSelection};
 
     // Carries the request's scroll unit through, defaulting to one item —
     // the granularity an AT means when it sends no unit at all.
@@ -538,12 +538,53 @@ fn map_action_request(
         }
     };
 
+    // The value tier (M11, ADR-0017): the payload rides the request, so a
+    // mapping without it is a munge — a SetValue with no `Value` data is
+    // dropped at the boundary, traced, exactly like an unknown action.
+    let value = |data: Option<&ActionData>| -> Option<String> {
+        match data {
+            Some(ActionData::Value(text)) => Some(text.to_string()),
+            other => {
+                tracing::trace!(?other, "accesskit value action dropped: no payload");
+                None
+            }
+        }
+    };
+
     match request.action {
         Action::Click => Some(Core::DefaultPress),
         Action::Increment => Some(Core::Increment),
         Action::Decrement => Some(Core::Decrement),
         Action::ScrollUp => Some(Core::ScrollUp(unit(request.data.as_ref()))),
         Action::ScrollDown => Some(Core::ScrollDown(unit(request.data.as_ref()))),
+        Action::SetValue => value(request.data.as_ref()).map(Core::SetValue),
+        Action::ReplaceSelectedText => value(request.data.as_ref()).map(Core::ReplaceSelectedText),
+        Action::SetTextSelection => match request.data.as_ref() {
+            Some(ActionData::SetTextSelection(selection)) => {
+                // The single-node selection contract (ADR-0017): Alacer's
+                // editable nodes carry their own value, so the AT's
+                // character indexes map straight through. A position aimed
+                // at another node cannot be honored here and is dropped.
+                if selection.anchor.node != request.target_node
+                    || selection.focus.node != request.target_node
+                {
+                    tracing::trace!(
+                        ?selection,
+                        "accesskit SetTextSelection dropped: positions off target"
+                    );
+                    None
+                } else {
+                    Some(Core::SetTextSelection(TextSelection::new(
+                        selection.anchor.character_index,
+                        selection.focus.character_index,
+                    )))
+                }
+            }
+            other => {
+                tracing::trace!(?other, "accesskit value action dropped: no payload");
+                None
+            }
+        },
         other => {
             tracing::trace!(?other, "accesskit action dropped: no widget contract yet");
             None
@@ -902,6 +943,7 @@ mod tests {
                 value: None,
                 toggled: None,
                 table_slot: None,
+                selection: None,
             }],
         });
         sink.apply(

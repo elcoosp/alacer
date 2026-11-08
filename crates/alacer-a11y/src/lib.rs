@@ -15,7 +15,10 @@
 //! - Focus travels in the delta: `TreeUpdate::focus` follows the pipeline's
 //!   pass-3 output every a11y frame.
 
-use accesskit::{Node, NodeId, Rect, Role as AccessKitRole, Toggled, TreeId, TreeInfo, TreeUpdate};
+use accesskit::{
+    Node, NodeId, Rect, Role as AccessKitRole, TextPosition, TextSelection, Toggled, TreeId,
+    TreeInfo, TreeUpdate,
+};
 use alacer_core::Role;
 use alacer_core::geom::Rect as AlacerRect;
 use alacer_core::passes::{A11yDelta, A11ySink, TreeSnapshot};
@@ -230,6 +233,26 @@ impl AccessKitSink {
             }
             None => {}
         }
+        // The selection (M11, ADR-0017): anchor and focus as character
+        // indexes on the value-bearing node itself. AccessKit's full rich
+        // text model points `TextPosition`s at `TextRun` children; Alacer's
+        // a11y tree is coarse (the value lives on the editable node), so the
+        // positions point at the node that owns the string — a documented
+        // simplification, UNVERIFIED at strict platform adapters, recorded
+        // in the ADR like every other unverified seam.
+        if let Some(selection) = node.selection {
+            let node_id = accesskit_node_id(node.id);
+            access_node.set_text_selection(TextSelection {
+                anchor: TextPosition {
+                    node: node_id,
+                    character_index: selection.anchor,
+                },
+                focus: TextPosition {
+                    node: node_id,
+                    character_index: selection.focus,
+                },
+            });
+        }
         access_node.set_children(
             node.children
                 .iter()
@@ -342,6 +365,7 @@ mod tests {
                     value: None,
                     toggled: None,
                     table_slot: None,
+                    selection: None,
                 },
                 TreeNode {
                     id: child_hash,
@@ -352,6 +376,7 @@ mod tests {
                     value: None,
                     toggled: None,
                     table_slot: None,
+                    selection: None,
                 },
                 TreeNode {
                     id: other_hash,
@@ -362,6 +387,7 @@ mod tests {
                     value: Some("hello".into()),
                     toggled: None,
                     table_slot: None,
+                    selection: None,
                 },
             ],
         }
@@ -509,6 +535,7 @@ mod tests {
                         rows: 2,
                         columns: 3,
                     }),
+                    selection: None,
                 },
                 TreeNode {
                     id: 2,
@@ -519,6 +546,7 @@ mod tests {
                     value: None,
                     toggled: None,
                     table_slot: Some(TableSlot::Header { column: 0 }),
+                    selection: None,
                 },
                 TreeNode {
                     id: 3,
@@ -529,6 +557,7 @@ mod tests {
                     value: None,
                     toggled: Some(alacer_core::widget::ToggleState::On),
                     table_slot: Some(TableSlot::Cell { row: 1, column: 2 }),
+                    selection: None,
                 },
             ],
         };

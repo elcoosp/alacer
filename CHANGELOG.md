@@ -9,6 +9,31 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M12 — the pointer joins the editing contract (ADR-0018)**: the
+  caret — until now keyboard- and AT-addressable only — is
+  pointer-addressable. A click inside the field places the caret at the
+  hit point (edges clamp, ties break to the cluster's start), a
+  press-drag extends the selection from the M11 anchor — the drag is the
+  anchor state's second writer, keyboard and pointer alike — and a
+  release ends the gesture while the range survives as a state; an
+  unpressed move is hover and never moves the caret; the pre-M12
+  press-collapses-at-the-stale-caret fallback is deleted. The seam that
+  makes it honest is two-sided: the pass-1 router hands every pointer
+  handler the node's resolved layout frame (`EventCtx::bounds()`, fed
+  from the arena before the capture walk), and the text seam grows the
+  bounds-aware offset mapping (`TextSeam::hit_test`) — the caret and the
+  highlight's own prefix widths, inverted, so a click maps onto what is
+  drawn; during a composition the committed text is what offsets map to
+  (the preedit is overlay spliced at the caret, not a click target)
+- **M12 — the harness and the corpus**: `TestHarness::pointer_press` /
+  `pointer_move` / `pointer_release` / `drag` drive the gesture the way
+  a user's hand and the recordings deliver it; the corpus grows 49 → 50
+  by the coordinated rule — the new `editing/route_100_caret_clicks_1k`
+  criterion bench (100 queued caret placements routed through the
+  pipeline on a 1,000-node arena, measured on the shipped `TextInput`)
+  is published with a same-host regression gate, and the
+  M5/M6/M7/M8/M9/M10/M11 pin suites move together with the new M12 exit
+  suite
 - **M11 — the UTF-16 selection model joins the editing and a11y contracts (ADR-0017)**:
   the text input grows the anchor+caret selection in the §10.3 contract
   unit — Shift+arrows/Home/End extend from the anchor, Ctrl/Cmd+A selects

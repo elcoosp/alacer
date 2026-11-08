@@ -27,6 +27,7 @@ pub mod events;
 pub mod flux;
 pub mod geom;
 pub mod identity;
+pub mod input;
 pub mod inspect;
 pub mod mask;
 pub mod num;
@@ -48,6 +49,7 @@ pub use flux::{Flux, FluxCounters, FluxRwSignal, FluxWriter, RenderBinding};
 // `reactive_graph`'s, so its read/write traits ride the same re-export
 // (call sites never need a direct reactive_graph dependency).
 pub use geom::{Point, Rect, Size, Vector};
+pub use input::EventCoalescer;
 pub use inspect::{
     BindingId, DirtyNode, EdgeActivation, FrameSummary, InputKind, InputRecord, InspectEvent,
     InspectObserver, PassTiming, SignalKey, SignalWrite,

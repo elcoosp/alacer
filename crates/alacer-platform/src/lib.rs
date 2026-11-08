@@ -109,6 +109,9 @@ pub struct AlacerApp {
     /// Tracked keyboard modifiers (winit delivers them via
     /// `ModifiersChanged`, not on key events).
     modifiers: alacer_core::events::Modifiers,
+    /// The click chain behind every `Down`'s click count (ADR-0019): the
+    /// platform owns the clock, the widget never does.
+    clicks: ClickCounter,
     /// The last IME request applied to the window — the platform only acts
     /// on the delta frame over frame (§10.3).
     applied_ime: Option<ImeRequest>,
@@ -191,6 +194,7 @@ impl AlacerApp {
             cursor: Point::zero(),
             needs_present: true,
             modifiers: alacer_core::events::Modifiers::default(),
+            clicks: ClickCounter::default(),
             applied_ime: None,
             framebuffer: None,
             patch_channel: None,
@@ -681,6 +685,7 @@ impl ApplicationHandler<PlatformEvent> for AlacerApp {
                     (ElementState::Pressed, MouseButton::Left) => PointerEvent::Down {
                         position: self.cursor,
                         button: alacer_core::events::MouseButton::Left,
+                        click_count: self.clicks.on_down(self.cursor),
                     },
                     (ElementState::Released, MouseButton::Left) => PointerEvent::Up {
                         position: self.cursor,
@@ -689,6 +694,7 @@ impl ApplicationHandler<PlatformEvent> for AlacerApp {
                     (ElementState::Pressed, MouseButton::Right) => PointerEvent::Down {
                         position: self.cursor,
                         button: alacer_core::events::MouseButton::Right,
+                        click_count: self.clicks.on_down(self.cursor),
                     },
                     (ElementState::Released, MouseButton::Right) => PointerEvent::Up {
                         position: self.cursor,
@@ -697,6 +703,7 @@ impl ApplicationHandler<PlatformEvent> for AlacerApp {
                     (ElementState::Pressed, MouseButton::Middle) => PointerEvent::Down {
                         position: self.cursor,
                         button: alacer_core::events::MouseButton::Middle,
+                        click_count: self.clicks.on_down(self.cursor),
                     },
                     (ElementState::Released, MouseButton::Middle) => PointerEvent::Up {
                         position: self.cursor,
@@ -817,6 +824,48 @@ fn size_px(v: f32) -> u32 {
     alacer_core::num::f32_to_u32(v)
 }
 
+/// The double-click window (GTK's default press-chain interval): two
+/// presses inside it and within [`DOUBLE_CLICK_SLOP`] form one chain.
+const DOUBLE_CLICK_TIME: std::time::Duration = std::time::Duration::from_millis(400);
+
+/// The press-chain slop: a second press farther than this many pixels
+/// from the previous one starts a fresh chain (GTK's double-click
+/// distance).
+const DOUBLE_CLICK_SLOP: f32 = 4.0;
+
+/// Tracks the platform's click chain: presses within
+/// [`DOUBLE_CLICK_TIME`] of the previous one and within
+/// [`DOUBLE_CLICK_SLOP`] of it count up (1, 2, 3 — the single click, the
+/// double-click, the triple), a press outside either bound starts a fresh
+/// chain at 1. The count rides every [`PointerEvent::Down`] so widgets see
+/// which gesture the user's hand made (§10.3, ADR-0019) — the platform
+/// owns the clock, the widget never does.
+#[derive(Default)]
+struct ClickCounter {
+    /// The previous press: when it landed and where.
+    last: Option<(std::time::Instant, Point)>,
+    /// The chain's running count.
+    count: u8,
+}
+
+impl ClickCounter {
+    /// Records a press at `at` and returns its click count.
+    fn on_down(&mut self, at: Point) -> u8 {
+        let now = std::time::Instant::now();
+        let chained = self.last.take().is_some_and(|(then, before)| {
+            now.duration_since(then) <= DOUBLE_CLICK_TIME
+                && (at - before).length() <= DOUBLE_CLICK_SLOP
+        });
+        self.count = if chained {
+            self.count.saturating_add(1)
+        } else {
+            1
+        };
+        self.last = Some((now, at));
+        self.count
+    }
+}
+
 /// Maps a winit wheel delta to the pipeline's pixel vector — both axes, no
 /// dropped component (the pre-M8 mapping dropped `x`, ADR-0014).
 fn wheel_delta(delta: MouseScrollDelta) -> alacer_core::geom::Vector {
@@ -854,7 +903,7 @@ mod tests {
     use super::wheel_delta;
     use alacer_a11y::AccessKitSink;
     use alacer_core::Flux;
-    use alacer_core::geom::Vector;
+    use alacer_core::geom::{Point, Vector};
     use alacer_core::passes::{A11yDelta, A11ySink, PassPipeline};
     use winit::event::MouseScrollDelta;
 
@@ -874,6 +923,40 @@ mod tests {
             winit::dpi::PhysicalPosition::new(12.0, -9.0),
         ));
         assert_eq!(delta, Vector::new(12.0, -9.0));
+    }
+
+    // ------------------------------------------------------------------
+    // M13 (ADR-0019): the platform's click chain — consecutive presses
+    // within the slop count up, a press outside it resets. The time bound
+    // rides `Instant` and is not sleep-tested; the distance bound is.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn a_press_chain_counts_up_within_the_slop() {
+        let mut clicks = super::ClickCounter::default();
+        assert_eq!(clicks.on_down(Point::new(10.0, 10.0)), 1, "a fresh click");
+        assert_eq!(
+            clicks.on_down(Point::new(12.0, 10.0)),
+            2,
+            "2 px away: the double-click"
+        );
+        assert_eq!(
+            clicks.on_down(Point::new(13.0, 11.0)),
+            3,
+            "the chain keeps counting (the triple)"
+        );
+    }
+
+    #[test]
+    fn a_far_press_starts_a_fresh_chain() {
+        let mut clicks = super::ClickCounter::default();
+        assert_eq!(clicks.on_down(Point::new(10.0, 10.0)), 1);
+        assert_eq!(
+            clicks.on_down(Point::new(100.0, 10.0)),
+            1,
+            "outside the slop: a fresh click, not a chain step"
+        );
+        assert_eq!(clicks.on_down(Point::new(100.0, 10.0)), 2);
     }
 
     // ------------------------------------------------------------------

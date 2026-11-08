@@ -7,6 +7,53 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ## [Unreleased]
 
+### Added
+
+- **M8 — frame-batched input (ADR-0014)**: the event coalescer moves into
+  `alacer-core` (`alacer_core::input::EventCoalescer`) and becomes a field
+  of the `PassPipeline` — the platform *queues* pointer events and never
+  drains; `tick` drains the coalesced batch at its start, so a storm of
+  fifty moves costs one coalesced routing, one event pass, one frame (the
+  same one-frame currency signal writes already obey, ADR-2/ADR-6)
+- **M8 — the batching contract as a number**: the criterion pair
+  `input/storm_50_moves_queued` (7.32 µs — 50 events, one tick) vs
+  `input/storm_50_moves_direct` (299.21 µs — the pre-M8 shape), published
+  with two regression contracts and the `input_storm_batching` budget
+  (direct ÷ queued ≥ 2.0×, measured 40.9×); the corpus grows 43 → 45 by
+  the coordinated rule, with the M5/M6/M7 pin suites moving together and
+  the new M8 suite asserting all three
+- **M8 — the exit suite** (`alacer-testing/tests/m8_exit_criteria.rs`): a
+  fifty-move storm routes exactly one coalesced event (probe widget, event
+  counter, and frame ledger agree); a ten-tick wheel burst lands as one
+  accumulated delta; a direction flip splits the run; horizontal wheel
+  deltas reach widgets; the list scrolls through the queue with zero
+  measure calls; the platform source pins push-don't-drain
+
+### Changed
+
+- **The workspace lint regime now actually applies.** The
+  `[workspace.lints]` table (missing_docs deny, unsafe_code forbid, clippy
+  pedantic) was never inherited — no member crate opted in — so the
+  "pedantic denied workspace-wide, zero allow-list" claim was inert. Every
+  member crate now carries `[lints] workspace = true`, pedantic fires
+  (`warn` + the CI `-D warnings`), and the ~90 latent pedantic violations
+  the activation surfaced are fixed or carried by reasoned `#[expect]`s —
+  still zero `#[allow]` anywhere
+- The platform's wheel mapping carries both axes (the pre-M8 mapping
+  dropped `x`); `MouseScrollDelta` → pixel vector is a pure, unit-tested
+  mapping (`wheel_delta`)
+- The platform's per-callback drain block and its redundant double
+  `take_pending_masks` are deleted — input routing decisions live in the
+  pipeline, the present decision in the damage ladder
+- The baselines are re-published on the same host class (fingerprint
+  `ee37c3efc5995352`, dirty tree): the W1 budget re-measures at 14.76×;
+  the committed cross-framework comparison is untouched (ADR-0013's rig of
+  record)
+- `docs/architecture.md` §18 gains the M6/M7 roadmap rows (the README
+  claimed them; the table had drifted) and the M8 row; §10.2 notes the
+  delivered wiring
+
+## [0.7.0] — 2026-11-08
 ## [0.7.0] — 2026-11-08
 
 ### Added

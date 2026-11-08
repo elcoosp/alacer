@@ -25,10 +25,18 @@ pub enum EventPhase {
 ///
 /// Widgets mutate their own state and *request* masks; the pipeline merges
 /// them upward on the event's behalf (the A1 currency, applied at the seam).
+///
+/// The context also carries the handling node's **resolved layout frame**
+/// (§10.3, ADR-0018): window-coordinate positions are only mappable to
+/// widget-local math when the widget knows where it sits, so the pass-1
+/// router feeds the arena's bounds in before the capture walk. Keyboard
+/// and IME events are focus-routed, not positioned, and arrive with no
+/// frame.
 #[derive(Debug, Clone, Default)]
 pub struct EventCtx {
     requested: Change,
     phase: EventPhase,
+    bounds: Option<crate::geom::Rect>,
 }
 
 impl EventCtx {
@@ -38,6 +46,7 @@ impl EventCtx {
         Self {
             requested: Change::empty(),
             phase: EventPhase::Bubble,
+            bounds: None,
         }
     }
 
@@ -47,6 +56,21 @@ impl EventCtx {
         Self {
             requested: Change::empty(),
             phase,
+            bounds: None,
+        }
+    }
+
+    /// An empty context in `phase`, carrying the node's resolved frame
+    /// (the pointer router's constructor — ADR-0018).
+    #[must_use]
+    pub const fn with_phase_and_bounds(
+        phase: EventPhase,
+        bounds: Option<crate::geom::Rect>,
+    ) -> Self {
+        Self {
+            requested: Change::empty(),
+            phase,
+            bounds,
         }
     }
 
@@ -54,6 +78,15 @@ impl EventCtx {
     #[must_use]
     pub const fn phase(&self) -> EventPhase {
         self.phase
+    }
+
+    /// The handling node's resolved layout frame in window coordinates,
+    /// when the event was routed by the pipeline. Direct dispatch (test
+    /// probes, replay) carries no frame: position math must fall back to
+    /// treating the event's coordinates as already widget-local.
+    #[must_use]
+    pub const fn bounds(&self) -> Option<crate::geom::Rect> {
+        self.bounds
     }
 
     /// Requests `change` for the handling node.

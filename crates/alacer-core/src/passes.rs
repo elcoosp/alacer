@@ -755,15 +755,21 @@ impl PassPipeline {
     /// the widget's requested masks upward. A widget that requests `FOCUS`
     /// is asking for keyboard focus — the click-to-focus seam (§10.3): the
     /// request becomes pass 3's pending focus, resolved same tick.
+    ///
+    /// The visit also hands the node's resolved frame to the widget
+    /// (§10.3, ADR-0018): window coordinates become widget-local math only
+    /// against the bounds layout resolved — the caret-from-click seam's
+    /// half that lives in the router.
     fn visit_with_phase(
         &mut self,
         node: NodeId,
         phase: EventPhase,
         event: &PointerEvent,
     ) -> EventResponse {
+        let bounds = self.arena.bounds(node);
         let (response, requested) = {
             let mut guard = self.arena.mutate(node);
-            let mut ctx = crate::events::EventCtx::with_phase(phase);
+            let mut ctx = crate::events::EventCtx::with_phase_and_bounds(phase, bounds);
             let response = guard.widget_mut().on_pointer_event(&mut ctx, event);
             (response, ctx.take())
         };

@@ -281,6 +281,11 @@
    "id": "editing_route_100_caret_clicks_1k",
    "baseline": "editing/route_100_caret_clicks_1k",
    "scope": "same-host"
+  },
+  {
+   "id": "editing_route_100_word_moves_1k",
+   "baseline": "editing/route_100_word_moves_1k",
+   "scope": "same-host"
   }
  ],
  "test_enforced_gates": [

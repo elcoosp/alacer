@@ -20,7 +20,7 @@ pub use recording::{
 
 use alacer_a11y::AccessKitSink;
 use alacer_core::arena::NodeId;
-use alacer_core::events::{EventCtx, PointerEvent};
+use alacer_core::events::{EventCtx, MouseButton, PointerEvent};
 use alacer_core::flux::Flux;
 use alacer_core::geom::{Point, Rect, Size};
 use alacer_core::passes::PassPipeline;
@@ -154,6 +154,62 @@ impl TestHarness {
     /// tick — exactly as the platform loop delivers it. Settle separately.
     pub fn queue_pointer(&mut self, event: PointerEvent) {
         self.pipeline.queue_pointer(event);
+    }
+
+    /// Dispatches a pointer press at `position`, then settles (M12,
+    /// ADR-0018: the first half of a drag gesture — the field places its
+    /// caret at the press's hit point and asks for focus).
+    ///
+    /// # Panics
+    ///
+    /// Panics if layout fails.
+    pub fn pointer_press(&mut self, position: Point) {
+        self.pipeline.dispatch_pointer(&PointerEvent::Down {
+            position,
+            button: MouseButton::Left,
+        });
+        self.settle();
+    }
+
+    /// Dispatches a pointer move to `position` while a press is held, then
+    /// settles (M12: the drag's extension half — the selection follows the
+    /// pointer from the anchor). Without a prior [`Self::pointer_press`]
+    /// this is hover, and widgets that drag-select will ignore it.
+    ///
+    /// # Panics
+    ///
+    /// Panics if layout fails.
+    pub fn pointer_move(&mut self, position: Point) {
+        self.pipeline
+            .dispatch_pointer(&PointerEvent::Move { position });
+        self.settle();
+    }
+
+    /// Dispatches a pointer release at `position`, then settles (M12: the
+    /// gesture's end — the selection it built survives as a state).
+    ///
+    /// # Panics
+    ///
+    /// Panics if layout fails.
+    pub fn pointer_release(&mut self, position: Point) {
+        self.pipeline.dispatch_pointer(&PointerEvent::Up {
+            position,
+            button: MouseButton::Left,
+        });
+        self.settle();
+    }
+
+    /// Drives the full press-move-release gesture from `from` to `to`,
+    /// then settles (M12: drag-select as one gesture, the way a user's
+    /// hand delivers it and the way recordings replay it).
+    ///
+    /// # Panics
+    ///
+    /// Panics if layout fails.
+    pub fn drag(&mut self, from: Point, to: Point) {
+        self.pointer_press(from);
+        self.pointer_move(to);
+        self.pointer_release(to);
     }
 
     /// Dispatches a wheel event at `position`, then settles.

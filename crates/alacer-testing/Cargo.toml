@@ -37,3 +37,7 @@ accesskit.workspace = true
 [[bench]]
 name = "w3_animation"
 harness = false
+
+[[bench]]
+name = "editing"
+harness = false

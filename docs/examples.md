@@ -22,10 +22,12 @@ through the software backend.
 ## Where the pixels are proven
 
 Snapshot scenarios for the same pipeline live in
-[`crates/alacer-testing/blessed/`](../crates/alacer-testing/blessed/) — 30
+[`crates/alacer-testing/blessed/`](../crates/alacer-testing/blessed/) — 32
 blessed PNGs rendered headlessly by `alacer-testing/tests/m1_exit_criteria.rs`
-(styled labels, wrapped text, buttons in rest/pressed state, columns, rows,
-panels, scrolled lists, conditional and nested trees). If you add an example
+(30 styled scenarios: labels, wrapped text, buttons in rest/pressed state,
+columns, rows, panels, scrolled lists, conditional and nested trees) plus the
+M0 pair (`counter_clicked_once`, `list_scrolled_56`) blessed by
+`m0_exit_criteria.rs`. If you add an example
 here, add its scenario there and bless it:
 
 ```sh

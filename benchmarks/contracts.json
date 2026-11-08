@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "description": "Alacer performance contracts (M5, architecture §18 / ADR-0011). Every criterion benchmark in the workspace is published as a baseline in benchmarks/baselines/baselines.json and gated here. `budgets` are architecture gates expressed as ratios of criterion medians — host-independent, enforced everywhere. `regressions` are per-case median gates against the published baseline, scoped `same-host`: absolute times only compare on the recorded host fingerprint (os/arch/cpu model/count); foreign hosts — CI runners — skip them and rely on criterion's own previous-run comparison plus the ratio budgets. Adding a benchmark case without publishing its baseline and regression gate fails the M5 exit suite.",
+  "description": "Alacer performance contracts (M5, architecture \u00a718 / ADR-0011). Every criterion benchmark in the workspace is published as a baseline in benchmarks/baselines/baselines.json and gated here. `budgets` are architecture gates expressed as ratios of criterion medians \u2014 host-independent, enforced everywhere. `regressions` are per-case median gates against the published baseline, scoped `same-host`: absolute times only compare on the recorded host fingerprint (os/arch/cpu model/count); foreign hosts \u2014 CI runners \u2014 skip them and rely on criterion's own previous-run comparison plus the ratio budgets. Adding a benchmark case without publishing its baseline and regression gate fails the M5 exit suite.",
   "tolerance_default": 0.25,
   "budgets": [
     {
@@ -10,7 +10,7 @@
       "denominator": "w1/incremental_churn_10pct",
       "op": ">=",
       "budget": 2.0,
-      "cite": "architecture §18 M2 exit gate (W1 ≥ 2× vs full relayout), ADR-0008; test-enforced in alacer-layout/tests/w1_gate.rs, here measured by criterion"
+      "cite": "architecture \u00a718 M2 exit gate (W1 \u2265 2\u00d7 vs full relayout), ADR-0008; test-enforced in alacer-layout/tests/w1_gate.rs, here measured by criterion"
     },
     {
       "id": "input_storm_batching",
@@ -19,7 +19,7 @@
       "denominator": "input/storm_50_moves_queued",
       "op": ">=",
       "budget": 2.0,
-      "cite": "architecture §10.2 (input storms cost one frame of work, not N events), ADR-0014; the queued batch routes one coalesced event where the pre-M8 wiring dispatched all 50"
+      "cite": "architecture \u00a710.2 (input storms cost one frame of work, not N events), ADR-0014; the queued batch routes one coalesced event where the pre-M8 wiring dispatched all 50"
     },
     {
       "id": "a11y_incremental_speedup",
@@ -28,7 +28,7 @@
       "denominator": "a11y/incremental_1k_dirty_10pct",
       "op": ">=",
       "budget": 2.0,
-      "cite": "architecture §11.1 item 4 (never a full-tree rebuild per frame — the egui cost we refuse), ADR-0015; the M9 shape drains the sink's dirty-only delta where the pre-M9 window rebuilt the whole tree per a11y frame"
+      "cite": "architecture \u00a711.1 item 4 (never a full-tree rebuild per frame \u2014 the egui cost we refuse), ADR-0015; the M9 shape drains the sink's dirty-only delta where the pre-M9 window rebuilt the whole tree per a11y frame"
     }
   ],
   "regressions": [
@@ -266,49 +266,54 @@
       "id": "a11y_incremental_1k_dirty_10pct",
       "baseline": "a11y/incremental_1k_dirty_10pct",
       "scope": "same-host"
+    },
+    {
+      "id": "a11y_action_route_100_actions_1k",
+      "baseline": "a11y_action/route_100_actions_1k",
+      "scope": "same-host"
     }
   ],
   "test_enforced_gates": [
     {
       "id": "pass_system_overhead_15_percent",
       "gate": "pass-system overhead < 15% on 10k-node churn",
-      "cite": "architecture §18 M1 gate, §7.2",
+      "cite": "architecture \u00a718 M1 gate, \u00a77.2",
       "enforced_by": "alacer_core::passes tests + benches/pass_overhead.rs"
     },
     {
       "id": "tree_update_p99_half_ms",
       "gate": "incremental TreeUpdate p99 < 0.5 ms @ 1k nodes",
-      "cite": "architecture §18 M3 exit gate, ADR-0009",
+      "cite": "architecture \u00a718 M3 exit gate, ADR-0009",
       "enforced_by": "alacer-testing/tests/m3_exit_criteria.rs"
     },
     {
       "id": "patch_frame_budget",
-      "gate": "one hot patch ⇒ exactly one layout+paint cycle",
-      "cite": "architecture §18 M4 exit gate, ADR-0010",
+      "gate": "one hot patch \u21d2 exactly one layout+paint cycle",
+      "cite": "architecture \u00a718 M4 exit gate, ADR-0010",
       "enforced_by": "alacer-testing/tests/m4_exit_criteria.rs"
     },
     {
       "id": "w1_zero_measure_scroll",
       "gate": "translation-only scrolling: zero measure calls",
-      "cite": "architecture §8.2, ADR-0008",
+      "cite": "architecture \u00a78.2, ADR-0008",
       "enforced_by": "alacer-testing/tests/m0_exit_criteria.rs"
     },
     {
       "id": "w2_no_rewrap_oscillation",
-      "gate": "text-dense relayout: no re-wrap oscillation under ±5% width jitter",
-      "cite": "architecture §14.2 W2, §8.3 integer wrap rounding (ADR-0012)",
+      "gate": "text-dense relayout: no re-wrap oscillation under \u00b15% width jitter",
+      "cite": "architecture \u00a714.2 W2, \u00a78.3 integer wrap rounding (ADR-0012)",
       "enforced_by": "alacer-layout/tests/w2_gate.rs"
     },
     {
       "id": "w5_one_rerun_per_batch",
-      "gate": "one write batch ⇒ one effect rerun at 10k-signal scale; memos never glitch",
-      "cite": "architecture §14.2 W5, ADR-6",
+      "gate": "one write batch \u21d2 one effect rerun at 10k-signal scale; memos never glitch",
+      "cite": "architecture \u00a714.2 W5, ADR-6",
       "enforced_by": "alacer-testing/tests/m6_exit_criteria.rs"
     },
     {
       "id": "comparison_corpus_published",
       "gate": "the cross-framework comparison (declared rig + results + dashboard section) is committed, schema-valid, and same-host; the beat verdict is computable from the committed file",
-      "cite": "architecture §1 (the v1 definition of done's beat), §14.1, ADR-0013",
+      "cite": "architecture \u00a71 (the v1 definition of done's beat), \u00a714.1, ADR-0013",
       "enforced_by": "alacer-testing/tests/m7_exit_criteria.rs"
     }
   ]

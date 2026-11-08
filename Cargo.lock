@@ -179,6 +179,7 @@ version = "0.7.0"
 dependencies = [
  "accesskit",
  "alacer-core",
+ "criterion",
  "rustc-hash 2.1.3",
 ]
 
@@ -263,6 +264,7 @@ dependencies = [
 name = "alacer-testing"
 version = "0.7.0"
 dependencies = [
+ "accesskit",
  "alacer-a11y",
  "alacer-core",
  "alacer-inspect",

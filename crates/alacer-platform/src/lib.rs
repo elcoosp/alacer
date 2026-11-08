@@ -14,9 +14,10 @@ pub use softbuffer::{SoftbufferPresenter, pixmap_to_argb};
 pub use wgpu_backend::{BackendError, WgpuRenderer};
 
 use accesskit_winit::{Adapter, Event as AccessKitEvent, WindowEvent as AccessKitWindowEvent};
+use alacer_a11y::AccessKitSink;
 use alacer_core::events::{ImeEvent, KeyEvent, PointerEvent};
 use alacer_core::geom::{Point, Size};
-use alacer_core::passes::{ImeRequest, PassPipeline};
+use alacer_core::passes::{FrameReport, ImeRequest, PassPipeline};
 use alacer_core::widget::EventResponse;
 use alacer_text::{ThreadLocalGlyphSource, ThreadLocalTextSeam};
 use std::sync::Arc;
@@ -105,7 +106,6 @@ pub struct AlacerApp {
     proxy: Option<EventLoopProxy<PlatformEvent>>,
     cursor: Point,
     needs_present: bool,
-    tree_dirty: bool,
     /// Tracked keyboard modifiers (winit delivers them via
     /// `ModifiersChanged`, not on key events).
     modifiers: alacer_core::events::Modifiers,
@@ -190,7 +190,6 @@ impl AlacerApp {
             proxy: None,
             cursor: Point::zero(),
             needs_present: true,
-            tree_dirty: true,
             modifiers: alacer_core::events::Modifiers::default(),
             applied_ime: None,
             framebuffer: None,
@@ -281,28 +280,41 @@ impl AlacerApp {
                 return;
             }
         };
+        // The a11y frame boundary (ADR-0015): the tick produced this frame's
+        // delta — dirty nodes only — and the sink holds its `TreeUpdate`.
+        // Drain now, while the pass that built it is still this frame.
+        self.push_pending_a11y();
         // Apply this frame's IME request to the window (§10.3): attach or
         // detach the IME, move the candidate window to the caret. Only the
         // delta acts — platform calls are not free.
         self.apply_ime_request();
-        let scene = report.scene;
         let width = size_px(viewport.width).max(1);
         let height = size_px(viewport.height).max(1);
+        self.present(&report, width, height);
+        self.needs_present = false;
+    }
+
+    /// The damage ladder (§9.3): a NONE frame skips the present entirely —
+    /// zero fill rate for zero change — a FULL frame re-rasterizes, a partial
+    /// frame repaints only the damage regions.
+    fn present(&mut self, report: &FrameReport, width: u32, height: u32) {
         let Some(backend) = &mut self.backend else {
             return;
         };
+        let scene = &report.scene;
+        let damage = &report.damage;
         match backend {
             Backend::Wgpu(backend) => {
-                let result = if report.damage.is_empty() {
+                let result = if damage.is_empty() {
                     Ok(()) // nothing changed; the last presented frame stands
-                } else if report.damage.is_full() {
+                } else if damage.is_full() {
                     backend
                         .renderer
-                        .render(&scene, &mut self.glyph_source, &backend.surface)
+                        .render(scene, &mut self.glyph_source, &backend.surface)
                 } else {
                     backend.renderer.render_partial(
-                        &scene,
-                        &report.damage,
+                        scene,
+                        damage,
                         &mut self.glyph_source,
                         &backend.surface,
                     )
@@ -314,9 +326,8 @@ impl AlacerApp {
             Backend::Softbuffer(presenter) => {
                 // The persistent framebuffer (§9.3): partial frames repaint
                 // damage regions onto the previous frame instead of
-                // re-rasterizing the whole scene. A NONE frame skips the
-                // present entirely — zero fill rate for zero change.
-                if report.damage.is_empty() {
+                // re-rasterizing the whole scene.
+                if damage.is_empty() {
                     return;
                 }
                 let size_changed = self
@@ -329,7 +340,7 @@ impl AlacerApp {
                 let Some(frame) = self.framebuffer.as_mut() else {
                     let mut renderer = alacer_render::SoftwareRenderer::new();
                     let Some(pixmap) = renderer.render(
-                        &scene,
+                        scene,
                         width,
                         height,
                         alacer_widgets::theme::SURFACE,
@@ -348,9 +359,9 @@ impl AlacerApp {
                     return;
                 };
                 let mut renderer = alacer_render::SoftwareRenderer::new();
-                if report.damage.is_full() {
+                if damage.is_full() {
                     let fresh = renderer.render(
-                        &scene,
+                        scene,
                         width,
                         height,
                         alacer_widgets::theme::SURFACE,
@@ -361,9 +372,9 @@ impl AlacerApp {
                     }
                 } else if renderer
                     .render_partial(
-                        &scene,
+                        scene,
                         frame,
-                        &report.damage,
+                        damage,
                         alacer_widgets::theme::SURFACE,
                         &mut self.glyph_source,
                     )
@@ -376,7 +387,6 @@ impl AlacerApp {
                 }
             }
         }
-        self.needs_present = false;
     }
 
     /// Applies the pipeline's IME request delta to the window (§10.3):
@@ -455,54 +465,55 @@ impl AlacerApp {
             })
     }
 
-    fn request_tree_update(&mut self) {
+    /// The steady-state a11y frame boundary (ADR-0015): drain the updates
+    /// the pipeline's own sink produced during the last tick and hand each
+    /// to the adapter. The adapter forwards while an assistive technology is
+    /// connected and drops otherwise — correctness is re-established at
+    /// connect time by [`Self::push_initial_tree`], so a dropped delta is
+    /// never a lost tree. The platform builds no `TreeUpdate` of its own.
+    fn push_pending_a11y(&mut self) {
+        let updates = drain_a11y_updates(&mut self.pipeline);
+        if updates.is_empty() {
+            return;
+        }
         if let Some(adapter) = &mut self.adapter {
-            adapter.update_if_active(|| {
-                let snapshot = self.pipeline.a11y_snapshot().cloned().unwrap_or_default();
-                let focus = snapshot
-                    .root
-                    .map_or(accesskit::NodeId(0), accesskit::NodeId);
-                let mut nodes = Vec::new();
-                for node in &snapshot.nodes {
-                    let mut access_node = accesskit::Node::new(alacer_a11y::map_role(node.role));
-                    access_node.set_label(node.label.as_str());
-                    if let Some(bounds) = node.bounds {
-                        access_node.set_bounds(alacer_a11y::map_bounds(bounds));
-                    }
-                    access_node.set_children(
-                        node.children
-                            .iter()
-                            .map(|c| accesskit::NodeId(*c))
-                            .collect::<Vec<_>>(),
-                    );
-                    nodes.push((accesskit::NodeId(node.id), access_node));
-                }
-                let tree = snapshot
-                    .root
-                    .map(|root| accesskit::TreeInfo::new(accesskit::NodeId(root)));
-                TreeUpdateBuilder::build(nodes, tree, focus)
-            });
-            self.tree_dirty = false;
+            for update in updates {
+                adapter.update_if_active(|| update);
+            }
+        }
+    }
+
+    /// The adapter-activation response (ADR-0015): one full-tree
+    /// `TreeUpdate` built by the sink — the same builder the deltas use,
+    /// full vocabulary included — so an assistive technology that connects
+    /// (or reconnects) sees the whole resolved tree, not a platform-side
+    /// summary of it. Before the first tick there is no resolved tree; the
+    /// first frame's init delta covers the gap.
+    fn push_initial_tree(&mut self) {
+        let update = a11y_sink_of(&mut self.pipeline).and_then(|sink| sink.full_tree_update());
+        if let Some(adapter) = &mut self.adapter
+            && let Some(update) = update
+        {
+            adapter.update_if_active(|| update);
         }
     }
 }
 
-/// Helper that materializes a [`accesskit::TreeUpdate`] from prepared nodes.
-struct TreeUpdateBuilder;
+/// The pipeline's installed sink, as the concrete AccessKit sink — the
+/// downcast every a11y push goes through (ADR-0015). `None` when an
+/// embedder installed a foreign sink: their updates are their business.
+fn a11y_sink_of(pipeline: &mut PassPipeline) -> Option<&mut AccessKitSink> {
+    pipeline
+        .a11y_sink_mut()
+        .as_any_mut()?
+        .downcast_mut::<AccessKitSink>()
+}
 
-impl TreeUpdateBuilder {
-    fn build(
-        nodes: Vec<(accesskit::NodeId, accesskit::Node)>,
-        tree: Option<accesskit::TreeInfo>,
-        focus: accesskit::NodeId,
-    ) -> accesskit::TreeUpdate {
-        accesskit::TreeUpdate {
-            nodes,
-            tree,
-            tree_id: accesskit::TreeId::ROOT,
-            focus,
-        }
-    }
+/// Drains the pipeline sink's pending updates (empty for a foreign sink).
+fn drain_a11y_updates(pipeline: &mut PassPipeline) -> Vec<accesskit::TreeUpdate> {
+    a11y_sink_of(pipeline)
+        .map(AccessKitSink::drain_updates)
+        .unwrap_or_default()
 }
 
 impl ApplicationHandler<PlatformEvent> for AlacerApp {
@@ -575,9 +586,6 @@ impl ApplicationHandler<PlatformEvent> for AlacerApp {
                 self.needs_present = true;
             }
             WindowEvent::RedrawRequested => {
-                if self.tree_dirty {
-                    self.request_tree_update();
-                }
                 self.render_frame();
             }
             WindowEvent::CursorMoved { position, .. } => {
@@ -674,8 +682,7 @@ impl ApplicationHandler<PlatformEvent> for AlacerApp {
         match event {
             PlatformEvent::AccessKit(access) => match access.window_event {
                 AccessKitWindowEvent::InitialTreeRequested => {
-                    self.tree_dirty = true;
-                    self.request_tree_update();
+                    self.push_initial_tree();
                 }
                 AccessKitWindowEvent::ActionRequested(request) => {
                     let action = alacer_core::widget::A11yAction::DefaultPress;
@@ -692,10 +699,9 @@ impl ApplicationHandler<PlatformEvent> for AlacerApp {
                 AccessKitWindowEvent::AccessibilityDeactivated => {}
             },
             PlatformEvent::TreeChanged => {
-                self.tree_dirty = true;
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                // An embedder's nudge: flush the sink's pending updates now,
+                // without waiting for the next frame boundary (ADR-0015).
+                self.push_pending_a11y();
             }
             PlatformEvent::Patch => {
                 // §13.2: the patch lands, the hook re-renders scoped — one
@@ -763,7 +769,10 @@ fn instance_descriptor() -> wgpu::InstanceDescriptor {
 #[cfg(test)]
 mod tests {
     use super::wheel_delta;
+    use alacer_a11y::AccessKitSink;
+    use alacer_core::Flux;
     use alacer_core::geom::Vector;
+    use alacer_core::passes::{A11yDelta, A11ySink, PassPipeline};
     use winit::event::MouseScrollDelta;
 
     #[test]
@@ -782,5 +791,104 @@ mod tests {
             winit::dpi::PhysicalPosition::new(12.0, -9.0),
         ));
         assert_eq!(delta, Vector::new(12.0, -9.0));
+    }
+
+    // ------------------------------------------------------------------
+    // M9 (ADR-0015): the windowed path reads the pipeline's own sink —
+    // the platform builds no `TreeUpdate` of its own, ever. These tests
+    // exercise the exact drain helper the loop calls at frame boundaries.
+    // ------------------------------------------------------------------
+
+    /// The windowed composition, headless: real layout, journal, and the
+    /// `AccessKitSink` the facade's `pipeline_default` installs.
+    fn headless_pipeline() -> PassPipeline {
+        alacer_core::text_seam::install(std::rc::Rc::new(alacer_text::ThreadLocalTextSeam));
+        PassPipeline::new(
+            Flux::new(),
+            Box::new(alacer_layout::LayoutHost::new(std::sync::Arc::new(
+                alacer_text::ThreadLocalMeasurer,
+            ))),
+            Box::new(alacer_render::SceneJournalImpl::new()),
+            Box::new(AccessKitSink::new()),
+        )
+    }
+
+    #[test]
+    fn the_pipeline_sink_downcasts_to_the_accesskit_sink() {
+        let mut pipeline = headless_pipeline();
+        assert!(
+            super::a11y_sink_of(&mut pipeline).is_some(),
+            "the facade composition exposes the AccessKit sink through the erased trait"
+        );
+    }
+
+    #[test]
+    fn a_foreign_sink_downcasts_to_none() {
+        let mut pipeline = PassPipeline::new(
+            Flux::new(),
+            Box::new(alacer_layout::LayoutHost::new(std::sync::Arc::new(
+                alacer_text::ThreadLocalMeasurer,
+            ))),
+            Box::new(alacer_render::SceneJournalImpl::new()),
+            Box::new(NullA11y),
+        );
+        alacer_core::text_seam::install(std::rc::Rc::new(alacer_text::ThreadLocalTextSeam));
+        assert!(
+            super::a11y_sink_of(&mut pipeline).is_none(),
+            "an embedder's custom sink is untouched — no forced AccessKit"
+        );
+        assert_eq!(
+            super::drain_a11y_updates(&mut pipeline),
+            Vec::new(),
+            "an embedder's custom sink has nothing to drain"
+        );
+    }
+
+    #[test]
+    fn pending_a11y_updates_drain_exactly_once() {
+        alacer_core::text_seam::install(std::rc::Rc::new(alacer_text::ThreadLocalTextSeam));
+        let mut pipeline = headless_pipeline();
+        let sink = super::a11y_sink_of(&mut pipeline).expect("AccessKit sink");
+        let snapshot = std::sync::Arc::new(alacer_core::passes::TreeSnapshot {
+            root: Some(1),
+            nodes: vec![alacer_core::passes::TreeNode {
+                id: 1,
+                role: alacer_core::Role::Container,
+                label: "app".into(),
+                bounds: None,
+                children: Vec::new(),
+                value: None,
+                toggled: None,
+                table_slot: None,
+            }],
+        });
+        sink.apply(
+            std::sync::Arc::clone(&snapshot),
+            &A11yDelta {
+                initializes: true,
+                ..A11yDelta::empty()
+            },
+        );
+
+        let updates = super::drain_a11y_updates(&mut pipeline);
+        assert_eq!(updates.len(), 1, "the init update drains once");
+        assert!(updates[0].tree.is_some());
+        assert_eq!(
+            super::drain_a11y_updates(&mut pipeline),
+            Vec::new(),
+            "the second drain sees a quiet frame — no rebuild, no noise"
+        );
+    }
+
+    /// An embedder sink: the downcast must refuse it, not panic.
+    struct NullA11y;
+
+    impl A11ySink for NullA11y {
+        fn apply(
+            &mut self,
+            _snapshot: std::sync::Arc<alacer_core::passes::TreeSnapshot>,
+            _delta: &A11yDelta,
+        ) {
+        }
     }
 }

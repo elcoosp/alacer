@@ -63,6 +63,11 @@ pub fn map_bounds(rect: AlacerRect) -> Rect {
 }
 
 /// The AccessKit sink: incremental [`TreeUpdate`]s from [`A11yDelta`]s.
+///
+/// Produced updates accumulate in a bounded ring (see [`UPDATE_RING_CAP`]):
+/// a windowed app drains them at frame boundaries (ADR-0015), and an
+/// undrained sink — an app with no adapter attached — is capped instead of
+/// growing forever.
 #[derive(Debug, Default)]
 pub struct AccessKitSink {
     updates: Vec<TreeUpdate>,
@@ -74,6 +79,12 @@ pub struct AccessKitSink {
     last_removed_ids: Vec<u64>,
     update_count: u64,
 }
+
+/// How many produced updates the sink retains before the oldest one is
+/// dropped. An assistive technology that connects mid-run re-requests the
+/// whole tree ([`AccessKitSink::full_tree_update`]), so dropping stale
+/// deltas never loses correctness — it only bounds memory.
+pub const UPDATE_RING_CAP: usize = 8;
 
 impl AccessKitSink {
     /// An empty sink.
@@ -110,6 +121,78 @@ impl AccessKitSink {
     #[must_use]
     pub const fn is_initialized(&self) -> bool {
         self.initialized
+    }
+
+    /// Takes every update produced since the last drain, in order — the
+    /// platform's steady-state frame-boundary step (ADR-0015): the loop
+    /// hands each one to the AccessKit adapter, which forwards it while an
+    /// assistive technology is connected and drops it otherwise.
+    ///
+    /// Draining is the memory contract, too: a windowed app that never
+    /// calls this (no adapter attached) is still bounded by
+    /// [`UPDATE_RING_CAP`].
+    #[must_use]
+    pub fn drain_updates(&mut self) -> Vec<TreeUpdate> {
+        std::mem::take(&mut self.updates)
+    }
+
+    /// The full current tree as one `TreeUpdate` — the response to an
+    /// adapter-activation request (`InitialTreeRequested`), built by the
+    /// same node builder the deltas use. Pure: no bookkeeping changes, no
+    /// update enters the ledger. `None` before the first
+    /// [`A11ySink::apply`] (no resolved tree yet — the platform defers to
+    /// the first frame, whose init delta covers it).
+    #[must_use]
+    pub fn full_tree_update(&self) -> Option<TreeUpdate> {
+        let snapshot = self.last_snapshot.as_ref()?;
+        let delta = A11yDelta {
+            initializes: true,
+            ..A11yDelta::empty()
+        };
+        Some(Self::build_update(
+            snapshot,
+            &delta,
+            true,
+            &mut FxHashSet::default(),
+        ))
+    }
+
+    /// Builds one [`TreeUpdate`] from a snapshot and its delta — the single
+    /// materialization path for every update this crate ever produces.
+    /// `force_full` (an initializing delta, or the sink's first frame) builds
+    /// the whole tree; otherwise only the updated ids re-emit (§11.1 item 4 —
+    /// the p99 budget's whole point). `ids` receives the emitted ids (the
+    /// sink's introspection bookkeeping; a scratch set when the caller wants
+    /// a pure build, as [`Self::full_tree_update`] does).
+    fn build_update(
+        snapshot: &TreeSnapshot,
+        delta: &A11yDelta,
+        force_full: bool,
+        ids: &mut FxHashSet<u64>,
+    ) -> TreeUpdate {
+        ids.clear();
+        let mut update = TreeUpdate {
+            nodes: Vec::new(),
+            tree: None,
+            tree_id: TreeId::ROOT,
+            focus: delta.focus.map_or(NodeId(0), accesskit_node_id),
+        };
+
+        if force_full {
+            update.tree = snapshot
+                .root
+                .map(|root| TreeInfo::new(accesskit_node_id(root)));
+        }
+        for node in &snapshot.nodes {
+            if !force_full && !delta.updated.contains(&node.id) {
+                continue;
+            }
+            ids.insert(node.id);
+            update
+                .nodes
+                .push((accesskit_node_id(node.id), Self::access_node(node)));
+        }
+        update
     }
 
     /// Converts one neutral snapshot node into an AccessKit node. The M6
@@ -169,47 +252,25 @@ impl AccessKitSink {
 impl A11ySink for AccessKitSink {
     fn apply(&mut self, snapshot: std::sync::Arc<TreeSnapshot>, delta: &A11yDelta) {
         self.last_snapshot = Some(std::sync::Arc::clone(&snapshot));
-        let snapshot = &*snapshot;
         self.last_removed_ids.clone_from(&delta.removed);
-        self.last_update_ids.clear();
-        let mut update = TreeUpdate {
-            nodes: Vec::new(),
-            tree: None,
-            tree_id: TreeId::ROOT,
-            focus: delta.focus.map_or(NodeId(0), accesskit_node_id),
-        };
-
-        // Init deltas build the whole tree; incremental deltas emit only the
-        // updated ids (§11.1 item 4 — the p99 budget's whole point).
-        if delta.initializes || !self.initialized {
-            update.tree = snapshot
-                .root
-                .map(|root| TreeInfo::new(accesskit_node_id(root)));
-            for node in &snapshot.nodes {
-                self.last_update_ids.insert(node.id);
-                update
-                    .nodes
-                    .push((accesskit_node_id(node.id), Self::access_node(node)));
-            }
-            self.initialized = true;
-        } else {
-            for node in &snapshot.nodes {
-                if !delta.updated.contains(&node.id) {
-                    continue;
-                }
-                self.last_update_ids.insert(node.id);
-                update
-                    .nodes
-                    .push((accesskit_node_id(node.id), Self::access_node(node)));
-            }
-        }
-
+        // The first apply is always a full build, initializing delta or not
+        // (the adapter may connect before pass 9 ever marks one).
+        let force_full = delta.initializes || !self.initialized;
+        let update = Self::build_update(&snapshot, delta, force_full, &mut self.last_update_ids);
+        self.initialized = true;
         self.update_count += 1;
         self.updates.push(update);
+        if self.updates.len() > UPDATE_RING_CAP {
+            self.updates.remove(0);
+        }
     }
 
     fn resolved_tree(&self) -> Option<&TreeSnapshot> {
         self.last_snapshot.as_deref()
+    }
+
+    fn as_any_mut(&mut self) -> Option<&mut dyn std::any::Any> {
+        Some(self)
     }
 }
 
@@ -251,7 +312,11 @@ pub fn walk_update(update: &TreeUpdate) -> Vec<u64> {
 
 #[cfg(test)]
 mod tests {
-    use super::{AccessKitSink, find_in_update, map_bounds, map_role, walk_update};
+    use super::{
+        AccessKitSink, UPDATE_RING_CAP, accesskit_node_id, find_in_update, map_bounds, map_role,
+        walk_update,
+    };
+    use accesskit::NodeId;
     use accesskit::Role as AkRole;
     use accesskit::Toggled;
     use alacer_core::Role;
@@ -484,5 +549,108 @@ mod tests {
         assert_eq!(checkbox.toggled(), Some(Toggled::True), "checked state");
         assert_eq!(checkbox.row_index(), Some(1), "cell row position");
         assert_eq!(checkbox.column_index(), Some(2), "cell column position");
+    }
+
+    // -------------------------------------------------------------------
+    // M9 (ADR-0015): the windowed path drains these deltas. The sink owns
+    // the whole protocol surface — `drain_updates` for the steady-state
+    // frame, `full_tree_update` for the adapter-activation request — so the
+    // platform layer never builds a `TreeUpdate` of its own again.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn drain_updates_returns_the_produced_updates_and_empties_the_buffer() {
+        let mut sink = AccessKitSink::new();
+        let snap = std::sync::Arc::new(snapshot());
+        sink.apply(
+            std::sync::Arc::clone(&snap),
+            &A11yDelta {
+                initializes: true,
+                ..A11yDelta::empty()
+            },
+        );
+
+        let drained = sink.drain_updates();
+        assert_eq!(drained.len(), 1, "the init update drains exactly once");
+        assert!(
+            drained[0].tree.is_some(),
+            "the init update carries the tree"
+        );
+        assert_eq!(
+            sink.drain_updates(),
+            Vec::new(),
+            "the buffer is empty after the drain"
+        );
+
+        // One incremental frame: only the dirty id re-emits, and the drain
+        // hands over exactly that update.
+        let mut delta = A11yDelta::empty();
+        delta.updated.insert(222);
+        sink.apply(snap, &delta);
+        let drained = sink.drain_updates();
+        assert_eq!(drained.len(), 1, "one frame, one update");
+        assert!(
+            drained[0].tree.is_none(),
+            "incremental deltas never rebuild the tree"
+        );
+        assert_eq!(
+            drained[0].nodes.len(),
+            1,
+            "dirty nodes only — the p99 budget's whole point"
+        );
+        assert_eq!(drained[0].nodes[0].0, accesskit_node_id(222));
+    }
+
+    #[test]
+    fn full_tree_update_mirrors_the_resolved_tree_without_mutating_the_sink() {
+        let mut sink = AccessKitSink::new();
+        // The AT may connect before the first tick: no resolved tree, no
+        // update to push.
+        assert!(
+            sink.full_tree_update().is_none(),
+            "no resolved tree yet — the platform defers to the first frame"
+        );
+
+        let snap = std::sync::Arc::new(snapshot());
+        sink.apply(std::sync::Arc::clone(&snap), &A11yDelta::empty());
+
+        let before = sink.update_count();
+        let update = sink.full_tree_update().expect("the tree is resolved");
+        assert_eq!(update.nodes.len(), 3, "every resolved node rides along");
+        assert_eq!(
+            update.tree.as_ref().map(|t| t.root),
+            Some(accesskit_node_id(111))
+        );
+        assert_eq!(
+            update.focus,
+            NodeId(0),
+            "no focus in the delta — the full tree reports none"
+        );
+        assert_eq!(
+            sink.update_count(),
+            before,
+            "the full-tree build is pure: no phantom update lands in the ledger"
+        );
+        assert!(
+            find_in_update(&update, 333).is_some_and(|n| n.value() == Some("hello")),
+            "the full vocabulary rides along"
+        );
+    }
+
+    #[test]
+    fn the_updates_ring_caps_stored_updates() {
+        let mut sink = AccessKitSink::new();
+        let snap = std::sync::Arc::new(snapshot());
+        for _ in 0..(UPDATE_RING_CAP + 6) {
+            sink.apply(std::sync::Arc::clone(&snap), &A11yDelta::empty());
+        }
+        let drained = sink.drain_updates();
+        assert!(
+            drained.len() <= UPDATE_RING_CAP,
+            "{} updates stored, ring cap is {} — unbounded growth was the pre-M9 leak",
+            drained.len(),
+            UPDATE_RING_CAP
+        );
+        assert_eq!(sink.drain_updates(), Vec::new());
     }
 }

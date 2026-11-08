@@ -215,6 +215,15 @@ pub trait A11ySink {
     fn resolved_tree(&self) -> Option<&TreeSnapshot> {
         None
     }
+
+    /// The type-erased escape hatch (the [`Widget::as_any_mut`] pattern):
+    /// lets an assembly site reach the concrete sink it installed — the
+    /// platform downcasts to its AccessKit sink to drain the produced
+    /// `TreeUpdate`s (ADR-0015) — while the trait and this crate stay
+    /// independent of any concrete adapter vocabulary.
+    fn as_any_mut(&mut self) -> Option<&mut dyn std::any::Any> {
+        None
+    }
 }
 
 /// Why the platform's Input Method Editor is needed for the focused widget
@@ -640,6 +649,14 @@ impl PassPipeline {
     #[must_use]
     pub fn a11y_snapshot(&self) -> Option<&TreeSnapshot> {
         self.a11y.resolved_tree()
+    }
+
+    /// The installed a11y sink, mutably — the platform's drain seam
+    /// (ADR-0015): downcast through [`A11ySink::as_any_mut`] to the concrete
+    /// sink and read the updates the pass produced. One accessor, no second
+    /// pipeline path.
+    pub fn a11y_sink_mut(&mut self) -> &mut dyn A11ySink {
+        self.a11y.as_mut()
     }
 
     /// The IME request the last tick derived from the focused widget (§10.3);

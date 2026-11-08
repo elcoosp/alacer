@@ -5,12 +5,10 @@
 //! main thread owning the frame loop. Idle is `ControlFlow::Wait` — zero CPU
 //! between interactions (A7).
 
-pub mod coalesce;
 pub mod keys;
 pub mod softbuffer;
 pub mod wgpu_backend;
 
-pub use coalesce::EventCoalescer;
 pub use keys::{ime_cursor_utf16, map_ime_event, map_key, map_logical_key};
 pub use softbuffer::{SoftbufferPresenter, pixmap_to_argb};
 pub use wgpu_backend::{BackendError, WgpuRenderer};
@@ -98,7 +96,6 @@ struct WgpuBackend {
 pub struct AlacerApp {
     pipeline: PassPipeline,
     glyph_source: ThreadLocalGlyphSource,
-    coalescer: EventCoalescer,
     backend_preference: BackendPreference,
     title: String,
     start_size: (f32, f32),
@@ -184,7 +181,6 @@ impl AlacerApp {
         Self {
             pipeline,
             glyph_source: ThreadLocalGlyphSource,
-            coalescer: EventCoalescer::new(),
             backend_preference: backend,
             title: title.into(),
             start_size: size,
@@ -425,6 +421,14 @@ impl AlacerApp {
         self.applied_ime = request;
     }
 
+    /// Queues one raw pointer event into the pipeline's frame-batched input
+    /// queue (§10.2, ADR-0014) and asks for the frame that routes it. The
+    /// platform pushes and never drains — the tick owns the batch.
+    fn queue_pointer(&mut self, event: PointerEvent) {
+        self.pipeline.queue_pointer(event);
+        self.needs_present = true;
+    }
+
     /// Routes one mapped key event; handling dirties the frame.
     fn route_key(&mut self, event: &KeyEvent) {
         if self.pipeline.dispatch_key(event) == EventResponse::Handled {
@@ -534,6 +538,10 @@ impl ApplicationHandler<PlatformEvent> for AlacerApp {
         self.window.as_ref().expect("just stored").request_redraw();
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "the winit event match is one flat dispatch table; splitting it would hide which events the loop answers"
+    )]
     fn window_event(
         &mut self,
         event_loop: &ActiveEventLoop,
@@ -552,7 +560,6 @@ impl ApplicationHandler<PlatformEvent> for AlacerApp {
             adapter.process_event(&window, &event);
         }
 
-        let mut handled = false;
         match event {
             WindowEvent::Resized(size) => {
                 let width = size.width.max(1);
@@ -578,12 +585,12 @@ impl ApplicationHandler<PlatformEvent> for AlacerApp {
                     alacer_core::num::i32_to_f32(f64_to_i32(position.x)),
                     alacer_core::num::i32_to_f32(f64_to_i32(position.y)),
                 );
-                self.coalescer.push(PointerEvent::Move {
+                self.queue_pointer(PointerEvent::Move {
                     position: self.cursor,
                 });
             }
             WindowEvent::CursorLeft { .. } => {
-                self.coalescer.push(PointerEvent::Leave);
+                self.queue_pointer(PointerEvent::Leave);
             }
             WindowEvent::MouseInput { state, button, .. } => {
                 let event = match (state, button) {
@@ -615,17 +622,11 @@ impl ApplicationHandler<PlatformEvent> for AlacerApp {
                         position: self.cursor,
                     },
                 };
-                self.coalescer.push(event);
+                self.queue_pointer(event);
             }
             WindowEvent::MouseWheel { delta, .. } => {
-                let amount: f32 = match delta {
-                    MouseScrollDelta::LineDelta(_, y) => y * 40.0,
-                    MouseScrollDelta::PixelDelta(position) => {
-                        alacer_core::num::i32_to_f32(f64_to_i32(position.y))
-                    }
-                };
-                self.coalescer.push(PointerEvent::Wheel {
-                    delta: alacer_core::geom::Vector::new(0.0, amount),
+                self.queue_pointer(PointerEvent::Wheel {
+                    delta: wheel_delta(delta),
                     position: self.cursor,
                 });
             }
@@ -662,20 +663,8 @@ impl ApplicationHandler<PlatformEvent> for AlacerApp {
             _ => {}
         }
 
-        // Drain coalesced input and route it; any handling dirties the frame.
-        for pointer in self.coalescer.drain() {
-            if self.pipeline.dispatch_pointer(&pointer)
-                == alacer_core::widget::EventResponse::Handled
-            {
-                handled = true;
-            }
-        }
-        if handled && !self.pipeline.flux().take_pending_masks().is_empty() {
-            self.needs_present = true;
-        }
-        if self.pipeline.flux().take_pending_masks().is_empty() && handled {
-            self.needs_present = true;
-        }
+        // Frame-batched input (§10.2, ADR-0014): the pipeline queue owns the
+        // batch now — the tick drains it, so one redraw covers the storm.
         if self.needs_present {
             window.request_redraw();
         }
@@ -739,6 +728,18 @@ fn size_px(v: f32) -> u32 {
     alacer_core::num::f32_to_u32(v)
 }
 
+/// Maps a winit wheel delta to the pipeline's pixel vector — both axes, no
+/// dropped component (the pre-M8 mapping dropped `x`, ADR-0014).
+fn wheel_delta(delta: MouseScrollDelta) -> alacer_core::geom::Vector {
+    match delta {
+        MouseScrollDelta::LineDelta(x, y) => alacer_core::geom::Vector::new(x * 40.0, y * 40.0),
+        MouseScrollDelta::PixelDelta(position) => alacer_core::geom::Vector::new(
+            alacer_core::num::f64_to_f32(position.x),
+            alacer_core::num::f64_to_f32(position.y),
+        ),
+    }
+}
+
 fn f64_to_i32(v: f64) -> i32 {
     #[expect(
         clippy::cast_possible_truncation,
@@ -756,5 +757,30 @@ fn instance_descriptor() -> wgpu::InstanceDescriptor {
         memory_budget_thresholds: wgpu::MemoryBudgetThresholds::default(),
         backend_options: wgpu::BackendOptions::default(),
         display: None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::wheel_delta;
+    use alacer_core::geom::Vector;
+    use winit::event::MouseScrollDelta;
+
+    #[test]
+    fn line_deltas_map_both_axes_with_the_line_height() {
+        let delta = wheel_delta(MouseScrollDelta::LineDelta(2.0, -3.0));
+        assert_eq!(
+            delta,
+            Vector::new(80.0, -120.0),
+            "x rides along, y keeps the 40 px/line"
+        );
+    }
+
+    #[test]
+    fn pixel_deltas_map_both_axes_unscaled() {
+        let delta = wheel_delta(MouseScrollDelta::PixelDelta(
+            winit::dpi::PhysicalPosition::new(12.0, -9.0),
+        ));
+        assert_eq!(delta, Vector::new(12.0, -9.0));
     }
 }

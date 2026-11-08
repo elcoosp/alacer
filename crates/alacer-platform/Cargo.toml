@@ -1,6 +1,6 @@
 [package]
 name = "alacer-platform"
-description = "Alacer's platform: winit integration, event coalescing, and window present over wgpu or softbuffer (ADR-1: stock winit, never forked)"
+description = "Alacer's platform: winit integration, frame-batched input queueing, and window present over wgpu or softbuffer (ADR-1: stock winit, never forked)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

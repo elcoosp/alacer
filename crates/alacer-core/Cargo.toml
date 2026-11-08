@@ -10,6 +10,9 @@ repository.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 reactive_graph.workspace = true
 bitflags.workspace = true
@@ -30,6 +33,10 @@ harness = false
 
 [[bench]]
 name = "pass_overhead"
+harness = false
+
+[[bench]]
+name = "input"
 harness = false
 
 [[bench]]

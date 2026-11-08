@@ -33,7 +33,7 @@
 14. [Performance architecture](#14-performance-architecture) — the best-in-class performance plan
 15. [What Alacer will not build](#15-what-alacer-will-not-build)
 16. [Moats](#16-moats) — three defensible differentiators
-17. [ADR register](#17-adr-register) — 16 decision records
+17. [ADR register](#17-adr-register) — 18 decision records
 18. [Roadmap & kill criteria](#18-roadmap--kill-criteria)
 19. [Risks & open questions](#19-risks--open-questions)
 20. [Provenance, licensing, and honesty](#20-provenance-licensing-and-honesty)
@@ -592,7 +592,7 @@ Three differentiators, each hard to copy and disproportionately funded (the audi
 
 ## 17. ADR register
 
-ADRs 1–7 were ratified with the audit bundle (`adr/ADR-*.md`); each carries its own kill-switch. ADRs 8–11 are authored here to complete the architecture; ADR-0012…ADR-0017 scope milestones M6–M11 as they shipped (see `docs/adr/`).
+ADRs 1–7 were ratified with the audit bundle (`adr/ADR-*.md`); each carries its own kill-switch. ADRs 8–11 are authored here to complete the architecture; ADR-0012…ADR-0018 scope milestones M6–M12 as they shipped (see `docs/adr/`).
 
 | ADR | Decision | Status | Kill-switch (falsifiable) |
 |---|---|---|---|
@@ -613,6 +613,7 @@ ADRs 1–7 were ratified with the audit bundle (`adr/ADR-*.md`); each carries it
 | **ADR-0015** | M9 scope: the windowed a11y path joins the incremental contract — the pipeline's sink is the only `TreeUpdate` materialization path | Accepted | a platform adapter needs a shape the sink cannot express → re-open the seam with the shape as a trait method |
 | **ADR-0016** | M10 scope: the a11y action tier joins the dispatch contract — faithful `ActionRequest` mapping, the `Increment`/`Decrement`/`Scroll*` vocabulary, keyboard-operable buttons | Accepted | an action class needs a shape pass 10 cannot express → grow the vocabulary behind the same refuse-don't-munge contract |
 | **ADR-0017** | M11 scope: the UTF-16 selection model joins the editing and a11y contracts — anchor+caret in the contract unit, selection-consuming edits, the `SetValue`/`ReplaceSelectedText`/`SetTextSelection` tier mapped faithfully | Accepted | an AT needs a selection shape the value-bearing node cannot express → grow the snapshot vocabulary behind the same refuse-don't-munge contract |
+| **ADR-0018** | M12 scope: the pointer joins the editing contract — the resolved frame reaches `on_pointer_event`, the text seam inverts the caret's own prefix widths (`hit_test`), a click places the caret and a drag extends the selection from the anchor | Accepted | a pointer gesture needs a mapping the event/text seams cannot express → grow the contract behind the same `PAINT \| A11Y` currency (frame on `EventCtx`, `hit_test` on `TextSeam`) |
 
 ---
 
@@ -634,6 +635,7 @@ Six months, ordered, each gate falsifiable (evolved from VISION.md; M-names alig
 | M9 | cont. | The windowed a11y path joins the incremental contract (ADR-0015): the pipeline's `AccessKitSink` is the only `TreeUpdate` materialization path | the window drains dirty-only deltas with the full M6 vocabulary (values, toggle state, grid slots); the activation response is the sink's own full tree; the `a11y_incremental_speedup` budget ≥ 2×; corpus 45 → 47 | a platform adapter needs a shape the sink cannot express → re-open the seam with the shape as a trait method |
 | M10 | cont. | The a11y action tier joins the dispatch contract (ADR-0016): faithful `ActionRequest` mapping, the `Increment`/`Decrement`/`Scroll*` vocabulary, keyboard-operable buttons | the list canon scrolls from the AT side (translation-only, zero measure calls); a non-implemented action is refused with no masks and no effects (never munged into a press); a focused button activates on Space/Enter with GTK release semantics; the `a11y_action/route_100_actions_1k` gate is published; corpus 47 → 48 | an action class needs a shape pass 10 cannot express → grow the vocabulary behind the same refuse-don't-munge contract |
 | M11 | cont. | The UTF-16 selection model joins the editing and a11y contracts (ADR-0017): anchor+caret in the contract unit, selection-consuming edits, the `SetValue`/`ReplaceSelectedText`/`SetTextSelection` tier mapped faithfully | a focused input selects with Shift+arrows/Home/End and Ctrl+A and paints the highlight; the sink's `TreeUpdate` carries the selection and drops it while a preedit composes; a refused value action costs an idle frame (button and input both refuse honestly); the `a11y_action/route_100_setvalue_1k` gate is published; corpus 48 → 49 | an AT needs a selection shape the value-bearing node cannot express → grow the snapshot vocabulary behind the same refuse-don't-munge contract |
+| M12 | cont. | The pointer joins the editing contract (ADR-0018): the resolved frame reaches `on_pointer_event`, the text seam grows the bounds-aware `hit_test`, a click places the caret at the hit point and a press-drag extends the selection from the anchor | a click inside the field places the caret at the hit offset (edges clamp, ties break to the cluster start); a drag selects and the release keeps the range; an unpressed move is hover, never selection; the drag's selection reaches the AT in the drag's own direction (anchor at the press) and drops while a preedit composes; the `editing/route_100_caret_clicks_1k` gate is published; corpus 49 → 50 | a pointer gesture needs a mapping the event/text seams cannot express → grow the contract behind the same `PAINT \| A11Y` currency (frame on `EventCtx`, `hit_test` on `TextSeam`) |
 
 **Portfolio kill criterion (the whole thesis):** if by end of M3 the shared-harness benchmarks (W1, W2, W3) show **no workload where Alacer beats both egui (the DX baseline) and the best audited retained stack on the same hardware** — or the a11y CI gate cannot be maintained under feature velocity — then "composition beats specialization" is falsified. Pre-registered pivots: (a) extract the invalidation engine as a Masonry/egui backend crate; (b) reduce scope to an a11y + testing supercrate for egui/Iced. Killing a thesis cheaply is cheaper than marketing a failed one.
 

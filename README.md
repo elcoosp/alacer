@@ -47,13 +47,13 @@ cargo test --workspace                                          # headless: the 
 ## Features
 
 - **One invalidation currency.** Every consumer reads the same per-node `Change` masks (`STRUCTURE | LAYOUT | PAINT | A11Y | FOCUS`, `crates/alacer-core/src/mask.rs`). Effects queue masks and never mutate widgets, so a feature that cannot express itself as a mask is redesigned or rejected (architecture axiom A1).
-- **Incremental layout over a persistent tree.** The Taffy tree is built once and never cleared (`crates/alacer-layout`); relayout is bounded by the dirty set's root candidate, scrolling composes as translation-only updates with zero measure calls, and the ≥ 2× incremental-vs-full gate is test-enforced (`crates/alacer-layout/tests/w1_gate.rs`) — measured at 14.01× in the published baseline.
+- **Incremental layout over a persistent tree.** The Taffy tree is built once and never cleared (`crates/alacer-layout`); relayout is bounded by the dirty set's root candidate, scrolling composes as translation-only updates with zero measure calls, and the ≥ 2× incremental-vs-full gate is test-enforced (`crates/alacer-layout/tests/w1_gate.rs`) — measured at 14.76× in the published baseline.
 - **Two backends from one scene journal.** The paint pass records per-node layers (`crates/alacer-render`); wgpu rasterizes rounded-rect SDFs and glyphs from a CPU coverage atlas, while tiny-skia + softbuffer blends the same bitmaps headlessly. Both implement identical damage semantics, and an equivalence fuzz pins partial repaints pixel-equal to full renders across clicks, typing, and IME composition.
-- **Accessibility by construction.** `role()` and `label()` are required `Widget` trait methods, so an unnamed widget does not compile; updates ship as incremental AccessKit `TreeUpdate`s, and tests query the accessibility tree rather than widget internals (`crates/alacer-a11y`, `crates/alacer-testing`).
+- **Accessibility by construction.** `role()` and `label()` are required `Widget` trait methods, so an unnamed widget does not compile; updates ship as incremental AccessKit `TreeUpdate`s — dirty nodes only, the full M6 vocabulary (values, toggle state, grid slots) riding the same delta — and the real window drains the pipeline's own sink: the adapter-activation response is the sink's full tree, the steady state is the delta (ADR-0015). Tests query the accessibility tree rather than widget internals (`crates/alacer-a11y`, `crates/alacer-testing`).
 - **Hot reload with state intact.** The `hot-reload` feature wraps the view generation in `subsecond::call`; a binary patch swaps code, never state, and the loop answers with exactly one scoped re-render — pinned by a dedicated CI hot-patch suite (`crates/alacer/src/hot.rs`, `crates/alacer/tests/hot_reload_subsecond.rs`).
 - **The Causality inspector.** An opt-in seam records edge activations, provenance-tagged signal writes, per-frame pass ledgers, and a dirty-node mask heatmap, streamed over a documented WebSocket protocol to an embedded client (`crates/alacer-inspect`, `docs/inspector-protocol.md`).
 - **Frame-batched input (M8).** Raw platform pointer events queue into the pipeline (`alacer_core::input::EventCoalescer`) and coalesce there — compatible moves merge, same-direction wheel deltas accumulate on both axes — and the tick routes one batch: a storm costs one frame of work, not N events (`crates/alacer-core/src/input.rs`, the `input_storm_batching` budget).
-- **Performance budgets as contracts.** All 45 criterion cases are published with their environment in `benchmarks/baselines/baselines.json` and gated by `benchmarks/contracts.json`; the CI perf-contracts job fails on a same-host regression or an uncontracted benchmark.
+- **Performance budgets as contracts.** All 47 criterion cases are published with their environment in `benchmarks/baselines/baselines.json` and gated by `benchmarks/contracts.json`; the CI perf-contracts job fails on a same-host regression or an uncontracted benchmark.
 - **The cross-framework beat, measured and reproducible (M7).** The declared rig (`benchmarks/rig.json`), the competitor harnesses (idiomatic egui and Masonry under `benchmarks/competitors/`), and the 5-run-median runner (`scripts/run_comparison.py`) publish `benchmarks/comparisons/results.json` — the §18 beat computed same-host, every row labeled with its scope: incremental relayout of a 10k-node churn frame measures 1.10 ms against egui's 20.7 ms full frame (18.8×) and Masonry's 4.6 ms full pass pipeline (4.2×).
 
 ## How it works
@@ -113,6 +113,8 @@ The shipped vocabulary covers `Label`, `Button`, `TextInput`, `Column`, `Row`, `
 | `scrolling_list` | panels in a clipped viewport; translation-only scrolling |
 | `text_input` | caret editing, secure mode, Tab focus cycling, IME preedit and commit |
 | `hot_reload` | swaps the view generation live; state survives |
+| `todo` | the todo canon end-to-end: text input, checkboxes, the a11y tree, record/replay |
+| `data_table` | the table canon: grid slots, headers, keyboard navigation |
 | `inspector_demo` | the counter with the Causality inspector riding on it, served at `127.0.0.1:9217` |
 
 `docs/examples.md` is the complete catalog, including the contract each example exercises.
@@ -129,12 +131,12 @@ Snapshot scenarios live in `crates/alacer-testing/blessed/`; accessibility tests
 ## Status
 
 > [!NOTE]
-> Alacer is at 0.7.0, pre-1.0: milestones M0 through M8 of `docs/architecture.md` are complete and released, but the API still moves between minor versions. Linux is the primary CI platform — fmt, clippy (pedantic, warnings denied), headless tests, docs, the crate-DAG check, the hot-patch suite, cargo-deny, benches, and perf contracts — while Windows is smoke-tested on a subset of crates; macOS is expected to work through winit and wgpu but is not exercised in CI. The MSRV is 1.99 with the 2024 edition.
+> Alacer is at 0.7.0, pre-1.0: milestones M0 through M9 of `docs/architecture.md` are complete (0.8.0 is the pending release cut), but the API still moves between minor versions. Linux is the primary CI platform — fmt, clippy (pedantic, warnings denied), headless tests, docs, the crate-DAG check, the hot-patch suite, cargo-deny, benches, and perf contracts — while Windows is smoke-tested on a subset of crates; macOS is expected to work through winit and wgpu but is not exercised in CI. The MSRV is 1.99 with the 2024 edition.
 
 ## Learn more
 
 - [Architecture](https://github.com/elcoosp/alacer/blob/main/docs/architecture.md) — the full system document: design axioms, the ten-pass contract, rendering, accessibility, DX and performance architecture, roadmap and kill criteria
-- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — thirteen decision records, from workspace discipline to the M7 scope
+- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — sixteen decision records, from workspace discipline to the M9 scope
 - [Examples catalog](https://github.com/elcoosp/alacer/blob/main/docs/examples.md) — every example with the contract it exercises
 - [Migrating from Iced](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-iced.md) and [from egui](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-egui.md) — mental-model mappings with interop limits stated plainly
 - [Inspector protocol](https://github.com/elcoosp/alacer/blob/main/docs/inspector-protocol.md) — the versioned WebSocket contract behind `alacer-inspect`

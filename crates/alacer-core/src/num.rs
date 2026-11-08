@@ -24,7 +24,8 @@ pub fn f32_to_u8(v: f32) -> u8 {
 pub fn f32_to_u32(v: f32) -> u32 {
     #[expect(
         clippy::cast_possible_truncation,
-        reason = "the single documented rounding point; saturating clamp bounds the result"
+        clippy::cast_sign_loss,
+        reason = "the single documented rounding point; the saturating clamp bounds the result to the non-negative range first"
     )]
     {
         v.round().clamp(0.0, 4_294_967_295.0) as u32
@@ -47,7 +48,13 @@ pub fn f32_to_i32(v: f32) -> i32 {
 /// guarantee (the one place the workspace does this).
 #[must_use]
 pub fn usize_to_u32(v: usize) -> u32 {
-    v.min(u32::MAX as usize) as u32
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "the min-clamp guarantees the value fits u32 before the cast"
+    )]
+    {
+        v.min(u32::MAX as usize) as u32
+    }
 }
 
 /// Lossy-but-bounded widening to `f32` (pixel-count ratios; values below
@@ -109,6 +116,59 @@ pub fn u128_to_u64(v: u128) -> u64 {
     )]
     {
         v.min(u128::from(u64::MAX)) as u64
+    }
+}
+
+/// Clamps and narrows `usize` frame/payload lengths into `u8` APIs (the
+/// WebSocket short-length form).
+#[must_use]
+pub fn usize_to_u8(v: usize) -> u8 {
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "the caller range-checks `v < 126` before calling; the min-clamp keeps the helper total"
+    )]
+    {
+        v.min(usize::from(u8::MAX)) as u8
+    }
+}
+
+/// Clamps and narrows `usize` frame/payload lengths into `u16` APIs (the
+/// WebSocket extended-length form).
+#[must_use]
+pub fn usize_to_u16(v: usize) -> u16 {
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "the caller range-checks `v <= u16::MAX` before calling; the min-clamp keeps the helper total"
+    )]
+    {
+        v.min(usize::from(u16::MAX)) as u16
+    }
+}
+
+/// Saturatingly casts a non-negative float to `usize` (grid indexes from
+/// props).
+#[must_use]
+pub fn f32_to_usize(v: f32) -> usize {
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the single documented rounding point; the clamp bounds the result to the non-negative range first"
+    )]
+    {
+        v.max(0.0) as usize
+    }
+}
+
+/// Narrows winit's `f64` pixel deltas to the pipeline's `f32` currency (the
+/// platform wheel mapping, §10.2).
+#[must_use]
+pub fn f64_to_f32(v: f64) -> f32 {
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "pixel deltas are exactly representable far below the f32 range; the narrowing is the documented platform boundary"
+    )]
+    {
+        v as f32
     }
 }
 

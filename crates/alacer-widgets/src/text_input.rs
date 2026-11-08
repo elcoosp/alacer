@@ -310,6 +310,114 @@ impl TextInput {
         self.anchor_utf16 = self.caret_utf16;
     }
 
+    /// The committed value's word segmentation, asked of the text seam —
+    /// the widget never carries the Unicode tables (§10.3, ADR-0019).
+    fn word_segments(&self) -> Vec<alacer_core::text_seam::WordSegment> {
+        alacer_core::text_seam::with_seam(|seam| seam.word_segments(&self.text))
+    }
+
+    /// Hops one word in `direction`: the contract's hop rule
+    /// ([`alacer_core::text_seam::word_hop`]) over the seam's
+    /// segmentation, at the caret.
+    fn word_hop(&self, direction: alacer_core::text_seam::WordDirection) -> usize {
+        let segments = self.word_segments();
+        alacer_core::text_seam::word_hop(&segments, self.caret_utf16, direction)
+    }
+
+    /// Moves the caret one word left without Shift. A first press over a
+    /// live selection collapses to its start (the GTK rule the arrows
+    /// follow); only a second press hops.
+    fn caret_word_left(&mut self) {
+        if self.has_selection() {
+            let (min, _) = self.selection_range();
+            self.collapse_at(min);
+            return;
+        }
+        self.extend_word_left();
+        self.anchor_utf16 = self.caret_utf16;
+    }
+
+    /// Moves the caret one word left, keeping the anchor (a Shift+Alt+Left
+    /// extension; a hop never slices a surrogate pair — the seam's edges
+    /// are scalar boundaries).
+    fn extend_word_left(&mut self) {
+        self.caret_utf16 = self.word_hop(alacer_core::text_seam::WordDirection::Previous);
+    }
+
+    /// Moves the caret one word right without Shift — the mirror of
+    /// [`Self::caret_word_left`]: collapse to the selection's end first.
+    fn caret_word_right(&mut self) {
+        if self.has_selection() {
+            let (_, max) = self.selection_range();
+            self.collapse_at(max);
+            return;
+        }
+        self.extend_word_right();
+        self.anchor_utf16 = self.caret_utf16;
+    }
+
+    /// Moves the caret one word right, keeping the anchor (a Shift+Alt+
+    /// Right extension).
+    fn extend_word_right(&mut self) {
+        self.caret_utf16 = self.word_hop(alacer_core::text_seam::WordDirection::Next);
+    }
+
+    /// Deletes the hop's span behind the caret (Ctrl/Alt+Backspace, ADR-
+    /// 0019): a word chord deletes exactly the span the caret would hop —
+    /// the word, with the separator following in the next chord. An
+    /// active selection is consumed whole first (the M11 edit rule).
+    fn delete_word_back(&mut self) {
+        if self.delete_selection() {
+            self.notify_changed();
+            return;
+        }
+        let to = self.word_hop(alacer_core::text_seam::WordDirection::Previous);
+        if to == self.caret_utf16 {
+            return;
+        }
+        let from = utf16::byte_offset(&self.text, to);
+        let at = utf16::byte_offset(&self.text, self.caret_utf16);
+        self.text.replace_range(from..at, "");
+        self.caret_utf16 = to;
+        self.anchor_utf16 = to;
+        self.notify_changed();
+    }
+
+    /// Deletes the hop's span ahead of the caret (Ctrl/Alt+Delete), the
+    /// mirror of [`Self::delete_word_back`] — the caret stays put.
+    fn delete_word_forward(&mut self) {
+        if self.delete_selection() {
+            self.notify_changed();
+            return;
+        }
+        let to = self.word_hop(alacer_core::text_seam::WordDirection::Next);
+        if to == self.caret_utf16 {
+            return;
+        }
+        let at = utf16::byte_offset(&self.text, self.caret_utf16);
+        let end = utf16::byte_offset(&self.text, to);
+        self.text.replace_range(at..end, "");
+        self.notify_changed();
+    }
+
+    /// Selects the word under `at` (a double-click, ADR-0019): anchor at
+    /// the word's start, caret at its end — tree vocabulary in the
+    /// click's own reading order. A hit on a separator collapses at the
+    /// hit point: a double-click never wanders to the nearest word.
+    fn select_word_at(&mut self, at: usize) {
+        let segments = self.word_segments();
+        let word = segments
+            .iter()
+            .find(|segment| segment.word_like && segment.start <= at && at < segment.end);
+        match word {
+            Some(word) => {
+                self.anchor_utf16 = word.start;
+                self.caret_utf16 = word.end;
+            }
+            None => self.collapse_at(at),
+        }
+    }
+
     /// The painted run: committed text with the preedit spliced in at the
     /// caret — what the user sees and what the IME anchors to.
     fn display_parts(&self) -> (String, Option<String>, String) {
@@ -551,7 +659,11 @@ impl Widget for TextInput {
 
     fn on_pointer_event(&mut self, ctx: &mut EventCtx, event: &PointerEvent) -> EventResponse {
         match event {
-            PointerEvent::Down { position, .. } => {
+            PointerEvent::Down {
+                position,
+                click_count,
+                ..
+            } => {
                 // The M12 contract (ADR-0018): the caret answers the
                 // pointer. The click's window x maps through the text
                 // seam's hit-test into a UTF-16 offset of the committed
@@ -562,8 +674,17 @@ impl Widget for TextInput {
                 // recorded hit-test seam is now real). The focus request
                 // is the click-to-focus seam (§10.3), unchanged.
                 let offset = self.caret_offset_at(ctx, position.x);
-                self.caret_utf16 = offset;
-                self.anchor_utf16 = offset;
+                if *click_count > 1 {
+                    // The M13 word contract (ADR-0019): the second press
+                    // of a double-click selects the word under the hit —
+                    // anchor at its start, caret at its end, the same
+                    // anchor+caret vocabulary the AT reads. A separator
+                    // hit collapses (a double-click never wanders).
+                    self.select_word_at(offset);
+                } else {
+                    self.caret_utf16 = offset;
+                    self.anchor_utf16 = offset;
+                }
                 self.pressing = true;
                 ctx.request(
                     alacer_core::Change::PAINT
@@ -606,6 +727,9 @@ impl Widget for TextInput {
         }
         let shift = event.modifiers.shift;
         let command = event.modifiers.control || event.modifiers.meta;
+        // The word chords (ADR-0019): Alt on every platform (GTK's double
+        // binding, Option on macOS) or the Ctrl/Meta command set.
+        let word_chord = event.modifiers.alt || command;
         let mut changed = true;
         match &event.key {
             alacer_core::events::Key::Char(ch) => {
@@ -623,20 +747,46 @@ impl Widget for TextInput {
                     self.insert(&ch.to_string());
                 }
             }
-            alacer_core::events::Key::Backspace => self.backspace(),
-            alacer_core::events::Key::Delete => self.delete(),
+            alacer_core::events::Key::Backspace => {
+                if word_chord {
+                    self.delete_word_back();
+                } else {
+                    self.backspace();
+                }
+            }
+            alacer_core::events::Key::Delete => {
+                if word_chord {
+                    self.delete_word_forward();
+                } else {
+                    self.delete();
+                }
+            }
             // Arrows and Home/End: Shift extends from the anchor (M11), a
             // plain press over a live selection collapses to its near edge
-            // first (GTK semantics), and only a second press steps.
+            // first (GTK semantics), and only a second press steps. The
+            // word chords (Alt; Ctrl/Meta) hop whole word runs (ADR-0019),
+            // the same anchor and collapse rules riding along.
             alacer_core::events::Key::ArrowLeft => {
-                if shift {
+                if word_chord {
+                    if shift {
+                        self.extend_word_left();
+                    } else {
+                        self.caret_word_left();
+                    }
+                } else if shift {
                     self.extend_left();
                 } else {
                     self.caret_left();
                 }
             }
             alacer_core::events::Key::ArrowRight => {
-                if shift {
+                if word_chord {
+                    if shift {
+                        self.extend_word_right();
+                    } else {
+                        self.caret_word_right();
+                    }
+                } else if shift {
                     self.extend_right();
                 } else {
                     self.caret_right();
@@ -983,6 +1133,9 @@ mod tests {
 
     /// A deterministic seam: 10 px per character, no glyphs — the exact
     /// prefix widths the hit-test inverts, so caret assertions are exact.
+    /// Its segmentation is the alphanumeric-run rule, exact for the ASCII
+    /// values these tests edit (`hello world`); the real tables ride the
+    /// engine (alacer-text).
     struct FixedWidthStub;
 
     impl alacer_core::text_seam::TextSeam for FixedWidthStub {
@@ -1006,6 +1159,32 @@ mod tests {
                 glyphs: Vec::new(),
             }
         }
+
+        fn word_segments(&self, text: &str) -> Vec<alacer_core::text_seam::WordSegment> {
+            let mut segments = Vec::new();
+            let (mut start, mut word_like, mut units) = (0_usize, false, 0_usize);
+            for ch in text.chars() {
+                let like = ch.is_alphanumeric();
+                if units > 0 && like != word_like {
+                    segments.push(alacer_core::text_seam::WordSegment {
+                        start,
+                        end: units,
+                        word_like,
+                    });
+                    start = units;
+                }
+                word_like = like;
+                units += ch.len_utf16();
+            }
+            if units > start {
+                segments.push(alacer_core::text_seam::WordSegment {
+                    start,
+                    end: units,
+                    word_like,
+                });
+            }
+            segments
+        }
     }
 
     /// The resolved frame every routed pointer event carries (M12's core
@@ -1021,6 +1200,7 @@ mod tests {
         PointerEvent::Down {
             position: Point::new(x, 62.0),
             button: alacer_core::events::MouseButton::Left,
+            click_count: 1,
         }
     }
 
@@ -1146,5 +1326,349 @@ mod tests {
         let mut ctx = EventCtx::new();
         let _ = input.on_pointer_event(&mut ctx, &down(23.0));
         assert_eq!(input.caret_utf16(), 2);
+    }
+
+    // ---- The word contract (§10.3, ADR-0019) ---------------------------
+
+    /// An Alt press (word movement; Option on macOS).
+    fn alt(key: Key) -> KeyEvent {
+        KeyEvent {
+            key,
+            state: KeyState::Pressed,
+            modifiers: Modifiers {
+                alt: true,
+                ..Modifiers::default()
+            },
+            text: None,
+        }
+    }
+
+    /// A Ctrl press (word movement and word deletion on Linux/Windows).
+    fn ctrl(key: Key) -> KeyEvent {
+        KeyEvent {
+            key,
+            state: KeyState::Pressed,
+            modifiers: Modifiers {
+                control: true,
+                ..Modifiers::default()
+            },
+            text: None,
+        }
+    }
+
+    /// Shift+Alt (word-wise extension).
+    fn shift_alt(key: Key) -> KeyEvent {
+        KeyEvent {
+            key,
+            state: KeyState::Pressed,
+            modifiers: Modifiers {
+                shift: true,
+                alt: true,
+                ..Modifiers::default()
+            },
+            text: None,
+        }
+    }
+
+    fn edit(input: &mut TextInput, event: &KeyEvent) -> EventResponse {
+        let mut ctx = EventCtx::new();
+        input.on_key_event(&mut ctx, event)
+    }
+
+    #[test]
+    fn alt_arrows_hop_word_runs() {
+        // "hello world" — hop to word ends, then word starts; separators
+        // are never landings (the stub's alphanumeric segmentation is
+        // exact for this ASCII value).
+        let mut input = stubbed_focused_input("hello world");
+        assert_eq!(input.caret_utf16(), 11);
+
+        assert_eq!(
+            edit(&mut input, &alt(Key::ArrowLeft)),
+            EventResponse::Handled
+        );
+        assert_eq!(input.caret_utf16(), 6, "end -> world's start");
+        assert_eq!(
+            edit(&mut input, &alt(Key::ArrowLeft)),
+            EventResponse::Handled
+        );
+        assert_eq!(input.caret_utf16(), 0, "world's start -> hello's start");
+        assert_eq!(
+            edit(&mut input, &alt(Key::ArrowLeft)),
+            EventResponse::Handled
+        );
+        assert_eq!(input.caret_utf16(), 0, "the run's start clamps");
+
+        assert_eq!(
+            edit(&mut input, &alt(Key::ArrowRight)),
+            EventResponse::Handled
+        );
+        assert_eq!(input.caret_utf16(), 5, "start -> hello's end");
+        assert_eq!(
+            edit(&mut input, &alt(Key::ArrowRight)),
+            EventResponse::Handled
+        );
+        assert_eq!(
+            input.caret_utf16(),
+            6,
+            "hello's end -> world's start, one hop"
+        );
+        assert_eq!(
+            edit(&mut input, &alt(Key::ArrowRight)),
+            EventResponse::Handled
+        );
+        assert_eq!(input.caret_utf16(), 11, "world's end");
+    }
+
+    #[test]
+    fn alt_arrows_mid_word_hop_to_word_edges() {
+        let mut input = stubbed_focused_input("hello world");
+        input.collapse_at(2); // hel|lo world
+        assert_eq!(
+            edit(&mut input, &alt(Key::ArrowRight)),
+            EventResponse::Handled
+        );
+        assert_eq!(input.caret_utf16(), 5, "mid-word -> the word's end");
+        assert_eq!(
+            edit(&mut input, &alt(Key::ArrowRight)),
+            EventResponse::Handled
+        );
+        assert_eq!(input.caret_utf16(), 6);
+        input.collapse_at(8); // hello w|orld
+        assert_eq!(
+            edit(&mut input, &alt(Key::ArrowLeft)),
+            EventResponse::Handled
+        );
+        assert_eq!(input.caret_utf16(), 6, "mid-word -> the word's start");
+        assert_eq!(
+            edit(&mut input, &alt(Key::ArrowLeft)),
+            EventResponse::Handled
+        );
+        assert_eq!(input.caret_utf16(), 0);
+    }
+
+    #[test]
+    fn a_plain_word_arrow_collapses_the_selection_first() {
+        // The GTK rule the arrows already follow: a plain press over a
+        // live selection collapses to the near edge and does not move;
+        // the second press hops.
+        let mut input = stubbed_focused_input("hello world");
+        input.anchor_utf16 = 0;
+        input.caret_utf16 = 5;
+        assert_eq!(
+            edit(&mut input, &alt(Key::ArrowRight)),
+            EventResponse::Handled
+        );
+        assert_eq!(input.caret_utf16(), 5, "collapsed to the selection's end");
+        assert_eq!(input.anchor_utf16, 5);
+        assert_eq!(
+            edit(&mut input, &alt(Key::ArrowRight)),
+            EventResponse::Handled
+        );
+        assert_eq!(input.caret_utf16(), 6, "the second press hops");
+
+        let mut input = stubbed_focused_input("hello world");
+        input.anchor_utf16 = 0;
+        input.caret_utf16 = 5;
+        assert_eq!(
+            edit(&mut input, &alt(Key::ArrowLeft)),
+            EventResponse::Handled
+        );
+        assert_eq!(input.caret_utf16(), 0, "collapsed to the selection's start");
+        assert_eq!(
+            edit(&mut input, &alt(Key::ArrowLeft)),
+            EventResponse::Handled
+        );
+        assert_eq!(input.caret_utf16(), 0, "clamped at home");
+    }
+
+    #[test]
+    fn shift_alt_arrows_extend_from_the_anchor() {
+        let mut input = stubbed_focused_input("hello world");
+        input.collapse_at(6);
+        assert_eq!(
+            edit(&mut input, &shift_alt(Key::ArrowRight)),
+            EventResponse::Handled
+        );
+        assert_eq!(
+            input.selection().map(|s| s.normalized()),
+            Some((6, 11)),
+            "the anchor stays, the caret rides the word hop"
+        );
+        assert_eq!(
+            edit(&mut input, &shift_alt(Key::ArrowLeft)),
+            EventResponse::Handled
+        );
+        assert_eq!(
+            input.selection().map(|s| s.normalized()),
+            Some((6, 6)),
+            "back to the anchor collapses the range"
+        );
+        assert_eq!(
+            edit(&mut input, &shift_alt(Key::ArrowLeft)),
+            EventResponse::Handled
+        );
+        assert_eq!(
+            input.selection().map(|s| s.normalized()),
+            Some((0, 6)),
+            "left past the anchor extends backwards"
+        );
+    }
+
+    #[test]
+    fn word_chords_delete_the_hops_span() {
+        // The uniform rule (ADR-0019): a word chord deletes exactly the
+        // span the caret would hop. From the value's end the hop lands on
+        // `world`'s start — the word goes, the separator stays for the
+        // next chord, exactly like the caret's own two hops.
+        let mut input = stubbed_focused_input("hello world");
+        assert_eq!(
+            edit(&mut input, &ctrl(Key::Backspace)),
+            EventResponse::Handled
+        );
+        assert_eq!(input.value(), "hello ", "the hop's span went: [6, 11)");
+        assert_eq!(input.caret_utf16(), 6);
+        assert_eq!(
+            edit(&mut input, &ctrl(Key::Backspace)),
+            EventResponse::Handled
+        );
+        assert_eq!(input.value(), "", "hello went in the second chord");
+        assert_eq!(input.caret_utf16(), 0);
+
+        // Alt+Backspace is the same chord set (GTK binds both).
+        let mut input = stubbed_focused_input("hello world");
+        assert_eq!(
+            edit(&mut input, &alt(Key::Backspace)),
+            EventResponse::Handled
+        );
+        assert_eq!(input.value(), "hello ");
+
+        // Ctrl+Delete deletes forward, the caret stays. From the value's
+        // start the hop lands on `hello`'s end; the separator follows in
+        // the next chord, mirroring the backward direction.
+        let mut input = stubbed_focused_input("hello world");
+        input.collapse_at(0);
+        assert_eq!(edit(&mut input, &ctrl(Key::Delete)), EventResponse::Handled);
+        assert_eq!(input.value(), " world", "hello went; the caret stayed at 0");
+        assert_eq!(input.caret_utf16(), 0);
+        assert_eq!(edit(&mut input, &ctrl(Key::Delete)), EventResponse::Handled);
+        assert_eq!(
+            input.value(),
+            "world",
+            "the separator went in the second chord"
+        );
+        assert_eq!(edit(&mut input, &ctrl(Key::Delete)), EventResponse::Handled);
+        assert_eq!(input.value(), "", "world went in the third");
+    }
+
+    #[test]
+    fn word_chords_consume_a_selection_whole() {
+        // The M11 edit rule stands: every edit consumes the selection
+        // whole — a word chord over a range deletes the range, not a hop.
+        let mut input = stubbed_focused_input("hello world");
+        input.anchor_utf16 = 0;
+        input.caret_utf16 = 5;
+        assert_eq!(
+            edit(&mut input, &ctrl(Key::Backspace)),
+            EventResponse::Handled
+        );
+        assert_eq!(
+            input.value(),
+            " world",
+            "the selection went, not a word hop"
+        );
+        assert_eq!(input.caret_utf16(), 0);
+    }
+
+    #[test]
+    fn word_chords_are_inert_while_composing() {
+        // The IME owns the canvas (§10.3) — word chords are keys like any
+        // other and stay inert while a preedit composes.
+        let mut input = stubbed_focused_input("hello");
+        input.preedit = Some(("世界".to_string(), Some(2)));
+        let _ = edit(&mut input, &alt(Key::ArrowRight));
+        assert_eq!(input.caret_utf16(), 5, "the composition absorbed the chord");
+        let _ = edit(&mut input, &ctrl(Key::Backspace));
+        assert_eq!(input.value(), "hello", "no edit under a composition");
+    }
+
+    #[test]
+    fn a_double_click_selects_the_word_under_it() {
+        let mut input = stubbed_focused_input("hello world");
+        let mut ctx = EventCtx::with_phase_and_bounds(
+            alacer_core::events::EventPhase::Bubble,
+            Some(field_frame()),
+        );
+
+        // A double-click on "world" (window x 172 → local 72 → run 70 →
+        // hit offset 7) selects the word: anchor at its start, caret at
+        // its end — tree vocabulary in the click's own reading order.
+        let click = PointerEvent::Down {
+            position: Point::new(172.0, 62.0),
+            button: alacer_core::events::MouseButton::Left,
+            click_count: 2,
+        };
+        assert_eq!(
+            input.on_pointer_event(&mut ctx, &click),
+            EventResponse::Handled
+        );
+        assert_eq!(
+            input.selection().map(|s| s.normalized()),
+            Some((6, 11)),
+            "the word under the click selects"
+        );
+        let selection = input.selection().expect("focused and not composing");
+        assert_eq!(selection.anchor, 6, "the anchor is the word's start");
+        assert_eq!(selection.focus, 11, "the caret is the word's end");
+        let masks = ctx.take();
+        assert!(
+            masks.contains(alacer_core::Change::FOCUS)
+                && masks.contains(alacer_core::Change::PAINT)
+                && masks.contains(alacer_core::Change::A11Y),
+            "the double-click still asks for focus and re-announces, got {masks:?}"
+        );
+
+        // A double-click on a separator (" ") collapses at the hit — there
+        // is no word to select (the honest refuse: never the nearest word).
+        let mut input = stubbed_focused_input("hello world");
+        let mut ctx = EventCtx::with_phase_and_bounds(
+            alacer_core::events::EventPhase::Bubble,
+            Some(field_frame()),
+        );
+        let on_space = PointerEvent::Down {
+            position: Point::new(152.0, 62.0), // local 52 → run 50 → offset 5, the space's start
+            button: alacer_core::events::MouseButton::Left,
+            click_count: 2,
+        };
+        let _ = input.on_pointer_event(&mut ctx, &on_space);
+        assert_eq!(
+            input.selection().map(|s| s.normalized()),
+            Some((5, 5)),
+            "a separator double-click collapses at the hit point"
+        );
+    }
+
+    #[test]
+    fn a_double_click_over_a_selection_replaces_it() {
+        // The double-click is a fresh gesture: whatever selection the
+        // anchor state carried, the word under the click replaces it.
+        let mut input = stubbed_focused_input("hello world");
+        input.anchor_utf16 = 0;
+        input.caret_utf16 = 11;
+        let mut ctx = EventCtx::with_phase_and_bounds(
+            alacer_core::events::EventPhase::Bubble,
+            Some(field_frame()),
+        );
+        let click = PointerEvent::Down {
+            position: Point::new(172.0, 62.0),
+            button: alacer_core::events::MouseButton::Left,
+            click_count: 2,
+        };
+        let _ = input.on_pointer_event(&mut ctx, &click);
+        assert_eq!(
+            input.selection().map(|s| s.normalized()),
+            Some((6, 11)),
+            "the word selection replaced the stale range"
+        );
     }
 }

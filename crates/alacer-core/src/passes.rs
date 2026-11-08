@@ -1910,6 +1910,7 @@ mod tests {
         let down = PointerEvent::Down {
             position: Point::new(10.0, 10.0),
             button: crate::events::MouseButton::Left,
+            click_count: 1,
         };
         assert_eq!(
             p.dispatch_pointer(&down),
@@ -1921,6 +1922,7 @@ mod tests {
         let miss = PointerEvent::Down {
             position: Point::new(199.0, 399.0),
             button: crate::events::MouseButton::Left,
+            click_count: 1,
         };
         assert_eq!(
             p.dispatch_pointer(&miss),
@@ -2250,6 +2252,7 @@ mod tests {
         p.dispatch_pointer(&PointerEvent::Down {
             position: Point::new(10.0, 10.0),
             button: crate::events::MouseButton::Left,
+            click_count: 1,
         });
         let order = log.lock().expect("log lock").clone();
         assert_eq!(
@@ -2289,6 +2292,7 @@ mod tests {
         let response = p.dispatch_pointer(&PointerEvent::Down {
             position: Point::new(10.0, 10.0),
             button: crate::events::MouseButton::Left,
+            click_count: 1,
         });
         assert_eq!(response, EventResponse::Handled);
         assert_eq!(

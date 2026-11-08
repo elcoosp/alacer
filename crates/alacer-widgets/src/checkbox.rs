@@ -301,6 +301,7 @@ mod tests {
         let down = PointerEvent::Down {
             position: Point::new(4.0, 4.0),
             button: alacer_core::events::MouseButton::Left,
+            click_count: 1,
         };
         assert_eq!(
             checkbox.on_pointer_event(&mut ctx, &down),

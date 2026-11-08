@@ -170,6 +170,7 @@ mod tests {
         c.push(PointerEvent::Down {
             position: Point::new(2.0, 2.0),
             button: MouseButton::Left,
+            click_count: 1,
         });
         c.push(PointerEvent::Move {
             position: Point::new(3.0, 3.0),

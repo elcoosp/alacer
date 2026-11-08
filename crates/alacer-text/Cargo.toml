@@ -19,6 +19,10 @@ parley.workspace = true
 swash.workspace = true
 zeno = "0.3.3"
 rustc-hash.workspace = true
+# The word-boundary tables the text seam's segmentation rides (ADR-0019):
+# ICU's UAX #29 WordSegmenter — the same segmenter parley's engine adopts
+# for line breaking, dictionary-backed for Thai and friends.
+icu_segmenter = { version = "2.4.0", default-features = false, features = ["auto", "compiled_data"] }
 
 [dev-dependencies]
 criterion.workspace = true

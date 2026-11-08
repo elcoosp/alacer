@@ -105,6 +105,7 @@ fn s05_button_pressed(h: &mut TestHarness) {
                 bounds.origin.y + bounds.size.height / 2.0,
             ),
             button: alacer_core::MouseButton::Left,
+            click_count: 1,
         });
 }
 
@@ -292,6 +293,7 @@ fn s19_counter_pressed_state(h: &mut TestHarness) {
                 bounds.origin.y + bounds.size.height / 2.0,
             ),
             button: alacer_core::MouseButton::Left,
+            click_count: 1,
         });
     h.settle();
     let next = counter_view(signal);

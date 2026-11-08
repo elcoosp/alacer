@@ -247,6 +247,35 @@ impl alacer_core::text_seam::TextSeam for ThreadLocalTextSeam {
                 .collect(),
         }
     }
+
+    /// The engine's UAX #29 word segmentation (ADR-0019): ICU's
+    /// `WordSegmenter` — the same segmenter parley's line breaking adopts,
+    /// dictionary-backed for the complex scripts — yields byte offsets with
+    /// per-segment classification; the seam converts them into the editing
+    /// contract's UTF-16 units. Segments cover the run exactly (the
+    /// iterator always breaks at 0 and the length).
+    fn word_segments(&self, text: &str) -> Vec<alacer_core::text_seam::WordSegment> {
+        let segmenter = icu_segmenter::WordSegmenter::new_auto(
+            icu_segmenter::options::WordBreakInvariantOptions::default(),
+        );
+        let mut segments = Vec::new();
+        let mut previous: Option<(usize, icu_segmenter::options::WordType)> = None;
+        for (byte, word_type) in segmenter.segment_str(text).iter_with_word_type() {
+            if let Some((start_byte, _)) = previous {
+                let start = alacer_core::utf16::utf16_offset(text, start_byte);
+                let end = alacer_core::utf16::utf16_offset(text, byte);
+                if start < end {
+                    segments.push(alacer_core::text_seam::WordSegment {
+                        start,
+                        end,
+                        word_like: word_type.is_word_like(),
+                    });
+                }
+            }
+            previous = Some((byte, word_type));
+        }
+        segments
+    }
 }
 
 #[cfg(test)]
@@ -255,6 +284,8 @@ mod tests {
         TextContext, ThreadLocalGlyphSource, ThreadLocalMeasurer, ThreadLocalTextSeam, with_text,
     };
     use alacer_core::style::{MeasureFn, TextSpec};
+    use alacer_core::text_seam::TextSeam as _;
+    use alacer_core::utf16;
 
     fn spec(text: &str) -> TextSpec {
         TextSpec {
@@ -366,6 +397,144 @@ mod tests {
             ),
             total
         );
+    }
+
+    // ---- The word contract (ADR-0019) -----------------------------------
+
+    /// The engine contract every consumer of `word_segments` relies on:
+    /// consecutive half-open segments cover the run exactly — first start
+    /// 0, no gaps, no overlaps, last end the run's UTF-16 length — and
+    /// every edge sits on a scalar-value boundary (surrogate pairs are
+    /// never sliced, whatever the segmentation decides).
+    fn assert_covers(text: &str, segments: &[alacer_core::text_seam::WordSegment]) {
+        let mut units = 0_usize;
+        for segment in segments {
+            assert_eq!(
+                segment.start, units,
+                "no gap before {segment:?} in {text:?}"
+            );
+            assert!(
+                segment.start < segment.end,
+                "empty segment {segment:?} in {text:?}"
+            );
+            assert!(
+                utf16::is_boundary(text, segment.start) && utf16::is_boundary(text, segment.end),
+                "segment {segment:?} slices a scalar value in {text:?}"
+            );
+            units = segment.end;
+        }
+        assert_eq!(
+            units,
+            utf16::len_utf16(text),
+            "the segments cover {text:?} exactly"
+        );
+    }
+
+    #[test]
+    fn word_segments_classify_and_cover_the_run() {
+        let seam = ThreadLocalTextSeam;
+
+        let hello = seam.word_segments("hello, world");
+        assert_covers("hello, world", &hello);
+        assert_eq!(
+            hello,
+            vec![
+                seg(0, 5, true),  // hello
+                seg(5, 6, false), // ","
+                seg(6, 7, false), // " " — UAX #29 breaks between them
+                seg(7, 12, true), // world
+            ],
+            "letters are words; the separator segments are not word-like"
+        );
+
+        let plain = seam.word_segments("hello world");
+        assert_covers("hello world", &plain);
+        assert_eq!(
+            plain,
+            vec![seg(0, 5, true), seg(5, 6, false), seg(6, 11, true)],
+        );
+    }
+
+    #[test]
+    fn apostrophized_words_stay_one_segment() {
+        let seam = ThreadLocalTextSeam;
+        let segments = seam.word_segments("don't stop");
+        assert_covers("don't stop", &segments);
+        assert_eq!(
+            segments,
+            vec![
+                seg(0, 5, true),  // don't — the MidLetter apostrophe joins
+                seg(5, 6, false), // space
+                seg(6, 10, true), // stop
+            ],
+            "UAX #29 keeps the contraction whole"
+        );
+    }
+
+    #[test]
+    fn cjk_and_kana_segment_by_script_and_count_one_unit_each() {
+        let seam = ThreadLocalTextSeam;
+        // The ICU reference run (its doctest): "こんにちは世界" breaks
+        // between the kana run and the ideographs — UTF-16 units 5 and 2.
+        let segments = seam.word_segments("こんにちは世界");
+        assert_covers("こんにちは世界", &segments);
+        assert_eq!(
+            segments,
+            vec![seg(0, 5, true), seg(5, 7, true)],
+            "each BMP ideograph is one UTF-16 unit; the script change breaks"
+        );
+    }
+
+    #[test]
+    fn surrogate_pairs_segment_on_scalar_boundaries() {
+        let seam = ThreadLocalTextSeam;
+        let text = "a\u{1F600}b";
+        let segments = seam.word_segments(text);
+        assert_covers(text, &segments);
+        // Whatever classification the pictograph draws, its two UTF-16
+        // units must never split: the coverage property above already pins
+        // every edge to a scalar boundary.
+    }
+
+    #[test]
+    fn dictionary_scripts_break_into_words() {
+        let seam = ThreadLocalTextSeam;
+        // Thai needs the complex-script dictionary (ICU's own doctest
+        // run): the rule-only fallback would keep the run unbroken.
+        let segments = seam.word_segments("ทุกสองสัปดาห์");
+        assert_covers("ทุกสองสัปดาห์", &segments);
+        assert!(
+            segments.len() >= 2,
+            "the dictionary breaks Thai into words, got {segments:?}"
+        );
+        assert!(
+            segments.iter().all(|s| s.word_like),
+            "Thai letters are word-like"
+        );
+    }
+
+    #[test]
+    fn empty_and_separator_only_runs_segment_honestly() {
+        let seam = ThreadLocalTextSeam;
+        assert!(
+            seam.word_segments("").is_empty(),
+            "the empty run has no segments"
+        );
+        let spaces = seam.word_segments("   ");
+        assert_covers("   ", &spaces);
+        assert!(
+            spaces.iter().all(|s| !s.word_like),
+            "whitespace is never word-like"
+        );
+    }
+
+    /// Shorthand for the expected-segment assertions.
+    fn seg(start: usize, end: usize, word_like: bool) -> alacer_core::text_seam::WordSegment {
+        alacer_core::text_seam::WordSegment {
+            start,
+            end,
+            word_like,
+        }
     }
 
     #[test]

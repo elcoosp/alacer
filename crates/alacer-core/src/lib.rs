@@ -21,6 +21,7 @@
 //! The layering is a DAG: this crate depends on no other Alacer crate.
 
 pub mod arena;
+pub mod clipboard;
 pub mod color;
 pub mod damage;
 pub mod events;

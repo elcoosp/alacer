@@ -400,6 +400,184 @@ impl TextInput {
         self.notify_changed();
     }
 
+    /// Writes the active selection's span to the clipboard seam (ADR-0020):
+    /// the exact UTF-16 range the edits consume, resolved through the same
+    /// byte range the highlight paints. A degenerate selection copies
+    /// nothing and returns `false` — a copy never invents content.
+    fn copy_selection(&self) -> bool {
+        if !self.has_selection() {
+            return false;
+        }
+        let (min, max) = self.selection_range();
+        let range = utf16::byte_range(&self.text, min, max);
+        let copied = &self.text[range];
+        alacer_core::clipboard::with_clipboard(|seam| seam.write_text(copied))
+    }
+
+    /// Moves the active selection to the clipboard seam, then deletes it
+    /// (Ctrl/Cmd+X). The deletion only follows an accepted write: a
+    /// clipboard that refused the write never deletes the selection — the
+    /// refuse-don't-munge rule applied to a destructive edit.
+    fn cut(&mut self) -> bool {
+        if !self.copy_selection() {
+            return false;
+        }
+        let _ = self.delete_selection();
+        self.notify_changed();
+        true
+    }
+
+    /// Inserts the clipboard's text at the caret (Ctrl/Cmd+V), sanitized
+    /// through core's single-line paste rule — line breaks collapse to
+    /// spaces ([`alacer_core::clipboard::paste_text`]) — and consuming an
+    /// active selection first, like every editor (the M11 edit rule). An
+    /// empty or refused read inserts nothing and returns `false`.
+    fn paste(&mut self) -> bool {
+        let raw = alacer_core::clipboard::with_clipboard(
+            alacer_core::clipboard::ClipboardSeam::read_text,
+        );
+        let Some(raw) = raw else {
+            return false;
+        };
+        let sanitized = alacer_core::clipboard::paste_text(&raw);
+        if sanitized.is_empty() {
+            return false;
+        }
+        self.insert(&sanitized);
+        true
+    }
+    /// The key's editing outcome: `(changed, consumed)` — whether value or
+    /// caret moved (the masks ride), and whether the key is the field's at
+    /// all.
+    ///
+    /// An unconsumed key stays Ignored (Tab cycling, ancestor
+    /// accelerators). A consumed key that changed nothing — a refused
+    /// clipboard read or write, a copy without a selection — is Handled
+    /// with no masks: the refusal costs an idle frame, the honesty the
+    /// action tier already pins (ADR-0020).
+    fn edit_key(&mut self, ctx: &mut EventCtx, event: &KeyEvent) -> (bool, bool) {
+        let shift = event.modifiers.shift;
+        let command = event.modifiers.control || event.modifiers.meta;
+        // The word chords (ADR-0019): Alt on every platform (GTK's double
+        // binding, Option on macOS) or the Ctrl/Meta command set.
+        let word_chord = event.modifiers.alt || command;
+        match &event.key {
+            alacer_core::events::Key::Char(ch) => {
+                if command {
+                    self.command_chord(*ch)
+                } else {
+                    self.insert(&ch.to_string());
+                    (true, true)
+                }
+            }
+            alacer_core::events::Key::Backspace => {
+                if word_chord {
+                    self.delete_word_back();
+                } else {
+                    self.backspace();
+                }
+                (true, true)
+            }
+            alacer_core::events::Key::Delete => {
+                if word_chord {
+                    self.delete_word_forward();
+                } else {
+                    self.delete();
+                }
+                (true, true)
+            }
+            // Arrows and Home/End: Shift extends from the anchor (M11), a
+            // plain press over a live selection collapses to its near edge
+            // first (GTK semantics), and only a second press steps. The
+            // word chords (Alt; Ctrl/Meta) hop whole word runs (ADR-0019),
+            // the same anchor and collapse rules riding along.
+            alacer_core::events::Key::ArrowLeft => {
+                if word_chord {
+                    if shift {
+                        self.extend_word_left();
+                    } else {
+                        self.caret_word_left();
+                    }
+                } else if shift {
+                    self.extend_left();
+                } else {
+                    self.caret_left();
+                }
+                (true, true)
+            }
+            alacer_core::events::Key::ArrowRight => {
+                if word_chord {
+                    if shift {
+                        self.extend_word_right();
+                    } else {
+                        self.caret_word_right();
+                    }
+                } else if shift {
+                    self.extend_right();
+                } else {
+                    self.caret_right();
+                }
+                (true, true)
+            }
+            alacer_core::events::Key::Home => {
+                if shift {
+                    self.caret_utf16 = 0;
+                } else {
+                    self.collapse_at(0);
+                }
+                (true, true)
+            }
+            alacer_core::events::Key::End => {
+                let len = utf16::len_utf16(&self.text);
+                if shift {
+                    self.caret_utf16 = len;
+                } else {
+                    self.collapse_at(len);
+                }
+                (true, true)
+            }
+            alacer_core::events::Key::Enter => {
+                // The submit seam (M6): fire with the current value, then
+                // clear. The widget mutates only itself (rule 1); the
+                // handler's writes ride the batch the caller chose.
+                if let Some(handler) = &mut self.on_submit {
+                    let value = self.text.clone();
+                    handler(&value);
+                    self.text.clear();
+                    self.caret_utf16 = 0;
+                    ctx.request(
+                        alacer_core::Change::PAINT
+                            .union(alacer_core::Change::LAYOUT)
+                            .union(alacer_core::Change::A11Y),
+                    );
+                    return (true, true);
+                }
+                (false, false)
+            }
+            // Everything else — Tab (focus cycling), Escape, the vertical
+            // arrows, unknown keys — is not the field's.
+            _ => (false, false),
+        }
+    }
+
+    /// The command chord set (Ctrl/Cmd). Ctrl/Cmd+A selects the whole
+    /// value; the clipboard tier (ADR-0020) copies, cuts, and pastes
+    /// through the clipboard seam; anything else is not the field's — the
+    /// pre-M11 path *inserted* the character, which turned Ctrl+A into
+    /// typing an 'a' (the bug this method's predecessor deletes).
+    fn command_chord(&mut self, ch: char) -> (bool, bool) {
+        match ch {
+            'a' | 'A' => {
+                self.select_all();
+                (true, true)
+            }
+            'c' | 'C' => (self.copy_selection(), true),
+            'x' | 'X' => (self.cut(), true),
+            'v' | 'V' => (self.paste(), true),
+            _ => (false, false),
+        }
+    }
+
     /// Selects the word under `at` (a double-click, ADR-0019): anchor at
     /// the word's start, caret at its end — tree vocabulary in the
     /// click's own reading order. A hit on a separator collapses at the
@@ -725,115 +903,13 @@ impl Widget for TextInput {
         if event.state != alacer_core::events::KeyState::Pressed || self.preedit.is_some() {
             return EventResponse::Ignored;
         }
-        let shift = event.modifiers.shift;
-        let command = event.modifiers.control || event.modifiers.meta;
-        // The word chords (ADR-0019): Alt on every platform (GTK's double
-        // binding, Option on macOS) or the Ctrl/Meta command set.
-        let word_chord = event.modifiers.alt || command;
-        let mut changed = true;
-        match &event.key {
-            alacer_core::events::Key::Char(ch) => {
-                if command {
-                    // Command chords are edits, not text: Ctrl/Cmd+A selects
-                    // the whole value; anything else is ignored — the
-                    // pre-M11 path *inserted* the character, which turned
-                    // Ctrl+A into typing an 'a' (the bug this arm deletes).
-                    if matches!(ch, 'a' | 'A') {
-                        self.select_all();
-                    } else {
-                        changed = false;
-                    }
-                } else {
-                    self.insert(&ch.to_string());
-                }
-            }
-            alacer_core::events::Key::Backspace => {
-                if word_chord {
-                    self.delete_word_back();
-                } else {
-                    self.backspace();
-                }
-            }
-            alacer_core::events::Key::Delete => {
-                if word_chord {
-                    self.delete_word_forward();
-                } else {
-                    self.delete();
-                }
-            }
-            // Arrows and Home/End: Shift extends from the anchor (M11), a
-            // plain press over a live selection collapses to its near edge
-            // first (GTK semantics), and only a second press steps. The
-            // word chords (Alt; Ctrl/Meta) hop whole word runs (ADR-0019),
-            // the same anchor and collapse rules riding along.
-            alacer_core::events::Key::ArrowLeft => {
-                if word_chord {
-                    if shift {
-                        self.extend_word_left();
-                    } else {
-                        self.caret_word_left();
-                    }
-                } else if shift {
-                    self.extend_left();
-                } else {
-                    self.caret_left();
-                }
-            }
-            alacer_core::events::Key::ArrowRight => {
-                if word_chord {
-                    if shift {
-                        self.extend_word_right();
-                    } else {
-                        self.caret_word_right();
-                    }
-                } else if shift {
-                    self.extend_right();
-                } else {
-                    self.caret_right();
-                }
-            }
-            alacer_core::events::Key::ArrowUp | alacer_core::events::Key::ArrowDown => {
-                changed = false;
-            }
-            alacer_core::events::Key::Home => {
-                if shift {
-                    self.caret_utf16 = 0;
-                } else {
-                    self.collapse_at(0);
-                }
-            }
-            alacer_core::events::Key::End => {
-                let len = utf16::len_utf16(&self.text);
-                if shift {
-                    self.caret_utf16 = len;
-                } else {
-                    self.collapse_at(len);
-                }
-            }
-            alacer_core::events::Key::Enter => {
-                // The submit seam (M6): fire with the current value, then
-                // clear. The widget mutates only itself (rule 1); the
-                // handler's writes ride the batch the caller chose.
-                if let Some(handler) = &mut self.on_submit {
-                    let value = self.text.clone();
-                    handler(&value);
-                    self.text.clear();
-                    self.caret_utf16 = 0;
-                    ctx.request(
-                        alacer_core::Change::PAINT
-                            .union(alacer_core::Change::LAYOUT)
-                            .union(alacer_core::Change::A11Y),
-                    );
-                    return EventResponse::Handled;
-                }
-                changed = false;
-            }
-            _ => changed = false,
-        }
+        let (changed, consumed) = self.edit_key(ctx, event);
         if changed {
             // Value and/or caret moved: repaint the field; value changes are
             // a11y-visible too.
             ctx.request(alacer_core::Change::PAINT.union(alacer_core::Change::A11Y));
+        }
+        if consumed {
             EventResponse::Handled
         } else {
             EventResponse::Ignored
@@ -1669,6 +1745,186 @@ mod tests {
             input.selection().map(|s| s.normalized()),
             Some((6, 11)),
             "the word selection replaced the stale range"
+        );
+    }
+
+    // ---- The clipboard tier (§10.3, ADR-0020) --------------------------
+
+    /// Installs the test's clipboard seam and returns the shared handle —
+    /// the honest in-memory store, never the operator's OS clipboard.
+    fn clipboard_seam() -> std::rc::Rc<alacer_core::clipboard::MemoryClipboard> {
+        let clipboard = std::rc::Rc::new(alacer_core::clipboard::MemoryClipboard::default());
+        alacer_core::clipboard::install(std::rc::Rc::clone(&clipboard)
+            as std::rc::Rc<dyn alacer_core::clipboard::ClipboardSeam>);
+        clipboard
+    }
+
+    /// A seam that refuses every write and reads empty — the
+    /// permission/escape story made testable (a clipboard this process
+    /// cannot open).
+    struct RefusingClipboard;
+
+    impl alacer_core::clipboard::ClipboardSeam for RefusingClipboard {
+        fn read_text(&self) -> Option<String> {
+            None
+        }
+
+        fn write_text(&self, _text: &str) -> bool {
+            false
+        }
+    }
+
+    #[test]
+    fn copy_writes_the_selection_and_edits_nothing() {
+        let clipboard = clipboard_seam();
+        let mut input = stubbed_focused_input("hello world");
+        input.anchor_utf16 = 0;
+        input.caret_utf16 = 5;
+
+        let mut ctx = EventCtx::new();
+        assert_eq!(
+            input.on_key_event(&mut ctx, &ctrl(Key::Char('c'))),
+            EventResponse::Handled
+        );
+        assert_eq!(
+            clipboard.text().as_deref(),
+            Some("hello"),
+            "the copy writes the selection's exact span"
+        );
+        assert_eq!(input.value(), "hello world", "a copy edits nothing");
+        assert_eq!(input.selection().map(|s| s.normalized()), Some((0, 5)));
+        let masks = ctx.take();
+        assert!(
+            masks.contains(alacer_core::Change::PAINT),
+            "a successful copy is a consumed chord, got {masks:?}"
+        );
+    }
+
+    #[test]
+    fn cut_moves_the_selection_to_the_seam() {
+        let clipboard = clipboard_seam();
+        let mut input = stubbed_focused_input("hello world");
+        input.anchor_utf16 = 6;
+        input.caret_utf16 = 11;
+
+        let mut ctx = EventCtx::new();
+        assert_eq!(
+            input.on_key_event(&mut ctx, &ctrl(Key::Char('x'))),
+            EventResponse::Handled
+        );
+        assert_eq!(
+            clipboard.text().as_deref(),
+            Some("world"),
+            "the cut writes the span before deleting it"
+        );
+        assert_eq!(input.value(), "hello ", "the range went with the cut");
+        assert_eq!(input.caret_utf16(), 6, "the caret collapsed at its start");
+        let masks = ctx.take();
+        assert!(
+            masks.contains(alacer_core::Change::A11Y) && masks.contains(alacer_core::Change::PAINT),
+            "a cut is an edit: repaint and re-announce, got {masks:?}"
+        );
+    }
+
+    #[test]
+    fn paste_inserts_sanitized_text_and_consumes_the_selection() {
+        let clipboard = clipboard_seam();
+        let mut input = stubbed_focused_input("hello world");
+        input.anchor_utf16 = 0;
+        input.caret_utf16 = 5;
+        clipboard.set("HEL\r\nLO");
+
+        let mut ctx = EventCtx::new();
+        assert_eq!(
+            input.on_key_event(&mut ctx, &ctrl(Key::Char('v'))),
+            EventResponse::Handled
+        );
+        assert_eq!(
+            input.value(),
+            "HEL LO world",
+            "the paste replaced the selection; the CRLF pair is one space"
+        );
+        assert_eq!(input.caret_utf16(), 6, "the caret parks after the span");
+        let masks = ctx.take();
+        assert!(
+            masks.contains(alacer_core::Change::A11Y) && masks.contains(alacer_core::Change::PAINT),
+            "a paste is an edit: repaint and re-announce, got {masks:?}"
+        );
+    }
+
+    #[test]
+    fn a_refused_clipboard_chord_costs_an_idle_frame() {
+        // The refuse-don't-munge rule at the clipboard tier: a copy
+        // without a selection and a paste from an empty clipboard are
+        // consumed chords that queue no masks — the next frame is idle.
+        let clipboard = clipboard_seam();
+        let mut input = stubbed_focused_input("hello world");
+        clipboard.set("the operator's payload");
+
+        let mut ctx = EventCtx::new();
+        assert_eq!(
+            input.on_key_event(&mut ctx, &ctrl(Key::Char('c'))),
+            EventResponse::Handled,
+            "the field consumes its own command chord"
+        );
+        assert!(ctx.take() == alacer_core::Change::empty(), "no masks");
+        assert_eq!(
+            clipboard.text().as_deref(),
+            Some("the operator's payload"),
+            "a refused copy never touches the seam"
+        );
+
+        clipboard.clear();
+        let mut ctx = EventCtx::new();
+        assert_eq!(
+            input.on_key_event(&mut ctx, &ctrl(Key::Char('v'))),
+            EventResponse::Handled,
+            "the field consumes its own command chord"
+        );
+        assert!(ctx.take() == alacer_core::Change::empty(), "no masks");
+        assert_eq!(input.value(), "hello world", "nothing to paste, no edit");
+    }
+
+    #[test]
+    fn a_refused_clipboard_write_never_deletes_the_selection() {
+        // The cut's destructive half only follows an accepted write: a
+        // clipboard that refused it leaves the selection exactly as it
+        // was — never munged into a deletion.
+        alacer_core::clipboard::install(std::rc::Rc::new(RefusingClipboard));
+        let mut input = stubbed_focused_input("hello world");
+        input.anchor_utf16 = 0;
+        input.caret_utf16 = 5;
+
+        let mut ctx = EventCtx::new();
+        assert_eq!(
+            input.on_key_event(&mut ctx, &ctrl(Key::Char('x'))),
+            EventResponse::Handled,
+            "the field consumes its own command chord"
+        );
+        assert_eq!(input.value(), "hello world", "the selection survived");
+        assert_eq!(input.selection().map(|s| s.normalized()), Some((0, 5)));
+        assert!(ctx.take() == alacer_core::Change::empty(), "no masks");
+    }
+
+    #[test]
+    fn clipboard_chords_are_inert_while_composing() {
+        // Chords are keys like any other: the IME owns the canvas until
+        // commit/cancel (the M13 rule the word chords already follow).
+        let clipboard = clipboard_seam();
+        let mut input = stubbed_focused_input("hello");
+        input.preedit = Some(("世界".to_string(), Some(2)));
+        clipboard.set("payload");
+
+        let mut ctx = EventCtx::new();
+        assert_eq!(
+            input.on_key_event(&mut ctx, &ctrl(Key::Char('c'))),
+            EventResponse::Ignored,
+            "a composing field ignores the clipboard chords"
+        );
+        assert_eq!(
+            clipboard.text().as_deref(),
+            Some("payload"),
+            "the composing field never wrote the seam"
         );
     }
 }

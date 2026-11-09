@@ -75,6 +75,12 @@ use std::sync::Arc;
 #[must_use]
 pub fn pipeline_default() -> PassPipeline {
     alacer_core::text_seam::install(Rc::new(alacer_text::ThreadLocalTextSeam));
+    // The clipboard seam's engine rides the adopted arboard core (ADR-0020):
+    // the platform owns the adapter dependency; the assembly installs it so
+    // headless pipelines answer the clipboard chords with the same escape
+    // semantics the window does (a refused read is an honest None).
+    let clipboard = Rc::new(alacer_platform::clipboard::ArboardClipboard::new());
+    alacer_core::clipboard::install(clipboard);
     alacer_core::passes::PassPipeline::new(
         alacer_core::Flux::new(),
         Box::new(alacer_layout::LayoutHost::new(Arc::new(

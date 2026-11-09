@@ -332,7 +332,7 @@ fn m13_the_word_seam_requires_the_real_tables() {
 #[test]
 fn m13_the_corpus_grows_to_51_by_the_coordinated_rule() {
     // The new criterion case is published with its baseline and its
-    // regression contract; every M-suite pin moves to 51 together.
+    // regression contract; every M-suite pin moves to 52 together.
     let baselines = parse_workspace_json("benchmarks/baselines/baselines.json");
     let contracts = parse_workspace_json("benchmarks/contracts.json");
     let id = "editing/route_100_word_moves_1k";
@@ -357,8 +357,8 @@ fn m13_the_corpus_grows_to_51_by_the_coordinated_rule() {
     ] {
         let source = read_workspace_file(suite);
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 51;"),
-            "{suite} must pin the 51-case corpus"
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 52;"),
+            "{suite} must pin the 52-case corpus"
         );
     }
 }

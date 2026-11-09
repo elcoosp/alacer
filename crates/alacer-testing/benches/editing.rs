@@ -1,13 +1,16 @@
-//! The editing benchmarks (§10.3): the pointer tier (ADR-0018) and the
-//! word tier (ADR-0019) routed through the pipeline on a 1,000-node arena
-//! — each measured on the shipped `TextInput`, not a probe stand-in.
+//! The editing benchmarks (§10.3): the pointer tier (ADR-0018), the word
+//! tier (ADR-0019), and the clipboard tier (ADR-0020) routed through the
+//! pipeline on a 1,000-node arena — each measured on the shipped
+//! `TextInput`, not a probe stand-in.
 //!
 //! The published regression gates keep the editing tiers honest as the
 //! contract grows: placing a caret must stay in the cost class of routing
 //! a pointer event (the full pre-order walk, the resolved frame, the
-//! hit-test inversion), and moving a word must stay in the cost class of
-//! moving a caret — a seam segmentation and a mask, never a re-layout of
-//! the arena or a re-materialization of its a11y tree.
+//! hit-test inversion), moving a word must stay in the cost class of
+//! moving a caret, and a clipboard round trip must stay in the cost class
+//! of a key edit — a seam write or read, a sanitization, and a mask,
+//! never a re-layout of the arena or a re-materialization of its a11y
+//! tree.
 //!
 //! The benches live in the harness crate because that is where the whole
 //! pipeline is assembled with the real widget set (the DAG's harness
@@ -138,5 +141,72 @@ fn bench_editing_word_route(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_editing_caret_route, bench_editing_word_route);
+/// A Ctrl press (the clipboard chords' command set on Linux/Windows;
+/// Meta is the same tier on macOS — ADR-0020) — the exact event the
+/// platform delivers when the user copies, cuts, or pastes.
+fn ctrl(key: Key) -> KeyEvent {
+    KeyEvent {
+        key,
+        state: KeyState::Pressed,
+        modifiers: Modifiers {
+            control: true,
+            ..Modifiers::default()
+        },
+        text: None,
+    }
+}
+
+fn bench_editing_clipboard_route(c: &mut Criterion) {
+    let mut group = c.benchmark_group("editing");
+    group.throughput(Throughput::Elements(
+        u64::try_from(EVENTS).expect("non-negative"),
+    ));
+
+    group.bench_function("route_100_clipboard_ops_1k", |b| {
+        let mut harness = TestHarness::new(800.0, 600.0);
+        let root = harness.mount(Column::new().boxed());
+        let node = harness.add_child(root, TextInput::new("Search").boxed());
+        for _ in 0..FILLER {
+            let _ = harness.add_child(
+                root,
+                Panel::new(PANEL_HEIGHT, alacer_widgets::theme::PANEL).boxed(),
+            );
+        }
+        harness.settle();
+        harness.pipeline_mut().request_focus(node);
+        harness.settle();
+        // A multi-word value with no line breaks: each cycle selects all,
+        // copies the selection into the seam, and pastes over the
+        // selection — the value round-trips through the seam and stays
+        // stable, so every event does real work (a selection write, a
+        // seam write, a seam read, an insertion) and none of them grows
+        // the field across iterations.
+        harness.type_text("hello brave new world of incremental editing ");
+
+        let select_all = ctrl(Key::Char('a'));
+        let copy = ctrl(Key::Char('c'));
+        let paste = ctrl(Key::Char('v'));
+        b.iter(|| {
+            for i in 0..EVENTS {
+                let event = match i % 3 {
+                    0 => &select_all,
+                    1 => &copy,
+                    _ => &paste,
+                };
+                let _ = harness.pipeline_mut().dispatch_key(event);
+            }
+            let report = harness.tick();
+            black_box(report);
+        });
+    });
+
+    group.finish();
+}
+
+criterion_group!(
+    benches,
+    bench_editing_caret_route,
+    bench_editing_word_route,
+    bench_editing_clipboard_route
+);
 criterion_main!(benches);

@@ -9,6 +9,38 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M14 — the clipboard joins the editing contract (ADR-0020)**: the
+  selection — scalar-addressable since M1, keyboard-extended and
+  AT-managed since M11, pointer-placed since M12, word-addressable since
+  M13 — is transferable. The clipboard seam joins the assembly seams
+  (`ClipboardSeam`: `read_text`/`write_text`, installed once per thread
+  like the text seam) with no provided implementation on principle: the
+  OS clipboard is a platform fact, and a widget-internal buffer would
+  silently break the round trip every other application shares — the
+  engine rides arboard (the adopted core the architecture already
+  ratified), owned by `alacer-platform` per the adapter-dependency rule,
+  opened lazily so a headless session answers reads with `None` and
+  refuses writes instead of panicking. The permission/escape story is
+  the seam's contract: a refused write is never munged into success, so
+  a cut whose write was refused does not delete, and a refused chord —
+  a copy without a selection, a paste from an empty clipboard — is
+  consumed but costs an idle frame. Core fixes the single-line paste
+  rule (`paste_text`: every line break — CR, LF, or a CRLF pair counted
+  once — pastes as exactly one space; one definition, no widget
+  dialect). The editor consumes it: Ctrl/Cmd+C copies the selection's
+  exact UTF-16 span and edits nothing, Ctrl/Cmd+X moves it out, Ctrl/
+  Cmd+V inserts the sanitized text consuming an active selection first —
+  an edit like any other, riding the same `PAINT | A11Y` currency, inert
+  while a preedit composes — and the a11y tree rides unchanged
+- **M14 — the harness and the corpus**: `TestHarness::set_clipboard` /
+  `clipboard_text` drive the seam the tests' in-memory store answers —
+  a headless CI never races the operator's actual OS clipboard; the
+  corpus grows 51 → 52 by the coordinated rule — the new
+  `editing/route_100_clipboard_ops_1k` criterion bench (100
+  select-copy-paste round trips routed through the pipeline on a
+  1,000-node arena, measured on the shipped `TextInput`) is published
+  with a same-host regression gate, and the M5–M13 pin suites move
+  together with the new M14 exit suite
 - **M13 — the word joins the editing contract (ADR-0019)**: the caret —
   scalar-addressable since M1, keyboard-extended since M11, pointer-placed
   since M12 — is word-addressable. The text seam grows the required

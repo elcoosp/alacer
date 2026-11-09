@@ -40,6 +40,7 @@ pub struct TestHarness {
     viewport: Size,
     renderer: SoftwareRenderer,
     glyph_source: ThreadLocalGlyphSource,
+    clipboard: Rc<alacer_core::clipboard::MemoryClipboard>,
 }
 
 impl TestHarness {
@@ -47,8 +48,15 @@ impl TestHarness {
     #[must_use]
     pub fn new(width: f32, height: f32) -> Self {
         // The harness is an assembly site: widgets reach text through the
-        // core seam, so install this thread's implementation first (ADR-9).
+        // core seam and the clipboard through the clipboard seam, so
+        // install this thread's implementations first (ADR-9). The
+        // clipboard is the honest in-memory store: a headless CI never
+        // races the operator's actual OS clipboard (ADR-0020).
         alacer_core::text_seam::install(Rc::new(ThreadLocalTextSeam));
+        let clipboard = Rc::new(alacer_core::clipboard::MemoryClipboard::default());
+        alacer_core::clipboard::install(
+            Rc::clone(&clipboard) as Rc<dyn alacer_core::clipboard::ClipboardSeam>
+        );
         let flux = Flux::new();
         let layout = LayoutHost::new(Arc::new(ThreadLocalMeasurer));
         let journal = SceneJournalImpl::new();
@@ -58,6 +66,7 @@ impl TestHarness {
             viewport: Size::new(width, height),
             renderer: SoftwareRenderer::new(),
             glyph_source: ThreadLocalGlyphSource,
+            clipboard,
         }
     }
 
@@ -271,6 +280,21 @@ impl TestHarness {
                 .dispatch_key(&alacer_core::events::KeyEvent::char(ch));
         }
         self.settle();
+    }
+
+    /// Sets the clipboard's text payload (M14, ADR-0020: a test's paste
+    /// side — the payload the next paste chord reads). The seam is the
+    /// harness's in-memory store, never the operator's OS clipboard.
+    pub fn set_clipboard(&self, text: impl Into<String>) {
+        self.clipboard.set(text);
+    }
+
+    /// The clipboard's current text payload (M14, ADR-0020: a test's copy
+    /// side — exactly what the last write delivered). `None` when the
+    /// store is empty, the state a refused copy leaves behind.
+    #[must_use]
+    pub fn clipboard_text(&self) -> Option<String> {
+        self.clipboard.text()
     }
 
     /// Presses a special key (no text, no modifiers), then settles.

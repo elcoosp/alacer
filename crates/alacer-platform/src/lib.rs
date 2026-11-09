@@ -76,12 +76,24 @@ impl std::fmt::Display for PlatformError {
             Self::Loop(e) => write!(f, "event loop: {e}"),
             Self::Window(e) => write!(f, "window: {e}"),
             Self::Backend(e) => write!(f, "backend: {e}"),
-            Self::Softbuffer(e) => write!(f, "softbuffer: {e}"),
+            Self::Softbuffer(e) => write!(f, "softbuffer present path: {e}"),
         }
     }
 }
 
-impl std::error::Error for PlatformError {}
+impl std::error::Error for PlatformError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        // The chain a consumer walks with anyhow or `source().unwrap()`:
+        // every wrapped failure stays reachable, the platform's own facts
+        // (no adapter, a string payload) are the honest leaves.
+        match self {
+            Self::Loop(e) => Some(e),
+            Self::Window(e) => Some(e),
+            Self::Backend(e) => Some(e),
+            Self::Softbuffer(_) => None,
+        }
+    }
+}
 
 enum Backend {
     Wgpu(Box<WgpuBackend>),
@@ -963,6 +975,54 @@ mod tests {
             "outside the slop: a fresh click, not a chain step"
         );
         assert_eq!(clicks.on_down(Point::new(100.0, 10.0)), 2);
+    }
+
+    // ------------------------------------------------------------------
+    // M16 (ADR-0022): the error boundary carries its chain. source()
+    // walks the winit/wgpu errors the variants hold instead of dropping
+    // them, and the messages that know an escape hatch name it.
+    // ------------------------------------------------------------------
+
+    use super::{BackendError, PlatformError};
+
+    #[test]
+    fn platform_error_sources_the_underlying_failure() {
+        let error = PlatformError::Loop(winit::error::EventLoopError::ExitFailure(3));
+        let source =
+            std::error::Error::source(&error).expect("the loop's own error rides the chain");
+        assert!(
+            source
+                .downcast_ref::<winit::error::EventLoopError>()
+                .is_some(),
+            "the chain keeps the loop error's type"
+        );
+    }
+
+    #[test]
+    fn an_error_without_an_inner_error_sources_none() {
+        // NoAdapter is a fact about the host, not a wrapped failure: the
+        // PlatformError→BackendError hop is real, and the chain ends there.
+        let error = PlatformError::Backend(BackendError::NoAdapter);
+        let backend = std::error::Error::source(&error).expect("the backend error rides the chain");
+        assert!(
+            std::error::Error::source(backend).is_none(),
+            "NoAdapter is a leaf: the chain ends at the platform's own fact"
+        );
+        let softbuffer = PlatformError::Softbuffer("present failed".to_string());
+        assert!(
+            std::error::Error::source(&softbuffer).is_none(),
+            "the string payload is the leaf message, not a wrapped error"
+        );
+    }
+
+    #[test]
+    fn the_no_adapter_message_names_the_software_escape_hatch() {
+        let error = PlatformError::Backend(BackendError::NoAdapter);
+        let message = error.to_string();
+        assert!(
+            message.contains("ALACER_SOFTWARE"),
+            "the dead-end message names the softbuffer path: {message}"
+        );
     }
 
     // ------------------------------------------------------------------

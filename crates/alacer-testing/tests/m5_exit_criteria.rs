@@ -22,16 +22,17 @@ use serde_json::Value;
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
-/// The corpus pin, mirroring the M1 suite's 30-scenario pin: 52 criterion
+/// The corpus pin, mirroring the M1 suite's 30-scenario pin: 53 criterion
 /// cases across the seven benching crates (38 M5 cases + the M6 workloads:
 /// W2 ×2, W3 ×1, W5 ×2 — ADR-0012 + the M8 input-storm pair — ADR-0014 + the
 /// M9 a11y-ratio pair — ADR-0015 + the M10 action-route bench — ADR-0016 +
 /// the M11 set-value route — ADR-0017 + the M12 caret-click route —
-/// ADR-0018 + the M13 word-move route — ADR-0019). Growing the corpus is
+/// ADR-0018 + the M13 word-move route — ADR-0019 + the M14 clipboard route
+/// — ADR-0020 + the M15 undo/redo route — ADR-0021). Growing the corpus is
 /// the coordinated bench + contracts.json + baseline-regeneration rule,
 /// reviewed here and by the M6–M12 suites (which assert this pin agrees
 /// with their own).
-const EXPECTED_BENCH_COUNT: usize = 52;
+const EXPECTED_BENCH_COUNT: usize = 53;
 
 /// The one criterion-expressible architecture budget in M5's contract set:
 /// the W1 gate (§18 M2, ADR-0008).

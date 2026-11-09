@@ -12,7 +12,7 @@
 //!   labeled with its scope, the verdict computed from the committed file;
 //! - **The publication** — the contract gate and the dashboard section;
 //! - **The pins do not move** — the workspace corpus stays at its
-//!   current coordinated count (52); M7 adds competitor data outside the
+//!   current coordinated count (53); M7 adds competitor data outside the
 //!   corpus, never inside it.
 
 use std::path::PathBuf;
@@ -320,15 +320,15 @@ fn the_m5_and_m6_corpus_pins_do_not_move() {
         .expect("the baseline carries a benches object")
         .len();
     assert_eq!(
-        bench_count, 52,
-        "the workspace corpus stays at 52 — M7/M8/M9/M10/M11/M12/M13 add data by the coordinated corpus rule (ADR-0013/ADR-0014/ADR-0015/ADR-0016/ADR-0017/ADR-0018/ADR-0019)"
+        bench_count, 53,
+        "the workspace corpus stays at 53 — M7/M8/M9/M10/M11/M12/M13/M14/M15 add data by the coordinated corpus rule (ADR-0013/ADR-0014/ADR-0015/ADR-0016/ADR-0017/ADR-0018/ADR-0019/ADR-0020/ADR-0021)"
     );
     assert_eq!(
         contracts["regressions"]
             .as_array()
             .expect("regressions array")
             .len(),
-        52,
+        53,
         "no absolute regression gates on competitor medians (ADR-0011's same-host rule)"
     );
 
@@ -336,8 +336,8 @@ fn the_m5_and_m6_corpus_pins_do_not_move() {
     for suite in ["m5_exit_criteria.rs", "m6_exit_criteria.rs"] {
         let source = read_workspace_file(&format!("crates/alacer-testing/tests/{suite}"));
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 52;"),
-            "{suite} must keep the 52-case corpus pin"
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 53;"),
+            "{suite} must keep the 53-case corpus pin"
         );
     }
 }
@@ -393,8 +393,8 @@ fn the_release_state_is_coherent() {
 
     let readme = read_workspace_file("README.md");
     assert!(
-        readme.contains("M0 through M14") || readme.contains("M0–M14"),
-        "the README status reflects M0–M14 (M14, ADR-0020, ships under [Unreleased])"
+        readme.contains("M0 through M15") || readme.contains("M0–M15"),
+        "the README status reflects M0–M15 (M15, ADR-0021, ships under [Unreleased])"
     );
     // The pending-cut convention (ADR-6; M7's own history): the docs
     // announce the NEXT cut while the branch-commit bump has not landed

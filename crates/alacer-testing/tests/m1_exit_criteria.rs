@@ -1,6 +1,6 @@
 //! The M1 exit criteria, as executable spec (architecture §18):
 //!
-//! - **33 blessed snapshots green** — the corpus below, one test, every
+//! - **36 blessed snapshots green** — the corpus below, one test, every
 //!   scenario rendered through the real pipeline + software raster (A4);
 //! - **a11y queries pass** — the query builder, press-through-a11y, walks,
 //!   and plural counts (ADR-10: a11y-driven queries are the only API);
@@ -1052,6 +1052,62 @@ fn s35_slider(h: &mut TestHarness) {
     h.settle();
 }
 
+fn s36_progress(h: &mut TestHarness) {
+    // The M21 demonstration (ADR-0027): the value tier's read half — the
+    // app's two write doors land in the same `PAINT | A11Y` currency, and
+    // the a11y tree carries the number the app last wrote.
+    let root = h
+        .pipeline_mut()
+        .mount_root(alacer_widgets::Column::new().gap(8.0).padding(12.0).boxed());
+    let _title = h.pipeline_mut().add_child(
+        root,
+        alacer_widgets::Label::new("The progress (ADR-0027)").boxed(),
+    );
+    let binding = alacer_core::flux::RenderBinding::new(60.0_f32);
+    let _ = h.pipeline_mut().add_child(
+        root,
+        alacer_widgets::Progress::bound("Batch", 0.0, 100.0, binding.clone()).boxed(),
+    );
+    h.settle();
+
+    // The bridge door: one signal, one binding, the caller's masks — the
+    // wiring every bound bar rides.
+    let batch = h.pipeline_mut().flux_mut().signal(60.0_f32);
+    let node = {
+        let arena = h.pipeline().arena();
+        let mut found = None;
+        arena.for_each_pre_order(&mut |id, slot| {
+            if found.is_none() && slot.widget().role() == alacer_core::Role::ProgressIndicator {
+                found = Some(id);
+            }
+        });
+        found.expect("the progress bar is mounted")
+    };
+    h.pipeline_mut().flux_mut().bind_value(
+        batch,
+        node,
+        &binding,
+        alacer_core::Change::PAINT.union(alacer_core::Change::A11Y),
+        |value: &f32| *value,
+    );
+    h.settle();
+
+    // The mutate seam: the imperative door — the lease, the write, the
+    // masks on the guard. The bar reports 80; the tree reads it back.
+    {
+        let mut guard = h.pipeline_mut().arena_mut().mutate(node);
+        if let Some(bar) = guard
+            .widget_mut()
+            .as_any_mut()
+            .downcast_mut::<alacer_widgets::Progress>()
+        {
+            let _ = bar.set_value(80.0);
+            guard.request(alacer_core::Change::PAINT.union(alacer_core::Change::A11Y));
+        }
+    }
+    h.settle();
+}
+
 const SCENARIOS: &[Scenario] = &[
     ("hello_label", s01_hello_label),
     ("styled_label", s02_styled_label),
@@ -1088,6 +1144,7 @@ const SCENARIOS: &[Scenario] = &[
     ("announcements", s33_announcements),
     ("drag_capture", s34_drag_capture),
     ("slider", s35_slider),
+    ("progress", s36_progress),
 ];
 
 // ---------------------------------------------------------------------------
@@ -1095,16 +1152,16 @@ const SCENARIOS: &[Scenario] = &[
 // ---------------------------------------------------------------------------
 
 #[test]
-fn m1_corpus_is_thirty_five_scenarios() {
+fn m1_corpus_is_thirty_six_scenarios() {
     assert_eq!(
         SCENARIOS.len(),
-        35,
-        "the M1 exit criterion is 35 blessed snapshots (M20 grew it: the captured drag's promised scenario and the slider join, ADR-0025/ADR-0026)"
+        36,
+        "the M1 exit criterion is 36 blessed snapshots (M21 grew it: the reported value joins, ADR-0027)"
     );
 }
 
 #[test]
-fn m1_thirty_five_blessed_snapshots_are_green() {
+fn m1_thirty_six_blessed_snapshots_are_green() {
     for (index, (name, run)) in SCENARIOS.iter().enumerate() {
         let mut harness = TestHarness::new(VIEWPORT.0, VIEWPORT.1);
         run(&mut harness);

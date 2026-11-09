@@ -14,6 +14,7 @@
 
 use alacer_core::events::{EventCtx, ImeEvent, KeyEvent, PointerEvent};
 use alacer_core::geom::Point;
+use alacer_core::history::EditHistory;
 use alacer_core::passes::ImePurpose;
 use alacer_core::scene::PaintCtx;
 use alacer_core::style::{MeasureSpec, Style};
@@ -53,6 +54,9 @@ pub struct TextInput {
     /// The composing preedit: `(text, cursor within preedit in UTF-16 units)`.
     /// `Some` while an IME composition is in progress.
     preedit: Option<(String, Option<usize>)>,
+    /// The editing journal (M15, ADR-0021): the inverse of every committed
+    /// value edit, bounded and coalesced by core's one-definition rules.
+    history: EditHistory,
     /// Whether this widget holds keyboard focus (paints the ring).
     focused: bool,
     placeholder: String,
@@ -74,6 +78,7 @@ impl TextInput {
             anchor_utf16: 0,
             pressing: false,
             preedit: None,
+            history: EditHistory::new(),
             focused: false,
             placeholder: String::new(),
             purpose: ImePurpose::Text,
@@ -133,13 +138,30 @@ impl TextInput {
         self.preedit.as_ref()
     }
 
+    /// Whether the journal carries a step to undo (test introspection;
+    /// the inspector's future vocabulary, ADR-0021).
+    #[must_use]
+    pub const fn can_undo(&self) -> bool {
+        self.history.can_undo()
+    }
+
+    /// Whether the journal carries a step to redo (test introspection;
+    /// the inspector's future vocabulary, ADR-0021).
+    #[must_use]
+    pub const fn can_redo(&self) -> bool {
+        self.history.can_redo()
+    }
+
     /// Replaces the whole value and puts the caret at the end (§6.1
     /// reconciliation; fires `on_changed`). The selection collapses with
-    /// the caret — a new value has no remembered range.
+    /// the caret — a new value has no remembered range — and the journal
+    /// resets: the app wrote the value, not the user, and undo must never
+    /// fight the app's own write (ADR-0021's reset rule).
     pub fn set_value(&mut self, value: impl Into<String>) {
         self.text = value.into();
         self.caret_utf16 = utf16::len_utf16(&self.text);
         self.anchor_utf16 = self.caret_utf16;
+        self.history.reset();
         self.notify_changed();
     }
 
@@ -175,49 +197,44 @@ impl TextInput {
     /// carry any text, including surrogate pairs). An active selection is
     /// consumed first (M11): the insertion replaces it, like every editor.
     fn insert(&mut self, insertion: &str) {
-        self.delete_selection();
-        let at = utf16::byte_offset(&self.text, self.caret_utf16);
-        self.text.insert_str(at, insertion);
-        self.caret_utf16 += utf16::len_utf16(insertion);
-        self.anchor_utf16 = self.caret_utf16;
-        self.notify_changed();
+        let (from, to) = self.selection_span();
+        self.edit(from, to, insertion);
     }
 
     /// Deletes the text before the caret (backspace). An active selection
     /// is consumed whole (M11): the range goes, not one scalar value.
     fn backspace(&mut self) {
-        if self.delete_selection() {
-            self.notify_changed();
+        if self.has_selection() {
+            let (from, to) = self.selection_range();
+            self.edit(from, to, "");
             return;
         }
         if self.caret_utf16 == 0 {
             return;
         }
-        let at = utf16::byte_offset(&self.text, self.caret_utf16);
-        let before = utf16::byte_offset(&self.text, self.caret_utf16 - 1);
-        self.text.replace_range(before..at, "");
-        self.caret_utf16 = utf16::floor_boundary(&self.text, self.caret_utf16 - 1);
-        self.anchor_utf16 = self.caret_utf16;
-        self.notify_changed();
+        // Floor to the scalar boundary at or below the unit before the
+        // caret: a caret mid-pair deletes the whole pair, never half.
+        let from = utf16::floor_boundary(&self.text, self.caret_utf16 - 1);
+        self.edit(from, self.caret_utf16, "");
     }
 
     /// Deletes the scalar value after the caret (forward delete). An active
     /// selection is consumed whole (M11), like under backspace.
     fn delete(&mut self) {
-        if self.delete_selection() {
-            self.notify_changed();
+        if self.has_selection() {
+            let (from, to) = self.selection_range();
+            self.edit(from, to, "");
             return;
         }
-        let at = utf16::byte_offset(&self.text, self.caret_utf16);
-        if at >= self.text.len() {
+        let len = utf16::len_utf16(&self.text);
+        if self.caret_utf16 >= len {
             return;
         }
-        let after = self.text[at..]
-            .chars()
-            .next()
-            .map_or(at, |ch| at + ch.len_utf8());
-        self.text.replace_range(at..after, "");
-        self.notify_changed();
+        let mut to = self.caret_utf16 + 1;
+        while to < len && !utf16::is_boundary(&self.text, to) {
+            to += 1;
+        }
+        self.edit(self.caret_utf16, to, "");
     }
 
     /// Whether a non-degenerate selection is active.
@@ -233,19 +250,66 @@ impl TextInput {
         )
     }
 
-    /// Removes the active selection and collapses at its start. Returns
-    /// whether a range was removed — the edit paths' one decision point
-    /// between "replace the range" and "act at the caret".
-    fn delete_selection(&mut self) -> bool {
-        if !self.has_selection() {
-            return false;
+    /// The UTF-16 span the next edit replaces: an active selection's
+    /// range, or the degenerate caret span — the M11 edit rule's one
+    /// decision point ("replace the range" vs "act at the caret"),
+    /// resolved once for the funnel.
+    fn selection_span(&self) -> (usize, usize) {
+        if self.has_selection() {
+            self.selection_range()
+        } else {
+            (self.caret_utf16, self.caret_utf16)
         }
-        let (min, max) = self.selection_range();
-        let from = utf16::byte_offset(&self.text, min);
-        let to = utf16::byte_offset(&self.text, max);
-        self.text.replace_range(from..to, "");
-        self.caret_utf16 = min;
-        self.anchor_utf16 = min;
+    }
+
+    /// The one edit funnel every committed value change rides: replaces
+    /// the UTF-16 span `[from, to)` with `insertion`, journals the inverse
+    /// (ADR-0021), parks the caret at the insertion's end with the anchor
+    /// collapsed onto it, and notifies. One definition — no edit path
+    /// grows its own caret arithmetic or its own dialect of the history,
+    /// and every journaled step carries the selection it consumed.
+    fn edit(&mut self, from_utf16: usize, to_utf16: usize, insertion: &str) {
+        let selection_before = (self.anchor_utf16, self.caret_utf16);
+        let from = utf16::byte_offset(&self.text, from_utf16);
+        let to = utf16::byte_offset(&self.text, to_utf16);
+        let removed = self.text[from..to].to_string();
+        self.text.replace_range(from..to, insertion);
+        self.caret_utf16 = from_utf16 + utf16::len_utf16(insertion);
+        self.anchor_utf16 = self.caret_utf16;
+        self.history.record(
+            from_utf16,
+            removed,
+            insertion.to_string(),
+            selection_before,
+            (self.caret_utf16, self.caret_utf16),
+        );
+        self.notify_changed();
+    }
+
+    /// Undoes the newest journaled edit (Ctrl/Cmd+Z, ADR-0021): the text
+    /// and the selection the edit consumed return together. `false` is
+    /// the honest refusal of an exhausted journal — the chord still
+    /// consumes, but queues no masks (the clipboard tier's discipline).
+    fn undo(&mut self) -> bool {
+        let Some((anchor, caret)) = self.history.undo(&mut self.text) else {
+            return false;
+        };
+        self.anchor_utf16 = anchor;
+        self.caret_utf16 = caret;
+        self.notify_changed();
+        true
+    }
+
+    /// Redoes the newest undone edit (Shift+Ctrl/Cmd+Z, Ctrl/Cmd+Y,
+    /// ADR-0021), restoring the selection the edit left. `false` is the
+    /// honest refusal of an empty redo branch.
+    fn redo(&mut self) -> bool {
+        let Some((anchor, caret)) = self.history.redo(&mut self.text) else {
+            return false;
+        };
+        self.anchor_utf16 = anchor;
+        self.caret_utf16 = caret;
+        self.notify_changed();
         true
     }
 
@@ -367,37 +431,31 @@ impl TextInput {
     /// the word, with the separator following in the next chord. An
     /// active selection is consumed whole first (the M11 edit rule).
     fn delete_word_back(&mut self) {
-        if self.delete_selection() {
-            self.notify_changed();
+        if self.has_selection() {
+            let (from, to) = self.selection_range();
+            self.edit(from, to, "");
             return;
         }
         let to = self.word_hop(alacer_core::text_seam::WordDirection::Previous);
         if to == self.caret_utf16 {
             return;
         }
-        let from = utf16::byte_offset(&self.text, to);
-        let at = utf16::byte_offset(&self.text, self.caret_utf16);
-        self.text.replace_range(from..at, "");
-        self.caret_utf16 = to;
-        self.anchor_utf16 = to;
-        self.notify_changed();
+        self.edit(to, self.caret_utf16, "");
     }
 
     /// Deletes the hop's span ahead of the caret (Ctrl/Alt+Delete), the
     /// mirror of [`Self::delete_word_back`] — the caret stays put.
     fn delete_word_forward(&mut self) {
-        if self.delete_selection() {
-            self.notify_changed();
+        if self.has_selection() {
+            let (from, to) = self.selection_range();
+            self.edit(from, to, "");
             return;
         }
         let to = self.word_hop(alacer_core::text_seam::WordDirection::Next);
         if to == self.caret_utf16 {
             return;
         }
-        let at = utf16::byte_offset(&self.text, self.caret_utf16);
-        let end = utf16::byte_offset(&self.text, to);
-        self.text.replace_range(at..end, "");
-        self.notify_changed();
+        self.edit(self.caret_utf16, to, "");
     }
 
     /// Writes the active selection's span to the clipboard seam (ADR-0020):
@@ -417,13 +475,15 @@ impl TextInput {
     /// Moves the active selection to the clipboard seam, then deletes it
     /// (Ctrl/Cmd+X). The deletion only follows an accepted write: a
     /// clipboard that refused the write never deletes the selection — the
-    /// refuse-don't-munge rule applied to a destructive edit.
+    /// refuse-don't-munge rule applied to a destructive edit. The
+    /// deletion rides the funnel like every edit: its undo restores the
+    /// moved-out span (ADR-0021).
     fn cut(&mut self) -> bool {
         if !self.copy_selection() {
             return false;
         }
-        let _ = self.delete_selection();
-        self.notify_changed();
+        let (from, to) = self.selection_span();
+        self.edit(from, to, "");
         true
     }
 
@@ -464,7 +524,7 @@ impl TextInput {
         match &event.key {
             alacer_core::events::Key::Char(ch) => {
                 if command {
-                    self.command_chord(*ch)
+                    self.command_chord(*ch, shift)
                 } else {
                     self.insert(&ch.to_string());
                     (true, true)
@@ -562,11 +622,16 @@ impl TextInput {
 
     /// The command chord set (Ctrl/Cmd). Ctrl/Cmd+A selects the whole
     /// value; the clipboard tier (ADR-0020) copies, cuts, and pastes
-    /// through the clipboard seam; anything else is not the field's — the
+    /// through the clipboard seam; the history tier (ADR-0021) undoes on
+    /// Ctrl/Cmd+Z and redoes on its Shift and on the Ctrl/Cmd+Y alternate
+    /// (the Win32/GTK binding); anything else is not the field's — the
     /// pre-M11 path *inserted* the character, which turned Ctrl+A into
     /// typing an 'a' (the bug this method's predecessor deletes).
-    fn command_chord(&mut self, ch: char) -> (bool, bool) {
+    fn command_chord(&mut self, ch: char, shift: bool) -> (bool, bool) {
         match ch {
+            'z' | 'Z' if shift => (self.redo(), true),
+            'z' | 'Z' => (self.undo(), true),
+            'y' | 'Y' => (self.redo(), true),
             'a' | 'A' => {
                 self.select_all();
                 (true, true)
@@ -1926,5 +1991,125 @@ mod tests {
             Some("payload"),
             "the composing field never wrote the seam"
         );
+    }
+
+    fn ctrl_shift(key: Key) -> KeyEvent {
+        KeyEvent {
+            key,
+            state: KeyState::Pressed,
+            modifiers: Modifiers {
+                control: true,
+                shift: true,
+                ..Modifiers::default()
+            },
+            text: None,
+        }
+    }
+
+    #[test]
+    fn the_history_chords_undo_and_redo_through_the_funnel() {
+        // The M15 chords ride the same dispatch as every edit: typing
+        // coalesced one step, undo restores text and caret, redo replays
+        // it, and the exhausted redo refuses honestly with no masks.
+        let _clipboard = clipboard_seam();
+        let mut input = stubbed_focused_input("");
+        for ch in "held".chars() {
+            type_char(&mut input, ch);
+        }
+        assert!(input.can_undo(), "the typed fill journaled one step");
+        assert!(!input.can_redo());
+
+        let mut ctx = EventCtx::new();
+        assert_eq!(
+            input.on_key_event(&mut ctx, &ctrl(Key::Char('z'))),
+            EventResponse::Handled
+        );
+        assert_eq!(input.value(), "", "the typed step undoes");
+        assert_eq!(input.caret_utf16(), 0);
+        let masks = ctx.take();
+        assert!(
+            masks.contains(alacer_core::Change::A11Y) && masks.contains(alacer_core::Change::PAINT),
+            "an undo is an edit: repaint and re-announce, got {masks:?}"
+        );
+
+        let mut ctx = EventCtx::new();
+        assert_eq!(
+            input.on_key_event(&mut ctx, &ctrl_shift(Key::Char('z'))),
+            EventResponse::Handled
+        );
+        assert_eq!(input.value(), "held", "the redo replays the step");
+        assert_eq!(input.caret_utf16(), 4, "the caret parks at the edit's end");
+
+        // The exhausted redo: consumed, no masks, nothing moved.
+        let mut ctx = EventCtx::new();
+        assert_eq!(
+            input.on_key_event(&mut ctx, &ctrl_shift(Key::Char('z'))),
+            EventResponse::Handled,
+            "the field consumes its own command chord"
+        );
+        assert!(ctx.take() == alacer_core::Change::empty(), "no masks");
+        assert_eq!(input.value(), "held");
+    }
+
+    #[test]
+    fn an_ime_commit_journals_one_undo_step() {
+        let _clipboard = clipboard_seam();
+        let mut input = stubbed_focused_input("にほ");
+
+        let mut ctx = EventCtx::new();
+        let _ = input.on_ime_event(
+            &mut ctx,
+            &ImeEvent::Commit {
+                text: "んご".to_string(),
+            },
+        );
+        assert_eq!(input.value(), "にほんご");
+        assert!(input.can_undo());
+
+        let mut ctx = EventCtx::new();
+        let _ = input.on_key_event(&mut ctx, &ctrl(Key::Char('z')));
+        assert_eq!(input.value(), "にほ", "the whole commit undoes as one step");
+        assert_eq!(input.caret_utf16(), 2);
+    }
+
+    #[test]
+    fn a_whole_value_replacement_resets_the_field_journal() {
+        let _clipboard = clipboard_seam();
+        let mut input = stubbed_focused_input("");
+        for ch in "typed".chars() {
+            type_char(&mut input, ch);
+        }
+        assert!(input.can_undo());
+
+        // The app wrote the value (reconciliation, the AT's SetValue):
+        // the journal resets — undo never fights the app's own write.
+        input.set_value("replaced by the app");
+        assert!(!input.can_undo(), "the reset cleared the journal");
+        let mut ctx = EventCtx::new();
+        assert_eq!(
+            input.on_key_event(&mut ctx, &ctrl(Key::Char('z'))),
+            EventResponse::Handled
+        );
+        assert!(ctx.take() == alacer_core::Change::empty(), "no masks");
+        assert_eq!(input.value(), "replaced by the app");
+    }
+
+    #[test]
+    fn undo_never_slices_a_surrogate_pair() {
+        let _clipboard = clipboard_seam();
+        let mut input = stubbed_focused_input("");
+        type_char(&mut input, '\u{1F600}');
+        type_char(&mut input, 'x');
+        assert_eq!(input.caret_utf16(), 3);
+
+        // Two typed runes coalesce into one step; the undo restores both
+        // and the redo replays them — the pair rides whole throughout.
+        let mut ctx = EventCtx::new();
+        let _ = input.on_key_event(&mut ctx, &ctrl(Key::Char('z')));
+        assert_eq!(input.value(), "");
+        let mut ctx = EventCtx::new();
+        let _ = input.on_key_event(&mut ctx, &ctrl(Key::Char('y')));
+        assert_eq!(input.value(), "\u{1F600}x");
+        assert_eq!(input.caret_utf16(), 3);
     }
 }

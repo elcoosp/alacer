@@ -4,7 +4,7 @@
 //! `input_storm_batching` budget — the §10.2 contract as a number.
 
 use alacer_core::arena::NodeId;
-use alacer_core::events::PointerEvent;
+use alacer_core::events::{MouseButton, PointerEvent};
 use alacer_core::flux::Flux;
 use alacer_core::geom::{Point, Size};
 use alacer_core::mask::Change;
@@ -18,6 +18,7 @@ use std::hint::black_box;
 
 const VIEWPORT: Size = Size::new(800.0, 600.0);
 const STORM: usize = 50;
+const CAPTURED_MOVES: usize = 100;
 
 /// A fixed-size leaf: geometry without text, so the routing walk is the
 /// cost under test.
@@ -160,6 +161,32 @@ fn bench_input_storm(c: &mut Criterion) {
             for i in 0..STORM {
                 pipeline.dispatch_pointer(&black_box(move_at(i)));
             }
+            let report = pipeline.tick(VIEWPORT).expect("bench layout");
+            black_box(report.passes.len());
+        });
+    });
+
+    // The M19 captured route (ADR-0025): a press holds its deepest
+    // accepting hit, then 100 moves ride the captured chain — no hit
+    // test, the ancestor walk per event. The same 1k arena the storm
+    // walks: the capture's cost per move, measured.
+    group.throughput(Throughput::Elements(
+        u64::try_from(CAPTURED_MOVES).expect("non-negative"),
+    ));
+    group.bench_function("route_100_captured_moves_1k", |b| {
+        let mut pipeline = storm_pipeline();
+        mount_1k(&mut pipeline);
+        pipeline.dispatch_pointer(&PointerEvent::Down {
+            position: Point::new(10.0, 10.0),
+            button: MouseButton::Left,
+            click_count: 1,
+        });
+        assert!(pipeline.captured().is_some(), "the press holds its hit");
+        b.iter(|| {
+            for i in 0..CAPTURED_MOVES {
+                pipeline.dispatch_pointer(&black_box(move_at(i)));
+            }
+            black_box(pipeline.captured().is_some());
             let report = pipeline.tick(VIEWPORT).expect("bench layout");
             black_box(report.passes.len());
         });

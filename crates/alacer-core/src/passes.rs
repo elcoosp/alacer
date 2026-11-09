@@ -816,10 +816,12 @@ impl PassPipeline {
         // re-captures, and the wheel follows the hover, not the capture
         // (the DOM's shape). A dead target releases the pointer and falls
         // through to the ordinary route.
-        if !matches!(event, PointerEvent::Down { .. } | PointerEvent::Wheel { .. }) {
-            if let Some(routed) = self.route_captured(event, ran) {
-                return routed;
-            }
+        if !matches!(
+            event,
+            PointerEvent::Down { .. } | PointerEvent::Wheel { .. }
+        ) && let Some(routed) = self.route_captured(event, ran)
+        {
+            return routed;
         }
         let Some(position) = event.position() else {
             return (EventResponse::Ignored, None);
@@ -3154,8 +3156,11 @@ mod tests {
 
     /// A root filling the viewport with a 100×60 probe at the origin —
     /// the press lands inside the probe, the drag wanders past it.
-    fn probe_pipeline(
-    ) -> (PassPipeline, NodeId, std::rc::Rc<std::cell::RefCell<Vec<&'static str>>>) {
+    fn probe_pipeline() -> (
+        PassPipeline,
+        NodeId,
+        std::rc::Rc<std::cell::RefCell<Vec<&'static str>>>,
+    ) {
         let mut p = pipeline();
         let root = p.mount_root(Box::new(Fixed {
             size: Size::new(200.0, 400.0),

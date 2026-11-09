@@ -9,6 +9,36 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M19 — the captured drag (ADR-0025)**: the pointer capture joins
+  the dispatch contract. Pass 1 hit-tested every event independently,
+  so a drag that wandered off its target lost its route mid-gesture —
+  the M12 drag-select clamped at the field's edge, and a
+  press-inside/release-outside button stayed pressed with no release
+  ever arriving. A press now implicitly holds its deepest accepting
+  hit (single-pointer — the event vocabulary carries no pointer id,
+  ADR-0014's shape), the gesture's `Move`/`Up`/`Leave` stream routes
+  through the captured node's ancestor chain with the same
+  capture→bubble phases, the `Up`/`Leave` and the target's death
+  release the capture honestly, the wheel stays hit-tested (it scrolls
+  the hover, not the gesture), and a frame with no capture in flight
+  is the per-event hit test exactly as before — one `Option` check on
+  the hot path. `PassPipeline::captured` introspects the holder and
+  the capture route traces at the new `alacer::capture` target (the
+  per-seam idiom). The consumer demonstration ships:
+  `examples/drag_capture.rs` (press the panel, drag past its edge, the
+  log keeps counting; wave without pressing and only the moves inside
+  the frame arrive), pinned by the pipeline's unit tests and the new
+  m19 exit suite. The surface work rides the cut: the dead
+  `EventCoalescer::pending` goes (zero call sites workspace-wide, the
+  M18 pattern), and the `rsx!` single-root diagnostic names the token
+  it found with its help text instead of discarding it. The living
+  documents re-agree: the README's criterion count finally quotes the
+  54-case baseline, the architecture's §10.1 routing spec states the
+  capture it ships (the ADR register grows to 26 with ADR-0025), and
+  the examples catalog carries the demonstration. The capture route's
+  criterion case and the example's blessed-corpus scenario join at the
+  measurement run by the coordinated rule (ADR-0011; CONTRIBUTING's
+  publishing rule)
 - **M18 — the announced delta (ADR-0024)**: the a11y announcement seam
   joins the invalidation currency. The app's voice — state changes that
   own no widget ("Saved", "3 items left", "Connection lost") — ships as

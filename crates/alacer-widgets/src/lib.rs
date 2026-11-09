@@ -2,8 +2,9 @@
 //! need, the M3 text input (the editing contract's editor — selection,
 //! pointer, word, clipboard, and history tiers ride it), the M6 canon
 //! (checkbox, data table) the todo and data-table apps need, the M20 value
-//! tier's slider, and the panel/table/list vocabulary the M5 tour
-//! assembles.
+//! tier's slider, the M21 value tier's read half (the progress indicator
+//! the app reports through), and the panel/table/list vocabulary the M5
+//! tour assembles.
 //!
 //! Widgets are retained: created once, mutated in place, painted on demand.
 //! Reactive text lands through `RenderBinding`s; input lands through
@@ -17,6 +18,7 @@ mod column;
 mod label;
 mod list;
 mod panel;
+mod progress;
 mod registry;
 mod slider;
 mod table;
@@ -29,6 +31,7 @@ pub use column::{Column, Row, Spacer};
 pub use label::Label;
 pub use list::{List, ListHandle};
 pub use panel::Panel;
+pub use progress::Progress;
 pub use registry::default_registry;
 pub use slider::Slider;
 pub use table::{ColumnHeader, Table, TableCell, TableRow};

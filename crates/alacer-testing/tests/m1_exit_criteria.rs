@@ -1,6 +1,6 @@
 //! The M1 exit criteria, as executable spec (architecture §18):
 //!
-//! - **30 blessed snapshots green** — the corpus below, one test, every
+//! - **31 blessed snapshots green** — the corpus below, one test, every
 //!   scenario rendered through the real pipeline + software raster (A4);
 //! - **a11y queries pass** — the query builder, press-through-a11y, walks,
 //!   and plural counts (ADR-10: a11y-driven queries are the only API);
@@ -446,6 +446,126 @@ fn s30_mixed_grid(h: &mut TestHarness) {
     let _root = mount(&view, h.pipeline_mut());
 }
 
+/// The scenario's field: the M15 pair (text, journal) with the one edit
+/// funnel the contract requires — apply and journal in the same place
+/// (ADR-0021), exactly what the `undo_redo` example drives.
+struct JournalField {
+    text: String,
+    history: alacer_core::history::EditHistory,
+}
+
+impl JournalField {
+    /// The funnel: one definition — append at the end and journal it.
+    fn type_hi(&mut self) {
+        let at = alacer_core::utf16::len_utf16(&self.text);
+        let from = alacer_core::utf16::byte_offset(&self.text, at);
+        self.text.replace_range(from..from, "hi ");
+        let caret = at + alacer_core::utf16::len_utf16("hi ");
+        self.history.record(
+            at,
+            String::new(),
+            "hi ".to_string(),
+            (at, at),
+            (caret, caret),
+        );
+    }
+
+    /// The chord's return: the step's honesty is the boolean.
+    fn undo(&mut self) -> bool {
+        self.history.undo(&mut self.text).is_some()
+    }
+
+    /// The introspection reads the status line carries.
+    fn status(&self) -> String {
+        format!(
+            "undo depth: {} · redo: {}",
+            self.history.undo_depth(),
+            if self.history.can_redo() { "yes" } else { "no" }
+        )
+    }
+
+    /// The field line: the buffer, or the placeholder while it is empty.
+    fn display(&self) -> String {
+        if self.text.is_empty() {
+            "the empty field".to_string()
+        } else {
+            format!("field: {:?}", self.text)
+        }
+    }
+}
+
+fn journal_view(
+    field: &std::rc::Rc<std::cell::RefCell<JournalField>>,
+    text: alacer_core::FluxRwSignal<String>,
+    status: alacer_core::FluxRwSignal<String>,
+) -> ViewNode {
+    let field_type = std::rc::Rc::clone(field);
+    let field_undo = std::rc::Rc::clone(field);
+    rsx! {
+        column { padding: 12.0, gap: 8.0,
+            label { text: "The journal (ADR-0021)" }
+            label { text: "{text.get()}" }
+            label { text: "{status.get()}" }
+            row { gap: 8.0,
+                button { text: "Type hi", on_click: move || {
+                    let mut field = field_type.borrow_mut();
+                    field.type_hi();
+                    let display = field.display();
+                    let line = field.status();
+                    drop(field);
+                    text.set(display);
+                    status.set(line);
+                } }
+                button { text: "Undo", on_click: move || {
+                    // The honest refusal: an exhausted journal is consumed
+                    // with no masks — no signal writes, an idle frame.
+                    let stepped = field_undo.borrow_mut().undo();
+                    if stepped {
+                        let field = field_undo.borrow();
+                        let display = field.display();
+                        let line = field.status();
+                        drop(field);
+                        text.set(display);
+                        status.set(line);
+                    }
+                } }
+            }
+        }
+    }
+}
+
+fn s31_journal_undo_redo(h: &mut TestHarness) {
+    // The M16 demonstration (ADR-0022): the M15 journal (ADR-0021) driven
+    // by routed clicks — two typed appends coalesce into one undo step,
+    // the undo takes the whole run back, and the status line reads the
+    // depth and redo branch live.
+    let field = std::rc::Rc::new(std::cell::RefCell::new(JournalField {
+        text: String::new(),
+        history: alacer_core::history::EditHistory::new(),
+    }));
+    let text = h
+        .pipeline_mut()
+        .flux_mut()
+        .signal("the empty field".to_string());
+    let status = h
+        .pipeline_mut()
+        .flux_mut()
+        .signal("undo depth: 0 · redo: no".to_string());
+    let view = journal_view(&field, text, status);
+    let mut root = mount(&view, h.pipeline_mut());
+    h.settle();
+    for _ in 0..2 {
+        click_center(h, Role::Button, "Type hi");
+        let next = journal_view(&field, text, status);
+        let _report = root.update(&next, h.pipeline_mut());
+        h.settle();
+    }
+    click_center(h, Role::Button, "Undo");
+    let next = journal_view(&field, text, status);
+    let _report = root.update(&next, h.pipeline_mut());
+    h.settle();
+}
+
 /// The corpus: (name, run). Order is the snapshot prefix.
 /// One scenario: mount, interact, leave the frame to snapshot.
 type Scenario = (&'static str, fn(&mut TestHarness));
@@ -481,6 +601,7 @@ const SCENARIOS: &[Scenario] = &[
     ("conditional_label", s28_conditional_label),
     ("conditional_button", s29_conditional_button),
     ("mixed_grid", s30_mixed_grid),
+    ("journal_undo_redo", s31_journal_undo_redo),
 ];
 
 // ---------------------------------------------------------------------------
@@ -488,16 +609,16 @@ const SCENARIOS: &[Scenario] = &[
 // ---------------------------------------------------------------------------
 
 #[test]
-fn m1_corpus_is_thirty_scenarios() {
+fn m1_corpus_is_thirty_one_scenarios() {
     assert_eq!(
         SCENARIOS.len(),
-        30,
-        "the M1 exit criterion is 30 blessed snapshots (§18)"
+        31,
+        "the M1 exit criterion is 31 blessed snapshots (M16 grew it, ADR-0022)"
     );
 }
 
 #[test]
-fn m1_thirty_blessed_snapshots_are_green() {
+fn m1_thirty_one_blessed_snapshots_are_green() {
     for (index, (name, run)) in SCENARIOS.iter().enumerate() {
         let mut harness = TestHarness::new(VIEWPORT.0, VIEWPORT.1);
         run(&mut harness);

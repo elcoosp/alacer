@@ -213,7 +213,7 @@ harness.snapshot("counter_after_click");   // blessed PNG, pixel-diffed
 ```
 
 Bless with `ALACER_BLESS=1`; the corpus lives in
-`crates/alacer-testing/blessed/` (30 canonical scenarios).
+`crates/alacer-testing/blessed/` (33 styled scenarios — 35 blessed PNGs including the M0 pair).
 
 ## Interop limits
 

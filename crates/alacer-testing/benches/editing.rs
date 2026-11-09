@@ -203,10 +203,67 @@ fn bench_editing_clipboard_route(c: &mut Criterion) {
     group.finish();
 }
 
+/// A Shift+Ctrl press (the redo chord; ADR-0021) — the exact event the
+/// platform delivers when the user replays an undone edit.
+fn ctrl_shift(key: Key) -> KeyEvent {
+    KeyEvent {
+        key,
+        state: KeyState::Pressed,
+        modifiers: Modifiers {
+            control: true,
+            shift: true,
+            ..Modifiers::default()
+        },
+        text: None,
+    }
+}
+
+fn bench_editing_history_route(c: &mut Criterion) {
+    let mut group = c.benchmark_group("editing");
+    group.throughput(Throughput::Elements(
+        u64::try_from(EVENTS).expect("non-negative"),
+    ));
+
+    group.bench_function("route_100_undo_redo_1k", |b| {
+        let mut harness = TestHarness::new(800.0, 600.0);
+        let root = harness.mount(Column::new().boxed());
+        let node = harness.add_child(root, TextInput::new("Search").boxed());
+        for _ in 0..FILLER {
+            let _ = harness.add_child(
+                root,
+                Panel::new(PANEL_HEIGHT, alacer_widgets::theme::PANEL).boxed(),
+            );
+        }
+        harness.settle();
+        harness.pipeline_mut().request_focus(node);
+        harness.settle();
+        // One coalesced typing step fills the field: every undo/redo pair
+        // then replays it — a full-span string surgery, a selection
+        // restore, and the value+selection a11y delta — and the field
+        // oscillates between the two states, so every chord does real
+        // work and none of them grows the journal across iterations.
+        harness.type_text("hello brave new world of incremental editing ");
+
+        let undo = ctrl(Key::Char('z'));
+        let redo = ctrl_shift(Key::Char('z'));
+        b.iter(|| {
+            for i in 0..EVENTS {
+                let event = if i % 2 == 0 { &undo } else { &redo };
+                let _ = harness.pipeline_mut().dispatch_key(event);
+            }
+            let report = harness.tick();
+            black_box(report);
+        });
+    });
+
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_editing_caret_route,
     bench_editing_word_route,
-    bench_editing_clipboard_route
+    bench_editing_clipboard_route,
+    bench_editing_history_route
 );
 criterion_main!(benches);

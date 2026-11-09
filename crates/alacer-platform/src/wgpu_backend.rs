@@ -149,7 +149,6 @@ struct Atlas {
     cursor_y: u32,
     row_height: u32,
     entries: std::collections::HashMap<GlyphKey, [f32; 4]>,
-    clears: u64,
 }
 
 impl Atlas {
@@ -176,7 +175,6 @@ impl Atlas {
             cursor_y: 0,
             row_height: 0,
             entries: std::collections::HashMap::new(),
-            clears: 0,
         }
     }
 
@@ -204,7 +202,6 @@ impl Atlas {
             self.cursor_y = 0;
             self.row_height = 0;
             self.entries.clear();
-            self.clears += 1;
         }
 
         queue.write_texture(
@@ -246,12 +243,6 @@ impl Atlas {
         self.row_height = self.row_height.max(h);
         Some(uv)
     }
-
-    /// Number of full clears (eviction events).
-    #[must_use]
-    pub const fn clears(&self) -> u64 {
-        self.clears
-    }
 }
 
 /// The wgpu renderer: surface-bound, scene-consuming.
@@ -274,8 +265,6 @@ pub struct WgpuRenderer {
     atlas: Atlas,
     width: u32,
     height: u32,
-    glyphs_rendered: u64,
-    instance_frames_skipped: u64,
     /// The persistent offscreen frame (GPU-side framebuffer, §9.3).
     frame_texture: Option<wgpu::Texture>,
     frame_view: Option<wgpu::TextureView>,
@@ -489,8 +478,6 @@ impl WgpuRenderer {
             atlas,
             width: window_size.0.max(1),
             height: window_size.1.max(1),
-            glyphs_rendered: 0,
-            instance_frames_skipped: 0,
             frame_texture: None,
             frame_view: None,
             blitter,
@@ -537,24 +524,6 @@ impl WgpuRenderer {
         self.frame_texture = Some(texture);
     }
 
-    /// Glyphs blitted this session (instrumentation).
-    #[must_use]
-    pub const fn glyphs_rendered(&self) -> u64 {
-        self.glyphs_rendered
-    }
-
-    /// Frames skipped for exceeding the instance budget.
-    #[must_use]
-    pub const fn instance_frames_skipped(&self) -> u64 {
-        self.instance_frames_skipped
-    }
-
-    /// Atlas full-clears (eviction events).
-    #[must_use]
-    pub const fn atlas_clears(&self) -> u64 {
-        self.atlas.clears()
-    }
-
     /// Renders one scene in full and presents (the [`alacer_core::damage::
     /// Damage::FULL`]-style path; also the fallback before the offscreen
     /// frame is valid).
@@ -579,6 +548,8 @@ impl WgpuRenderer {
         let Some(frame_view) = self.frame_view.clone() else {
             return Ok(());
         };
+        // The budget covers 32k primitives; the 10k-node churn workload
+        // fits with room to spare. Skipping beats unbounded buffers.
         if self.upload_instances(&data) {
             let mut encoder = self
                 .device
@@ -608,10 +579,6 @@ impl WgpuRenderer {
                 .copy(&self.device, &mut encoder, &frame_view, &view);
             self.queue.submit([encoder.finish()]);
             self.frame_valid = true;
-        } else {
-            // The budget covers 32k primitives; the 10k-node churn workload
-            // fits with room to spare. Skipping beats unbounded buffers.
-            self.instance_frames_skipped += 1;
         }
         drop(frame); // present happens on drop (wgpu 30 contract)
         Ok(())
@@ -792,7 +759,6 @@ impl WgpuRenderer {
                     ],
                     uv,
                 };
-                self.glyphs_rendered += 1;
             }
         }
         data

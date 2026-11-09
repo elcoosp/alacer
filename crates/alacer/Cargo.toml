@@ -35,3 +35,8 @@ alacer-inspect.workspace = true
 reactive_graph.workspace = true
 alacer-testing.workspace = true
 subsecond = { workspace = true, optional = true }
+
+[dev-dependencies]
+# The observability idiom the examples demonstrate (ADR-0022): tracing at
+# the documented targets — a dev-dependency, so nothing published moves.
+tracing.workspace = true

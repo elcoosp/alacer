@@ -1,7 +1,7 @@
 # Migrating from Iced to Alacer
 
 > Scope note (honesty rule): this guide maps Iced **0.13/0.14-era** concepts
-> (`Application`/`Task`, `Element`, `Subscription`) onto Alacer **0.12.0**. Iced
+> (`Application`/`Task`, `Element`, `Subscription`) onto Alacer **0.13.0**. Iced
 > renamed its shell traits across releases; treat exact signatures as "check
 > your version", the *concepts* as the durable part.
 
@@ -213,7 +213,7 @@ harness.snapshot("counter_after_click");   // blessed PNG, pixel-diffed
 ```
 
 Bless with `ALACER_BLESS=1`; the corpus lives in
-`crates/alacer-testing/blessed/` (35 styled scenarios — 37 blessed PNGs including the M0 pair).
+`crates/alacer-testing/blessed/` (36 styled scenarios — 38 blessed PNGs including the M0 pair).
 
 ## Interop limits
 

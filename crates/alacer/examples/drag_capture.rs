@@ -150,8 +150,8 @@ fn read_route(log: &Rc<RefCell<DragLog>>, status_line: &FluxRwSignal<String>) {
 /// The reset route: the consumer's own state, emptied — the pipeline's
 /// capture is untouched, only the log is.
 fn reset_route(log: &Rc<RefCell<DragLog>>, status_line: &FluxRwSignal<String>) {
-    let _route = tracing::trace_span!(target: "alacer::capture", "capture", route = "reset")
-        .entered();
+    let _route =
+        tracing::trace_span!(target: "alacer::capture", "capture", route = "reset").entered();
     log.borrow_mut().events.clear();
     let line = log.borrow().read();
     Flux::batch_of(|| status_line.set(line));

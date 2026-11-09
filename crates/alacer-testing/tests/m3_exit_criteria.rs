@@ -243,9 +243,15 @@ fn m3_removals_surface_through_view_reconciliation() {
     harness.settle();
     assert!(!harness.query(Role::Label).named("Drop").exists());
 
-    // The tree walker agrees: only root + the survivor remain.
+    // The tree walker agrees: only root + the survivor remain (plus the
+    // reserved announcement region — the app's live region is always in
+    // the snapshot, M18, ADR-0024).
     let tree = harness.pipeline().a11y_snapshot().expect("tree");
-    assert_eq!(tree.nodes.len(), 2, "root + the surviving label only");
+    assert_eq!(
+        tree.nodes.len(),
+        3,
+        "root + the surviving label + the region"
+    );
 }
 
 #[test]

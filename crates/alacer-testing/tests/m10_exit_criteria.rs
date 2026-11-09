@@ -233,7 +233,7 @@ fn m10_the_platform_maps_action_requests_instead_of_munging() {
 /// 47 pre-M10 cases plus the `a11y_action` route bench. Growing the corpus
 /// moves the bench file, contracts.json, the baseline, and the M5–M9 pins
 /// together.
-const EXPECTED_BENCH_COUNT: usize = 53;
+const EXPECTED_BENCH_COUNT: usize = 54;
 
 #[test]
 fn m10_the_corpus_pin_agrees_with_the_published_data() {
@@ -267,8 +267,8 @@ fn m10_the_corpus_pin_agrees_with_the_published_data() {
     ] {
         let source = read_workspace_file(&format!("crates/alacer-testing/tests/{suite}"));
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 53;"),
-            "{suite} must pin the 52-case corpus"
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 54;"),
+            "{suite} must pin the 54-case corpus"
         );
     }
 }

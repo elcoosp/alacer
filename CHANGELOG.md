@@ -9,6 +9,34 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M17 — the demonstrated queue (ADR-0023)**: the continuation of the
+  consumable-surface work. The M8 coalescer — the one core vocabulary
+  with a published budget and no runnable demonstration — gets its
+  consumer demonstration: `examples/input_storm.rs` drives the
+  frame-batched input queue from the consumer side, a custom
+  `StormPanel` probe (a `Widget` with its required role and label)
+  records every routed pointer event, *Read the log* mirrors the log
+  into the window through the one-batch route, and the observability
+  rides the workspace's idiom (`tracing` spans at the `alacer::input`
+  target, the routed count as a field); the deterministic fifty-move
+  storm is pinned by the m1 corpus's new `input_storm` scenario (the
+  corpus grows 31 → 32 scenarios, 33 → 34 PNGs; the bench corpus stays
+  53, the storm's hot path is already contracted). The living documents
+  re-agree with the checked-in data: the README now quotes the
+  published baseline's ratios — 14.06× for the W1 incremental-vs-full
+  gate and 40.7× for the input-storm batching budget, which the
+  M13–M15 corpus re-publishes had moved while the prose kept the
+  M9-era 14.76× and 40.9× — the migration guides map onto Alacer 0.12.0
+  instead of 0.5, and the facade's rustdoc describes the shipped
+  surface instead of the M0 dependency spine. The error-chain
+  discipline reaches the two seams M16 did not: `Recording::save` and
+  `Recording::load` hand their `serde_json` cause to the
+  `io::Error` chain (a malformed `.alc` — a bug report, by ADR-10's
+  definition — now walks to the real parse error; the schema-mismatch
+  leaf keeps its honest both-schemas message), and `LayoutError` — the
+  public `LayoutEngine` contract's never-constructed error type —
+  carries the failing node as data (`node: Option<NodeId>`) instead of
+  the doc's promise that widget ids live in prose
 - **M16 — the consumable contract (ADR-0022)**: the consumer surface the
   editing series (M11–M15) grew faster than it could be consumed. The
   0.12.0 cut completes: the twelve internal dependency pins in

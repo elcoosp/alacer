@@ -306,6 +306,11 @@
       "id": "input_route_100_captured_moves_1k",
       "baseline": "input/route_100_captured_moves_1k",
       "scope": "same-host"
+    },
+    {
+      "id": "progress_route_100_value_writes_1k",
+      "baseline": "progress/route_100_value_writes_1k",
+      "scope": "same-host"
     }
   ],
   "test_enforced_gates": [

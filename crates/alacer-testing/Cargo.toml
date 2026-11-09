@@ -45,3 +45,7 @@ harness = false
 [[bench]]
 name = "announcements"
 harness = false
+
+[[bench]]
+name = "progress"
+harness = false

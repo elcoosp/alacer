@@ -78,12 +78,6 @@ impl EventCoalescer {
             self.wheel_accumulated = Vector::zero();
         }
     }
-
-    /// Number of pending (un-drained) events.
-    #[must_use]
-    pub fn pending(&self) -> usize {
-        self.pending.len() + usize::from(self.wheel_accumulated != Vector::zero())
-    }
 }
 
 #[cfg(test)]

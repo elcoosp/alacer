@@ -48,6 +48,11 @@ pub fn map_role(role: Role) -> AccessKitRole {
         Role::ListItem => AccessKitRole::ListItem,
         Role::List => AccessKitRole::List,
         Role::CheckBox => AccessKitRole::CheckBox,
+        // The slider (M20, ADR-0026): the AT reads the bounded value the
+        // widget exposes through the M3 `value()` contract and writes it
+        // back through the value tier (`SetValue`, `Increment`,
+        // `Decrement`).
+        Role::Slider => AccessKitRole::Slider,
         Role::Table => AccessKitRole::Table,
         Role::TableRow => AccessKitRole::Row,
         Role::TableCell => AccessKitRole::Cell,
@@ -438,6 +443,8 @@ mod tests {
         assert_eq!(map_role(Role::Container), AkRole::GenericContainer);
         // The M6 canon roles.
         assert_eq!(map_role(Role::CheckBox), AkRole::CheckBox);
+        // The M20 value tier.
+        assert_eq!(map_role(Role::Slider), AkRole::Slider);
         assert_eq!(map_role(Role::Table), AkRole::Table);
         assert_eq!(map_role(Role::TableRow), AkRole::Row);
         assert_eq!(map_role(Role::TableCell), AkRole::Cell);

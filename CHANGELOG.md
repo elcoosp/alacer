@@ -9,6 +9,44 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M18 — the announced delta (ADR-0024)**: the a11y announcement seam
+  joins the invalidation currency. The app's voice — state changes that
+  own no widget ("Saved", "3 items left", "Connection lost") — ships as
+  a reserved live-region node in pass 9's snapshot: the same snapshot,
+  the same `A11yDelta`, the same `Change::A11Y` currency as every other
+  a11y fact (no second channel). The region is present from the first
+  frame (the root's last child, named empty), so announcing is one
+  node-only delta — no `STRUCTURE` churn, no ghost removals; the
+  politeness rides the node's `aria-live` priority and the sink emits
+  the ARIA pairing (`status` speaks politely, `alert` interrupts, the
+  `accesskit::Live` property a screen reader watches). Two doors, one
+  destination: `PassPipeline::announce` for assembly sites and tests,
+  and the handler-reachable `alacer_core::announce::announce` queue
+  (the clipboard-seam shape) drained at the next tick's start — the
+  input queue's shape, one frame later, last write wins, a refused act
+  (empty text, no root) honest with no masks. The consumer
+  demonstration ships: `examples/announcements.rs` (polite, assertive,
+  and the honest refusal, one `tracing` span per route at the
+  `alacer::announce` target), pinned by the m1 corpus's new
+  `announcements` scenario (the corpus grows 32 → 33 scenarios, 34 →
+  35 PNGs), and the announcement route joins the bench corpus by the
+  coordinated rule — `announce/route_100_announcements_1k`, 53 → 54
+  cases, the baseline published with its same-host regression contract
+  and every M-suite pin moved together. The error-chain discipline
+  completes: `PlatformError::Softbuffer` and `BackendError::
+  SurfaceCreation` carry their structured causes
+  (`softbuffer::SoftBufferError`, `wgpu::CreateSurfaceError`) instead
+  of flattened strings — no public error type in the workspace
+  discards a cause into prose now. The dead convenience APIs go:
+  `PassPipeline::has_queued_input`, `run_hot_window_with_channel`, and
+  the `HotView`/`ViewRoot` `registry()` accessors had zero call sites.
+  The living documents re-agree: the architecture's ADR count (now 25
+  with the register's new row), the migration guides' snapshot counts
+  (33 styled scenarios / 35 PNGs), the journal's materialization-shape
+  rustdoc (the bench consumes `SceneBatches`, the backends walk the
+  snapshot), the core pass-order rustdoc (the ten-pass contract), and
+  the README's `counter_view` attribution (the example reconciles in
+  place; it carries no keys)
 - **M17 — the demonstrated queue (ADR-0023)**: the continuation of the
   consumable-surface work. The M8 coalescer — the one core vocabulary
   with a published budget and no runnable demonstration — gets its

@@ -41,6 +41,11 @@ pub enum Role {
     TableCell,
     /// A table's column header.
     ColumnHeader,
+    /// The app's reserved announcement region (§11.6, ADR-0024): a live
+    /// region the pipeline owns — its content is the last announcement,
+    /// and assistive technologies speak its changes. Never a widget's
+    /// role; the pipeline builds the node itself.
+    LiveRegion,
 }
 
 impl Role {
@@ -69,6 +74,7 @@ impl Role {
             Self::TableRow => "table_row",
             Self::TableCell => "table_cell",
             Self::ColumnHeader => "column_header",
+            Self::LiveRegion => "live_region",
         }
     }
 }

@@ -119,6 +119,10 @@ pub struct TreeNode {
     /// UTF-16 units, `Some` on the focused editable — the range a screen
     /// reader announces, riding the same snapshot as the value it selects.
     pub selection: Option<crate::widget::TextSelection>,
+    /// The node's `aria-live` priority (§11.6, ADR-0024): `Some` only on
+    /// the pipeline's reserved announcement region — assistive
+    /// technologies speak the changes of a live-region node.
+    pub live: Option<crate::announce::Politeness>,
 }
 
 /// The full accessibility snapshot of the widget tree, built by pass 9.
@@ -517,6 +521,13 @@ pub struct PassPipeline {
     /// pointer events coalesce here and route at tick start — the same
     /// one-frame currency the flux bridge gives signal writes (A1, ADR-2).
     input: crate::input::EventCoalescer,
+    /// The app's last announcement (§11.6, ADR-0024): the content the
+    /// reserved live-region node carries. `None` until the first accepted
+    /// `announce` — the region then rides the snapshot with an empty name.
+    announcement: Option<crate::announce::Announcement>,
+    /// Whether an announcement arrived since the last a11y pass — the
+    /// pass-9 run trigger beside the dirty set and focus moves.
+    announcement_dirty: bool,
     /// Monotonic frame counter (the frame summary's number).
     frames: u64,
 }
@@ -551,6 +562,8 @@ impl PassPipeline {
             last_a11y_ids: None,
             observer: None,
             input: crate::input::EventCoalescer::new(),
+            announcement: None,
+            announcement_dirty: false,
             frames: 0,
         }
     }
@@ -600,11 +613,58 @@ impl PassPipeline {
         self.input.push(event);
     }
 
-    /// Whether pointer events are queued awaiting the next tick (§10.2,
-    /// ADR-0014) — the platform's redraw hint.
+    /// Announces `text` to assistive technologies (§11.6, ADR-0024): the
+    /// reserved live-region node's content and politeness update, and the
+    /// next tick's a11y delta re-emits that node — the same snapshot, the
+    /// same `Change::A11Y` currency as every other a11y fact (A1; no
+    /// second channel, no platform round trip).
+    ///
+    /// The contract ([`crate::announce`]): the region is always present
+    /// (the root's last child from the first frame), last write wins
+    /// (rapid calls replace — one batch, one spoken fact), and the
+    /// refusals are honest — an empty or all-whitespace `text` speaks
+    /// nothing, and before a root is mounted there is no tree to attach
+    /// the region to. A refused announcement queues no masks (an idle
+    /// frame) and returns `false`; an accepted one returns `true`.
+    pub fn announce(
+        &mut self,
+        text: impl Into<String>,
+        politeness: crate::announce::Politeness,
+    ) -> bool {
+        let text = text.into();
+        if text.trim().is_empty() {
+            tracing::trace!(
+                target: "alacer::announce",
+                "refused: an empty announcement speaks nothing"
+            );
+            return false;
+        }
+        if self.arena.root().is_none() {
+            tracing::trace!(
+                target: "alacer::announce",
+                "refused: no root is mounted, the region has no tree to join"
+            );
+            return false;
+        }
+        let announcement = crate::announce::Announcement { text, politeness };
+        tracing::trace!(
+            target: "alacer::announce",
+            politeness = announcement.politeness.name(),
+            chars = announcement.text.len(),
+            "announcement rides the next a11y delta"
+        );
+        self.announcement = Some(announcement);
+        self.announcement_dirty = true;
+        true
+    }
+
+    /// The last accepted announcement (introspection): what the reserved
+    /// region carries right now. `None` before the first accepted
+    /// `announce` — the region exists from the first frame with an empty
+    /// name, but nothing has been spoken yet.
     #[must_use]
-    pub fn has_queued_input(&self) -> bool {
-        self.input.pending() > 0
+    pub const fn announcement(&self) -> Option<&crate::announce::Announcement> {
+        self.announcement.as_ref()
     }
 
     /// The focused node, if any (pass 3 output).
@@ -1044,6 +1104,23 @@ impl PassPipeline {
             self.dispatch_pointer(&event);
         }
 
+        // The announcement drain (§11.6, ADR-0024): the speech acts event
+        // handlers queued on this thread land in the reserved region at the
+        // tick's start — the input queue's shape (push now, the tick
+        // routes, one frame). Last write wins across the batch; a region
+        // with no root is refused here, honestly, with nothing shipped.
+        if let Some(pending) = crate::announce::take_pending() {
+            if self.arena.root().is_some() {
+                self.announcement = Some(pending);
+                self.announcement_dirty = true;
+            } else {
+                tracing::trace!(
+                    target: "alacer::announce",
+                    "dropped at the drain: no root is mounted, the region has no tree"
+                );
+            }
+        }
+
         let mut ledger: Vec<PassRun> = std::mem::take(&mut self.interframe);
 
         // Flux drain: the mask bridge lands masks in the arena (A1). Bookkeeping
@@ -1220,17 +1297,26 @@ impl PassPipeline {
         // carries dirty ids only, the ids structural churn removed, and the
         // focused node; a focus move runs the pass even with no other a11y
         // work (platform focus lives in the update, not in a node).
-        let a11y_set: FxHashSet<u64> = dirty
+        let mut a11y_set: FxHashSet<u64> = dirty
             .iter()
             .filter(|(_, m)| m.forces_a11y() || m.intersects(Change::LAYOUT))
             .map(|(n, _)| self.id_hash(*n))
             .chain(translated.iter().map(|n| self.id_hash(*n)))
             .collect();
+        // The announcement route (§11.6, ADR-0024): a pending announcement
+        // is the pass's third trigger beside the dirty set and focus moves
+        // — the region's node id joins the delta's updated set, and the
+        // sink re-emits exactly that node.
+        let announcement_dirty = self.announcement_dirty;
+        if announcement_dirty {
+            a11y_set.insert(crate::announce::ANNOUNCEMENT_NODE_HASH);
+        }
         let a11y_ran = first_frame || !a11y_set.is_empty() || focus_changed;
         let mut a11y_work = 0_u64;
         let mut a11y_delta = A11yDelta::empty();
         ledger.push(self.run_pass(PassKind::Accessibility, |s| {
             if a11y_ran {
+                s.announcement_dirty = false;
                 let start = s.timings.then(std::time::Instant::now);
                 let snapshot = std::sync::Arc::new(s.build_tree_snapshot());
                 let mut delta = A11yDelta {
@@ -1587,12 +1673,40 @@ impl PassPipeline {
                 toggled: slot.widget().toggled(),
                 table_slot: slot.widget().table_slot(),
                 selection: slot.widget().selection(),
+                live: None,
             };
             if snapshot.root.is_none() {
                 snapshot.root = Some(node.id);
             }
             snapshot.nodes.push(node);
         });
+        // The announcement region (§11.6, ADR-0024): the app's reserved
+        // live-region node — always present from the first frame, the
+        // root's last child, its name the last announcement's text. One
+        // node in the snapshot, never a widget: the pipeline owns the
+        // region, the AT speaks its changes, and announcing never moves
+        // the tree's shape.
+        if let Some(root) = snapshot.nodes.first_mut() {
+            root.children.push(crate::announce::ANNOUNCEMENT_NODE_HASH);
+            let (text, politeness) = self
+                .announcement
+                .as_ref()
+                .map_or((String::new(), crate::announce::Politeness::Polite), |a| {
+                    (a.text.clone(), a.politeness)
+                });
+            snapshot.nodes.push(crate::passes::TreeNode {
+                id: crate::announce::ANNOUNCEMENT_NODE_HASH,
+                role: crate::widget::Role::LiveRegion,
+                label: text,
+                bounds: None,
+                children: Vec::new(),
+                value: None,
+                toggled: None,
+                table_slot: None,
+                selection: None,
+                live: Some(politeness),
+            });
+        }
         snapshot
     }
 
@@ -1807,6 +1921,19 @@ mod tests {
         fn resolved_tree(&self) -> Option<&TreeSnapshot> {
             self.tree.as_ref()
         }
+
+        fn as_any_mut(&mut self) -> Option<&mut dyn std::any::Any> {
+            Some(self)
+        }
+    }
+
+    /// Reads the recording sink back through the pipeline's `Any` seam —
+    /// the same downcast the platform drain uses (ADR-0015).
+    fn recording_of(p: &mut PassPipeline) -> &mut RecordingA11y {
+        p.a11y_sink_mut()
+            .as_any_mut()
+            .and_then(|any| any.downcast_mut::<RecordingA11y>())
+            .expect("the test pipeline carries the recording sink")
     }
 
     fn pipeline() -> PassPipeline {
@@ -2747,5 +2874,134 @@ mod tests {
             "an unconsumed action costs no pass work — it must never be \
              munged into a press or any other action"
         );
+    }
+
+    #[test]
+    fn an_empty_announcement_refuses_and_queues_nothing() {
+        // §11.6: an empty or all-whitespace announcement speaks nothing —
+        // refused honestly, no masks, an idle frame.
+        let _guard = crate::flux::batch_test_lock();
+        let mut p = pipeline();
+        let _root = p.mount_root(Box::new(Fixed {
+            size: Size::new(200.0, 100.0),
+        }));
+        p.tick(viewport()).expect("first frame");
+        let counters = p.counters();
+
+        assert!(!p.announce("", crate::announce::Politeness::Polite));
+        assert!(!p.announce("   \n\t ", crate::announce::Politeness::Polite));
+        let report = p.tick(viewport()).expect("frame after refusals");
+        assert!(report.is_idle(), "a refused announcement queues no masks");
+        assert_eq!(p.counters(), counters, "no pass ran for a refusal");
+        assert!(p.announcement().is_none(), "nothing was spoken");
+    }
+
+    #[test]
+    fn an_announcement_before_a_root_refuses() {
+        // There is no tree to attach the region to — the refusal is the
+        // honest answer, never a panic and never a deferred queue.
+        let _guard = crate::flux::batch_test_lock();
+        let mut p = pipeline();
+        assert!(!p.announce("Saved", crate::announce::Politeness::Polite));
+        assert!(p.announcement().is_none());
+    }
+
+    #[test]
+    fn an_announcement_rides_the_a11y_delta_alone() {
+        // The reserved region is the root's last child from the first
+        // frame; announcing re-emits exactly that node — no shape change,
+        // no other node in the delta (A1: the same currency, nothing else).
+        let _guard = crate::flux::batch_test_lock();
+        let mut p = pipeline();
+        let root = p.mount_root(Box::new(Fixed {
+            size: Size::new(200.0, 100.0),
+        }));
+        p.tick(viewport()).expect("first frame");
+
+        // The region is present from the start, named empty, polite.
+        let tree = p.a11y_snapshot().expect("snapshot");
+        let root_node = tree.by_id(tree.root.expect("root id")).expect("root node");
+        assert_eq!(
+            root_node.children.last().copied(),
+            Some(crate::announce::ANNOUNCEMENT_NODE_HASH),
+            "the reserved region is the root's last child"
+        );
+        let region = tree
+            .by_id(crate::announce::ANNOUNCEMENT_NODE_HASH)
+            .expect("the region rides the snapshot from the first frame");
+        assert_eq!(region.role, Role::LiveRegion);
+        assert_eq!(region.label, "", "nothing has been spoken yet");
+        assert_eq!(region.live, Some(crate::announce::Politeness::Polite));
+        let root_hash = tree.root.expect("root hash");
+
+        assert!(p.announce("Saved", crate::announce::Politeness::Polite));
+        assert_eq!(
+            p.announcement().map(|a| a.text.as_str()),
+            Some("Saved"),
+            "the introspection read answers what the region carries"
+        );
+        let report = p.tick(viewport()).expect("the announcement's frame");
+        assert!(report.a11y_ran, "the announcement is the pass's trigger");
+        assert!(
+            !report.layout_ran && !report.paint_ran,
+            "only the a11y pass runs"
+        );
+
+        let recording = recording_of(&mut p);
+        assert!(
+            recording
+                .last_delta
+                .updated
+                .contains(&crate::announce::ANNOUNCEMENT_NODE_HASH)
+        );
+        assert_eq!(
+            recording.last_delta.updated.len(),
+            1,
+            "the announcement's delta re-emits the region and nothing else"
+        );
+        assert!(recording.last_delta.removed.is_empty(), "no ghost removals");
+        assert_eq!(
+            recording.last_delta.focus, None,
+            "focus never moves for a speech act"
+        );
+        assert_eq!(recording.updates, 2, "one update per a11y pass run");
+
+        let region = recording
+            .tree
+            .as_ref()
+            .and_then(|tree| tree.by_id(crate::announce::ANNOUNCEMENT_NODE_HASH))
+            .expect("the region in the applied snapshot");
+        assert_eq!(region.label, "Saved");
+        let _ = root;
+        let _ = root_hash;
+    }
+
+    #[test]
+    fn rapid_announcements_replace_last_write_wins() {
+        // One live region, one batch, one spoken fact: the second
+        // announcement replaces the first before the tick — never an
+        // unbounded queue inside a frame (§11.6's replace rule).
+        let _guard = crate::flux::batch_test_lock();
+        let mut p = pipeline();
+        let _root = p.mount_root(Box::new(Fixed {
+            size: Size::new(200.0, 100.0),
+        }));
+        p.tick(viewport()).expect("first frame");
+
+        assert!(p.announce("Saved", crate::announce::Politeness::Polite));
+        assert!(p.announce("Connection lost", crate::announce::Politeness::Assertive));
+        let report = p.tick(viewport()).expect("one frame for both");
+        assert!(report.a11y_ran);
+        assert_eq!(p.counters().a11y_runs, 2, "one pass run, not one per call");
+
+        let recording = recording_of(&mut p);
+        assert_eq!(recording.updates, 2, "the two calls ride one update");
+        let region = recording
+            .tree
+            .as_ref()
+            .and_then(|tree| tree.by_id(crate::announce::ANNOUNCEMENT_NODE_HASH))
+            .expect("the region");
+        assert_eq!(region.label, "Connection lost", "last write wins");
+        assert_eq!(region.live, Some(crate::announce::Politeness::Assertive));
     }
 }

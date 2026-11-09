@@ -587,12 +587,6 @@ impl PassPipeline {
         self.observer = None;
     }
 
-    /// Whether an observer is installed.
-    #[must_use]
-    pub const fn has_observer(&self) -> bool {
-        self.observer.is_some()
-    }
-
     /// Enables per-pass wall timing and the overhead ledger (the M1 gate
     /// instrumentation; benches and the overhead test turn this on).
     pub fn set_timings(&mut self, on: bool) {

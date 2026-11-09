@@ -143,12 +143,6 @@ impl ViewRoot {
         self.root_id
     }
 
-    /// The registry (extend it between updates to honor new elements).
-    #[must_use]
-    pub const fn registry(&self) -> &WidgetRegistry {
-        &self.registry
-    }
-
     /// Diffs `new` against the previously mounted tree, applying the
     /// difference in place.
     ///

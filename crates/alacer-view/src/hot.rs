@@ -91,12 +91,6 @@ impl HotView {
     pub const fn root_id(&self) -> NodeId {
         self.root.root_id()
     }
-
-    /// The registry (extend it between generations to honor new elements).
-    #[must_use]
-    pub const fn registry(&self) -> &WidgetRegistry {
-        self.root.registry()
-    }
 }
 
 #[cfg(test)]

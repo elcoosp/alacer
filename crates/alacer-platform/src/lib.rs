@@ -5,6 +5,7 @@
 //! main thread owning the frame loop. Idle is `ControlFlow::Wait` — zero CPU
 //! between interactions (A7).
 
+pub mod clipboard;
 pub mod keys;
 pub mod softbuffer;
 pub mod wgpu_backend;
@@ -181,6 +182,11 @@ impl AlacerApp {
         backend: BackendPreference,
     ) -> Self {
         alacer_core::text_seam::install(std::rc::Rc::new(ThreadLocalTextSeam));
+        // The clipboard seam's engine rides here (ADR-0020): the platform
+        // owns the arboard adapter dependency (ADR-9), widgets only ever
+        // see the seam in core.
+        let clipboard = std::rc::Rc::new(crate::clipboard::ArboardClipboard::new());
+        alacer_core::clipboard::install(clipboard);
         Self {
             pipeline,
             glyph_source: ThreadLocalGlyphSource,

@@ -283,6 +283,11 @@
    "scope": "same-host"
   },
   {
+   "id": "editing_route_100_clipboard_ops_1k",
+   "baseline": "editing/route_100_clipboard_ops_1k",
+   "scope": "same-host"
+  },
+  {
    "id": "editing_route_100_word_moves_1k",
    "baseline": "editing/route_100_word_moves_1k",
    "scope": "same-host"

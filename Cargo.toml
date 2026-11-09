@@ -16,7 +16,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.10.0"
+version = "0.11.0"
 edition = "2024"
 rust-version = "1.99"
 license = "MIT OR Apache-2.0"
@@ -68,6 +68,10 @@ wgpu = "30.0.1"
 tiny-skia = "0.12.0"
 softbuffer = "0.4.8"
 raw-window-handle = "0.6.2"
+# The clipboard round trip (ADR-0020): the adopted core the clipboard
+# seam's engine rides — the platform owns the adapter dependency (ADR-9),
+# widgets only ever see the seam in core.
+arboard = "3.7.0"
 # UAX #29 word segmentation — the text seam's word contract (ADR-0019).
 # Already in the graph through parley's engine; alacer-text adopts it
 # explicitly for the word-boundary tables the seam answers with.

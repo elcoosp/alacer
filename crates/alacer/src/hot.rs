@@ -33,50 +33,11 @@
 //! The CI hot-patch suite (`alacer-testing/tests/m4_exit_criteria.rs`) pins
 //! the framework's half of the contract headlessly.
 
-use crate::platform::{AlacerApp, BackendPreference, PatchChannel, PlatformError};
+use crate::platform::PatchChannel;
 use crate::widgets::default_registry;
 use alacer_core::passes::PassPipeline;
 use alacer_view::HotView;
 use alacer_view::ViewNode;
-
-/// Convenience assembly mirroring [`crate::run_window`]: mounts a hot view
-/// as the pipeline's root and runs the window until it closes.
-///
-/// The view function is wrapped in `subsecond::call` under the `hot-reload`
-/// feature; the passed channel lets the app fire "patches" (the
-/// simulate-patch path) and receives the real patch handler's wake-ups.
-///
-/// # Errors
-///
-/// Propagates [`PlatformError`] from the platform layer.
-///
-/// # Panics
-///
-/// Panics when the view names an unregistered element (a bug in the app's
-/// first generation, not a runtime condition).
-pub fn run_hot_window_with_channel(
-    mut pipeline: PassPipeline,
-    channel: &PatchChannel,
-    generate: impl FnMut() -> ViewNode + 'static,
-    title: &str,
-    size: (f32, f32),
-    backend: BackendPreference,
-) -> Result<(), PlatformError> {
-    // 1. Mount generation zero (the state-owner contract: signals and
-    //    bindings live in `pipeline`'s flux, outside every generation).
-    let mut hot = mount_hot(&mut pipeline, generate);
-    // 2. Assemble the app around the pipeline and hand it the patch hook:
-    //    one `Patch` event ⇒ one scoped regenerate.
-    let mut app = AlacerApp::new(pipeline, title, size, backend);
-    app.set_patch_hook(Box::new(move |pipeline| {
-        hot.regenerate(pipeline);
-    }));
-    // 3. With the feature on, a binary patch fires the channel from the
-    //    patcher's thread (§13.2 item 3).
-    register_patch_handler(channel);
-    // 4. Run.
-    app.with_patch_channel(channel.clone()).run()
-}
 
 /// The subsecond integration (§13.2, ADR-7) — compiled only under the
 /// `hot-reload` feature: the patch handler registration and the
@@ -110,7 +71,8 @@ pub mod subsecond_wiring {
 ///
 /// Under the `hot-reload` feature the generation is wrapped in
 /// `subsecond::call` — the detour point a binary patch swaps. Pair with
-/// [`register_patch_handler`] and [`AlacerApp::with_patch_channel`] to
+/// [`register_patch_handler`] and
+/// [`AlacerApp::with_patch_channel`](crate::platform::AlacerApp::with_patch_channel) to
 /// deliver patches.
 ///
 /// # Panics

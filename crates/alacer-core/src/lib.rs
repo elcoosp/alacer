@@ -13,13 +13,19 @@
 //!   protection (architecture §7.1).
 //! - [`widget`] — the `Widget` trait where `role` and `label` are *required*
 //!   methods, making accessibility a type-level contract (ADR-5).
+//! - [`announce`] — the announcement seam: the app's reserved live-region
+//!   node, spoken by assistive technologies through the same snapshot and
+//!   delta as every other a11y fact (§11.6, ADR-0024).
 //! - [`flux`] — the mask bridge over `reactive_graph`: effects never mutate widgets;
 //!   every effect drain ends by queuing `Change` masks (architecture §5.2).
-//! - [`passes`] — the pass contract: mutate → style → layout → compose → paint →
-//!   accessibility, each explicit, ordered, and independently traceable (§7.2).
+//! - [`passes`] — the pass contract: `event` → `update_focusable` →
+//!   `update_focus` → `mutate` → `style` → `layout` → `compose` → `paint` →
+//!   `accessibility` → `action`, each explicit, ordered, and independently
+//!   traceable (§7.2).
 //!
 //! The layering is a DAG: this crate depends on no other Alacer crate.
 
+pub mod announce;
 pub mod arena;
 pub mod clipboard;
 pub mod color;
@@ -40,6 +46,7 @@ pub mod text_seam;
 pub mod utf16;
 pub mod widget;
 
+pub use announce::{ANNOUNCEMENT_NODE_HASH, Announcement, Politeness};
 pub use arena::{Arena, NodeId, WidgetMut};
 pub use color::Color;
 pub use damage::{DAMAGE_REGION_BUDGET, Damage, DamageBuilder};
@@ -77,6 +84,7 @@ pub use widget::{
 
 /// The Alacer prelude: import this once and the framework vocabulary is in scope.
 pub mod prelude {
+    pub use crate::announce::{Politeness, announce};
     pub use crate::arena::{Arena, NodeId, WidgetMut};
     pub use crate::color::Color;
     pub use crate::damage::Damage;

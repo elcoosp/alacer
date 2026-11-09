@@ -27,6 +27,7 @@ pub mod damage;
 pub mod events;
 pub mod flux;
 pub mod geom;
+pub mod history;
 pub mod identity;
 pub mod input;
 pub mod inspect;

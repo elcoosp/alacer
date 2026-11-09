@@ -37,6 +37,11 @@ pub enum Role {
     /// by drag or arrow keys and the AT sets through the value tier
     /// (ADR-0026). The value itself rides the M3 `value()` contract.
     Slider,
+    /// A read-only value report (the progress indicator, M21): a bounded
+    /// scalar the *app* writes and the AT reads through the M3 `value()`
+    /// contract — the value tier's read half (ADR-0027). The write
+    /// vocabulary is the app's; every AT action is refused honestly.
+    ProgressIndicator,
     /// A data table: headers, rows, cells (the data-table canon, M6).
     Table,
     /// One row of a data table.
@@ -56,12 +61,18 @@ impl Role {
     /// Roles whose accessible name is mandatory; the CI walker fails on
     /// unnamed widgets of these roles (§11.1). The checkbox joins the set in
     /// M6: an unnamed toggle is unusable with a screen reader. The slider
-    /// joins in M20: an unnamed value control reads as a bare number.
+    /// joins in M20: an unnamed value control reads as a bare number. The
+    /// progress indicator joins in M21: an unnamed report reads as a bare
+    /// number too.
     #[must_use]
     pub const fn requires_name(self) -> bool {
         matches!(
             self,
-            Self::Button | Self::TextInput | Self::CheckBox | Self::Slider
+            Self::Button
+                | Self::TextInput
+                | Self::CheckBox
+                | Self::Slider
+                | Self::ProgressIndicator
         )
     }
 
@@ -79,6 +90,7 @@ impl Role {
             Self::List => "list",
             Self::CheckBox => "checkbox",
             Self::Slider => "slider",
+            Self::ProgressIndicator => "progress_indicator",
             Self::Table => "table",
             Self::TableRow => "table_row",
             Self::TableCell => "table_cell",

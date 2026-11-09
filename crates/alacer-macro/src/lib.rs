@@ -293,16 +293,30 @@ struct ElementRoot {
 
 impl Parse for ElementRoot {
     fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
-        let name: proc_macro2::Ident = input
-            .parse()
-            .map_err(|_| syn::Error::new(input.span(), "rsx! expects one root element"))?;
+        let name: proc_macro2::Ident = input.parse().map_err(|_| {
+            // The weak-error cleanup (ADR-0025): the discarded parse cause
+            // never told the user what stood where the root should be —
+            // name it, with the help text the fix suggests.
+            let found = input.parse::<proc_macro2::TokenTree>().map_or_else(
+                |_| "the end of the macro body".to_string(),
+                |token| token.to_string(),
+            );
+            syn::Error::new(
+                input.span(),
+                format!(
+                    "rsx! expects one root element, found {found}; \
+                     a root is an element like `column {{ ... }}`"
+                ),
+            )
+        })?;
         let body;
         syn::braced!(body in input);
         let parsed: Body = body.parse()?;
         if !input.is_empty() {
             return Err(syn::Error::new(
                 input.span(),
-                "rsx! takes exactly one root element; wrap siblings in a container",
+                "rsx! takes exactly one root element; \
+                 help: wrap siblings in a container (column or row)",
             ));
         }
         Ok(Self {

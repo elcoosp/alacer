@@ -273,7 +273,7 @@ fn m9_the_activation_response_is_the_sinks_own_full_tree() {
 /// the 47 pre-M10 cases plus the `a11y_action/route_100_actions_1k` route
 /// bench (ADR-0016). Growing the corpus moves the bench file,
 /// contracts.json, the baseline, and the M5/M6/M7/M8/M9 pins together.
-const EXPECTED_BENCH_COUNT: usize = 54;
+const EXPECTED_BENCH_COUNT: usize = 55;
 
 #[test]
 fn m9_the_a11y_ratio_is_a_published_budget_and_the_corpus_moves_together() {
@@ -325,8 +325,8 @@ fn m9_the_a11y_ratio_is_a_published_budget_and_the_corpus_moves_together() {
     ] {
         let source = read_workspace_file(&format!("crates/alacer-testing/tests/{suite}"));
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 54;"),
-            "{suite} must pin the 54-case corpus"
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 55;"),
+            "{suite} must pin the 55-case corpus"
         );
     }
 }

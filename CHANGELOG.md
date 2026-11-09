@@ -9,6 +9,29 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M16 — the consumable contract (ADR-0022)**: the consumer surface the
+  editing series (M11–M15) grew faster than it could be consumed. The
+  0.12.0 cut completes: the twelve internal dependency pins in
+  `[workspace.dependencies]` and the lockfile ride
+  `[workspace.package]`'s version (the version-bump commit had left them
+  at 0.11.0, and `cargo` refused to resolve the half-bumped workspace),
+  and the README's badge follows the workspace. The error boundary
+  carries its chain: `PlatformError` and `BackendError` implement
+  `Error::source` (the `EventLoopError`, `OsError`, `RequestDeviceError`,
+  and `wgpu::Error` inside them stay reachable instead of being
+  formatted away), and the no-adapter message names the escape hatch it
+  knows (`ALACER_SOFTWARE=1` for the softbuffer path). The widgets
+  crate's manifest description and module rustdoc describe the shipped
+  vocabulary (label, button, text input, checkbox, column, row, spacer,
+  list, panel, table, and the M6 canons) instead of the M0 set. The M15
+  journal gets its consumer demonstration: `examples/undo_redo.rs`
+  drives `EditHistory` directly — the pure-append coalescing rule, the
+  selection each step returns, the app-write reset, the honest refusal,
+  `undo_depth`/`can_redo` live in the window, and one `tracing` span per
+  route at the `alacer::editing` target — and a blessed snapshot pins
+  the demonstration (the m1 corpus grows 32 → 33 PNGs, the bench corpus
+  stays 53; `tracing` joins the facade as a dev-dependency, so nothing
+  published moves)
 - **M15 — the undo stack joins the editing contract (ADR-0021)**: the
   value — scalar-addressable since M1, selection-managed since M11,
   pointer-edited since M12, word-edited since M13, clipboard-edited

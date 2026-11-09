@@ -1,8 +1,9 @@
 //! Alacer's widget library: the M0 set the counter and the scrolling list
 //! need, the M3 text input (the editing contract's editor — selection,
 //! pointer, word, clipboard, and history tiers ride it), the M6 canon
-//! (checkbox, data table) the todo and data-table apps need, and the
-//! panel/table/list vocabulary the M5 tour assembles.
+//! (checkbox, data table) the todo and data-table apps need, the M20 value
+//! tier's slider, and the panel/table/list vocabulary the M5 tour
+//! assembles.
 //!
 //! Widgets are retained: created once, mutated in place, painted on demand.
 //! Reactive text lands through `RenderBinding`s; input lands through
@@ -17,6 +18,7 @@ mod label;
 mod list;
 mod panel;
 mod registry;
+mod slider;
 mod table;
 mod text_input;
 
@@ -28,6 +30,7 @@ pub use label::Label;
 pub use list::{List, ListHandle};
 pub use panel::Panel;
 pub use registry::default_registry;
+pub use slider::Slider;
 pub use table::{ColumnHeader, Table, TableCell, TableRow};
 pub use text_input::TextInput;
 

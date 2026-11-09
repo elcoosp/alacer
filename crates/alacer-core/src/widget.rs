@@ -33,6 +33,10 @@ pub enum Role {
     List,
     /// A binary toggle control (the todo canon's item switch, M6).
     CheckBox,
+    /// A value control (the slider, M20): a bounded scalar the user sets
+    /// by drag or arrow keys and the AT sets through the value tier
+    /// (ADR-0026). The value itself rides the M3 `value()` contract.
+    Slider,
     /// A data table: headers, rows, cells (the data-table canon, M6).
     Table,
     /// One row of a data table.
@@ -51,10 +55,14 @@ pub enum Role {
 impl Role {
     /// Roles whose accessible name is mandatory; the CI walker fails on
     /// unnamed widgets of these roles (§11.1). The checkbox joins the set in
-    /// M6: an unnamed toggle is unusable with a screen reader.
+    /// M6: an unnamed toggle is unusable with a screen reader. The slider
+    /// joins in M20: an unnamed value control reads as a bare number.
     #[must_use]
     pub const fn requires_name(self) -> bool {
-        matches!(self, Self::Button | Self::TextInput | Self::CheckBox)
+        matches!(
+            self,
+            Self::Button | Self::TextInput | Self::CheckBox | Self::Slider
+        )
     }
 
     /// Human-readable role name, used by the CI walker's diagnostics.
@@ -70,6 +78,7 @@ impl Role {
             Self::ListItem => "list_item",
             Self::List => "list",
             Self::CheckBox => "checkbox",
+            Self::Slider => "slider",
             Self::Table => "table",
             Self::TableRow => "table_row",
             Self::TableCell => "table_cell",
@@ -424,7 +433,10 @@ pub trait Widget: 'static {
     /// The default derives from the semantic role: actionable inputs are
     /// focusable. Override for custom controls.
     fn focusable(&self) -> bool {
-        matches!(self.role(), Role::Button | Role::TextInput | Role::CheckBox)
+        matches!(
+            self.role(),
+            Role::Button | Role::TextInput | Role::CheckBox | Role::Slider
+        )
     }
 
     /// The `Any` escape hatch for in-place patching (§6.1: view diffs mutate

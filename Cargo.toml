@@ -16,7 +16,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.12.0"
+version = "0.13.0"
 edition = "2024"
 rust-version = "1.99"
 license = "MIT OR Apache-2.0"
@@ -43,18 +43,18 @@ pedantic = { level = "warn", priority = -1 }
 # Internal crates — layering is a DAG, enforced by `scripts/check_dag.py` in CI (ADR-9).
 # The pins ride `[workspace.package]`'s version: the 0.12.0 family publishes
 # (and resolves, see ADR-0022) as one cut, never pairing with an older core.
-alacer = { path = "crates/alacer", version = "0.12.0" }
-alacer-core = { path = "crates/alacer-core", version = "0.12.0" }
-alacer-macro = { path = "crates/alacer-macro", version = "0.12.0" }
-alacer-layout = { path = "crates/alacer-layout", version = "0.12.0" }
-alacer-text = { path = "crates/alacer-text", version = "0.12.0" }
-alacer-render = { path = "crates/alacer-render", version = "0.12.0" }
-alacer-a11y = { path = "crates/alacer-a11y", version = "0.12.0" }
-alacer-view = { path = "crates/alacer-view", version = "0.12.0" }
-alacer-widgets = { path = "crates/alacer-widgets", version = "0.12.0" }
-alacer-platform = { path = "crates/alacer-platform", version = "0.12.0" }
-alacer-testing = { path = "crates/alacer-testing", version = "0.12.0" }
-alacer-inspect = { path = "crates/alacer-inspect", version = "0.12.0" }
+alacer = { path = "crates/alacer", version = "0.13.0" }
+alacer-core = { path = "crates/alacer-core", version = "0.13.0" }
+alacer-macro = { path = "crates/alacer-macro", version = "0.13.0" }
+alacer-layout = { path = "crates/alacer-layout", version = "0.13.0" }
+alacer-text = { path = "crates/alacer-text", version = "0.13.0" }
+alacer-render = { path = "crates/alacer-render", version = "0.13.0" }
+alacer-a11y = { path = "crates/alacer-a11y", version = "0.13.0" }
+alacer-view = { path = "crates/alacer-view", version = "0.13.0" }
+alacer-widgets = { path = "crates/alacer-widgets", version = "0.13.0" }
+alacer-platform = { path = "crates/alacer-platform", version = "0.13.0" }
+alacer-testing = { path = "crates/alacer-testing", version = "0.13.0" }
+alacer-inspect = { path = "crates/alacer-inspect", version = "0.13.0" }
 
 # Adopted cores (A2 — steal proven cores; own only the composition).
 # `effects` gates ImmediateEffect — the synchronous, batch-coalescing effect

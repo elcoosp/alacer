@@ -16,10 +16,11 @@
 //!   pass-3 output every a11y frame.
 
 use accesskit::{
-    Node, NodeId, Rect, Role as AccessKitRole, TextPosition, TextSelection, Toggled, TreeId,
+    Live, Node, NodeId, Rect, Role as AccessKitRole, TextPosition, TextSelection, Toggled, TreeId,
     TreeInfo, TreeUpdate,
 };
 use alacer_core::Role;
+use alacer_core::announce::Politeness;
 use alacer_core::geom::Rect as AlacerRect;
 use alacer_core::passes::{A11yDelta, A11ySink, TreeSnapshot};
 use alacer_core::widget::TableSlot;
@@ -51,6 +52,33 @@ pub fn map_role(role: Role) -> AccessKitRole {
         Role::TableRow => AccessKitRole::Row,
         Role::TableCell => AccessKitRole::Cell,
         Role::ColumnHeader => AccessKitRole::ColumnHeader,
+        // The announcement region (§11.6, ADR-0024): the polite case's ARIA
+        // role ("status"). The assertive case re-roles to "alert" in
+        // [`map_announcement_role`], where the politeness is known.
+        Role::LiveRegion => AccessKitRole::Status,
+    }
+}
+
+/// Maps an announcement's politeness onto the AccessKit live priority —
+/// the `aria-live` property a screen reader watches (`Live::Polite` speaks
+/// at the next break, `Live::Assertive` interrupts).
+#[must_use]
+pub const fn map_live(politeness: Politeness) -> Live {
+    match politeness {
+        Politeness::Polite => Live::Polite,
+        Politeness::Assertive => Live::Assertive,
+    }
+}
+
+/// The announcement node's role for its politeness: the ARIA pairing —
+/// `role="status"` speaks politely, `role="alert"` interrupts. The base
+/// mapping ([`map_role`]) answers `Status` for the role alone; the sink
+/// re-roles where the politeness is known.
+#[must_use]
+pub const fn map_announcement_role(politeness: Politeness) -> AccessKitRole {
+    match politeness {
+        Politeness::Polite => AccessKitRole::Status,
+        Politeness::Assertive => AccessKitRole::Alert,
     }
 }
 
@@ -208,6 +236,13 @@ impl AccessKitSink {
         if let Some(bounds) = node.bounds {
             access_node.set_bounds(map_bounds(bounds));
         }
+        // The announcement region (§11.6, ADR-0024): the politeness rides
+        // the `aria-live` property, and the role follows the ARIA pairing —
+        // polite is "status", assertive interrupts as "alert".
+        if let Some(politeness) = node.live {
+            access_node.set_live(map_live(politeness));
+            access_node.set_role(map_announcement_role(politeness));
+        }
         if let Some(value) = &node.value {
             access_node.set_value(value.as_str());
         }
@@ -336,8 +371,8 @@ pub fn walk_update(update: &TreeUpdate) -> Vec<u64> {
 #[cfg(test)]
 mod tests {
     use super::{
-        AccessKitSink, UPDATE_RING_CAP, accesskit_node_id, find_in_update, map_bounds, map_role,
-        walk_update,
+        AccessKitSink, Live, UPDATE_RING_CAP, accesskit_node_id, find_in_update,
+        map_announcement_role, map_bounds, map_live, map_role, walk_update,
     };
     use accesskit::NodeId;
     use accesskit::Role as AkRole;
@@ -366,6 +401,7 @@ mod tests {
                     toggled: None,
                     table_slot: None,
                     selection: None,
+                    live: None,
                 },
                 TreeNode {
                     id: child_hash,
@@ -377,6 +413,7 @@ mod tests {
                     toggled: None,
                     table_slot: None,
                     selection: None,
+                    live: None,
                 },
                 TreeNode {
                     id: other_hash,
@@ -388,6 +425,7 @@ mod tests {
                     toggled: None,
                     table_slot: None,
                     selection: None,
+                    live: None,
                 },
             ],
         }
@@ -410,6 +448,61 @@ mod tests {
     fn bounds_map_with_f64_edges() {
         let r = map_bounds(Rect::new(Point::new(1.0, 2.0), Size::new(30.0, 40.0)));
         assert_eq!(r, accesskit::Rect::new(1.0, 2.0, 31.0, 42.0));
+    }
+
+    #[test]
+    fn the_announcement_region_maps_onto_the_aria_pairing() {
+        // §11.6, ADR-0024: the politeness rides the `aria-live` property
+        // and the role follows the ARIA pairing — polite speaks as
+        // "status", assertive interrupts as "alert".
+        assert_eq!(
+            map_role(Role::LiveRegion),
+            AkRole::Status,
+            "the base mapping answers the polite case's role"
+        );
+        assert_eq!(
+            map_live(alacer_core::announce::Politeness::Polite),
+            Live::Polite
+        );
+        assert_eq!(
+            map_live(alacer_core::announce::Politeness::Assertive),
+            Live::Assertive
+        );
+        assert_eq!(
+            map_announcement_role(alacer_core::announce::Politeness::Polite),
+            AkRole::Status
+        );
+        assert_eq!(
+            map_announcement_role(alacer_core::announce::Politeness::Assertive),
+            AkRole::Alert
+        );
+
+        // End to end through the sink: the region node carries both.
+        let mut sink = AccessKitSink::new();
+        let mut snap = snapshot();
+        snap.nodes.push(alacer_core::passes::TreeNode {
+            id: alacer_core::announce::ANNOUNCEMENT_NODE_HASH,
+            role: Role::LiveRegion,
+            label: "Saved".into(),
+            bounds: None,
+            children: Vec::new(),
+            value: None,
+            toggled: None,
+            table_slot: None,
+            selection: None,
+            live: Some(alacer_core::announce::Politeness::Assertive),
+        });
+        sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
+        let update = sink.last_update().expect("update");
+        let region = find_in_update(update, alacer_core::announce::ANNOUNCEMENT_NODE_HASH)
+            .expect("the region in the update");
+        assert_eq!(
+            region.live(),
+            Some(Live::Assertive),
+            "the AT reads the priority"
+        );
+        assert_eq!(region.role(), AkRole::Alert, "the AT reads the ARIA role");
+        assert_eq!(region.label(), Some("Saved"));
     }
 
     #[test]
@@ -536,6 +629,7 @@ mod tests {
                         columns: 3,
                     }),
                     selection: None,
+                    live: None,
                 },
                 TreeNode {
                     id: 2,
@@ -547,6 +641,7 @@ mod tests {
                     toggled: None,
                     table_slot: Some(TableSlot::Header { column: 0 }),
                     selection: None,
+                    live: None,
                 },
                 TreeNode {
                     id: 3,
@@ -558,6 +653,7 @@ mod tests {
                     toggled: Some(alacer_core::widget::ToggleState::On),
                     table_slot: Some(TableSlot::Cell { row: 1, column: 2 }),
                     selection: None,
+                    live: None,
                 },
             ],
         };

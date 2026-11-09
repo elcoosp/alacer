@@ -114,7 +114,10 @@ pub enum BackendError {
 impl std::fmt::Display for BackendError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::NoAdapter => f.write_str("no wgpu adapter for the surface"),
+            Self::NoAdapter => f.write_str(
+                "no wgpu adapter for the surface (no GPU, or none the surface can use); \
+                 set ALACER_SOFTWARE=1 for the softbuffer path",
+            ),
             Self::SurfaceCreation(e) => write!(f, "surface creation failed: {e}"),
             Self::NoDevice(e) => write!(f, "wgpu device creation failed: {e}"),
             Self::Surface(e) => write!(f, "wgpu surface error: {e}"),
@@ -122,7 +125,17 @@ impl std::fmt::Display for BackendError {
     }
 }
 
-impl std::error::Error for BackendError {}
+impl std::error::Error for BackendError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        // The wgpu failures keep their chain; NoAdapter and the surface
+        // creation string are the platform's own facts — the leaves.
+        match self {
+            Self::NoAdapter | Self::SurfaceCreation(_) => None,
+            Self::NoDevice(e) => Some(e),
+            Self::Surface(e) => Some(e),
+        }
+    }
+}
 
 /// The GPU glyph atlas: 8-bit coverage, shelf-packed, full-clear on overflow
 /// (the documented M0 eviction policy; LRU lands with M3, §9.4).

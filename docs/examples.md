@@ -16,16 +16,18 @@ through the software backend.
 | [`gallery`](../crates/alacer/examples/gallery.rs) | the whole widget vocabulary in one window: labels, buttons, text input, panels, list, rows, spacers | the M5 tour: signals, bindings, theme, translation-only scrolling | `cargo run -p alacer --example gallery` |
 | [`scrolling_list`](../crates/alacer/examples/scrolling_list.rs) | 24 panels in a clipped viewport | translation-only wheel updates — zero measure calls per scroll tick (§8.2) | `cargo run -p alacer --example scrolling_list` |
 | [`text_input`](../crates/alacer/examples/text_input.rs) | caret and selection editing (Shift+arrows, Ctrl+A, Alt/Ctrl+arrows word hops, word-chord deletion, double-click word selection, Ctrl/Cmd+C/X/V clipboard chords, Ctrl/Cmd+Z / Shift+Ctrl/Cmd+Z / Ctrl/Cmd+Y undo/redo), secure mode, Tab focus cycling | the M3 IME contract: UTF-16 end to end, inline preedit + commit, partial paint per keystroke; the M11 selection contract: the range the a11y tree carries and the AT value tier edits (ADR-0017); the M13 word contract: the seam's UAX #29 segmentation and the hop rule (ADR-0019); the M14 clipboard contract: the seam round trip, the single-line paste rule, the refused write that never deletes (ADR-0020); the M15 history contract: the journal in core, the coalescing and reset rules, the selection every step restores (ADR-0021) | `cargo run -p alacer --example text_input` |
+| [`undo_redo`](../crates/alacer/examples/undo_redo.rs) | the M15 journal driven directly: *Type hi* appends under the pure-append coalescing rule, *Undo*/*Redo* replay the step with the selection it carries, *Replace all* is the app-write reset, an exhausted journal refuses with an idle frame — no `TextInput` riding along | the M16 demonstration: `EditHistory` as a consumer's vocabulary (`alacer_core::history`) — one edit funnel, one tracing span per route at `alacer::editing`, the introspection reads (`undo_depth`, `can_redo`) live in the window (ADR-0021, ADR-0022) | `cargo run -p alacer --example undo_redo` |
 | [`hot_reload`](../crates/alacer/examples/hot_reload.rs) | a "simulate patch" button swapping the view generation live | the M4 hot-reload contract: state intact, scoped re-render, one frame (§13.2) | `cargo run -p alacer --example hot_reload` |
 | [`inspector_demo`](../crates/alacer/examples/inspector_demo.rs) | the counter app with the Causality inspector riding on it | the M4 inspector: why did this render, who wrote this signal, why is this frame slow (§13.3) | `cargo run -p alacer --example inspector_demo` |
 
 ## Where the pixels are proven
 
 Snapshot scenarios for the same pipeline live in
-[`crates/alacer-testing/blessed/`](../crates/alacer-testing/blessed/) — 32
+[`crates/alacer-testing/blessed/`](../crates/alacer-testing/blessed/) — 33
 blessed PNGs rendered headlessly by `alacer-testing/tests/m1_exit_criteria.rs`
-(30 styled scenarios: labels, wrapped text, buttons in rest/pressed state,
-columns, rows, panels, scrolled lists, conditional and nested trees) plus the
+(31 styled scenarios: labels, wrapped text, buttons in rest/pressed state,
+columns, rows, panels, scrolled lists, conditional and nested trees, the
+journal's undo/redo window) plus the
 M0 pair (`counter_clicked_once`, `list_scrolled_56`) blessed by
 `m0_exit_criteria.rs`. If you add an example
 here, add its scenario there and bless it:

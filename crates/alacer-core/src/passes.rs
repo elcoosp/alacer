@@ -37,15 +37,27 @@ use crate::widget::{EventResponse, Role, Widget};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 /// Errors surfaced by the layout engine.
+///
+/// The failing node — when the engine knows it — is *data*
+/// ([`LayoutError::node`]), not prose: a consumer reads the id it can
+/// resolve against its own arena, and the [`std::fmt::Display`] still
+/// names it for a human (ADR-0023). The type stays an honest leaf: no
+/// fake `source()` chain, the engine's summary is the whole failure.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LayoutError {
-    /// Human-readable failure description, widget ids included.
+    /// Human-readable failure description.
     pub message: String,
+    /// The node the engine failed on, when the failure is about one node.
+    pub node: Option<NodeId>,
 }
 
 impl std::fmt::Display for LayoutError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "layout error: {}", self.message)
+        write!(f, "layout error")?;
+        if let Some(node) = self.node {
+            write!(f, " at node {node}")?;
+        }
+        write!(f, ": {}", self.message)
     }
 }
 
@@ -1808,6 +1820,44 @@ mod tests {
 
     fn viewport() -> Size {
         Size::new(200.0, 400.0)
+    }
+
+    #[test]
+    fn a_layout_error_names_its_node_as_data_when_it_knows_one() {
+        // ADR-0023: the contract's error type carries the failing node as
+        // a field a consumer can read — the "widget ids included" promise
+        // kept as data, not prose — and stays the honest, sourceless leaf.
+        let named = LayoutError {
+            message: "the subtree will not fit".to_string(),
+            node: Some(NodeId::allocate()),
+        };
+        let summary = named.to_string();
+        assert!(
+            summary.contains("the subtree will not fit"),
+            "the human summary survives: {summary}"
+        );
+        assert!(
+            summary.contains("node #"),
+            "the Display names the node for a human: {summary}"
+        );
+        assert!(
+            named.node.is_some(),
+            "the id is data a consumer can resolve, not prose"
+        );
+        assert!(
+            std::error::Error::source(&named).is_none(),
+            "the layout failure is the honest leaf — no cause to fake"
+        );
+
+        let unnamed = LayoutError {
+            message: "the tree will not sync".to_string(),
+            node: None,
+        };
+        assert_eq!(
+            unnamed.to_string(),
+            "layout error: the tree will not sync",
+            "the nodeless form reads as before"
+        );
     }
 
     #[test]

@@ -1,6 +1,6 @@
 //! The M1 exit criteria, as executable spec (architecture §18):
 //!
-//! - **31 blessed snapshots green** — the corpus below, one test, every
+//! - **32 blessed snapshots green** — the corpus below, one test, every
 //!   scenario rendered through the real pipeline + software raster (A4);
 //! - **a11y queries pass** — the query builder, press-through-a11y, walks,
 //!   and plural counts (ADR-10: a11y-driven queries are the only API);
@@ -9,12 +9,17 @@
 //! Blessing is deliberate and reviewable: `ALACER_BLESS=1 cargo test` regenerates
 //! the corpus (ADR-5 snapshot hygiene).
 
-use alacer_core::geom::Point;
+use alacer_core::Color;
+use alacer_core::events::{EventCtx, PointerEvent};
+use alacer_core::geom::{Point, Rect, Size};
 use alacer_core::passes::PassPipeline;
-use alacer_core::widget::{A11yAction, Role};
+use alacer_core::scene::{PaintCtx, Quad};
+use alacer_core::style::{MeasureSpec, Size2, Style};
+use alacer_core::widget::{A11yAction, EventResponse, LabelSource, Role, Widget};
 use alacer_macro::rsx;
 use alacer_testing::TestHarness;
 use alacer_view::{ViewNode, ViewRoot};
+use alacer_widgets::BoxedWidget as _;
 use reactive_graph::traits::{Get, Set};
 
 /// The harness-layer mount: the default M0 element registry (the facade's
@@ -59,7 +64,7 @@ fn click_center(harness: &mut TestHarness, role: Role, name: &str) {
 }
 
 // ---------------------------------------------------------------------------
-// The 30 scenarios — each mounts, optionally interacts, and leaves the frame
+// The 32 scenarios — each mounts, optionally interacts, and leaves the frame
 // the snapshot captures. One function per scenario keeps the corpus readable
 // and reviewable (ADR-5: baselines are contracts).
 // ---------------------------------------------------------------------------
@@ -566,6 +571,132 @@ fn s31_journal_undo_redo(h: &mut TestHarness) {
     h.settle();
 }
 
+// ---------------------------------------------------------------------------
+// The M17 storm probe: the coalescer's consumer (ADR-0023)
+// ---------------------------------------------------------------------------
+
+/// The consumer-side log the probe records into and the routes read —
+/// shared `Rc<RefCell>` state, exactly what a custom widget and its
+/// handlers share outside the pipeline (the m8 probe's shape, ADR-0014).
+#[derive(Default)]
+struct StormLog {
+    routed: Vec<Point>,
+}
+
+/// The probe widget: a fixed panel that records every pointer event the
+/// pipeline routes to it. `role()` and `label()` are required — the
+/// a11y-by-construction contract applies to a demo's widget as much as to
+/// a shipped one (ADR-5).
+struct StormPanel {
+    size: f32,
+    log: std::rc::Rc<std::cell::RefCell<StormLog>>,
+}
+
+impl Widget for StormPanel {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+    fn role(&self) -> Role {
+        Role::Container
+    }
+
+    fn label(&self) -> LabelSource {
+        LabelSource::text("storm panel")
+    }
+
+    fn style(&self) -> Style {
+        Style {
+            size: Size2::uniform(self.size),
+            ..Style::default()
+        }
+    }
+
+    fn measure_spec(&self) -> Option<MeasureSpec> {
+        Some(MeasureSpec::Fixed(Size::new(self.size, self.size)))
+    }
+
+    fn paint(&self, ctx: &mut PaintCtx<'_>) {
+        ctx.push_quad(Quad {
+            rect: Rect::new(Point::zero(), ctx.size()),
+            color: Color::rgb(61, 90, 128),
+            corner_radius: 4.0,
+            border_color: Color::TRANSPARENT,
+            border_width: 0.0,
+            clip: None,
+        });
+    }
+
+    fn on_pointer_event(&mut self, _ctx: &mut EventCtx, event: &PointerEvent) -> EventResponse {
+        if let PointerEvent::Move { position } = event {
+            self.log.borrow_mut().routed.push(*position);
+        }
+        EventResponse::Handled
+    }
+}
+
+fn s32_input_storm(h: &mut TestHarness) {
+    // The M17 demonstration (ADR-0023): the M8 coalescer (ADR-0014)
+    // driven through the pipeline's own queue — fifty queued moves route
+    // as one event (the platform pushes, the tick drains), the probe's
+    // log is the consumer's evidence, and the status line reads it back.
+    let log = std::rc::Rc::new(std::cell::RefCell::new(StormLog::default()));
+    let status = h.pipeline_mut().flux_mut().signal(String::new());
+    let root = h
+        .pipeline_mut()
+        .mount_root(alacer_widgets::Column::new().gap(8.0).padding(12.0).boxed());
+    let _title = h.pipeline_mut().add_child(
+        root,
+        alacer_widgets::Label::new("The input storm (ADR-0014)").boxed(),
+    );
+    let _panel = h.pipeline_mut().add_child(
+        root,
+        Box::new(StormPanel {
+            size: 200.0,
+            log: std::rc::Rc::clone(&log),
+        }) as Box<dyn Widget>,
+    );
+    let binding = alacer_core::flux::RenderBinding::new("queued 0 moves".to_string());
+    let status_label = h
+        .pipeline_mut()
+        .add_child(root, alacer_widgets::Label::bound(binding.clone()).boxed());
+    h.pipeline_mut().flux_mut().bind_value(
+        status,
+        status_label,
+        &binding,
+        alacer_core::Change::LAYOUT.union(alacer_core::Change::PAINT),
+        |line: &String| line.clone(),
+    );
+    h.settle();
+
+    // The storm: fifty moves into the queue — the seam the platform layer
+    // pushes and never drains — then one tick routes the batch.
+    let bounds = h.query(Role::Container).named("storm panel").bounds();
+    for i in 0..50 {
+        h.queue_pointer(PointerEvent::Move {
+            position: Point::new(
+                bounds.origin.x + alacer_core::num::usize_to_f32(i) * 3.0,
+                bounds.origin.y + 10.0,
+            ),
+        });
+    }
+    let _report = h.tick();
+    let routed = log.borrow().routed.len();
+    assert_eq!(
+        routed, 1,
+        "fifty queued moves coalesce into one routed event"
+    );
+
+    // The mirror route: handlers write signals — the status reads the log.
+    alacer_core::flux::Flux::batch_of(|| {
+        reactive_graph::traits::Set::set(
+            &status,
+            format!("queued 50 moves · panel routed {routed}"),
+        );
+    });
+    h.settle();
+}
+
 /// The corpus: (name, run). Order is the snapshot prefix.
 /// One scenario: mount, interact, leave the frame to snapshot.
 type Scenario = (&'static str, fn(&mut TestHarness));
@@ -602,6 +733,7 @@ const SCENARIOS: &[Scenario] = &[
     ("conditional_button", s29_conditional_button),
     ("mixed_grid", s30_mixed_grid),
     ("journal_undo_redo", s31_journal_undo_redo),
+    ("input_storm", s32_input_storm),
 ];
 
 // ---------------------------------------------------------------------------
@@ -609,16 +741,16 @@ const SCENARIOS: &[Scenario] = &[
 // ---------------------------------------------------------------------------
 
 #[test]
-fn m1_corpus_is_thirty_one_scenarios() {
+fn m1_corpus_is_thirty_two_scenarios() {
     assert_eq!(
         SCENARIOS.len(),
-        31,
-        "the M1 exit criterion is 31 blessed snapshots (M16 grew it, ADR-0022)"
+        32,
+        "the M1 exit criterion is 32 blessed snapshots (M17 grew it, ADR-0023)"
     );
 }
 
 #[test]
-fn m1_thirty_one_blessed_snapshots_are_green() {
+fn m1_thirty_two_blessed_snapshots_are_green() {
     for (index, (name, run)) in SCENARIOS.iter().enumerate() {
         let mut harness = TestHarness::new(VIEWPORT.0, VIEWPORT.1);
         run(&mut harness);

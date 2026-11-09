@@ -103,8 +103,9 @@ struct Instance {
 pub enum BackendError {
     /// No adapter matched the surface.
     NoAdapter,
-    /// Surface creation from the raw handle failed.
-    SurfaceCreation(String),
+    /// Surface creation from the raw handle failed (M18, ADR-0024): the
+    /// structured [`wgpu::CreateSurfaceError`] rides the chain.
+    SurfaceCreation(wgpu::CreateSurfaceError),
     /// Device or queue creation failed.
     NoDevice(wgpu::RequestDeviceError),
     /// Surface acquisition or other wgpu operation failed.
@@ -127,10 +128,11 @@ impl std::fmt::Display for BackendError {
 
 impl std::error::Error for BackendError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        // The wgpu failures keep their chain; NoAdapter and the surface
-        // creation string are the platform's own facts — the leaves.
+        // The wgpu failures keep their chain; `NoAdapter` is the platform's
+        // own fact — the one honest leaf.
         match self {
-            Self::NoAdapter | Self::SurfaceCreation(_) => None,
+            Self::NoAdapter => None,
+            Self::SurfaceCreation(e) => Some(e),
             Self::NoDevice(e) => Some(e),
             Self::Surface(e) => Some(e),
         }

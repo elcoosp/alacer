@@ -66,8 +66,10 @@ pub enum PlatformError {
     Window(winit::error::OsError),
     /// The present backend failed at startup.
     Backend(BackendError),
-    /// The softbuffer path failed at startup.
-    Softbuffer(String),
+    /// The softbuffer path failed at startup (M18, ADR-0024): the
+    /// structured [`SoftBufferError`](::softbuffer::SoftBufferError) rides the chain — a
+    /// consumer walks to the real cause instead of a formatted string.
+    Softbuffer(::softbuffer::SoftBufferError),
 }
 
 impl std::fmt::Display for PlatformError {
@@ -84,13 +86,13 @@ impl std::fmt::Display for PlatformError {
 impl std::error::Error for PlatformError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         // The chain a consumer walks with anyhow or `source().unwrap()`:
-        // every wrapped failure stays reachable, the platform's own facts
-        // (no adapter, a string payload) are the honest leaves.
+        // every wrapped failure stays reachable; `NoAdapter` is the one
+        // honest leaf — a fact about the host, not a wrapped failure.
         match self {
             Self::Loop(e) => Some(e),
             Self::Window(e) => Some(e),
             Self::Backend(e) => Some(e),
-            Self::Softbuffer(_) => None,
+            Self::Softbuffer(e) => Some(e),
         }
     }
 }
@@ -264,9 +266,8 @@ impl AlacerApp {
             BackendPreference::Wgpu => {
                 let surface = wgpu::Instance::new(instance_descriptor())
                     .create_surface(window.clone())
-                    .map_err(|e| {
-                        PlatformError::Backend(BackendError::SurfaceCreation(e.to_string()))
-                    })?;
+                    .map_err(BackendError::SurfaceCreation)
+                    .map_err(PlatformError::Backend)?;
                 let (renderer, _config) = WgpuRenderer::new(
                     &surface,
                     (size_px(self.start_size.0), size_px(self.start_size.1)),
@@ -279,10 +280,10 @@ impl AlacerApp {
                     Arc::new(window.clone());
                 let window_handle: Arc<dyn raw_window_handle::HasWindowHandle> = Arc::new(window);
                 let mut presenter = SoftbufferPresenter::new(display, window_handle)
-                    .map_err(|e| PlatformError::Softbuffer(e.to_string()))?;
+                    .map_err(PlatformError::Softbuffer)?;
                 presenter
                     .resize(size_px(self.start_size.0), size_px(self.start_size.1))
-                    .map_err(|e| PlatformError::Softbuffer(e.to_string()))?;
+                    .map_err(PlatformError::Softbuffer)?;
                 self.backend = Some(Backend::Softbuffer(presenter));
             }
         }
@@ -1008,10 +1009,41 @@ mod tests {
             std::error::Error::source(backend).is_none(),
             "NoAdapter is a leaf: the chain ends at the platform's own fact"
         );
-        let softbuffer = PlatformError::Softbuffer("present failed".to_string());
+    }
+
+    #[test]
+    fn the_softbuffer_path_sources_the_present_path_error() {
+        // M18 (ADR-0024): the last String leaf grew its chain — the
+        // structured `SoftBufferError` rides `source()`, and a consumer
+        // walks from the platform error to the present path's cause.
+        let error = PlatformError::Softbuffer(::softbuffer::SoftBufferError::Unimplemented);
+        let source =
+            std::error::Error::source(&error).expect("the present-path error rides the chain");
         assert!(
-            std::error::Error::source(&softbuffer).is_none(),
-            "the string payload is the leaf message, not a wrapped error"
+            source
+                .downcast_ref::<::softbuffer::SoftBufferError>()
+                .is_some(),
+            "the chain keeps the softbuffer error's type"
+        );
+        assert!(
+            error.to_string().contains("softbuffer present path"),
+            "the stage is still named for a human: {error}"
+        );
+    }
+
+    #[test]
+    fn a_failed_surface_creation_carries_the_wgpu_cause() {
+        // M18 (ADR-0024): the surface-creation String flattened the
+        // `CreateSurfaceError`; the structured error rides the variant now.
+        // wgpu's type is opaque (its inner kind is private), so the contract
+        // is pinned at the type level — the payload a consumer downcasts
+        // through `source()` implements `Error + 'static`.
+        fn require_chainable<E: std::error::Error + 'static>() {}
+        require_chainable::<wgpu::CreateSurfaceError>();
+        let error: BackendError = BackendError::NoAdapter;
+        assert!(
+            error.to_string().contains("ALACER_SOFTWARE=1"),
+            "the leaf keeps its escape-hatch help text: {error}"
         );
     }
 
@@ -1093,6 +1125,7 @@ mod tests {
                 toggled: None,
                 table_slot: None,
                 selection: None,
+                live: None,
             }],
         });
         sink.apply(

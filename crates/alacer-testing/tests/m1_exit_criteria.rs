@@ -1,6 +1,6 @@
 //! The M1 exit criteria, as executable spec (architecture §18):
 //!
-//! - **32 blessed snapshots green** — the corpus below, one test, every
+//! - **33 blessed snapshots green** — the corpus below, one test, every
 //!   scenario rendered through the real pipeline + software raster (A4);
 //! - **a11y queries pass** — the query builder, press-through-a11y, walks,
 //!   and plural counts (ADR-10: a11y-driven queries are the only API);
@@ -701,6 +701,163 @@ fn s32_input_storm(h: &mut TestHarness) {
 /// One scenario: mount, interact, leave the frame to snapshot.
 type Scenario = (&'static str, fn(&mut TestHarness));
 
+/// The app's voice (the m18 example's window, ADR-0024): the last speech
+/// act and how it answered, mirrored into the window by the routes.
+#[derive(Default)]
+struct AnnouncerLog {
+    last: Option<(String, alacer_core::announce::Politeness)>,
+    refused: bool,
+}
+
+impl AnnouncerLog {
+    fn status(&self) -> String {
+        if self.refused {
+            return "refused: an empty announcement speaks nothing".to_string();
+        }
+        match &self.last {
+            Some((text, politeness)) => format!("announced {text:?} · {}", politeness.name()),
+            None => "the region is silent".to_string(),
+        }
+    }
+}
+
+/// One speech route: the ambient queue accepts (or refuses), the app's
+/// state records the answer, the batch mirrors it into the window. The
+/// tick drains the queue into the reserved region one frame later.
+fn speak_route(
+    log: &std::rc::Rc<std::cell::RefCell<AnnouncerLog>>,
+    text: &str,
+    politeness: alacer_core::announce::Politeness,
+    status_line: &alacer_core::FluxRwSignal<String>,
+) {
+    let accepted = alacer_core::announce::announce(text, politeness);
+    {
+        let mut app = log.borrow_mut();
+        if accepted {
+            app.last = Some((text.to_string(), politeness));
+            app.refused = false;
+        } else {
+            app.refused = true;
+        }
+    }
+    let line = log.borrow().status();
+    alacer_core::flux::Flux::batch_of(|| {
+        reactive_graph::traits::Set::set(status_line, line);
+    });
+}
+
+/// One control's payload: the boxed route the button drives (every route
+/// closure is its own type, so the row carries trait objects).
+type RouteHandler = Box<dyn FnMut()>;
+
+fn s33_announcements(h: &mut TestHarness) {
+    // The M18 demonstration (ADR-0024): the app's voice rides the a11y
+    // delta — the buttons route the handler-reachable speech acts, the
+    // status line mirrors what the region carries, and the reserved
+    // live-region node answers in the sink one frame later.
+    let log = std::rc::Rc::new(std::cell::RefCell::new(AnnouncerLog::default()));
+    let status = h.pipeline_mut().flux_mut().signal(log.borrow().status());
+    let root = h
+        .pipeline_mut()
+        .mount_root(alacer_widgets::Column::new().gap(8.0).padding(12.0).boxed());
+    let _title = h.pipeline_mut().add_child(
+        root,
+        alacer_widgets::Label::new("The announcements (ADR-0024)").boxed(),
+    );
+    let binding = alacer_core::flux::RenderBinding::new(log.borrow().status());
+    let status_label = h
+        .pipeline_mut()
+        .add_child(root, alacer_widgets::Label::bound(binding.clone()).boxed());
+    h.pipeline_mut().flux_mut().bind_value(
+        status,
+        status_label,
+        &binding,
+        alacer_core::Change::LAYOUT.union(alacer_core::Change::PAINT),
+        |line: &String| line.clone(),
+    );
+    let actions = h
+        .pipeline_mut()
+        .add_child(root, alacer_widgets::Row::new().gap(8.0).boxed());
+    let save_click = {
+        let log = std::rc::Rc::clone(&log);
+        move || {
+            speak_route(
+                &log,
+                "Saved",
+                alacer_core::announce::Politeness::Polite,
+                &status,
+            );
+        }
+    };
+    let delete_click = {
+        let log = std::rc::Rc::clone(&log);
+        move || {
+            speak_route(
+                &log,
+                "Deleted",
+                alacer_core::announce::Politeness::Assertive,
+                &status,
+            );
+        }
+    };
+    let refuse_click = {
+        let log = std::rc::Rc::clone(&log);
+        move || {
+            speak_route(&log, "", alacer_core::announce::Politeness::Polite, &status);
+        }
+    };
+    for (name, handler) in [
+        ("Save it", Box::new(save_click) as RouteHandler),
+        ("Delete it", Box::new(delete_click) as RouteHandler),
+        ("Speak nothing", Box::new(refuse_click) as RouteHandler),
+    ] {
+        let _ = h.pipeline_mut().add_child(
+            actions,
+            alacer_widgets::Button::new(name).on_click(handler).boxed(),
+        );
+    }
+    h.settle();
+
+    // The assertive interruption: the handler queues, the tick drains —
+    // the region carries "Deleted" with the alert priority (the sink's
+    // aria-live property), and the window mirrors the act.
+    click_center(h, Role::Button, "Delete it");
+    h.settle();
+    let region = h
+        .pipeline()
+        .a11y_snapshot()
+        .and_then(|tree| tree.by_id(alacer_core::announce::ANNOUNCEMENT_NODE_HASH))
+        .expect("the reserved region rides the snapshot")
+        .clone();
+    assert_eq!(region.label, "Deleted", "the AT reads the interrupted act");
+    assert_eq!(
+        region.live,
+        Some(alacer_core::announce::Politeness::Assertive)
+    );
+    let status = h.query(Role::Label).named("announced");
+    let status_line = status.first();
+    assert!(
+        status_line.label.contains("Deleted"),
+        "the window mirrors the speech act: {}",
+        status_line.label
+    );
+
+    // The honest refusal: an empty announcement speaks nothing, the
+    // status line says so, and the region keeps its last act.
+    click_center(h, Role::Button, "Speak nothing");
+    h.settle();
+    let region = h
+        .pipeline()
+        .a11y_snapshot()
+        .and_then(|tree| tree.by_id(alacer_core::announce::ANNOUNCEMENT_NODE_HASH))
+        .expect("the region survives the refusal")
+        .clone();
+    assert_eq!(
+        region.label, "Deleted",
+        "a refusal never rewrites the region"
+    );
+}
+
 const SCENARIOS: &[Scenario] = &[
     ("hello_label", s01_hello_label),
     ("styled_label", s02_styled_label),
@@ -734,6 +891,7 @@ const SCENARIOS: &[Scenario] = &[
     ("mixed_grid", s30_mixed_grid),
     ("journal_undo_redo", s31_journal_undo_redo),
     ("input_storm", s32_input_storm),
+    ("announcements", s33_announcements),
 ];
 
 // ---------------------------------------------------------------------------
@@ -741,16 +899,16 @@ const SCENARIOS: &[Scenario] = &[
 // ---------------------------------------------------------------------------
 
 #[test]
-fn m1_corpus_is_thirty_two_scenarios() {
+fn m1_corpus_is_thirty_three_scenarios() {
     assert_eq!(
         SCENARIOS.len(),
-        32,
-        "the M1 exit criterion is 32 blessed snapshots (M17 grew it, ADR-0023)"
+        33,
+        "the M1 exit criterion is 33 blessed snapshots (M18 grew it, ADR-0024)"
     );
 }
 
 #[test]
-fn m1_thirty_two_blessed_snapshots_are_green() {
+fn m1_thirty_three_blessed_snapshots_are_green() {
     for (index, (name, run)) in SCENARIOS.iter().enumerate() {
         let mut harness = TestHarness::new(VIEWPORT.0, VIEWPORT.1);
         run(&mut harness);
@@ -776,9 +934,12 @@ fn m1_a11y_queries_pass() {
     assert_eq!(harness.query(Role::Label).named("Item").count(), 0);
     assert_eq!(harness.query(Role::Button).named("Nonexistent").count(), 0);
 
-    // Walk: the whole tree contains exactly the two mounted widgets + column.
+    // Walk: the whole tree contains exactly the two mounted widgets +
+    // column, plus the reserved announcement region (M18, ADR-0024) —
+    // the app's live region is the root's last child from the first
+    // frame, present in every snapshot.
     let tree = harness.pipeline().a11y_snapshot().expect("a11y tree");
-    assert_eq!(tree.walk(None).len(), 3, "column + label + button");
+    assert_eq!(tree.walk(None).len(), 4, "column + label + button + region");
     let button = tree.find(Role::Button, "Increment").expect("button");
     assert_eq!(
         tree.walk(Some(button.id)).len(),

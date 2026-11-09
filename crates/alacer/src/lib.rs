@@ -27,9 +27,11 @@
 //! );
 //! ```
 //!
-//! The M0 dependency spine (architecture §18): `winit` + `wgpu` + `reactive_graph`
-//! + taffy + parley + accesskit on one window; the counter and the scrolling
-//! list are the canon.
+//! The shipped surface (ADR-9): the prelude and the re-exports over the
+//! eleven crates — the widget vocabulary and the M6 canons, the editing
+//! contract's editor (selection, pointer, word, clipboard, and history
+//! tiers), the two render backends, the Causality inspector, the headless
+//! testing harness, and the examples catalog that demonstrates each seam.
 
 #![doc = include_str!("../../../README.md")]
 

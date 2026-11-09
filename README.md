@@ -5,7 +5,7 @@
     Widgets live in a retained arena, <code>rsx!</code> views compile into cheap trees that reconcile in place, and every write queues per-node <code>Change</code> masks that each subsystem — layout, paint, accessibility, devtools — consumes independently. It is built for Rust developers who need accessibility, headless CI, and idle-cheap windows without giving up fine-grained reactivity; proven cores (reactive_graph, taffy, parley, accesskit, winit, wgpu) are adopted as-is and the composition is what this workspace owns. In the published baseline, incremental relayout of 10,000 nodes under 10% style churn measured 14.76× faster than a full rebuild, and a fifty-event pointer storm routes one coalesced event instead of fifty dispatches (40.9×) — contracts CI enforces on every run.
   </p>
   <p>
-    <a href="https://github.com/elcoosp/alacer/blob/main/Cargo.toml"><img src="https://img.shields.io/badge/version-0.11.0-3D5A80?style=flat-square" alt="Workspace version 0.11.0"/></a>
+    <a href="https://github.com/elcoosp/alacer/blob/main/Cargo.toml"><img src="https://img.shields.io/badge/version-0.12.0-3D5A80?style=flat-square" alt="Workspace version 0.12.0"/></a>
     <a href="https://github.com/elcoosp/alacer/blob/main/LICENSE-MIT"><img src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-2E7D32?style=flat-square" alt="Dual MIT OR Apache-2.0 license"/></a>
     <a href="https://github.com/elcoosp/alacer/blob/main/rust-toolchain.toml"><img src="https://img.shields.io/badge/rust-1.99%20%7C%20edition%202024-000000?style=flat-square&logo=rust" alt="Rust 1.99, edition 2024"/></a>
     <a href="https://github.com/elcoosp/alacer/actions/workflows/ci.yml"><img src="https://img.shields.io/badge/CI-Linux%20%2B%20Windows-1F6FEB?style=flat-square" alt="CI on Linux and Windows"/></a>
@@ -112,6 +112,7 @@ The shipped vocabulary covers `Label`, `Button`, `TextInput`, `Column`, `Row`, `
 | `gallery` | the whole widget vocabulary in one window |
 | `scrolling_list` | panels in a clipped viewport; translation-only scrolling |
 | `text_input` | caret and selection editing — keyboard, pointer (click-to-caret, drag-select, double-click word selection), word-wise movement and deletion, clipboard chords (copy, cut, and the single-line paste rule), the AT value tier, and the undo/redo chords alike — secure mode, Tab focus cycling, IME preedit and commit |
+| `undo_redo` | the M15 journal driven directly: record under the pure-append rule, undo/redo with the selection each step returns, the app-write reset, the honest refusal — no `TextInput` riding along |
 | `hot_reload` | swaps the view generation live; state survives |
 | `todo` | the todo canon end-to-end: text input, checkboxes, the a11y tree, record/replay |
 | `data_table` | the table canon: grid slots, headers, keyboard navigation |
@@ -131,12 +132,12 @@ Snapshot scenarios live in `crates/alacer-testing/blessed/`; accessibility tests
 ## Status
 
 > [!NOTE]
-> Alacer is at 0.11.0, pre-1.0: milestones M0 through M15 of `docs/architecture.md` are complete (0.12.0 is the pending release cut), but the API still moves between minor versions. Linux is the primary CI platform — fmt, clippy (pedantic, warnings denied), headless tests, docs, the crate-DAG check, the hot-patch suite, cargo-deny, benches, and perf contracts — while Windows is smoke-tested on a subset of crates; macOS is expected to work through winit and wgpu but is not exercised in CI. The MSRV is 1.99 with the 2024 edition.
+> Alacer is at 0.12.0, pre-1.0: milestones M0 through M16 of `docs/architecture.md` are complete, but the API still moves between minor versions. Linux is the primary CI platform — fmt, clippy (pedantic, warnings denied), headless tests, docs, the crate-DAG check, the hot-patch suite, cargo-deny, benches, and perf contracts — while Windows is smoke-tested on a subset of crates; macOS is expected to work through winit and wgpu but is not exercised in CI. The MSRV is 1.99 with the 2024 edition.
 
 ## Learn more
 
 - [Architecture](https://github.com/elcoosp/alacer/blob/main/docs/architecture.md) — the full system document: design axioms, the ten-pass contract, rendering, accessibility, DX and performance architecture, roadmap and kill criteria
-- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — twenty-two decision records, from workspace discipline to the M15 scope
+- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — twenty-three decision records, from workspace discipline to the M16 scope
 - [Examples catalog](https://github.com/elcoosp/alacer/blob/main/docs/examples.md) — every example with the contract it exercises
 - [Migrating from Iced](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-iced.md) and [from egui](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-egui.md) — mental-model mappings with interop limits stated plainly
 - [Inspector protocol](https://github.com/elcoosp/alacer/blob/main/docs/inspector-protocol.md) — the versioned WebSocket contract behind `alacer-inspect`

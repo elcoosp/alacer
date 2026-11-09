@@ -521,6 +521,13 @@ pub struct PassPipeline {
     /// pointer events coalesce here and route at tick start — the same
     /// one-frame currency the flux bridge gives signal writes (A1, ADR-2).
     input: crate::input::EventCoalescer,
+    /// The pointer capture (§10.1, ADR-0025): the node the active press
+    /// holds. `None` when no press is in flight — the routing then stays
+    /// the pure per-event hit test this field rides beside. The capture
+    /// is implicit (every `Down` holds its deepest accepting hit) and
+    /// single-pointer (the event vocabulary carries no pointer id —
+    /// ADR-0014's shape), so one slot is the honest width.
+    captured: Option<NodeId>,
     /// The app's last announcement (§11.6, ADR-0024): the content the
     /// reserved live-region node carries. `None` until the first accepted
     /// `announce` — the region then rides the snapshot with an empty name.
@@ -562,6 +569,7 @@ impl PassPipeline {
             last_a11y_ids: None,
             observer: None,
             input: crate::input::EventCoalescer::new(),
+            captured: None,
             announcement: None,
             announcement_dirty: false,
             frames: 0,
@@ -611,6 +619,14 @@ impl PassPipeline {
     /// never drains.
     pub fn queue_pointer(&mut self, event: crate::events::PointerEvent) {
         self.input.push(event);
+    }
+
+    /// The node currently holding the pointer capture (§10.1, ADR-0025),
+    /// if a press is in flight. Introspection for tests, probes, and the
+    /// inspector — the routing itself reads the field directly.
+    #[must_use]
+    pub const fn captured(&self) -> Option<NodeId> {
+        self.captured
     }
 
     /// Announces `text` to assistive technologies (§11.6, ADR-0024): the
@@ -755,11 +771,13 @@ impl PassPipeline {
         self.layout.reset_measure_calls();
     }
 
-    /// Pass 1 (`event`): hit-test the pointer position, then route the event
-    /// through the full capture→bubble contract (§10.1): ancestors see it
-    /// first during capture (root → target), the target and its ancestors see
-    /// it again during bubble (target → root); the first `Handled` stops the
-    /// phase. Z-order-aware: the deepest, last-painted hit is the target.
+    /// Pass 1 (`event`): route the event through the capture→bubble contract
+    /// (§10.1). While a press holds its capture (ADR-0025), the event rides
+    /// the captured node's ancestor chain; otherwise the pointer position is
+    /// hit-tested first. Either way the phases are the same: ancestors see
+    /// it first during capture (root → target), the target and its ancestors
+    /// see it again during bubble (target → root); the first `Handled` stops
+    /// the phase. Z-order-aware: the deepest, last-painted hit is the target.
     pub fn dispatch_pointer(&mut self, event: &PointerEvent) -> EventResponse {
         self.counters.events_routed += 1;
         let mut run = PassRun {
@@ -782,13 +800,27 @@ impl PassPipeline {
         response
     }
 
-    /// The event pass body: capture walk, then bubble walk. Returns the
-    /// deepest hit (the target the inspector records).
+    /// The event pass body: the captured route when a press is in flight
+    /// (§10.1, ADR-0025), else the hit test with its capture walk and
+    /// bubble walk. Returns the target the inspector records — the
+    /// captured node, or the deepest hit.
     fn route_pointer(
         &mut self,
         event: &PointerEvent,
         ran: &mut bool,
     ) -> (EventResponse, Option<NodeId>) {
+        // The captured route (ADR-0025): while a press holds a node, its
+        // Move/Up/Leave stream routes through that node's ancestor chain —
+        // wherever the pointer is — until the Up or Leave ends the
+        // gesture. `Down` and `Wheel` stay on the hit test below: a press
+        // re-captures, and the wheel follows the hover, not the capture
+        // (the DOM's shape). A dead target releases the pointer and falls
+        // through to the ordinary route.
+        if !matches!(event, PointerEvent::Down { .. } | PointerEvent::Wheel { .. }) {
+            if let Some(routed) = self.route_captured(event, ran) {
+                return routed;
+            }
+        }
         let Some(position) = event.position() else {
             return (EventResponse::Ignored, None);
         };
@@ -804,6 +836,19 @@ impl PassPipeline {
             return (EventResponse::Ignored, None);
         }
         *ran = true;
+        // The implicit capture (ADR-0025): the press holds its deepest
+        // accepting hit — the target the bubble walk answers first —
+        // so the gesture's remaining Move/Up stream keeps arriving.
+        if let PointerEvent::Down { .. } = event
+            && let Some(target) = chain.last().copied()
+        {
+            self.captured = Some(target);
+            tracing::trace!(
+                target: "alacer::capture",
+                node = target.raw(),
+                "captured: the press holds its target until the release"
+            );
+        }
 
         // Capture: root → target (§10.1). First `Handled` stops the phase.
         for node in &chain {
@@ -821,6 +866,65 @@ impl PassPipeline {
             }
         }
         (EventResponse::Ignored, chain.last().copied())
+    }
+
+    /// The captured route (§10.1, ADR-0025): `event` rides the captured
+    /// node's ancestor chain — capture walk, then bubble walk, the same
+    /// phases the hit-test route walks; only the target comes from the
+    /// press, not from where the pointer is now. Returns `None` when the
+    /// captured node left the arena mid-gesture: the capture releases and
+    /// the caller falls through to the ordinary hit test.
+    fn route_captured(
+        &mut self,
+        event: &PointerEvent,
+        ran: &mut bool,
+    ) -> Option<(EventResponse, Option<NodeId>)> {
+        let captured = self.captured?;
+        if !self.arena.is_live(captured) {
+            self.captured = None;
+            tracing::trace!(
+                target: "alacer::capture",
+                "capture released: the captured node left the arena mid-gesture"
+            );
+            return None;
+        }
+        // The ancestor chain root → captured — the same chain shape the
+        // hit test's pre-order walk produces for the press's target.
+        let mut chain = Vec::new();
+        let mut cursor = Some(captured);
+        while let Some(id) = cursor {
+            chain.push(id);
+            cursor = self.arena.parent(id);
+        }
+        chain.reverse();
+        *ran = true;
+        // The release ends the capture on arrival: the widget still sees
+        // its Up/Leave — the walk below routes it — and the next event
+        // hit-tests again.
+        if matches!(event, PointerEvent::Up { .. } | PointerEvent::Leave) {
+            self.captured = None;
+            tracing::trace!(
+                target: "alacer::capture",
+                node = captured.raw(),
+                "capture released with the gesture's end"
+            );
+        }
+        // Capture: root → target (§10.1). First `Handled` stops the phase.
+        for node in &chain {
+            let response = self.visit_with_phase(*node, EventPhase::Capture, event);
+            if response == EventResponse::Handled {
+                return Some((EventResponse::Handled, Some(captured)));
+            }
+        }
+        // Bubble: target → root. Reverse pre-order tail = deepest, topmost
+        // (last painted) hit first.
+        for node in chain.iter().rev() {
+            let response = self.visit_with_phase(*node, EventPhase::Bubble, event);
+            if response == EventResponse::Handled {
+                return Some((EventResponse::Handled, Some(captured)));
+            }
+        }
+        Some((EventResponse::Ignored, Some(captured)))
     }
 
     /// One capture/bubble visit: route the event with the phase set, merge
@@ -3003,5 +3107,208 @@ mod tests {
             .expect("the region");
         assert_eq!(region.label, "Connection lost", "last write wins");
         assert_eq!(region.live, Some(crate::announce::Politeness::Assertive));
+    }
+
+    // ── The pointer capture (§10.1, ADR-0025) ─────────────────────────────
+
+    /// A fixed panel that records the tag of every routed pointer event —
+    /// the probe the capture contract's tests read.
+    struct Probe {
+        size: crate::geom::Size,
+        log: std::rc::Rc<std::cell::RefCell<Vec<&'static str>>>,
+    }
+
+    impl Widget for Probe {
+        fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+            self
+        }
+
+        fn role(&self) -> Role {
+            Role::Container
+        }
+
+        fn label(&self) -> LabelSource {
+            LabelSource::text("probe")
+        }
+
+        fn measure_spec(&self) -> Option<crate::style::MeasureSpec> {
+            Some(crate::style::MeasureSpec::Fixed(self.size))
+        }
+
+        fn on_pointer_event(
+            &mut self,
+            _ctx: &mut crate::events::EventCtx,
+            event: &PointerEvent,
+        ) -> EventResponse {
+            let tag = match event {
+                PointerEvent::Down { .. } => "down",
+                PointerEvent::Up { .. } => "up",
+                PointerEvent::Move { .. } => "move",
+                PointerEvent::Leave => "leave",
+                PointerEvent::Wheel { .. } => "wheel",
+            };
+            self.log.borrow_mut().push(tag);
+            EventResponse::Handled
+        }
+    }
+
+    /// A root filling the viewport with a 100×60 probe at the origin —
+    /// the press lands inside the probe, the drag wanders past it.
+    fn probe_pipeline(
+    ) -> (PassPipeline, NodeId, std::rc::Rc<std::cell::RefCell<Vec<&'static str>>>) {
+        let mut p = pipeline();
+        let root = p.mount_root(Box::new(Fixed {
+            size: Size::new(200.0, 400.0),
+        }));
+        let log = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+        let probe = p.add_child(
+            root,
+            Box::new(Probe {
+                size: Size::new(100.0, 60.0),
+                log: std::rc::Rc::clone(&log),
+            }),
+        );
+        p.tick(viewport()).expect("first frame");
+        (p, probe, log)
+    }
+
+    #[test]
+    fn a_captured_drag_keeps_routing_outside_the_target() {
+        let (mut p, _probe, log) = probe_pipeline();
+        // Press inside the probe's frame (100×60 at the origin).
+        p.dispatch_pointer(&PointerEvent::Down {
+            position: Point::new(50.0, 30.0),
+            button: crate::events::MouseButton::Left,
+            click_count: 1,
+        });
+        assert!(p.captured().is_some(), "the press holds its target");
+        // The drag wanders far below the probe — the stream still routes.
+        p.dispatch_pointer(&PointerEvent::Move {
+            position: Point::new(50.0, 380.0),
+        });
+        p.dispatch_pointer(&PointerEvent::Up {
+            position: Point::new(50.0, 380.0),
+            button: crate::events::MouseButton::Left,
+        });
+        assert_eq!(
+            log.borrow().as_slice(),
+            ["down", "move", "up"],
+            "the captured stream rides the target's chain, wherever the pointer is"
+        );
+        assert!(p.captured().is_none(), "the release ends the capture");
+    }
+
+    #[test]
+    fn the_release_returns_the_pointer_to_the_hit_test() {
+        let (mut p, _probe, log) = probe_pipeline();
+        p.dispatch_pointer(&PointerEvent::Down {
+            position: Point::new(50.0, 30.0),
+            button: crate::events::MouseButton::Left,
+            click_count: 1,
+        });
+        p.dispatch_pointer(&PointerEvent::Up {
+            position: Point::new(50.0, 30.0),
+            button: crate::events::MouseButton::Left,
+        });
+        // After the release, a move past the probe routes by the hit test
+        // again — the old press holds nothing.
+        p.dispatch_pointer(&PointerEvent::Move {
+            position: Point::new(50.0, 380.0),
+        });
+        assert_eq!(
+            log.borrow().as_slice(),
+            ["down", "up"],
+            "the uncaptured move follows the hover, not the finished press"
+        );
+        // One slot, last press wins: a second press re-captures.
+        p.dispatch_pointer(&PointerEvent::Down {
+            position: Point::new(50.0, 30.0),
+            button: crate::events::MouseButton::Left,
+            click_count: 1,
+        });
+        assert!(
+            p.captured().is_some(),
+            "the second press holds its target again"
+        );
+    }
+
+    #[test]
+    fn leave_ends_the_capture_and_reaches_the_target() {
+        let (mut p, _probe, log) = probe_pipeline();
+        p.dispatch_pointer(&PointerEvent::Down {
+            position: Point::new(50.0, 30.0),
+            button: crate::events::MouseButton::Left,
+            click_count: 1,
+        });
+        // Leave carries no position: without a capture it routes nowhere;
+        // with one it rides the captured chain and ends the gesture.
+        p.dispatch_pointer(&PointerEvent::Leave);
+        assert_eq!(
+            log.borrow().as_slice(),
+            ["down", "leave"],
+            "the captured target sees the leave"
+        );
+        assert!(p.captured().is_none(), "the leave releases the pointer");
+    }
+
+    #[test]
+    fn a_wheel_follows_the_hover_not_the_capture() {
+        let (mut p, _probe, log) = probe_pipeline();
+        p.dispatch_pointer(&PointerEvent::Down {
+            position: Point::new(50.0, 30.0),
+            button: crate::events::MouseButton::Left,
+            click_count: 1,
+        });
+        p.dispatch_pointer(&PointerEvent::Wheel {
+            delta: Vector::new(0.0, -12.0),
+            position: Point::new(50.0, 380.0),
+        });
+        assert_eq!(
+            log.borrow().as_slice(),
+            ["down"],
+            "the wheel stays hit-tested: it scrolls what is under the pointer"
+        );
+    }
+
+    #[test]
+    fn a_dead_target_releases_the_pointer() {
+        let (mut p, probe, _log) = probe_pipeline();
+        p.dispatch_pointer(&PointerEvent::Down {
+            position: Point::new(50.0, 30.0),
+            button: crate::events::MouseButton::Left,
+            click_count: 1,
+        });
+        assert!(p.captured().is_some());
+        // The subtree leaves the arena mid-gesture: the capture releases
+        // and the pointer routes by the hit test again — no panic, no
+        // ghost route.
+        p.arena_mut().remove_subtree(probe);
+        p.dispatch_pointer(&PointerEvent::Move {
+            position: Point::new(50.0, 380.0),
+        });
+        assert!(
+            p.captured().is_none(),
+            "the dead target cannot hold the pointer"
+        );
+    }
+
+    #[test]
+    fn an_uncaptured_storm_routes_by_the_hit_test_alone() {
+        let (mut p, _probe, log) = probe_pipeline();
+        // Fifty moves across and past the probe's frame: the hit test
+        // routes exactly the ones inside it — the capture adds no route
+        // of its own while no press is in flight.
+        for i in 0..50 {
+            p.dispatch_pointer(&PointerEvent::Move {
+                position: Point::new(50.0, 30.0 + crate::num::usize_to_f32(i)),
+            });
+        }
+        assert_eq!(log.borrow().len(), 30, "the moves inside the frame only");
+        assert!(
+            log.borrow().iter().all(|tag| *tag == "move"),
+            "moves only — no synthetic down or up"
+        );
+        assert_eq!(p.counters().events_routed, 50, "every event was routed");
+        assert!(p.captured().is_none(), "no press, no capture");
     }
 }

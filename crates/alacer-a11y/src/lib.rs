@@ -53,6 +53,10 @@ pub fn map_role(role: Role) -> AccessKitRole {
         // back through the value tier (`SetValue`, `Increment`,
         // `Decrement`).
         Role::Slider => AccessKitRole::Slider,
+        // The progress indicator (M21, ADR-0027): the AT reads the value
+        // the app reports through the M3 `value()` contract — the read
+        // half of the value tier, mapped faithfully.
+        Role::ProgressIndicator => AccessKitRole::ProgressIndicator,
         Role::Table => AccessKitRole::Table,
         Role::TableRow => AccessKitRole::Row,
         Role::TableCell => AccessKitRole::Cell,
@@ -445,6 +449,8 @@ mod tests {
         assert_eq!(map_role(Role::CheckBox), AkRole::CheckBox);
         // The M20 value tier.
         assert_eq!(map_role(Role::Slider), AkRole::Slider);
+        // The M21 value tier's read half.
+        assert_eq!(map_role(Role::ProgressIndicator), AkRole::ProgressIndicator);
         assert_eq!(map_role(Role::Table), AkRole::Table);
         assert_eq!(map_role(Role::TableRow), AkRole::Row);
         assert_eq!(map_role(Role::TableCell), AkRole::Cell);

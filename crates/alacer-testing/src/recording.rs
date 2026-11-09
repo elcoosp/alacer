@@ -17,6 +17,32 @@ use std::path::Path;
 /// committed recordings; the replay refuses unknown schemas loudly.
 pub const RECORDING_SCHEMA: u32 = 1;
 
+/// The `serde_json` failure behind a recording surface: the `io::Error`'s
+/// `Display` names the surface ("malformed .alc"), and — because the
+/// custom repr delegates `source()` to the boxed error, and this wrapper
+/// delegates to its cause — the `io::Error`'s own `source()` reaches the
+/// real parse or serialize error (ADR-0023, the chain `PlatformError`
+/// walks, one seam over; the replay's panic-on-drift semantics are a
+/// separate, deliberate contract). The wrapper stays private on purpose:
+/// the `io::Error` is the surface type, the chain is the diagnostic.
+#[derive(Debug)]
+struct RecordingCause {
+    surface: &'static str,
+    cause: serde_json::Error,
+}
+
+impl std::fmt::Display for RecordingCause {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.surface, self.cause)
+    }
+}
+
+impl std::error::Error for RecordingCause {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.cause)
+    }
+}
+
 /// One recorded interaction step.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -166,8 +192,12 @@ impl Recording {
     ///
     /// Propagates I/O and serialization errors to the caller.
     pub fn save(&self, path: impl AsRef<Path>) -> std::io::Result<()> {
-        let json = serde_json::to_string_pretty(self)
-            .map_err(|error| std::io::Error::other(error.to_string()))?;
+        let json = serde_json::to_string_pretty(self).map_err(|error| {
+            std::io::Error::other(RecordingCause {
+                surface: "recording serialization failed",
+                cause: error,
+            })
+        })?;
         std::fs::write(path, json)
     }
 
@@ -179,8 +209,12 @@ impl Recording {
     /// recording that cannot be replayed honestly must not silently pass.
     pub fn load(path: impl AsRef<Path>) -> std::io::Result<Self> {
         let text = std::fs::read_to_string(path)?;
-        let recording: Recording = serde_json::from_str(&text)
-            .map_err(|error| std::io::Error::other(format!("malformed .alc: {error}")))?;
+        let recording: Recording = serde_json::from_str(&text).map_err(|error| {
+            std::io::Error::other(RecordingCause {
+                surface: "malformed .alc",
+                cause: error,
+            })
+        })?;
         if recording.schema != RECORDING_SCHEMA {
             return Err(std::io::Error::other(format!(
                 "unsupported recording schema {} (this harness speaks {RECORDING_SCHEMA})",
@@ -422,6 +456,30 @@ mod tests {
         assert_eq!(loaded.schema, super::RECORDING_SCHEMA);
         assert_eq!(loaded.viewport, [320.0, 240.0]);
         assert_eq!(loaded.steps().len(), 4);
+    }
+
+    #[test]
+    fn a_malformed_recording_walks_to_its_parse_cause() {
+        // ADR-0023: a malformed `.alc` is a *bug report* (ADR-10) — the
+        // load path's `source()` chain must reach the real parse error,
+        // the way `PlatformError`'s chain reaches the event-loop error
+        // (ADR-0022). The message names the surface; the chain carries it.
+        let path = std::env::temp_dir().join("alacer_recording_malformed.alc");
+        std::fs::write(&path, "{ not json").expect("write");
+        let error = Recording::load(&path).expect_err("malformed json refuses");
+        let _ = std::fs::remove_file(&path);
+
+        assert!(
+            error.to_string().contains("malformed .alc"),
+            "the message names the surface: {error}"
+        );
+        let cause = std::error::Error::source(&error)
+            .and_then(|cause| cause.downcast_ref::<serde_json::Error>())
+            .expect("the parse cause is reachable as the error's source");
+        assert!(
+            cause.is_syntax(),
+            "the cause is the parse error itself: {cause}"
+        );
     }
 
     #[test]

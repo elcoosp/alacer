@@ -9,6 +9,38 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M21 — the reported value (ADR-0027)**: the value tier grows its read
+  half. The ledger M20 emptied had one unclaimed completion: the AT can
+  *write* a value, but an app had no widget-shaped way to *report* one.
+  The progress indicator ships as `Progress`
+  (`crates/alacer-widgets/src/progress.rs`) over a new
+  `Role::ProgressIndicator` in core — requires-name (an unnamed report
+  reads as a bare number, ADR-5), not focusable (a report holds no
+  focus), and carrying the app's bounded scalar through the M3
+  `value()` contract, with the a11y sink mapping the role faithfully
+  (`AccessKitRole::ProgressIndicator`). Two app doors land the same
+  `PAINT | A11Y` currency: the binding bridge (one write batch, the
+  caller's masks — the reactive-text seam, at a value) and the mutate
+  seam (the pass-4 queue's lease, the write in place, the write's own
+  masks on the `WidgetMut` guard), whose `set_value` answers the move it
+  made so a write that lands where the value already is queues nothing —
+  the idle-frame property, at the app seam. The AT tier is read-only by
+  construction: every action is refused honestly, never munged (the M11
+  rule). The consumer demonstration ships: `examples/progress.rs` drives
+  both doors with `tracing` spans at the new `alacer::progress` target —
+  the mutate seam's first consumer demonstration. The coordinated corpus
+  completes: the value-write route's criterion case
+  `progress/route_100_value_writes_1k` is measured (100 samples),
+  published with its baseline entry, and gated same-host — corpus
+  55 → 56, every M-suite pin moved together — and the m1 corpus grows
+  35 → 36 with the reported value's window. The micro-debt the audit
+  priced rides the cut: the dead `PassPipeline::has_observer` and the
+  wgpu backend's dead stats surface (`glyphs_rendered`,
+  `instance_frames_skipped`, `atlas_clears`) go. The living documents
+  re-agree: the migration guides' 0.12.0 self-description names the
+  shipped family again (the M16 pattern's remainder), and the README,
+  the catalog, the architecture register (27 → 28), the roadmap, and
+  this changelog moved with it
 - **M20 — the valued widget (ADR-0026)**: the slider joins the widget
   vocabulary and the value tier becomes a widget's contract. The
   ledger's last feature candidate ships as `Slider`

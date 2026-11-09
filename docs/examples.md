@@ -21,18 +21,20 @@ through the software backend.
 | [`undo_redo`](../crates/alacer/examples/undo_redo.rs) | the M15 journal driven directly: *Type hi* appends under the pure-append coalescing rule, *Undo*/*Redo* replay the step with the selection it carries, *Replace all* is the app-write reset, an exhausted journal refuses with an idle frame — no `TextInput` riding along | the M16 demonstration: `EditHistory` as a consumer's vocabulary (`alacer_core::history`) — one edit funnel, one tracing span per route at `alacer::editing`, the introspection reads (`undo_depth`, `can_redo`) live in the window (ADR-0021, ADR-0022) | `cargo run -p alacer --example undo_redo` |
 | [`announcements`](../crates/alacer/examples/announcements.rs) | the M18 announcement seam driven from the consumer side: *Save it* announces politely, *Delete it* interrupts assertively, *Speak nothing* refuses honestly — the status line mirrors what the reserved live region carries, read back from the app's own state | the M18 demonstration: the app's voice rides the a11y delta (`alacer_core::announce`) — the handler-reachable queue drains into the same region one frame later (the input-queue shape, ADR-0014), one tracing span per route at `alacer::announce`, and a screen reader speaks the `aria-live` pairing the sink emits (ADR-0024) | `cargo run -p alacer --example announcements` |
 | [`slider`](../crates/alacer/examples/slider.rs) | the M20 value tier driven from the consumer side: one `Slider` over 0..=100 — drag the thumb, focus it and press the arrows (Home/End jump to the ends), or let a screen reader write the value; the status line mirrors what the a11y tree carries | the M20 demonstration: the value tier is a widget (ADR-0026) — every door (drag, arrows, the AT's `SetValue`/`Increment`/`Decrement`) rides one funnel that clamps to the range and snaps to the step inside the widget, the value rides the M3 `value()` contract, and a write that lands where the value already is queues no masks | `cargo run -p alacer --example slider` |
+| [`progress`](../crates/alacer/examples/progress.rs) | the M21 reported value driven from the consumer side: one bound `Progress` the app writes through both doors — the bridge (the *Step the batch* button's one-batch signal write) and the mutate seam (the lease, the write, the masks on the guard, walked at startup) — with `tracing` spans at `alacer::progress`; the status line mirrors what the a11y tree carries | the M21 demonstration: the value tier's read half (ADR-0027) — a bounded scalar the *app* reports and the AT reads through the M3 `value()` contract, every AT action refused honestly (a reporting widget has no write door), and a write that lands where the value already is queues no masks — the idle-frame property at the app seam | `cargo run -p alacer --example progress` |
 | [`hot_reload`](../crates/alacer/examples/hot_reload.rs) | a "simulate patch" button swapping the view generation live | the M4 hot-reload contract: state intact, scoped re-render, one frame (§13.2) | `cargo run -p alacer --example hot_reload` |
 | [`inspector_demo`](../crates/alacer/examples/inspector_demo.rs) | the counter app with the Causality inspector riding on it | the M4 inspector: why did this render, who wrote this signal, why is this frame slow (§13.3) | `cargo run -p alacer --example inspector_demo` |
 
 ## Where the pixels are proven
 
 Snapshot scenarios for the same pipeline live in
-[`crates/alacer-testing/blessed/`](../crates/alacer-testing/blessed/) — 37 blessed PNGs
+[`crates/alacer-testing/blessed/`](../crates/alacer-testing/blessed/) — 38 blessed PNGs
 rendered headlessly by `alacer-testing/tests/m1_exit_criteria.rs`
-(35 styled scenarios: labels, wrapped text, buttons in rest/pressed state,
+(36 styled scenarios: labels, wrapped text, buttons in rest/pressed state,
 columns, rows, panels, scrolled lists, conditional and nested trees, the
 journal's undo/redo window, the input storm's probe panel, the announcement
-window, the captured drag's log, and the slider window) plus the M0 pair
+window, the captured drag's log, the slider window, and the reported value's
+window) plus the M0 pair
 (`counter_clicked_once`, `list_scrolled_56`) blessed by
 `m0_exit_criteria.rs`. If you add an example here, add its scenario there and
 bless it:

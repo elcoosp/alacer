@@ -1,7 +1,7 @@
 # Migrating from egui to Alacer
 
 > Scope note (honesty rule): this guide maps egui **0.31-era** concepts
-> (`eframe`, immediate-mode repaints, `egui_kittest`) onto Alacer **0.12.0**.
+> (`eframe`, immediate-mode repaints, `egui_kittest`) onto Alacer **0.13.0**.
 > egui moves fast; treat exact signatures as "check your version", the
 > *concepts* as the durable part.
 
@@ -166,7 +166,7 @@ Porting an egui app, expect to *delete* a11y fixes you hand-patched.
 
 egui: `egui_kittest` snapshots + harness clicks. Alacer: the headless
 `TestHarness` runs the real pipeline with the software rasterizer — no
-windowing, no mocks (A4) — plus 37 blessed PNG snapshots (35 styled scenarios) of the canonical
+windowing, no mocks (A4) — plus 38 blessed PNG snapshots (36 styled scenarios) of the canonical
 scenarios. Porting notes:
 
 ```rust

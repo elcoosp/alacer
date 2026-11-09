@@ -90,8 +90,12 @@ impl SceneJournal for SceneJournalImpl {
     }
 }
 
-/// Partitions a snapshot into per-kind primitive vectors for instanced draws
-/// (§9.1 `batches()` — the GPU backend consumes this shape directly).
+/// Partitions a snapshot into per-kind primitive vectors for instanced
+/// draws (§9.1 `batches()`). The materialization shape the bench and the
+/// tests consume: the shipped backends walk the snapshot's primitives
+/// directly (the wgpu renderer builds its own per-kind draw lists over the
+/// same `SceneSnapshot`), so this partition is the measured vocabulary,
+/// not a present path.
 #[must_use]
 pub fn partition(scene: &SceneSnapshot) -> SceneBatches {
     let mut batches = SceneBatches::default();

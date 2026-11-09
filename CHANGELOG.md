@@ -9,6 +9,37 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M20 — the valued widget (ADR-0026)**: the slider joins the widget
+  vocabulary and the value tier becomes a widget's contract. The
+  ledger's last feature candidate ships as `Slider`
+  (`crates/alacer-widgets/src/slider.rs`) over a new `Role::Slider` in
+  core — requires-name (an unnamed value control reads as a bare
+  number, ADR-5), focusable, and carrying its bounded value through the
+  M3 `value()` contract, with the a11y sink mapping the role faithfully
+  (`AccessKitRole::Slider`). One funnel, four doors: a drag writes the
+  value from the pointer's x against the node's resolved frame (the
+  capture route ADR-0025 shipped keeps the thumb with the hand), the
+  arrow keys step by the step, Home/End jump to the ends, and the AT's
+  tier — `SetValue` (parsed, then snapped like every write),
+  `Increment`, `Decrement` — answers through the same action route the
+  editor and the scroll area hold. Every write clamps to the range and
+  snaps to the step inside the widget; a write that lands where the
+  value already is queues no masks (the idle-frame property, at the
+  widget tier); a non-numeric or non-finite request is refused
+  honestly — never munged into a step, the M11 rule. The consumer
+  demonstration ships: `examples/slider.rs` (one slider, one bound
+  status line mirroring the value the tree carries), pinned by the
+  widget's unit tests and the new m20 exit suite. The coordinated
+  corpus completes M19's promise: the capture route's criterion case
+  `input/route_100_captured_moves_1k` is measured (100 samples),
+  published with its baseline entry, and gated same-host — corpus
+  54 → 55, every M-suite pin moved together — and the m1 corpus grows
+  33 → 35 with the promised drag-capture scenario and the slider's own
+  window. The living documents re-agree: the README's badge and status
+  block finally quote the 0.13.0 family the manifest bumped (the M16
+  pattern's remainder), the vocabulary list names the widgets it
+  ships, and the catalog, migration guides, architecture register
+  (26 → 27 with ADR-0026), and roadmap moved with it
 - **M19 — the captured drag (ADR-0025)**: the pointer capture joins
   the dispatch contract. Pass 1 hit-tested every event independently,
   so a drag that wandered off its target lost its route mid-gesture —

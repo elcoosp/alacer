@@ -117,7 +117,10 @@ fn m19_a_captured_drag_routes_outside_the_target() {
         ["down", "move", "move", "up"],
         "the captured gesture rides the target's chain, wherever the pointer is"
     );
-    assert!(harness.pipeline().captured().is_none(), "the release ends it");
+    assert!(
+        harness.pipeline().captured().is_none(),
+        "the release ends it"
+    );
 
     // The pointer is back in hit-test land: a hover past the probe
     // routes nothing to it.
@@ -138,7 +141,9 @@ fn m19_the_leave_ends_the_capture_and_reaches_the_target() {
     // Leave carries no position: without a capture it routes nowhere;
     // with one it rides the captured chain and ends the gesture — the
     // target gets to unpress honestly.
-    harness.pipeline_mut().dispatch_pointer(&PointerEvent::Leave);
+    harness
+        .pipeline_mut()
+        .dispatch_pointer(&PointerEvent::Leave);
     harness.settle();
 
     assert_eq!(
@@ -146,7 +151,10 @@ fn m19_the_leave_ends_the_capture_and_reaches_the_target() {
         ["down", "leave"],
         "the captured target sees the leave"
     );
-    assert!(harness.pipeline().captured().is_none(), "the leave releases");
+    assert!(
+        harness.pipeline().captured().is_none(),
+        "the leave releases"
+    );
 }
 
 #[test]
@@ -177,19 +185,27 @@ fn m19_the_uncaptured_path_is_unchanged() {
     // no route of its own while it holds nothing (the zero-cost idle
     // property the storm budget leans on).
     for i in 0..50 {
-        harness.pipeline_mut().dispatch_pointer(&alacer_core::events::PointerEvent::Move {
-            position: Point::new(60.0, 20.0 + alacer_core::num::usize_to_f32(i)),
-        });
+        harness
+            .pipeline_mut()
+            .dispatch_pointer(&alacer_core::events::PointerEvent::Move {
+                position: Point::new(60.0, 20.0 + alacer_core::num::usize_to_f32(i)),
+            });
     }
     harness.settle();
 
     let routed = log.borrow().iter().filter(|tag| **tag == "move").count();
-    assert_eq!(routed, 40, "the moves inside the 120×60 frame, and only those");
+    assert_eq!(
+        routed, 40,
+        "the moves inside the 120×60 frame, and only those"
+    );
     assert!(
         log.borrow().iter().all(|tag| *tag == "move"),
         "moves only — no synthetic down or up"
     );
-    assert!(harness.pipeline().captured().is_none(), "no press, no capture");
+    assert!(
+        harness.pipeline().captured().is_none(),
+        "no press, no capture"
+    );
 }
 
 #[test]
@@ -225,7 +241,10 @@ fn m19_a_captured_release_completes_the_button_click() {
         1,
         "the captured release completes the press-and-release on its target"
     );
-    assert!(harness.pipeline().captured().is_none(), "the gesture is over");
+    assert!(
+        harness.pipeline().captured().is_none(),
+        "the gesture is over"
+    );
 }
 
 #[test]
@@ -262,11 +281,12 @@ fn m19_the_surface_work_rides_the_same_cut() {
 #[test]
 fn m19_the_living_documents_re_agree() {
     // The README's criterion count finally agrees with the published
-    // baseline: 54 cases since M18's announcement bench joined it.
+    // baseline: 55 cases since M20's measurement run joined the capture
+    // case (the M19-promised IOU) — the pin moves with the corpus.
     let readme = read_workspace_file("README.md");
     assert!(
-        readme.contains("All 54 criterion cases"),
-        "the README quotes the baselines.json bench_count (54)"
+        readme.contains("All 55 criterion cases"),
+        "the README quotes the baselines.json bench_count (55)"
     );
     assert!(
         readme.contains("Since M19 the drag holds its target"),
@@ -286,7 +306,7 @@ fn m19_the_living_documents_re_agree() {
     for fragment in [
         "ADR-0025",
         "The captured drag",
-        "26 decision records",
+        "27 decision records",
         "implicitly holds its deepest accepting hit",
     ] {
         assert!(
@@ -303,14 +323,14 @@ fn m19_the_living_documents_re_agree() {
         "ADR-0025 documents the captured-drag scope"
     );
 
-    // The corpus stays at 54: the capture route's criterion case joins by
-    // the coordinated rule at the measurement run — the checker fails an
-    // uncontracted benchmark, so the bench and its baseline land together
-    // or not at all (ADR-0011, CONTRIBUTING's publishing rule).
+    // The corpus is 55: the capture route's criterion case joined at
+    // M20's measurement run by the coordinated rule — the checker fails
+    // an uncontracted benchmark, so the bench and its baseline landed
+    // together (ADR-0011, CONTRIBUTING's publishing rule).
     let baselines = parse_workspace_json("benchmarks/baselines/baselines.json");
     assert_eq!(
         baselines["bench_count"],
-        serde_json::json!(54),
-        "the published corpus is unchanged by M19's code half"
+        serde_json::json!(55),
+        "the published corpus carries the capture case the code half promised"
     );
 }

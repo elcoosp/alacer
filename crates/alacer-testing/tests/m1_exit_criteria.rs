@@ -64,7 +64,7 @@ fn click_center(harness: &mut TestHarness, role: Role, name: &str) {
 }
 
 // ---------------------------------------------------------------------------
-// The 32 scenarios — each mounts, optionally interacts, and leaves the frame
+// The 35 scenarios — each mounts, optionally interacts, and leaves the frame
 // the snapshot captures. One function per scenario keeps the corpus readable
 // and reviewable (ADR-5: baselines are contracts).
 // ---------------------------------------------------------------------------
@@ -858,6 +858,200 @@ fn s33_announcements(h: &mut TestHarness) {
     );
 }
 
+// The M20 probes: the captured drag's log (ADR-0025) and the value
+// tier's widget (ADR-0026)
+// ---------------------------------------------------------------------------
+
+/// The drag probe: the `drag_capture` example's widget, corpus edition —
+/// a fixed panel that records every pointer event the pipeline routes to
+/// it, tagged by kind. The capture contract's evidence is the *count*:
+/// a gesture that leaves the frame keeps arriving.
+#[derive(Default)]
+struct DragLog {
+    events: Vec<&'static str>,
+}
+
+/// The probe widget: same required role and label as any shipped widget
+/// (ADR-5).
+struct DragPanel {
+    size: Size,
+    log: std::rc::Rc<std::cell::RefCell<DragLog>>,
+}
+
+impl Widget for DragPanel {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+    fn role(&self) -> Role {
+        Role::Container
+    }
+
+    fn label(&self) -> LabelSource {
+        LabelSource::text("drag panel")
+    }
+
+    fn measure_spec(&self) -> Option<MeasureSpec> {
+        Some(MeasureSpec::Fixed(self.size))
+    }
+
+    fn paint(&self, ctx: &mut PaintCtx<'_>) {
+        ctx.push_quad(Quad {
+            rect: Rect::new(Point::zero(), ctx.size()),
+            color: Color::rgb(94, 96, 206),
+            corner_radius: 4.0,
+            border_color: Color::TRANSPARENT,
+            border_width: 0.0,
+            clip: None,
+        });
+    }
+
+    fn on_pointer_event(&mut self, _ctx: &mut EventCtx, event: &PointerEvent) -> EventResponse {
+        let tag = match event {
+            PointerEvent::Down { .. } => "down",
+            PointerEvent::Up { .. } => "up",
+            PointerEvent::Move { .. } => "move",
+            PointerEvent::Leave => "leave",
+            PointerEvent::Wheel { .. } => "wheel",
+        };
+        self.log.borrow_mut().events.push(tag);
+        EventResponse::Handled
+    }
+}
+
+fn s34_drag_capture(h: &mut TestHarness) {
+    // The M19 demonstration (ADR-0025): the press holds its deepest
+    // accepting hit, so the gesture's moves and its release keep arriving
+    // after the pointer leaves the panel's frame — then a pressless wave
+    // routes only the moves the hit test finds inside it.
+    let log = std::rc::Rc::new(std::cell::RefCell::new(DragLog::default()));
+    let status = h.pipeline_mut().flux_mut().signal(String::new());
+    let root = h
+        .pipeline_mut()
+        .mount_root(alacer_widgets::Column::new().gap(8.0).padding(12.0).boxed());
+    let _title = h.pipeline_mut().add_child(
+        root,
+        alacer_widgets::Label::new("The drag capture (ADR-0025)").boxed(),
+    );
+    let _panel = h.pipeline_mut().add_child(
+        root,
+        Box::new(DragPanel {
+            size: Size::new(160.0, 60.0),
+            log: std::rc::Rc::clone(&log),
+        }) as Box<dyn Widget>,
+    );
+    let binding = alacer_core::flux::RenderBinding::new("panel routed 0 events".to_string());
+    let status_label = h
+        .pipeline_mut()
+        .add_child(root, alacer_widgets::Label::bound(binding.clone()).boxed());
+    h.pipeline_mut().flux_mut().bind_value(
+        status,
+        status_label,
+        &binding,
+        alacer_core::Change::LAYOUT.union(alacer_core::Change::PAINT),
+        |line: &String| line.clone(),
+    );
+    h.settle();
+
+    // The gesture: press inside, drag past the edge, release outside —
+    // four routed events (down, two moves, up) is the capture's answer.
+    let bounds = h.query(Role::Container).named("drag panel").bounds();
+    let inside = Point::new(bounds.min_x() + 20.0, bounds.min_y() + 20.0);
+    let outside = Point::new(bounds.max_x() + 60.0, bounds.max_y() + 60.0);
+    h.pointer_press(inside);
+    h.pointer_move(Point::new(bounds.max_x() + 60.0, bounds.origin.y + 10.0));
+    h.pointer_move(outside);
+    h.pointer_release(outside);
+    h.settle();
+    let routed = log.borrow().events.len();
+    assert_eq!(
+        routed, 4,
+        "the captured gesture rides, wherever the pointer goes"
+    );
+
+    // The pressless wave: the hit test's answer only — nothing arrives
+    // (both wave points sit outside the panel's frame).
+    h.pointer_move(Point::new(bounds.max_x() + 40.0, bounds.origin.y + 10.0));
+    h.pointer_move(Point::new(bounds.max_x() + 80.0, bounds.origin.y + 10.0));
+    h.settle();
+    assert_eq!(
+        log.borrow().events.len(),
+        4,
+        "without a press the capture holds nothing"
+    );
+
+    alacer_core::flux::Flux::batch_of(|| {
+        reactive_graph::traits::Set::set(
+            &status,
+            format!("panel routed {routed} events · the gesture rode the capture"),
+        );
+    });
+    h.settle();
+}
+
+fn s35_slider(h: &mut TestHarness) {
+    // The M20 demonstration (ADR-0026): the value tier's widget — the
+    // drag writes, the arrows step, the funnel clamps and snaps inside
+    // the widget, and the status line mirrors what the a11y tree's value
+    // carries.
+    let status = h.pipeline_mut().flux_mut().signal("Volume: 0".to_string());
+    let root = h
+        .pipeline_mut()
+        .mount_root(alacer_widgets::Column::new().gap(8.0).padding(12.0).boxed());
+    let _title = h.pipeline_mut().add_child(
+        root,
+        alacer_widgets::Label::new("The slider (ADR-0026)").boxed(),
+    );
+    let binding = alacer_core::flux::RenderBinding::new("Volume: 0".to_string());
+    let status_label = h
+        .pipeline_mut()
+        .add_child(root, alacer_widgets::Label::bound(binding.clone()).boxed());
+    h.pipeline_mut().flux_mut().bind_value(
+        status,
+        status_label,
+        &binding,
+        alacer_core::Change::LAYOUT.union(alacer_core::Change::PAINT),
+        |line: &String| line.clone(),
+    );
+    let _ = h.pipeline_mut().add_child(
+        root,
+        alacer_widgets::Slider::new("Volume", 0.0, 100.0)
+            .on_change(move |value| {
+                alacer_core::flux::Flux::batch_of(|| {
+                    reactive_graph::traits::Set::set(&status, format!("Volume: {value}"));
+                });
+            })
+            .boxed(),
+    );
+    h.settle();
+
+    // The drag: press mid-track (50), move to three-quarters (75), release.
+    let bounds = h.query(Role::Slider).named("Volume").bounds();
+    let track_x = |ratio: f32| bounds.origin.x + bounds.size.width * ratio;
+    h.pointer_press(Point::new(track_x(0.5), bounds.origin.y + 8.0));
+    h.pointer_move(Point::new(track_x(0.75), bounds.origin.y + 8.0));
+    h.pointer_release(Point::new(track_x(0.75), bounds.origin.y + 8.0));
+    h.settle();
+
+    // The keyboard: the press focused the slider, an arrow steps.
+    h.press_key(alacer_core::events::Key::ArrowRight);
+    h.settle();
+
+    // The AT's write: the value tier answers like the drag did.
+    let volume = h
+        .pipeline()
+        .a11y_snapshot()
+        .and_then(|tree| tree.find(Role::Slider, "Volume"))
+        .expect("the slider is named in the a11y tree")
+        .id;
+    assert!(
+        h.pipeline_mut()
+            .dispatch_a11y_action(volume, A11yAction::SetValue("90".to_string())),
+        "the AT's SetValue rides the same funnel"
+    );
+    h.settle();
+}
+
 const SCENARIOS: &[Scenario] = &[
     ("hello_label", s01_hello_label),
     ("styled_label", s02_styled_label),
@@ -892,6 +1086,8 @@ const SCENARIOS: &[Scenario] = &[
     ("journal_undo_redo", s31_journal_undo_redo),
     ("input_storm", s32_input_storm),
     ("announcements", s33_announcements),
+    ("drag_capture", s34_drag_capture),
+    ("slider", s35_slider),
 ];
 
 // ---------------------------------------------------------------------------
@@ -899,16 +1095,16 @@ const SCENARIOS: &[Scenario] = &[
 // ---------------------------------------------------------------------------
 
 #[test]
-fn m1_corpus_is_thirty_three_scenarios() {
+fn m1_corpus_is_thirty_five_scenarios() {
     assert_eq!(
         SCENARIOS.len(),
-        33,
-        "the M1 exit criterion is 33 blessed snapshots (M18 grew it, ADR-0024)"
+        35,
+        "the M1 exit criterion is 35 blessed snapshots (M20 grew it: the captured drag's promised scenario and the slider join, ADR-0025/ADR-0026)"
     );
 }
 
 #[test]
-fn m1_thirty_three_blessed_snapshots_are_green() {
+fn m1_thirty_five_blessed_snapshots_are_green() {
     for (index, (name, run)) in SCENARIOS.iter().enumerate() {
         let mut harness = TestHarness::new(VIEWPORT.0, VIEWPORT.1);
         run(&mut harness);

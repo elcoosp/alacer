@@ -9,6 +9,32 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M15 — the undo stack joins the editing contract (ADR-0021)**: the
+  value — scalar-addressable since M1, selection-managed since M11,
+  pointer-edited since M12, word-edited since M13, clipboard-edited
+  since M14 — is reversible. The `EditHistory` journal joins the editing
+  rules beside `paste_text` and `word_hop` (`alacer-core/history.rs`):
+  pure UTF-16 text arithmetic, no widget dialect — each step carries the
+  replaced span, the removed and inserted text, and the `(anchor, caret)`
+  selection on both sides, so an undo restores not just the text but the
+  range the user was extending when they made the edit. The coalescing
+  rule is the pure-append rule (a typed run undoes as one step; a
+  deletion, a word chord, a cut, a paste, an IME commit are their own),
+  a whole-value replacement — the view's reconciliation, the AT's
+  `SetValue` — resets the journal (the app's write is never undone), and
+  the journal is bounded at 100 steps with the oldest evicted FIFO (a
+  cache with an eviction policy and tests that prove it, §14.3). The
+  editor routes every committed edit through one journaling funnel and
+  answers Ctrl/Cmd+Z, Shift+Ctrl/Cmd+Z, and the Ctrl/Cmd+Y alternate
+  with the M11 selection rules: an exhausted or reset journal is
+  consumed with no masks — an idle frame — and the chords are inert
+  while a preedit composes, the a11y delta riding unchanged
+- **M15 — the harness and the corpus**: the corpus grows 52 → 53 by the
+  coordinated rule — the new `editing/route_100_undo_redo_1k` criterion
+  bench (100 undo/redo chords routed through the pipeline on a
+  1,000-node arena, measured on the shipped `TextInput`) is published
+  with a same-host regression gate, and the M5–M14 pin suites move
+  together with the new M15 exit suite
 - **M14 — the clipboard joins the editing contract (ADR-0020)**: the
   selection — scalar-addressable since M1, keyboard-extended and
   AT-managed since M11, pointer-placed since M12, word-addressable since

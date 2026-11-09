@@ -393,8 +393,8 @@ fn the_release_state_is_coherent() {
 
     let readme = read_workspace_file("README.md");
     assert!(
-        readme.contains("M0 through M15") || readme.contains("M0–M15"),
-        "the README status reflects M0–M15 (M15, ADR-0021, ships under [Unreleased])"
+        readme.contains("M0 through M16") || readme.contains("M0–M16"),
+        "the README status reflects M0–M16 (M16, ADR-0022, ships under [Unreleased])"
     );
     // The pending-cut convention (ADR-6; M7's own history): the docs
     // announce the NEXT cut while the branch-commit bump has not landed

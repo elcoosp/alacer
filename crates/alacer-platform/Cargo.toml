@@ -30,6 +30,9 @@ accesskit.workspace = true
 accesskit_winit.workspace = true
 winit.workspace = true
 raw-window-handle.workspace = true
+# The clipboard seam's engine (ADR-0020): the adopted core, owned here —
+# ADR-9 keeps adapter dependencies in the platform crate.
+arboard.workspace = true
 wgpu = { workspace = true, optional = true }
 softbuffer = { workspace = true, optional = true }
 tracing.workspace = true

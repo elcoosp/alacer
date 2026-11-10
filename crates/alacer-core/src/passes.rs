@@ -423,12 +423,15 @@ pub struct PassRun {
     pub work_nanos: u64,
 }
 
-/// The focus walk's two directions (§10.3, ADR-0030): the traversal
+/// The focus walk's directions (§10.3, ADR-0030/ADR-0032): the traversal
 /// vocabulary one funnel serves. The keyboard's Tab/Shift+Tab fallback and
 /// the consumer's [`PassPipeline::focus_move`] door both name the same
 /// walk — the order is the pipeline's business (the pre-order candidate
 /// list pass 2 recomputes, the availability tier's cycle-time filter
-/// applied), never the caller's.
+/// applied), never the caller's. Since M26 the vocabulary answers the
+/// window as well as the tree: the four directional moves read the bounds
+/// pass 6 wrote and select the neighbor the *geometry* names, while the
+/// two tree-order moves keep the pre-order list and its wrap.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FocusMove {
     /// The next candidate in tree order (Tab's direction); wraps from the
@@ -437,6 +440,19 @@ pub enum FocusMove {
     /// The previous candidate in tree order (Shift+Tab's direction);
     /// wraps from the first candidate back to the last.
     Prev,
+    /// The nearest candidate fully left of the focused node's bounds;
+    /// never wraps — space has no wrap, the window's edge is the walk's
+    /// end (ADR-0032).
+    Left,
+    /// The nearest candidate fully right of the focused node's bounds;
+    /// never wraps.
+    Right,
+    /// The nearest candidate fully above the focused node's bounds;
+    /// never wraps.
+    Up,
+    /// The nearest candidate fully below the focused node's bounds;
+    /// never wraps.
+    Down,
 }
 
 impl FocusMove {
@@ -446,7 +462,21 @@ impl FocusMove {
         match self {
             Self::Next => "next",
             Self::Prev => "prev",
+            Self::Left => "left",
+            Self::Right => "right",
+            Self::Up => "up",
+            Self::Down => "down",
         }
+    }
+
+    /// `true` for the four moves that select by geometry
+    /// (`Left`/`Right`/`Up`/`Down`) — the moves that read the bounds pass
+    /// 6 wrote instead of the pre-order candidate list's positions
+    /// (ADR-0032). The tree-order moves wrap; the directional ones never
+    /// do.
+    #[must_use]
+    pub const fn is_directional(self) -> bool {
+        matches!(self, Self::Left | Self::Right | Self::Up | Self::Down)
     }
 }
 
@@ -658,13 +688,24 @@ impl PassPipeline {
     /// and wraps at both ends; from no focus, either direction takes the
     /// first candidate (the Tab contract as shipped).
     ///
+    /// Since M26 the vocabulary answers the window as well as the tree
+    /// (ADR-0032): the four directional moves (`Left`/`Right`/`Up`/`Down`)
+    /// read the bounds pass 6 wrote and select the candidate the geometry
+    /// names — fully beyond the focused node's edge in the direction,
+    /// nearest edge distance first — and never wrap (space has no wrap;
+    /// the window's edge is the walk's end). A direction with no candidate
+    /// refuses exactly like an empty walk: `false`, no masks, the help
+    /// carried as plain diagnostic text on this door's `alacer::focus`
+    /// span.
+    ///
     /// The resolution is immediate — focus moves *this* call, the way key
     /// routing requires — and the move rides the one invalidation
     /// currency: `FOCUS | PAINT` masks on the two endpoints, one frame of
     /// work. The refusal is honest (the M11 rule, at the focus seam):
-    /// when no candidate exists — an empty arena, or every control
-    /// unavailable — the door answers `false` and queues nothing (an idle
-    /// frame); it never munges the walk into a first-candidate reset.
+    /// when no candidate exists — an empty arena, every control
+    /// unavailable, or nothing in the named direction — the door answers
+    /// `false` and queues nothing (an idle frame); it never munges the
+    /// walk into a first-candidate reset.
     pub fn focus_move(&mut self, movement: FocusMove) -> bool {
         let span = tracing::trace_span!(
             target: "alacer::focus",
@@ -672,7 +713,7 @@ impl PassPipeline {
             direction = movement.name()
         );
         let _guard = span.enter();
-        let moved = self.cycle_focus(movement == FocusMove::Prev);
+        let moved = self.cycle_focus(movement);
         if moved {
             if let Some(focused) = self.focus() {
                 tracing::trace!(
@@ -711,7 +752,13 @@ impl PassPipeline {
     /// nothing — an idle frame, focus left where it was, never a
     /// first-candidate reset. The refusals carry their help on the
     /// `alacer::focus` target as plain diagnostic text (ADR-0029's rule —
-    /// the miette-class `help:`, never the crate).
+    /// the `help:` sentence the ADR-0029 species ships, never the
+    /// diagnostic crate it is named for). The direction is the
+    /// caller's vocabulary (M26, ADR-0032): the directional moves read the
+    /// same bounds and never wrap, the scope bounding the directional walk
+    /// exactly as it bounds the tree-order one — a direction with no
+    /// candidate inside the trap refuses honestly; it never escapes the
+    /// scope.
     pub fn focus_move_in(&mut self, scope: NodeId, movement: FocusMove) -> bool {
         let span = tracing::trace_span!(
             target: "alacer::focus",
@@ -728,7 +775,7 @@ impl PassPipeline {
             );
             return false;
         }
-        let moved = self.cycle_focus_in(Some(scope), movement == FocusMove::Prev);
+        let moved = self.cycle_focus_in(Some(scope), movement);
         if moved {
             if let Some(focused) = self.focus() {
                 tracing::trace!(
@@ -1302,22 +1349,32 @@ impl PassPipeline {
         response
     }
 
-    /// Moves focus one candidate forward (or backward with `reverse`) —
-    /// the one walk every focus-move door shares (the
-    /// [`Self::focus_move` funnel](Self::focus_move), ADR-0030). Wraps at
-    /// both ends; from no focus either direction takes the first
-    /// candidate. `true` when focus moved.
-    fn cycle_focus(&mut self, reverse: bool) -> bool {
-        self.cycle_focus_in(None, reverse)
+    /// Moves focus one candidate in `movement`'s direction — the one walk
+    /// every focus-move door shares (the [`Self::focus_move` funnel]
+    /// (Self::focus_move), ADR-0030/ADR-0032). The tree-order moves wrap
+    /// at both ends; the directional moves answer from the laid-out bounds
+    /// and never wrap. `true` when focus moved.
+    fn cycle_focus(&mut self, movement: FocusMove) -> bool {
+        self.cycle_focus_in(None, movement)
     }
 
     /// The walk behind both doors, bounded to `scope` when one is named
-    /// (M25, ADR-0031): the same candidate list pass 2 recomputes, the
-    /// same cycle-time availability filter, the same wrap and
-    /// immediate-resolution rules — the scope only bounds it. `None` is
-    /// the unscoped walk Tab and [`Self::focus_move`] have ridden since
-    /// M3; `Some(root)` walks the subtree rooted at `root`.
-    fn cycle_focus_in(&mut self, scope: Option<NodeId>, reverse: bool) -> bool {
+    /// (M25, ADR-0031; M26, ADR-0032): the same candidate list pass 2
+    /// recomputes, the same cycle-time availability filter, the same
+    /// immediate-resolution rules — the scope only bounds it, the
+    /// direction only aims it. `None` is the unscoped walk Tab and
+    /// [`Self::focus_move`] have ridden since M3; `Some(root)` walks the
+    /// subtree rooted at `root`. The tree-order moves follow the list's
+    /// positions and wrap at both ends; the directional moves read the
+    /// bounds pass 6 wrote ([`Self::directional_neighbor`]) and never
+    /// wrap. From no focus — or from a focus outside the filtered
+    /// candidate list (a scope bounding it, or the tier holding the
+    /// focused control down since pass 2) — the walk enters at the list's
+    /// first candidate, both directions: the entry contract ADR-0031 has
+    /// documented since M25 ("the walk takes the trap's first candidate"),
+    /// whose M25-era positional arithmetic actually landed the list's
+    /// second candidate — the drift the M26 cut repairs.
+    fn cycle_focus_in(&mut self, scope: Option<NodeId>, movement: FocusMove) -> bool {
         // The candidates the tier still answers for (M22, ADR-0028): the
         // cache may name a control that became unavailable since pass 2
         // recomputed it — the cycle-time check keeps Tab honest without
@@ -1332,18 +1389,60 @@ impl PassPipeline {
         if candidates.is_empty() {
             return false;
         }
-        let next = match self.focused {
-            Some(current) => {
-                let position = candidates.iter().position(|c| *c == current).unwrap_or(0);
-                if reverse {
-                    (position + candidates.len() - 1) % candidates.len()
-                } else {
-                    (position + 1) % candidates.len()
+        let target = if movement.is_directional() {
+            match self.focused {
+                // The entry contract is direction-agnostic: the walk must
+                // rest somewhere before a direction can mean anything.
+                None => candidates[0],
+                Some(current) => {
+                    if self.arena.bounds(current).is_none() {
+                        tracing::trace!(
+                            target: "alacer::focus",
+                            node = current.raw(),
+                            "refused: the focused node carries no geometry yet — help: the \
+                             directional walk reads the bounds pass 6 (layout) wrote; tick one \
+                             frame first, or ride the tree-order doors focus_move Next/Prev"
+                        );
+                        return false;
+                    }
+                    match self.directional_neighbor(&candidates, current, movement) {
+                        Some(neighbor) => neighbor,
+                        None => {
+                            tracing::trace!(
+                                target: "alacer::focus",
+                                node = current.raw(),
+                                "refused: no candidate lies in the requested direction — help: \
+                                 the directional walk selects what the geometry names, fully \
+                                 beyond the focused node's edge, and never wraps (space has no \
+                                 wrap); the tree-order doors are focus_move Next/Prev"
+                            );
+                            return false;
+                        }
+                    }
                 }
             }
-            None => 0,
+        } else {
+            match self.focused {
+                None => candidates[0],
+                Some(current) => {
+                    match candidates.iter().position(|candidate| *candidate == current) {
+                        Some(position) => {
+                            let next = if movement == FocusMove::Prev {
+                                position + candidates.len() - 1
+                            } else {
+                                position + 1
+                            };
+                            candidates[next % candidates.len()]
+                        }
+                        // Outside the filtered list: the walk enters at the
+                        // list's first candidate, both directions — the
+                        // documented entry contract (ADR-0031), never an
+                        // approach from the list's far end.
+                        None => candidates[0],
+                    }
+                }
+            }
         };
-        let target = candidates[next];
         if Some(target) == self.focused {
             return false;
         }
@@ -1351,6 +1450,68 @@ impl PassPipeline {
         // Resolve immediately: key routing must see the new focus this event.
         self.update_focus();
         true
+    }
+
+    /// The spatial neighbor a directional move names (M26, ADR-0032): the
+    /// qualifying candidate nearest the focused node's bounds along the
+    /// movement's axis. A candidate qualifies when its bounds lie fully
+    /// beyond the origin's edge in the direction — no overlap with the
+    /// origin on that axis — and the ranking is the edge distance first,
+    /// the cross-axis center misalignment breaking ties, then tree order
+    /// (the pre-order list the walk already follows): deterministic, and
+    /// the same list Tab reads. Candidates without bounds cannot answer a
+    /// directional call (they carry no geometry yet — the first frame's
+    /// pre-layout state) and are skipped; the focused node itself is
+    /// never its own neighbor. `None` is the honest refusal: nothing lies
+    /// in the direction, and space does not wrap.
+    fn directional_neighbor(
+        &self,
+        candidates: &[NodeId],
+        current: NodeId,
+        movement: FocusMove,
+    ) -> Option<NodeId> {
+        let origin = self.arena.bounds(current)?;
+        let origin_center_x = origin.origin.x + origin.size.width * 0.5;
+        let origin_center_y = origin.origin.y + origin.size.height * 0.5;
+        let mut best: Option<(f32, f32, usize, NodeId)> = None;
+        for (order, &candidate) in candidates.iter().enumerate() {
+            if candidate == current {
+                continue;
+            }
+            let Some(bounds) = self.arena.bounds(candidate) else {
+                continue;
+            };
+            let center_x = bounds.origin.x + bounds.size.width * 0.5;
+            let center_y = bounds.origin.y + bounds.size.height * 0.5;
+            let (edge, cross) = match movement {
+                FocusMove::Right if bounds.min_x() >= origin.max_x() => {
+                    (bounds.min_x() - origin.max_x(), (center_y - origin_center_y).abs())
+                }
+                FocusMove::Left if bounds.max_x() <= origin.min_x() => {
+                    (origin.min_x() - bounds.max_x(), (center_y - origin_center_y).abs())
+                }
+                FocusMove::Down if bounds.min_y() >= origin.max_y() => {
+                    (bounds.min_y() - origin.max_y(), (center_x - origin_center_x).abs())
+                }
+                FocusMove::Up if bounds.max_y() <= origin.min_y() => {
+                    (origin.min_y() - bounds.max_y(), (center_x - origin_center_x).abs())
+                }
+                _ => continue,
+            };
+            let better = match best {
+                None => true,
+                Some((best_edge, best_cross, best_order, _)) => {
+                    edge.total_cmp(&best_edge)
+                        .then_with(|| cross.total_cmp(&best_cross))
+                        .then_with(|| order.cmp(&best_order))
+                        == std::cmp::Ordering::Less
+                }
+            };
+            if better {
+                best = Some((edge, cross, order, candidate));
+            }
+        }
+        best.map(|(_, _, _, node)| node)
     }
 
     /// `true` when `node` lies inside the subtree rooted at `scope` — the
@@ -3761,5 +3922,197 @@ mod tests {
         );
         assert_eq!(p.counters().events_routed, 50, "every event was routed");
         assert!(p.captured().is_none(), "no press, no capture");
+    }
+
+    /// A focusable fixed-size probe: `Role::Button` joins the default
+    /// `focusable()` derivation (M22), the fixed spec keeps the walk's
+    /// geometry deterministic.
+    struct FocusProbe {
+        size: crate::geom::Size,
+    }
+
+    impl Widget for FocusProbe {
+        fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+            self
+        }
+
+        fn role(&self) -> Role {
+            Role::Button
+        }
+
+        fn label(&self) -> LabelSource {
+            LabelSource::text("stop")
+        }
+
+        fn measure_spec(&self) -> Option<crate::style::MeasureSpec> {
+            Some(crate::style::MeasureSpec::Fixed(self.size))
+        }
+    }
+
+    /// A layout engine that lays the root's children out in one row —
+    /// deterministic two-axis geometry for the directional walk's tests,
+    /// zero Taffy.
+    struct RowLayout;
+
+    impl LayoutEngine for RowLayout {
+        fn sync_and_layout(
+            &mut self,
+            arena: &mut Arena,
+            root: NodeId,
+            _dirty: &FxHashMap<NodeId, Change>,
+            _viewport: Size,
+        ) -> Result<(), LayoutError> {
+            let mut x = 0.0;
+            for child in arena.children(root).to_vec() {
+                let (w, h) = match arena.widget(child).measure_spec() {
+                    Some(crate::style::MeasureSpec::Fixed(size)) => (size.width, size.height),
+                    _ => (40.0, 20.0),
+                };
+                arena.update_bounds(child, Rect::new(Point::new(x, 0.0), Size::new(w, h)));
+                x += w;
+            }
+            arena.update_bounds(root, Rect::new(Point::zero(), Size::new(x, 20.0)));
+            Ok(())
+        }
+
+        fn measure_calls(&self) -> u64 {
+            0
+        }
+
+        fn reset_measure_calls(&mut self) {}
+    }
+
+    /// A pipeline over the row layout: three 60-wide stops at x = 0, 60,
+    /// 120 — one axis, three candidates.
+    fn row_pipeline() -> PassPipeline {
+        PassPipeline::new(
+            Flux::new(),
+            Box::new(RowLayout),
+            Box::new(MemoryJournal::default()),
+            Box::new(RecordingA11y::default()),
+        )
+    }
+
+    fn mount_row(p: &mut PassPipeline) -> Vec<NodeId> {
+        let root = p.mount_root(Box::new(Fixed {
+            size: Size::new(180.0, 20.0),
+        }));
+        let stops: Vec<NodeId> = (0..3)
+            .map(|_| {
+                p.add_child(
+                    root,
+                    Box::new(FocusProbe {
+                        size: Size::new(60.0, 20.0),
+                    }),
+                )
+            })
+            .collect();
+        p.tick(viewport()).expect("the row lays out");
+        stops
+    }
+
+    #[test]
+    fn the_directional_walk_selects_what_the_geometry_names() {
+        let mut p = row_pipeline();
+        let stops = mount_row(&mut p);
+
+        // The entry contract is direction-agnostic: from no focus the walk
+        // rests on the first candidate, whichever direction was named.
+        assert!(p.focus_move(FocusMove::Right));
+        assert_eq!(p.focus(), Some(stops[0]));
+
+        // `Right` lands the stop fully beyond the focused node's right
+        // edge — the geometry's answer, not the tree's next call for it.
+        assert!(p.focus_move(FocusMove::Right));
+        assert_eq!(p.focus(), Some(stops[1]));
+        assert!(p.focus_move(FocusMove::Right));
+        assert_eq!(p.focus(), Some(stops[2]));
+        assert!(p.focus_move(FocusMove::Left));
+        assert_eq!(p.focus(), Some(stops[1]), "left reverses right");
+
+        // Up and Down have no candidate in a single row: the bounds all
+        // overlap the origin's vertical span, nothing lies fully below or
+        // above — the honest refusal, named on the seam's target.
+        assert!(!p.focus_move(FocusMove::Down));
+        assert_eq!(p.focus(), Some(stops[1]), "a refusal never moves focus");
+        assert!(!p.focus_move(FocusMove::Up));
+        assert_eq!(p.focus(), Some(stops[1]));
+
+        // The right edge refuses — space does not wrap — while the
+        // tree-order funnel still wraps from the same spot.
+        assert!(p.focus_move(FocusMove::Right));
+        assert_eq!(p.focus(), Some(stops[2]));
+        assert!(!p.focus_move(FocusMove::Right), "the edge is the walk's end");
+        assert!(p.focus_move(FocusMove::Next), "Next wraps; Right never does");
+        assert_eq!(p.focus(), Some(stops[0]));
+    }
+
+    #[test]
+    fn the_entry_contract_lands_the_first_candidate_from_outside_the_list() {
+        // ADR-0031's documented contract: from a focus outside the
+        // filtered candidate list, the walk takes the list's first
+        // candidate — both directions. The M25-era arithmetic landed the
+        // list's second candidate forward and its last backward; the cut
+        // repairs the drift and the test pins the document.
+        let mut p = pipeline();
+        let root = p.mount_root(Box::new(Fixed {
+            size: Size::new(180.0, 40.0),
+        }));
+        let group = p.add_child(root, Box::new(Fixed { size: Size::new(120.0, 40.0) }));
+        let first = p.add_child(group, Box::new(FocusProbe { size: Size::new(60.0, 20.0) }));
+        let second = p.add_child(group, Box::new(FocusProbe { size: Size::new(60.0, 20.0) }));
+        let outside = p.add_child(root, Box::new(FocusProbe { size: Size::new(60.0, 20.0) }));
+        p.tick(viewport()).expect("the tree lays out");
+
+        // The unscoped walk rests on the outside probe (the tree's third
+        // candidate — the group itself is not focusable).
+        assert!(p.focus_move(FocusMove::Next));
+        assert!(p.focus_move(FocusMove::Next));
+        assert!(p.focus_move(FocusMove::Next));
+        assert_eq!(p.focus(), Some(outside));
+
+        // The scoped door enters at the trap's first candidate — forward.
+        assert!(p.focus_move_in(group, FocusMove::Next));
+        assert_eq!(
+            p.focus(),
+            Some(first),
+            "from a focus outside the scope, forward takes the scope's first candidate"
+        );
+
+        // And backward from outside takes the same first candidate — the
+        // walk enters the list, it does not approach it from its end.
+        assert!(p.focus_move_in(group, FocusMove::Prev));
+        assert_eq!(
+            p.focus(),
+            Some(second),
+            "from the first candidate, backward wraps to the scope's last — the in-list rule"
+        );
+        // The unscoped funnel still answers the whole tree: from the
+        // scope's last candidate, Next walks past the group to the
+        // outside probe.
+        assert!(p.focus_move(FocusMove::Next));
+        assert_eq!(p.focus(), Some(outside), "the unscoped walk leaves the group");
+        assert!(p.focus_move_in(group, FocusMove::Prev));
+        assert_eq!(
+            p.focus(),
+            Some(first),
+            "from a focus outside the scope, backward takes the scope's first candidate too"
+        );
+    }
+
+    #[test]
+    fn a_directional_move_rides_the_same_currency() {
+        // One directional move queues the FOCUS | PAINT masks on the two
+        // endpoints; the next frame repaints the pair and the frame after
+        // is idle (A7) — the directional walk buys nothing new.
+        let mut p = row_pipeline();
+        let stops = mount_row(&mut p);
+        assert!(p.focus_move(FocusMove::Right));
+        assert!(p.focus().is_some(), "the walk resolves immediately");
+        assert_eq!(p.focus(), Some(stops[0]), "the entry contract, directional form");
+        let frame = p.tick(viewport()).expect("the frame lays out");
+        assert!(!frame.is_idle(), "the move's masks cost one frame");
+        let after = p.tick(viewport()).expect("the frame lays out");
+        assert!(after.is_idle(), "the frame after the move is idle again");
     }
 }

@@ -81,6 +81,28 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M24 — the focus walk (ADR-0030)**: the focus walk joins the
+  dispatch contract. Tab's private cycle becomes public vocabulary: one
+  `FocusMove` direction (`Next`/`Prev`) and one pipeline door —
+  `PassPipeline::focus_move` — that the keyboard's Tab/Shift+Tab
+  fallback and the consumer's code both ride: one funnel, two doors,
+  the walk's order never duplicated at the call site. The walk follows
+  the pre-order
+  candidate list pass 2 recomputes, skips controls the availability
+  tier holds down (the M22 cycle-time `enabled` check), wraps at both
+  ends, resolves immediately (key routing sees the new focus this
+  event), and refuses honestly when no candidate exists — no masks, an
+  idle frame, never a first-candidate reset. The landings and refusals
+  ride the `alacer::focus` tracing target, and
+  `examples/focus_traversal.rs` is the consumer demonstration: a
+  four-control form walked forward, backward, and into the refusal,
+  with the window's Tab proving the funnel live. The micro-debt the
+  sweep priced rides the cut: the flux runtime's dead `effect_count`
+  introspection and the harness's dead `spec_of`/`with_text_context`/
+  `text_size` probes, and the living documents re-agree at M24 — the
+  m1 suite's header among them, which had said "36 blessed snapshots"
+  over a corpus its own pin counts at 37.
+
 - **M23 — the frame's ledger (ADR-0029)**: the scene journal becomes
   legible to its consumers. Every seam since M16 paired with a consumer
   demonstration, but the M2 headline — the journal whose economics every

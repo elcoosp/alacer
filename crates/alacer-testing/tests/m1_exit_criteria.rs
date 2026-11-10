@@ -1,6 +1,6 @@
 //! The M1 exit criteria, as executable spec (architecture §18):
 //!
-//! - **36 blessed snapshots green** — the corpus below, one test, every
+//! - **37 blessed snapshots green** — the corpus below, one test, every
 //!   scenario rendered through the real pipeline + software raster (A4);
 //! - **a11y queries pass** — the query builder, press-through-a11y, walks,
 //!   and plural counts (ADR-10: a11y-driven queries are the only API);

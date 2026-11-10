@@ -5,6 +5,78 @@ All notable changes to **Alacer** will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
+## [0.14.0] — 2026-11-10
+
+
+
+### Added
+
+
+- The availability tier joins the widget contract
+
+- The sink maps the disabled flag faithfully
+
+- The actionable controls answer the availability tier
+
+- The availability tier drives the consumer's window
+
+- The journal reports its own ledger
+
+- The frame's ledger drives the consumer's window
+
+
+### Changed
+
+
+- The root duplicate goes
+
+- The dead glyph counter goes
+
+
+### Documentation
+
+
+- The living documents re-agree at M22
+
+- The living documents re-agree at M23 and 0.14.0
+
+
+### Fixed
+
+
+- The fall-through diagnostic names the token
+
+- The body-cardinality diagnostic names its cardinality
+
+- The accept loop reports the session errors it swallowed
+
+
+### Miscellaneous
+
+
+- The availability case joins the blessed corpus
+
+- The manifest describes the shipped vocabulary
+
+- The handoff manifest rides the gitignore
+
+
+### Performance
+
+
+- The refused route joins the published corpus
+
+
+### Tests
+
+
+- The m22 exit suite pins the availability tier
+
+- The m-suite pins move with the 57-case corpus
+
+- The m23 exit suite pins the ledger and the scroll trio
+
+
 ## [Unreleased]
 
 ### Added

@@ -1,7 +1,7 @@
 # Migrating from Iced to Alacer
 
 > Scope note (honesty rule): this guide maps Iced **0.13/0.14-era** concepts
-> (`Application`/`Task`, `Element`, `Subscription`) onto Alacer **0.14.0**. Iced
+> (`Application`/`Task`, `Element`, `Subscription`) onto Alacer **0.16.0**. Iced
 > renamed its shell traits across releases; treat exact signatures as "check
 > your version", the *concepts* as the durable part.
 

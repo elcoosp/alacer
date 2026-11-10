@@ -1,7 +1,7 @@
 # Migrating from egui to Alacer
 
 > Scope note (honesty rule): this guide maps egui **0.31-era** concepts
-> (`eframe`, immediate-mode repaints, `egui_kittest`) onto Alacer **0.14.0**.
+> (`eframe`, immediate-mode repaints, `egui_kittest`) onto Alacer **0.16.0**.
 > egui moves fast; treat exact signatures as "check your version", the
 > *concepts* as the durable part.
 

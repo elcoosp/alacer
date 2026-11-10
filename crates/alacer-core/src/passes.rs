@@ -690,6 +690,64 @@ impl PassPipeline {
         moved
     }
 
+    /// Moves focus one candidate inside the subtree rooted at `scope`
+    /// (§10.3, ADR-0031): the walk the keyboard's Tab fallback and
+    /// [`Self::focus_move`] ride, bounded to a subtree — the modal's
+    /// focus trap, the re-open rule ADR-0030 pre-registered. The scope is
+    /// the subtree's root node (the cheapest honest predicate a real UI
+    /// prices): candidates inside the trap follow the same pre-order
+    /// list, the same cycle-time `enabled` filter (M22 — ADR-0028), the
+    /// same wrap at both ends, and from no focus — or from a focus
+    /// outside the trap — the walk takes the trap's first candidate. The
+    /// scope bounds the walk, never the candidate list: `focusables()`
+    /// and [`Self::focus`] keep answering the whole tree, and the
+    /// unscoped door stays the keyboard's funnel.
+    ///
+    /// The resolution is immediate and the move rides the one invalidation
+    /// currency (`FOCUS | PAINT` masks on the two endpoints, one frame of
+    /// work), exactly as the unscoped door. The refusal is honest (the
+    /// M11 rule, at the focus seam): a dead scope, an empty trap, or a
+    /// trap the availability tier holds down answers `false` and queues
+    /// nothing — an idle frame, focus left where it was, never a
+    /// first-candidate reset. The refusals carry their help on the
+    /// `alacer::focus` target as plain diagnostic text (ADR-0029's rule —
+    /// the miette-class `help:`, never the crate).
+    pub fn focus_move_in(&mut self, scope: NodeId, movement: FocusMove) -> bool {
+        let span = tracing::trace_span!(
+            target: "alacer::focus",
+            "focus_move_in",
+            direction = movement.name(),
+            scope = scope.raw()
+        );
+        let _guard = span.enter();
+        if !self.node_is_live(scope) {
+            tracing::trace!(
+                target: "alacer::focus",
+                scope = scope.raw(),
+                "refused: the scope node is dead — help: focus_move_in walks the live subtree rooted at `scope`; the unscoped door is focus_move"
+            );
+            return false;
+        }
+        let moved = self.cycle_focus_in(Some(scope), movement == FocusMove::Prev);
+        if moved {
+            if let Some(focused) = self.focus() {
+                tracing::trace!(
+                    target: "alacer::focus",
+                    node = focused.raw(),
+                    scope = scope.raw(),
+                    "the walk rests on the next candidate inside the trap"
+                );
+            }
+        } else {
+            tracing::trace!(
+                target: "alacer::focus",
+                scope = scope.raw(),
+                "refused: no candidate inside the scope — help: a trap the availability tier holds down (or an empty subtree) leaves the walk nothing to offer; an idle frame, focus untouched"
+            );
+        }
+        moved
+    }
+
     /// Queues a raw pointer event into the frame-batched input queue (§10.2,
     /// ADR-0014). The event coalesces with the pending batch — compatible
     /// consecutive moves merge, same-direction wheel deltas accumulate — and
@@ -1245,11 +1303,21 @@ impl PassPipeline {
     }
 
     /// Moves focus one candidate forward (or backward with `reverse`) —
-    /// the one walk every focus-move door shares (the [`Self::focus_move`
-    /// funnel](Self::focus_move), ADR-0030). Wraps at both ends; from no
-    /// focus either direction takes the first candidate. `true` when
-    /// focus moved.
+    /// the one walk every focus-move door shares (the
+    /// [`Self::focus_move` funnel](Self::focus_move), ADR-0030). Wraps at
+    /// both ends; from no focus either direction takes the first
+    /// candidate. `true` when focus moved.
     fn cycle_focus(&mut self, reverse: bool) -> bool {
+        self.cycle_focus_in(None, reverse)
+    }
+
+    /// The walk behind both doors, bounded to `scope` when one is named
+    /// (M25, ADR-0031): the same candidate list pass 2 recomputes, the
+    /// same cycle-time availability filter, the same wrap and
+    /// immediate-resolution rules — the scope only bounds it. `None` is
+    /// the unscoped walk Tab and [`Self::focus_move`] have ridden since
+    /// M3; `Some(root)` walks the subtree rooted at `root`.
+    fn cycle_focus_in(&mut self, scope: Option<NodeId>, reverse: bool) -> bool {
         // The candidates the tier still answers for (M22, ADR-0028): the
         // cache may name a control that became unavailable since pass 2
         // recomputed it — the cycle-time check keeps Tab honest without
@@ -1259,6 +1327,7 @@ impl PassPipeline {
             .iter()
             .copied()
             .filter(|id| self.arena.widget(*id).enabled())
+            .filter(|id| scope.is_none_or(|root| self.is_in_scope(*id, root)))
             .collect();
         if candidates.is_empty() {
             return false;
@@ -1282,6 +1351,20 @@ impl PassPipeline {
         // Resolve immediately: key routing must see the new focus this event.
         self.update_focus();
         true
+    }
+
+    /// `true` when `node` lies inside the subtree rooted at `scope` — the
+    /// ancestor walk the scoped door's candidate filter rides (M25,
+    /// ADR-0031). The scope root itself qualifies.
+    fn is_in_scope(&self, node: NodeId, scope: NodeId) -> bool {
+        let mut up = Some(node);
+        while let Some(current) = up {
+            if current == scope {
+                return true;
+            }
+            up = self.arena.parent(current);
+        }
+        false
     }
 
     /// Runs exactly one frame through the pass contract (§7.2): `mutate` →

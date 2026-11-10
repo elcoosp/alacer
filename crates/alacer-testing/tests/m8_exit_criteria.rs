@@ -283,12 +283,12 @@ fn m8_the_corpus_pin_agrees_with_the_published_data() {
     let benches = baselines["benches"].as_object().expect("benches object");
     assert_eq!(
         benches.len(),
-        56,
-        "the corpus is 56: the M18 route, the M20 capture case, and the M21 value-write route ride it together"
+        57,
+        "the corpus is 57: the M18 route, the M20 capture case, the M21 value-write route, and the M22 refused route ride it together"
     );
     assert_eq!(
         regressions.len(),
-        56,
+        57,
         "every bench carries a regression gate"
     );
     for id in ["input/storm_50_moves_queued", "input/storm_50_moves_direct"] {
@@ -317,7 +317,7 @@ fn m8_the_corpus_pin_agrees_with_the_published_data() {
     ] {
         let source = read_workspace_file(&format!("crates/alacer-testing/tests/{suite}"));
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 56;"),
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 57;"),
             "{suite} must pin the 55-case corpus"
         );
     }

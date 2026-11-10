@@ -285,8 +285,8 @@ fn m19_the_living_documents_re_agree() {
     // case (the M19-promised IOU) — the pin moves with the corpus.
     let readme = read_workspace_file("README.md");
     assert!(
-        readme.contains("All 56 criterion cases"),
-        "the README quotes the baselines.json bench_count (56)"
+        readme.contains("All 57 criterion cases"),
+        "the README quotes the baselines.json bench_count (57)"
     );
     assert!(
         readme.contains("Since M19 the drag holds its target"),
@@ -306,7 +306,7 @@ fn m19_the_living_documents_re_agree() {
     for fragment in [
         "ADR-0025",
         "The captured drag",
-        "28 decision records",
+        "29 decision records",
         "implicitly holds its deepest accepting hit",
     ] {
         assert!(
@@ -323,7 +323,7 @@ fn m19_the_living_documents_re_agree() {
         "ADR-0025 documents the captured-drag scope"
     );
 
-    // The corpus is 56: the capture route's criterion case joined at
+    // The corpus is 57: the refused route's criterion case joined at
     // M20's measurement run by the coordinated rule and the value-write
     // route joined at M21's — the checker fails an uncontracted
     // benchmark, so each bench and its baseline landed together
@@ -331,7 +331,7 @@ fn m19_the_living_documents_re_agree() {
     let baselines = parse_workspace_json("benchmarks/baselines/baselines.json");
     assert_eq!(
         baselines["bench_count"],
-        serde_json::json!(56),
+        serde_json::json!(57),
         "the published corpus carries the capture case the code half promised"
     );
 }

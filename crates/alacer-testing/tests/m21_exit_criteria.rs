@@ -241,8 +241,8 @@ fn m21_the_value_write_route_joins_the_corpus_by_the_coordinated_rule() {
 
     assert_eq!(
         baselines["bench_count"],
-        serde_json::json!(56),
-        "the corpus grows 55 → 56 at M21's measurement run"
+        serde_json::json!(57),
+        "the corpus grows 56 → 57 at M22's measurement run"
     );
     let benches = baselines["benches"].as_object().expect("benches object");
     assert!(benches.contains_key(id), "{id} is published");
@@ -255,7 +255,7 @@ fn m21_the_value_write_route_joins_the_corpus_by_the_coordinated_rule() {
     let gates = contracts["regressions"].as_array().expect("regressions");
     assert_eq!(
         gates.len(),
-        56,
+        57,
         "every case carries exactly one regression gate"
     );
     assert!(
@@ -266,7 +266,7 @@ fn m21_the_value_write_route_joins_the_corpus_by_the_coordinated_rule() {
         "{id} is gated same-host"
     );
 
-    // Every M-suite pin moved to 56 together — the chain cannot drift.
+    // Every M-suite pin moved to 57 together — the chain cannot drift.
     for suite in [
         "m5_exit_criteria.rs",
         "m6_exit_criteria.rs",
@@ -282,34 +282,34 @@ fn m21_the_value_write_route_joins_the_corpus_by_the_coordinated_rule() {
     ] {
         let source = read_workspace_file(&format!("crates/alacer-testing/tests/{suite}"));
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 56;"),
-            "{suite} must pin the 56-case corpus"
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 57;"),
+            "{suite} must pin the 57-case corpus"
         );
     }
     let m19 = read_workspace_file("crates/alacer-testing/tests/m19_exit_criteria.rs");
     assert!(
-        m19.contains("All 56 criterion cases") && m19.contains("serde_json::json!(56)"),
+        m19.contains("All 57 criterion cases") && m19.contains("serde_json::json!(57)"),
         "the m19 suite's pins moved with the corpus"
     );
     let m20 = read_workspace_file("crates/alacer-testing/tests/m20_exit_criteria.rs");
     assert!(
-        m20.contains("serde_json::json!(56)") && m20.contains("usize = 56;"),
+        m20.contains("serde_json::json!(57)") && m20.contains("usize = 57;"),
         "the m20 suite's pins moved with the corpus (the one-cycle drift the pattern prices)"
     );
 }
 
 #[test]
 fn m21_the_living_documents_re_agree() {
-    // The README: the criterion count quotes the 56-case baseline, the
+    // The README: the criterion count quotes the 57-case baseline, the
     // a11y bullet carries the reported value, the vocabulary names its
     // newest control, and the status block is the 0.13.0 family at M21.
     let readme = read_workspace_file("README.md");
     for fragment in [
-        "All 56 criterion cases",
+        "All 57 criterion cases",
         "Since M21 the value is reportable too",
         "version-0.13.0",
-        "M0 through M21",
-        "twenty-eight decision records",
+        "M0 through M22",
+        "twenty-nine decision records",
         "`Progress`",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
@@ -324,8 +324,8 @@ fn m21_the_living_documents_re_agree() {
     let catalog = read_workspace_file("docs/examples.md");
     for fragment in [
         "[`progress`](../crates/alacer/examples/progress.rs)",
-        "36 styled scenarios",
-        "38 blessed PNGs",
+        "37 styled scenarios",
+        "39 blessed PNGs",
     ] {
         assert!(
             catalog.contains(fragment),
@@ -338,7 +338,7 @@ fn m21_the_living_documents_re_agree() {
     let architecture = read_workspace_file("docs/architecture.md");
     for fragment in [
         "ADR-0027",
-        "28 decision records",
+        "29 decision records",
         "the progress indicator joins the value tier",
     ] {
         assert!(
@@ -372,7 +372,7 @@ fn m21_the_living_documents_re_agree() {
             "{guide} names the shipped family"
         );
         assert!(
-            guide.contains("36 styled scenarios"),
+            guide.contains("37 styled scenarios"),
             "{guide} quotes the grown corpus"
         );
     }
@@ -418,8 +418,8 @@ fn m21_the_surface_rides_the_same_cut() {
     // pins 36, the directory carries the new PNG).
     let m1 = read_workspace_file("crates/alacer-testing/tests/m1_exit_criteria.rs");
     assert!(
-        m1.contains("fn m1_corpus_is_thirty_six_scenarios()"),
-        "the m1 corpus pin moved to 36"
+        m1.contains("fn m1_corpus_is_thirty_seven_scenarios()"),
+        "the m1 corpus pin moved to 37"
     );
     let blessed = workspace_root().join("crates/alacer-testing/blessed");
     assert!(

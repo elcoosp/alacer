@@ -1,7 +1,5 @@
 //! Colors: plain 8-bit RGBA, converted to renderer-native formats at the edges.
 
-use crate::num::f32_to_u8;
-
 /// An 8-bit-per-channel RGBA color.
 ///
 /// Storage is non-premultiplied; renderers convert at the boundary.
@@ -42,33 +40,11 @@ impl Color {
     pub const fn with_alpha(self, a: u8) -> Self {
         Self { a, ..self }
     }
-
-    /// Premultiplied RGBA8 bytes, for software blending into a `0RGB` pixel buffer.
-    #[must_use]
-    pub fn to_premultiplied_rgba8(self) -> [u8; 4] {
-        let a = f32::from(self.a) / 255.0;
-        let r = f32::from(self.r) * a;
-        let g = f32::from(self.g) * a;
-        let b = f32::from(self.b) * a;
-        [f32_to_u8(r), f32_to_u8(g), f32_to_u8(b), self.a]
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::Color;
-
-    #[test]
-    fn premultiplication_scales_channels_by_alpha() {
-        let premul = Color::rgb(255, 128, 0)
-            .with_alpha(128)
-            .to_premultiplied_rgba8();
-        assert_eq!(premul[3], 128);
-        // 255 * (128/255) rounded == 128; 128 * (128/255) rounded == 64.
-        assert_eq!(premul[0], 128);
-        assert_eq!(premul[1], 64);
-        assert_eq!(premul[2], 0);
-    }
 
     #[test]
     fn with_alpha_preserves_channels() {

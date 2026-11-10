@@ -1,6 +1,6 @@
 [package]
 name = "alacer-widgets"
-description = "Alacer's widget library: label, button, text input, checkbox, column, row, spacer, list, panel, table, and the M6 canons (todo, data table)"
+description = "Alacer's widget library: label, button, text input, checkbox, slider, progress, column, row, spacer, list, panel, table, and the M6 canons (todo, data table)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

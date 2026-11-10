@@ -26,7 +26,6 @@ use alacer::widgets::{BoxedWidget as _, Button, Checkbox, Column, Label, TextInp
 use alacer_core::geom::Size;
 use alacer_core::mask::Change;
 use alacer_core::passes::{FocusMove, PassPipeline};
-use alacer_core::widget::Widget;
 
 /// Prefers the software path when `ALACER_SOFTWARE=1` is set.
 fn backend_choice() -> BackendPreference {
@@ -56,13 +55,13 @@ fn settle(pipeline: &mut PassPipeline) {
 /// The a11y contract is the read: no widget internals, the name the tree
 /// carries.
 fn focused_name(pipeline: &PassPipeline) -> String {
-    pipeline
-        .focus()
-        .map(|node| pipeline.arena().widget(node).label().resolve())
-        .unwrap_or_else(|| "nothing".to_string())
+    pipeline.focus().map_or_else(
+        || "nothing".to_string(),
+        |node| pipeline.arena().widget(node).label().resolve(),
+    )
 }
 
-/// One focus_move beat: the span names the route, the door answers, the
+/// One `focus_move` beat: the span names the route, the door answers, the
 /// frame settles, and the landing is announced on the demo's target.
 fn walk_beat(pipeline: &mut PassPipeline, beat: &'static str, movement: FocusMove) {
     let _route = tracing::trace_span!(
@@ -72,7 +71,7 @@ fn walk_beat(pipeline: &mut PassPipeline, beat: &'static str, movement: FocusMov
         direction = movement.name()
     )
     .entered();
-    let moved = pipeline.focus_move(movement);
+    let moved = pipeline.focus_move(movement).moved();
     settle(pipeline);
     let landing = focused_name(pipeline);
     tracing::info!(
@@ -103,11 +102,11 @@ fn hold_available(pipeline: &mut PassPipeline, node: alacer_core::NodeId, availa
         }
         return false;
     }
-    if let Some(button) = guard.widget_mut().as_any_mut().downcast_mut::<Button>() {
-        if button.set_enabled(available) {
-            guard.request(Change::PAINT.union(Change::A11Y));
-            return true;
-        }
+    if let Some(button) = guard.widget_mut().as_any_mut().downcast_mut::<Button>()
+        && button.set_enabled(available)
+    {
+        guard.request(Change::PAINT.union(Change::A11Y));
+        return true;
     }
     false
 }
@@ -125,20 +124,21 @@ fn main() {
     let _ = pipeline.add_child(root, Checkbox::new("Subscribe").boxed());
     let _ = pipeline.add_child(
         root,
-        Button::new("Send").on_click(|| {
-            let _route = tracing::trace_span!(
-                target: "alacer::focus_traversal",
-                "send",
-                route = "press"
-            )
-            .entered();
-        }),
+        Button::new("Send")
+            .on_click(|| {
+                let _route = tracing::trace_span!(
+                    target: "alacer::focus_traversal",
+                    "send",
+                    route = "press"
+                )
+                .entered();
+            })
+            .boxed(),
     );
 
     let _ = pipeline.add_child(
         root,
-        Label::new("Tab and Shift+Tab ride the same walk — the window proves the funnel")
-            .boxed(),
+        Label::new("Tab and Shift+Tab ride the same walk — the window proves the funnel").boxed(),
     );
 
     settle(&mut pipeline);
@@ -150,13 +150,33 @@ fn main() {
 
     // Beat one: the walk forward, one stop per beat — the door answers,
     // the frame settles, the landing is announced.
-    walk_beat(&mut pipeline, "stop 1: the walk takes the first candidate", FocusMove::Next);
-    walk_beat(&mut pipeline, "stop 2: the next candidate in tree order", FocusMove::Next);
-    walk_beat(&mut pipeline, "stop 3: the checkbox answers the walk too", FocusMove::Next);
-    walk_beat(&mut pipeline, "stop 4: the send button is a stop like any other", FocusMove::Next);
+    walk_beat(
+        &mut pipeline,
+        "stop 1: the walk takes the first candidate",
+        FocusMove::Next,
+    );
+    walk_beat(
+        &mut pipeline,
+        "stop 2: the next candidate in tree order",
+        FocusMove::Next,
+    );
+    walk_beat(
+        &mut pipeline,
+        "stop 3: the checkbox answers the walk too",
+        FocusMove::Next,
+    );
+    walk_beat(
+        &mut pipeline,
+        "stop 4: the send button is a stop like any other",
+        FocusMove::Next,
+    );
 
     // Beat two: backward — the same funnel, the reverse direction.
-    walk_beat(&mut pipeline, "backward: the walk reverses", FocusMove::Prev);
+    walk_beat(
+        &mut pipeline,
+        "backward: the walk reverses",
+        FocusMove::Prev,
+    );
 
     // Beat three: the honest refusal. The availability tier holds every
     // control down; the walk has no candidate to offer and answers

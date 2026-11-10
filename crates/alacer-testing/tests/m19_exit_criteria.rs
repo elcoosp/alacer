@@ -281,16 +281,21 @@ fn m19_the_surface_work_rides_the_same_cut() {
 #[test]
 fn m19_the_living_documents_re_agree() {
     // The README's criterion count finally agrees with the published
-    // baseline: 55 cases since M20's measurement run joined the capture
+    // baseline: 60 cases since M20's measurement run joined the capture
     // case (the M19-promised IOU) — the pin moves with the corpus.
     let readme = read_workspace_file("README.md");
     assert!(
-        readme.contains("All 57 criterion cases"),
-        "the README quotes the baselines.json bench_count (57)"
+        readme.contains("All 60 criterion cases"),
+        "the README quotes the baselines.json bench_count (60)"
     );
     assert!(
         readme.contains("Since M19 the drag holds its target"),
         "the README's input bullet carries the capture contract"
+    );
+    assert!(
+        readme.contains("M0 through M26"),
+        "the README status reflects the living cut — the M26 sweep joins the \
+         milestone literal to this suite's pin set, the chain cannot drift"
     );
 
     // The capture milestone's demonstration is cataloged with the others.
@@ -306,7 +311,7 @@ fn m19_the_living_documents_re_agree() {
     for fragment in [
         "ADR-0025",
         "The captured drag",
-        "32 decision records",
+        "33 decision records",
         "implicitly holds its deepest accepting hit",
     ] {
         assert!(
@@ -323,7 +328,7 @@ fn m19_the_living_documents_re_agree() {
         "ADR-0025 documents the captured-drag scope"
     );
 
-    // The corpus is 57: the refused route's criterion case joined at
+    // The corpus is 60: the refused route's criterion case joined at
     // M20's measurement run by the coordinated rule and the value-write
     // route joined at M21's — the checker fails an uncontracted
     // benchmark, so each bench and its baseline landed together
@@ -331,7 +336,7 @@ fn m19_the_living_documents_re_agree() {
     let baselines = parse_workspace_json("benchmarks/baselines/baselines.json");
     assert_eq!(
         baselines["bench_count"],
-        serde_json::json!(57),
+        serde_json::json!(60),
         "the published corpus carries the capture case the code half promised"
     );
 }

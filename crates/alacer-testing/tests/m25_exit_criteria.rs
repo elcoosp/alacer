@@ -291,8 +291,8 @@ fn m25_the_living_documents_re_agree() {
     let readme = read_workspace_file("README.md");
     for fragment in [
         "version-0.16.0",
-        "M0 through M25",
-        "thirty-two decision records",
+        "M0 through M26",
+        "thirty-three decision records",
         "Since M25 the walk is bounded too",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
@@ -314,7 +314,7 @@ fn m25_the_living_documents_re_agree() {
     let architecture = read_workspace_file("docs/architecture.md");
     for fragment in [
         "ADR-0031",
-        "32 decision records",
+        "33 decision records",
         "the focus walk bounds to a subtree",
     ] {
         assert!(
@@ -352,11 +352,11 @@ fn m25_the_living_documents_re_agree() {
             "crates/alacer-testing/tests/{suite}_exit_criteria.rs"
         ));
         assert!(
-            source.contains("M0 through M25") && source.contains("thirty-two decision records"),
+            source.contains("M0 through M26") && source.contains("thirty-three decision records"),
             "the {suite} suite's README pins moved with the documents"
         );
         assert!(
-            source.contains("32 decision records"),
+            source.contains("33 decision records"),
             "the {suite} suite's architecture pin moved with the register"
         );
     }
@@ -375,11 +375,13 @@ fn m25_the_living_documents_re_agree() {
 fn m25_the_surface_rides_the_same_cut() {
     // The seam ships where the dispatch contract lives: the scoped door
     // beside the unscoped funnel, the walk generalized behind both — and
-    // the M24 public surface exactly as pinned (one walk, two scopes).
+    // the M24 public surface exactly as pinned (one walk, two scopes; the
+    // M26 vocabulary rides the same walk, so the generalized signature
+    // names the movement, not a boolean — the M26 sweep moved the pin).
     let passes = read_workspace_file("crates/alacer-core/src/passes.rs");
     for fragment in [
         "pub fn focus_move_in(&mut self, scope: NodeId, movement: FocusMove) -> bool",
-        "fn cycle_focus_in(&mut self, scope: Option<NodeId>, reverse: bool)",
+        "fn cycle_focus_in(&mut self, scope: Option<NodeId>, movement: FocusMove)",
         "pub fn focus_move(&mut self, movement: FocusMove) -> bool",
     ] {
         assert!(
@@ -388,7 +390,7 @@ fn m25_the_surface_rides_the_same_cut() {
         );
     }
     assert!(
-        passes.contains("self.cycle_focus_in(None, reverse)"),
+        passes.contains("self.cycle_focus_in(None, movement)"),
         "the unscoped funnel rides the same walk — the scope only bounds it"
     );
     assert!(
@@ -417,7 +419,7 @@ fn m25_the_surface_rides_the_same_cut() {
     // coherent tree — the drift the M25 sweep repairs.
     let m7 = read_workspace_file("crates/alacer-testing/tests/m7_exit_criteria.rs");
     assert!(
-        m7.contains("M0 through M25"),
+        m7.contains("M0 through M26"),
         "the m7 suite's milestone pin moved with the documents"
     );
 

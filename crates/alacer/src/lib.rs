@@ -31,8 +31,10 @@
 //! eleven crates — the widget vocabulary and the M6 canons, the editing
 //! contract's editor (selection, pointer, word, clipboard, and history
 //! tiers), the value tier's two halves, the availability tier the
-//! actionable controls answer, the frame's ledger the scene journal
-//! reports, the two render backends, the Causality inspector, the
+//! actionable controls answer, the focus walk the keyboard's Tab fallback
+//! and the app's code ride (tree-order and directional, unscoped and
+//! scoped, ADR-0030/ADR-0031/ADR-0032), the frame's ledger the scene
+//! journal reports, the two render backends, the Causality inspector, the
 //! headless testing harness, and the examples catalog that demonstrates
 //! each seam.
 

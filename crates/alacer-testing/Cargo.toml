@@ -49,3 +49,7 @@ harness = false
 [[bench]]
 name = "progress"
 harness = false
+
+[[bench]]
+name = "disabled"
+harness = false

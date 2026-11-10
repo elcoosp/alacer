@@ -423,6 +423,33 @@ pub struct PassRun {
     pub work_nanos: u64,
 }
 
+/// The focus walk's two directions (§10.3, ADR-0030): the traversal
+/// vocabulary one funnel serves. The keyboard's Tab/Shift+Tab fallback and
+/// the consumer's [`PassPipeline::focus_move`] door both name the same
+/// walk — the order is the pipeline's business (the pre-order candidate
+/// list pass 2 recomputes, the availability tier's cycle-time filter
+/// applied), never the caller's.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FocusMove {
+    /// The next candidate in tree order (Tab's direction); wraps from the
+    /// last candidate back to the first.
+    Next,
+    /// The previous candidate in tree order (Shift+Tab's direction);
+    /// wraps from the first candidate back to the last.
+    Prev,
+}
+
+impl FocusMove {
+    /// The direction's name, used by the seam's tracing spans and tests.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Next => "next",
+            Self::Prev => "prev",
+        }
+    }
+}
+
 /// One frame's outcome, returned by [`PassPipeline::tick`].
 #[derive(Debug, Clone)]
 #[expect(
@@ -620,6 +647,47 @@ impl PassPipeline {
     /// M22 — ADR-0028).
     pub fn request_focus(&mut self, node: NodeId) {
         self.pending_focus = Some(node);
+    }
+
+    /// Moves focus one candidate in `movement`'s direction (§10.3,
+    /// ADR-0030): the consumer's door over the same walk the keyboard's
+    /// Tab/Shift+Tab fallback rides — one funnel, two doors, the order
+    /// never duplicated at the call site. The walk follows the pre-order
+    /// candidate list pass 2 recomputes, skips controls the availability
+    /// tier holds down (the cycle-time `enabled` check, M22 — ADR-0028),
+    /// and wraps at both ends; from no focus, either direction takes the
+    /// first candidate (the Tab contract as shipped).
+    ///
+    /// The resolution is immediate — focus moves *this* call, the way key
+    /// routing requires — and the move rides the one invalidation
+    /// currency: `FOCUS | PAINT` masks on the two endpoints, one frame of
+    /// work. The refusal is honest (the M11 rule, at the focus seam):
+    /// when no candidate exists — an empty arena, or every control
+    /// unavailable — the door answers `false` and queues nothing (an idle
+    /// frame); it never munges the walk into a first-candidate reset.
+    pub fn focus_move(&mut self, movement: FocusMove) -> bool {
+        let span = tracing::trace_span!(
+            target: "alacer::focus",
+            "focus_move",
+            direction = movement.name()
+        );
+        let _guard = span.enter();
+        let moved = self.cycle_focus(movement == FocusMove::Prev);
+        if moved {
+            if let Some(focused) = self.focus() {
+                tracing::trace!(
+                    target: "alacer::focus",
+                    node = focused.raw(),
+                    "the walk rests on the next candidate"
+                );
+            }
+        } else {
+            tracing::trace!(
+                target: "alacer::focus",
+                "refused: the walk has no candidate to offer — no masks, an idle frame"
+            );
+        }
+        moved
     }
 
     /// Queues a raw pointer event into the frame-batched input queue (§10.2,
@@ -1006,9 +1074,16 @@ impl PassPipeline {
         }
 
         // Focus cycling: Tab walks the candidate list forward, Shift+Tab
-        // backward (§10.3). The widget's `Ignored` lets the framework take it.
+        // backward (§10.3) — through the same [`Self::focus_move`] funnel
+        // the consumer's door rides (ADR-0030: one walk, two doors). The
+        // widget's `Ignored` lets the framework take the key.
         if response == EventResponse::Ignored && event.presses(&crate::events::Key::Tab) {
-            if self.cycle_focus(event.modifiers.shift) {
+            let movement = if event.modifiers.shift {
+                FocusMove::Prev
+            } else {
+                FocusMove::Next
+            };
+            if self.focus_move(movement) {
                 response = EventResponse::Handled;
             }
             run.ran = true;
@@ -1169,8 +1244,11 @@ impl PassPipeline {
         response
     }
 
-    /// Moves focus one candidate forward (or backward with `reverse`).
-    /// Wraps at both ends; `true` when focus moved.
+    /// Moves focus one candidate forward (or backward with `reverse`) —
+    /// the one walk every focus-move door shares (the [`Self::focus_move`
+    /// funnel](Self::focus_move), ADR-0030). Wraps at both ends; from no
+    /// focus either direction takes the first candidate. `true` when
+    /// focus moved.
     fn cycle_focus(&mut self, reverse: bool) -> bool {
         // The candidates the tier still answers for (M22, ADR-0028): the
         // cache may name a control that became unavailable since pass 2
@@ -1904,7 +1982,8 @@ impl PassPipeline {
 #[cfg(test)]
 mod tests {
     use super::{
-        A11ySink, LayoutEngine, LayoutError, PassKind, PassPipeline, SceneJournal, TreeSnapshot,
+        A11ySink, FocusMove, LayoutEngine, LayoutError, PassKind, PassPipeline, SceneJournal,
+        TreeSnapshot,
     };
     use crate::arena::{Arena, NodeId};
     use crate::events::PointerEvent;
@@ -2745,6 +2824,45 @@ mod tests {
         p.request_focus(disabled);
         let _ = p.tick(viewport()).expect("request frame");
         assert_eq!(p.focus(), None, "the request is refused");
+    }
+
+    #[test]
+    fn focus_move_walks_wraps_and_refuses_the_empty_arena() {
+        // M24, ADR-0030: the consumer door over the Tab walk. Three
+        // buttons in tree order; the walk steps, wraps, and refuses the
+        // way the funnel documents.
+        let mut p = pipeline();
+        let root = p.mount_root(Box::new(Fixed {
+            size: Size::new(200.0, 100.0),
+        }));
+        let a = p.add_child(root, Box::new(Switchable::new(Size::new(80.0, 20.0))));
+        let b = p.add_child(root, Box::new(Switchable::new(Size::new(80.0, 20.0))));
+        let c = p.add_child(root, Box::new(Switchable::new(Size::new(80.0, 20.0))));
+        let _ = p.tick(viewport()).expect("first frame");
+
+        assert!(p.focus().is_none(), "no walk yet, no focus");
+        assert!(p.focus_move(FocusMove::Next), "the walk moves");
+        assert_eq!(p.focus(), Some(a), "from no focus the walk takes the first");
+        assert!(p.focus_move(FocusMove::Next));
+        assert_eq!(p.focus(), Some(b));
+        assert!(p.focus_move(FocusMove::Next));
+        assert_eq!(p.focus(), Some(c), "the walk reaches the last candidate");
+        assert!(
+            p.focus_move(FocusMove::Next),
+            "the walk always has a next stop while candidates exist"
+        );
+        assert_eq!(p.focus(), Some(a), "the walk wraps past the end");
+        assert!(p.focus_move(FocusMove::Prev));
+        assert_eq!(p.focus(), Some(c), "backward from the first wraps to the last");
+
+        // The empty arena refuses honestly — no candidates, no masks, no
+        // first-candidate reset (the M11 rule, at the focus seam).
+        let mut empty = pipeline();
+        assert!(
+            !empty.focus_move(FocusMove::Next),
+            "an arena without candidates refuses"
+        );
+        assert_eq!(empty.focus(), None, "a refused walk holds no focus");
     }
 
     #[test]

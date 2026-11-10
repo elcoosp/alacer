@@ -17,4 +17,5 @@ __pycache__/
 
 # The operator's local release runner and its generated PR body (never tracked)
 ship.sh
+ship.toml
 .github/pr-body.md

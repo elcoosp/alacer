@@ -5,6 +5,38 @@ All notable changes to **Alacer** will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
+## [0.15.0] — 2026-11-10
+
+
+
+### Added
+
+
+- The focus walk joins the dispatch contract
+
+- The focus walk drives the consumer's window
+
+
+### Documentation
+
+
+- The living documents re-agree at M24
+
+
+### Miscellaneous
+
+
+- The dead effect counter goes
+
+- The harness's dead probes go
+
+
+### Tests
+
+
+- The m24 exit suite pins the focus walk
+
+
 ## [0.14.0] — 2026-11-10
 
 

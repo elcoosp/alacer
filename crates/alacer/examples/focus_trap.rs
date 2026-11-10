@@ -27,7 +27,6 @@ use alacer::widgets::{BoxedWidget as _, Button, Checkbox, Column, Label, TextInp
 use alacer_core::geom::Size;
 use alacer_core::mask::Change;
 use alacer_core::passes::{FocusMove, PassPipeline};
-use alacer_core::widget::Widget;
 
 /// Prefers the software path when `ALACER_SOFTWARE=1` is set.
 fn backend_choice() -> BackendPreference {
@@ -57,13 +56,13 @@ fn settle(pipeline: &mut PassPipeline) {
 /// The a11y contract is the read: no widget internals, the name the tree
 /// carries.
 fn focused_name(pipeline: &PassPipeline) -> String {
-    pipeline
-        .focus()
-        .map(|node| pipeline.arena().widget(node).label().resolve())
-        .unwrap_or_else(|| "nothing".to_string())
+    pipeline.focus().map_or_else(
+        || "nothing".to_string(),
+        |node| pipeline.arena().widget(node).label().resolve(),
+    )
 }
 
-/// One focus_move_in beat: the span names the scoped route, the door
+/// One `focus_move_in` beat: the span names the scoped route, the door
 /// answers, the frame settles, and the landing is announced on the
 /// demo's target.
 fn trap_beat(
@@ -80,7 +79,7 @@ fn trap_beat(
         scope = scope.raw()
     )
     .entered();
-    let moved = pipeline.focus_move_in(scope, movement);
+    let moved = pipeline.focus_move_in(scope, movement).moved();
     settle(pipeline);
     let landing = focused_name(pipeline);
     tracing::info!(
@@ -111,17 +110,19 @@ fn hold_available(pipeline: &mut PassPipeline, node: alacer_core::NodeId, availa
         }
         return false;
     }
-    if let Some(button) = guard.widget_mut().as_any_mut().downcast_mut::<Button>() {
-        if button.set_enabled(available) {
-            guard.request(Change::PAINT.union(Change::A11Y));
-            return true;
-        }
+    if let Some(button) = guard.widget_mut().as_any_mut().downcast_mut::<Button>()
+        && button.set_enabled(available)
+    {
+        guard.request(Change::PAINT.union(Change::A11Y));
+        return true;
     }
     false
 }
 
-fn main() {
-    let mut pipeline = pipeline_default();
+/// Assembles the demo's window: the background control the trap must
+/// never offer, the modal's form, and the framing labels. Returns the
+/// modal's node — the scope the demo's beats take.
+fn mount_window(pipeline: &mut PassPipeline) -> alacer_core::NodeId {
     let root = pipeline.mount_root(Column::new().gap(12.0).padding(16.0).boxed());
 
     let _ = pipeline.add_child(root, Label::new("The focus trap (ADR-0031)").boxed());
@@ -130,14 +131,16 @@ fn main() {
     // sees it, the scoped door does not.
     let _ = pipeline.add_child(
         root,
-        Button::new("Background").on_click(|| {
-            let _route = tracing::trace_span!(
-                target: "alacer::focus_trap",
-                "background",
-                route = "press"
-            )
-            .entered();
-        }),
+        Button::new("Background")
+            .on_click(|| {
+                let _route = tracing::trace_span!(
+                    target: "alacer::focus_trap",
+                    "background",
+                    route = "press"
+                )
+                .entered();
+            })
+            .boxed(),
     );
 
     // The modal: the column whose root is the scope the demo's door takes.
@@ -147,20 +150,28 @@ fn main() {
     let _ = pipeline.add_child(modal, Checkbox::new("Notify me").boxed());
     let _ = pipeline.add_child(
         modal,
-        Button::new("Send modal").on_click(|| {
-            let _route = tracing::trace_span!(
-                target: "alacer::focus_trap",
-                "send",
-                route = "press"
-            )
-            .entered();
-        }),
+        Button::new("Send modal")
+            .on_click(|| {
+                let _route = tracing::trace_span!(
+                    target: "alacer::focus_trap",
+                    "send",
+                    route = "press"
+                )
+                .entered();
+            })
+            .boxed(),
     );
 
     let _ = pipeline.add_child(
         root,
         Label::new("Tab still walks the whole window — the trap is the app's door").boxed(),
     );
+    modal
+}
+
+fn main() {
+    let mut pipeline = pipeline_default();
+    let modal = mount_window(&mut pipeline);
 
     settle(&mut pipeline);
     tracing::info!(
@@ -197,10 +208,20 @@ fn main() {
         FocusMove::Next,
         modal,
     );
-    trap_beat(&mut pipeline, "stop 5: the walk wraps inside the trap", FocusMove::Next, modal);
+    trap_beat(
+        &mut pipeline,
+        "stop 5: the walk wraps inside the trap",
+        FocusMove::Next,
+        modal,
+    );
 
     // Beat two: backward — the same scoped funnel, the reverse direction.
-    trap_beat(&mut pipeline, "backward: the trap reverses", FocusMove::Prev, modal);
+    trap_beat(
+        &mut pipeline,
+        "backward: the trap reverses",
+        FocusMove::Prev,
+        modal,
+    );
 
     // Beat three: the honest refusal. The availability tier holds every
     // control in the trap down; the scoped walk has no candidate to offer

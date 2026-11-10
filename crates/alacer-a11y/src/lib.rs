@@ -157,12 +157,6 @@ impl AccessKitSink {
         &self.last_removed_ids
     }
 
-    /// Whether the last update carried full tree (re)initialization data.
-    #[must_use]
-    pub const fn is_initialized(&self) -> bool {
-        self.initialized
-    }
-
     /// Takes every update produced since the last drain, in order — the
     /// platform's steady-state frame-boundary step (ADR-0015): the loop
     /// hands each one to the AccessKit adapter, which forwards it while an
@@ -575,7 +569,6 @@ mod tests {
         let snap = snapshot();
         sink.apply(std::sync::Arc::new(snap.clone()), &A11yDelta::empty());
 
-        assert!(sink.is_initialized());
         assert_eq!(sink.update_count(), 1);
         let update = sink.last_update().expect("update");
         assert!(update.tree.is_some(), "tree info present on init");

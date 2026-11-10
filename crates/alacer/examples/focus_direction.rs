@@ -29,7 +29,6 @@ use alacer::platform::BackendPreference;
 use alacer::widgets::{BoxedWidget as _, Button, Checkbox, Column, Label, Row, TextInput};
 use alacer_core::geom::Size;
 use alacer_core::passes::{FocusMove, PassPipeline};
-use alacer_core::widget::Widget;
 
 /// Prefers the software path when `ALACER_SOFTWARE=1` is set.
 fn backend_choice() -> BackendPreference {
@@ -59,10 +58,10 @@ fn settle(pipeline: &mut PassPipeline) {
 /// The a11y contract is the read: no widget internals, the name the tree
 /// carries.
 fn focused_name(pipeline: &PassPipeline) -> String {
-    pipeline
-        .focus()
-        .map(|node| pipeline.arena().widget(node).label().resolve())
-        .unwrap_or_else(|| "nothing".to_string())
+    pipeline.focus().map_or_else(
+        || "nothing".to_string(),
+        |node| pipeline.arena().widget(node).label().resolve(),
+    )
 }
 
 /// One directional beat: the span names the route and the direction, the
@@ -76,7 +75,7 @@ fn direction_beat(pipeline: &mut PassPipeline, beat: &'static str, movement: Foc
         direction = movement.name()
     )
     .entered();
-    let moved = pipeline.focus_move(movement);
+    let moved = pipeline.focus_move(movement).moved();
     settle(pipeline);
     let landing = focused_name(pipeline);
     tracing::info!(
@@ -103,7 +102,7 @@ fn scoped_beat(
         scope = scope.raw()
     )
     .entered();
-    let moved = pipeline.focus_move_in(scope, movement);
+    let moved = pipeline.focus_move_in(scope, movement).moved();
     settle(pipeline);
     let landing = focused_name(pipeline);
     tracing::info!(
@@ -168,13 +167,21 @@ fn main() {
     // Beat two: the spatial answer — Right along the top row lands the
     // top-right button; the tree-order Next would land the same stop here,
     // which is exactly why the discriminator below matters.
-    direction_beat(&mut pipeline, "stop 2: right along the top row", FocusMove::Right);
+    direction_beat(
+        &mut pipeline,
+        "stop 2: right along the top row",
+        FocusMove::Right,
+    );
 
     // Beat three: the window, not the tree — Down from the top-right
     // lands the bottom-right button. The pre-order list's next stop is
     // the bottom-LEFT button (the row breaks the tree's stride); the
     // direction reads the geometry instead.
-    direction_beat(&mut pipeline, "stop 3: down the right column — the geometry's answer", FocusMove::Down);
+    direction_beat(
+        &mut pipeline,
+        "stop 3: down the right column — the geometry's answer",
+        FocusMove::Down,
+    );
 
     // Beat four: the honest refusal — the bottom-right button is the
     // window's corner; Right has no candidate fully beyond its edge, the

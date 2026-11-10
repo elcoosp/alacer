@@ -511,6 +511,10 @@ mod tests {
         }
 
         fn retain(&mut self, _order: &[NodeId]) {}
+
+        fn stats(&self) -> alacer_core::passes::JournalStats {
+            alacer_core::passes::JournalStats::default()
+        }
     }
 
     #[derive(Default)]

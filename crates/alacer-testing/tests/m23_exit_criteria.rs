@@ -131,7 +131,11 @@ fn m23_an_idle_frame_costs_nothing() {
 fn mounted_panel_list(
     harness: &mut TestHarness,
     panels: usize,
-) -> (alacer_widgets::ListHandle, alacer_core::NodeId) {
+) -> (
+    alacer_widgets::ListHandle,
+    alacer_core::NodeId,
+    alacer_core::NodeId,
+) {
     let root = harness.mount(Column::new().padding(8.0).boxed());
     let list = List::new(220.0);
     let handle = list.handle();
@@ -146,7 +150,24 @@ fn mounted_panel_list(
 
     handle.set_content_height(f32::from(u16::try_from(panels).unwrap_or(u16::MAX)) * 32.0);
     let first_child = harness.pipeline().arena().children(list_node)[0];
-    (handle, first_child)
+    (handle, list_node, first_child)
+}
+
+/// A programmatic scroll rides the mutate seam (§8.2, A1): the shared
+/// state's write is the widget's, the currency is the pipeline's — the
+/// guard's `request` queues the same `PAINT | A11Y` masks the wheel path
+/// requests through `EventCtx`. A currency-less `scroll_to` would leave
+/// the compose pass nothing to see (an idle frame that never translates).
+fn scroll_via_mutate_seam(harness: &mut TestHarness, list_node: alacer_core::NodeId, offset: f32) {
+    let mut guard = harness.pipeline_mut().arena_mut().mutate(list_node);
+    if let Some(list) = guard
+        .widget_mut()
+        .as_any_mut()
+        .downcast_mut::<alacer_widgets::List>()
+    {
+        list.handle().scroll_to(offset);
+    }
+    guard.request(alacer_core::mask::Change::PAINT.union(alacer_core::mask::Change::A11Y));
 }
 
 #[test]
@@ -155,10 +176,10 @@ fn m23_the_repaired_scroll_scenarios_reach_their_offsets() {
     // ten-panel original capped the clamp's range at 100, one half of the
     // broken trio's root cause.
     let mut harness = TestHarness::new(240.0, 320.0);
-    let (handle, first_child) = mounted_panel_list(&mut harness, 12);
+    let (handle, list_node, first_child) = mounted_panel_list(&mut harness, 12);
     let before_y = harness.bounds(first_child).origin.y;
 
-    handle.scroll_to(120.0);
+    scroll_via_mutate_seam(&mut harness, list_node, 120.0);
     assert_eq!(
         handle.offset(),
         120.0,
@@ -177,10 +198,10 @@ fn m23_the_repaired_scroll_scenarios_reach_their_offsets() {
     // reachable, but only once the clamp knows the content height (the
     // other half: the scenario never fed it).
     let mut harness = TestHarness::new(240.0, 320.0);
-    let (handle, first_child) = mounted_panel_list(&mut harness, 24);
+    let (handle, list_node, first_child) = mounted_panel_list(&mut harness, 24);
     let before_y = harness.bounds(first_child).origin.y;
 
-    handle.scroll_to(400.0);
+    scroll_via_mutate_seam(&mut harness, list_node, 400.0);
     assert_eq!(
         handle.offset(),
         400.0,
@@ -211,12 +232,18 @@ fn m23_the_blessed_list_scenarios_are_distinct_images() {
     let top = read("m1_12_list_top.png");
     let s120 = read("m1_13_list_scrolled_120.png");
     let s400 = read("m1_14_list_scrolled_400.png");
-    assert_ne!(top, s120, "list_top and list_scrolled_120 are distinct images");
+    assert_ne!(
+        top, s120,
+        "list_top and list_scrolled_120 are distinct images"
+    );
     assert_ne!(
         s120, s400,
         "list_scrolled_120 and list_scrolled_400 are distinct images"
     );
-    assert_ne!(top, s400, "list_top and list_scrolled_400 are distinct images");
+    assert_ne!(
+        top, s400,
+        "list_top and list_scrolled_400 are distinct images"
+    );
 }
 
 #[test]
@@ -228,8 +255,8 @@ fn m23_the_living_documents_re_agree() {
     let readme = read_workspace_file("README.md");
     for fragment in [
         "version-0.16.0",
-        "M0 through M26",
-        "thirty-three decision records",
+        "M0 through M27",
+        "thirty-four decision records",
         "Since M23 the frame carries a public ledger",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
@@ -251,7 +278,7 @@ fn m23_the_living_documents_re_agree() {
     let architecture = read_workspace_file("docs/architecture.md");
     for fragment in [
         "ADR-0029",
-        "33 decision records",
+        "34 decision records",
         "the scene journal becomes legible to its consumers",
     ] {
         assert!(
@@ -290,11 +317,11 @@ fn m23_the_living_documents_re_agree() {
     let m22 = read_workspace_file("crates/alacer-testing/tests/m22_exit_criteria.rs");
     for (suite, source) in [("m20", &m20), ("m21", &m21), ("m22", &m22)] {
         assert!(
-            source.contains("M0 through M26") && source.contains("thirty-three decision records"),
+            source.contains("M0 through M27") && source.contains("thirty-four decision records"),
             "the {suite} suite's README pins moved with the documents"
         );
         assert!(
-            source.contains("33 decision records"),
+            source.contains("34 decision records"),
             "the {suite} suite's architecture pin moved with the register"
         );
     }

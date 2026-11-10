@@ -171,6 +171,41 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M27 — the walk's answer as data (ADR-0033)**: the two focus doors
+  (`PassPipeline::focus_move`, `PassPipeline::focus_move_in`) grow their
+  answer from the M24-era boolean into the `FocusMoveOutcome` vocabulary —
+  ADR-0031's pre-registered re-open rule ("a door needs to observe the
+  walk's refusals as data") cashed. A `Moved(FocusLanding)` carries the
+  endpoints (`from` — `None` for the entry — and `to`) and the wrap (the
+  tree-order move crossed a list end; the entry and the directional moves
+  never carry it); a `Refused(FocusRefusal)` names its species — the
+  empty list, the dead scope, the geometry-less focus, the empty
+  direction (with its node and direction), the single-candidate stall —
+  instead of five refusals collapsed into one silent `false`. The walk
+  behind the doors is untouched: the same candidate list, the same
+  availability filter, the same wrap, the same immediate resolution, the
+  same no-mask idle refusals (the M11 rule stays; the answer stops
+  making the caller guess), the per-species help staying plain text on
+  the `alacer::focus` target (ADR-0029's rule), the keyboard's Tab
+  fallback routing on the `moved()` verdict accessor unchanged.
+  `examples/focus_outcome.rs` is the consumer demonstration: the M26
+  window walked one beat per `FocusMove`, every beat logging what the
+  walk answered as data, with tracing spans at `alacer::focus_outcome`.
+  The outcome route (`input/route_100_outcome_moves_1k`) joins the
+  published corpus beside the three focus routes, the corpus pins moving
+  60 → 61 across the m5–m26 chain in the same cut. The repair debt the
+  sweep priced rides the cut: the M23-era required `SceneJournal::stats`
+  never landed on three `NullJournal` impls (the `pass_overhead` bench
+  and two test harnesses — the M23 cut's own benches and tests could not
+  compile at the shipped HEAD), the three focus-route baselines the M26
+  cut promised at its measurement run and never published (the m5
+  bijection red at HEAD, `baselines.json` stalled at 57 entries against
+  60 pins) land this cut, the `focus_trap`/`focus_traversal` examples'
+  unboxed multi-line-closure buttons and unused `Widget` imports go (the
+  examples did not compile at HEAD), and the dead `Slider::set_on_change`
+  and the dead `AccessKitSink::is_initialized` (its only caller was its
+  own unit test — the M25 species) go with them.
+
 - **M26 — the directional focus walk (ADR-0032)**: the walk reads the
   window, not only the tree. ADR-0030's pre-registered re-open rule
   (spatial/D-pad navigation) ships as four `FocusMove` directions

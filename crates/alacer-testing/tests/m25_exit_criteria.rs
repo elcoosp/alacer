@@ -73,7 +73,6 @@ fn set_available(harness: &mut TestHarness, node: alacer_core::NodeId, available
     } else {
         panic!("the trap holds only actionable controls")
     };
-    drop(widget);
     if moved {
         guard.request(Change::PAINT.union(Change::A11Y));
     }
@@ -91,8 +90,11 @@ fn m25_the_scoped_walk_stays_in_the_trap() {
     let in_trap = [nodes[1], nodes[2], nodes[3], nodes[4]];
 
     let mut landings = Vec::new();
-    for _ in 0..in_trap.len() + 1 {
-        let moved = harness.pipeline_mut().focus_move_in(modal, FocusMove::Next);
+    for _ in 0..=in_trap.len() {
+        let moved = harness
+            .pipeline_mut()
+            .focus_move_in(modal, FocusMove::Next)
+            .moved();
         assert!(moved, "a four-candidate trap always has a next stop");
         landings.push(
             harness
@@ -101,7 +103,7 @@ fn m25_the_scoped_walk_stays_in_the_trap() {
                 .expect("the scoped walk resolves immediately"),
         );
     }
-    let expected: Vec<alacer_core::NodeId> = (0..in_trap.len() + 1)
+    let expected: Vec<alacer_core::NodeId> = (0..=in_trap.len())
         .map(|step| in_trap[step % in_trap.len()])
         .collect();
     assert_eq!(
@@ -121,7 +123,10 @@ fn m25_the_scoped_walk_stays_in_the_trap() {
         "focusables() keeps answering the whole tree"
     );
     let backward = {
-        let moved = harness.pipeline_mut().focus_move_in(modal, FocusMove::Prev);
+        let moved = harness
+            .pipeline_mut()
+            .focus_move_in(modal, FocusMove::Prev)
+            .moved();
         assert!(moved, "backward inside the trap always has a stop");
         harness.pipeline().focus()
     };
@@ -147,14 +152,20 @@ fn m25_the_scoped_walk_skips_the_unavailable_control() {
 
     let first = {
         assert!(
-            harness.pipeline_mut().focus_move_in(modal, FocusMove::Next),
+            harness
+                .pipeline_mut()
+                .focus_move_in(modal, FocusMove::Next)
+                .moved(),
             "the trap still offers its first available candidate"
         );
         harness.pipeline().focus()
     };
     assert_eq!(first, Some(nodes[1]), "the walk opens on the recipient");
     assert!(
-        harness.pipeline_mut().focus_move_in(modal, FocusMove::Next),
+        harness
+            .pipeline_mut()
+            .focus_move_in(modal, FocusMove::Next)
+            .moved(),
         "the second beat moves past the unavailable send"
     );
     assert_eq!(
@@ -163,7 +174,22 @@ fn m25_the_scoped_walk_skips_the_unavailable_control() {
         "the unavailable send is skipped — recipient then subject"
     );
     assert!(
-        harness.pipeline_mut().focus_move_in(modal, FocusMove::Next),
+        harness
+            .pipeline_mut()
+            .focus_move_in(modal, FocusMove::Next)
+            .moved(),
+        "the third beat lands the notify checkbox — the trap's last available"
+    );
+    assert_eq!(
+        harness.pipeline().focus(),
+        Some(nodes[3]),
+        "the unavailable send is never offered — recipient, subject, notify"
+    );
+    assert!(
+        harness
+            .pipeline_mut()
+            .focus_move_in(modal, FocusMove::Next)
+            .moved(),
         "the wrap skips the unavailable send too"
     );
     assert_eq!(
@@ -196,7 +222,7 @@ fn m25_the_refusal_is_honest() {
 
     // Focus rests on the background control first (the unscoped door).
     assert!(
-        harness.pipeline_mut().focus_move(FocusMove::Next),
+        harness.pipeline_mut().focus_move(FocusMove::Next).moved(),
         "the unscoped walk takes the first candidate"
     );
     assert_eq!(harness.pipeline().focus(), Some(nodes[0]));
@@ -206,8 +232,11 @@ fn m25_the_refusal_is_honest() {
     }
     harness.settle();
 
-    let moved = harness.pipeline_mut().focus_move_in(modal, FocusMove::Next);
-    assert!(!moved, "every control in the trap is unavailable — the door refuses");
+    let outcome = harness.pipeline_mut().focus_move_in(modal, FocusMove::Next);
+    assert!(
+        !outcome.moved(),
+        "every control in the trap is unavailable — the door refuses"
+    );
     assert_eq!(
         harness.pipeline().focus(),
         Some(nodes[0]),
@@ -224,8 +253,8 @@ fn m25_the_refusal_is_honest() {
     // help text (ADR-0029's rule), no masks, focus untouched.
     harness.pipeline_mut().arena_mut().remove_subtree(modal);
     harness.settle();
-    let moved = harness.pipeline_mut().focus_move_in(modal, FocusMove::Prev);
-    assert!(!moved, "a dead scope has no walk to offer");
+    let outcome = harness.pipeline_mut().focus_move_in(modal, FocusMove::Prev);
+    assert!(!outcome.moved(), "a dead scope has no walk to offer");
     assert_eq!(
         harness.pipeline().focus(),
         Some(nodes[0]),
@@ -244,20 +273,63 @@ fn m25_the_scoped_door_agrees_with_the_unscoped_door_at_the_root() {
     let (root_a, _) = mount_trap(&mut unscoped);
     let mut by_door = Vec::new();
     for _ in 0..6 {
-        assert!(unscoped.pipeline_mut().focus_move(FocusMove::Next));
+        assert!(unscoped.pipeline_mut().focus_move(FocusMove::Next).moved());
         by_door.push(unscoped.pipeline().focus());
     }
 
     let mut scoped = TestHarness::new(360.0, 240.0);
-    let (root_b, _) = mount_trap(&mut scoped);
+    let _ = mount_trap(&mut scoped);
+    // The root scope is the arena's root — the whole tree, which is the
+    // unscoped door's candidate list exactly (the modal subtree would
+    // bound the walk to the trap, a different contract, pinned above).
+    let root_b = scoped
+        .pipeline()
+        .arena()
+        .root()
+        .expect("the trap window mounts a root");
     let mut by_scoped = Vec::new();
     for _ in 0..6 {
-        assert!(scoped.pipeline_mut().focus_move_in(root_b, FocusMove::Next));
+        assert!(
+            scoped
+                .pipeline_mut()
+                .focus_move_in(root_b, FocusMove::Next)
+                .moved()
+        );
         by_scoped.push(scoped.pipeline().focus());
     }
     let _ = root_a;
+    // The two windows hold different node ids (the arena's counter is
+    // process-global and this test mounts two windows) — the contract is
+    // the landing *order*, read as positions in each window's own
+    // candidate list: one walk, two scopes, the same stops.
+    let door_order: Vec<Option<usize>> = by_door
+        .iter()
+        .map(|landing| {
+            landing.map(|id| {
+                unscoped
+                    .pipeline()
+                    .focusables()
+                    .iter()
+                    .position(|candidate| *candidate == id)
+                    .expect("the unscoped walk rests on a candidate")
+            })
+        })
+        .collect();
+    let scoped_order: Vec<Option<usize>> = by_scoped
+        .iter()
+        .map(|landing| {
+            landing.map(|id| {
+                scoped
+                    .pipeline()
+                    .focusables()
+                    .iter()
+                    .position(|candidate| *candidate == id)
+                    .expect("the scoped walk rests on a candidate")
+            })
+        })
+        .collect();
     assert_eq!(
-        by_door, by_scoped,
+        door_order, scoped_order,
         "a root-scoped walk lands exactly where the unscoped door lands"
     );
 }
@@ -270,14 +342,22 @@ fn m25_a_move_costs_one_frame() {
     let mut harness = TestHarness::new(360.0, 240.0);
     let (modal, _) = mount_trap(&mut harness);
 
-    assert!(harness.pipeline_mut().focus_move_in(modal, FocusMove::Next));
+    assert!(
+        harness
+            .pipeline_mut()
+            .focus_move_in(modal, FocusMove::Next)
+            .moved()
+    );
     assert!(
         harness.pipeline().focus().is_some(),
         "the scoped walk resolves immediately — key routing sees the landing this event"
     );
     let first = harness.tick();
     assert!(!first.is_idle(), "the move's masks cost one frame");
-    assert!(first.paint_ran, "the ring repaint lands — the paint currency");
+    assert!(
+        first.paint_ran,
+        "the ring repaint lands — the paint currency"
+    );
     let second = harness.tick();
     assert!(second.is_idle(), "the frame after the move is idle again");
 }
@@ -291,8 +371,8 @@ fn m25_the_living_documents_re_agree() {
     let readme = read_workspace_file("README.md");
     for fragment in [
         "version-0.16.0",
-        "M0 through M26",
-        "thirty-three decision records",
+        "M0 through M27",
+        "thirty-four decision records",
         "Since M25 the walk is bounded too",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
@@ -314,7 +394,7 @@ fn m25_the_living_documents_re_agree() {
     let architecture = read_workspace_file("docs/architecture.md");
     for fragment in [
         "ADR-0031",
-        "33 decision records",
+        "34 decision records",
         "the focus walk bounds to a subtree",
     ] {
         assert!(
@@ -352,11 +432,11 @@ fn m25_the_living_documents_re_agree() {
             "crates/alacer-testing/tests/{suite}_exit_criteria.rs"
         ));
         assert!(
-            source.contains("M0 through M26") && source.contains("thirty-three decision records"),
+            source.contains("M0 through M27") && source.contains("thirty-four decision records"),
             "the {suite} suite's README pins moved with the documents"
         );
         assert!(
-            source.contains("33 decision records"),
+            source.contains("34 decision records"),
             "the {suite} suite's architecture pin moved with the register"
         );
     }
@@ -380,9 +460,9 @@ fn m25_the_surface_rides_the_same_cut() {
     // names the movement, not a boolean — the M26 sweep moved the pin).
     let passes = read_workspace_file("crates/alacer-core/src/passes.rs");
     for fragment in [
-        "pub fn focus_move_in(&mut self, scope: NodeId, movement: FocusMove) -> bool",
-        "fn cycle_focus_in(&mut self, scope: Option<NodeId>, movement: FocusMove)",
-        "pub fn focus_move(&mut self, movement: FocusMove) -> bool",
+        "pub fn focus_move_in(&mut self, scope: NodeId, movement: FocusMove) -> FocusMoveOutcome",
+        "fn cycle_focus_in(&mut self, scope: Option<NodeId>, movement: FocusMove) -> FocusMoveOutcome",
+        "pub fn focus_move(&mut self, movement: FocusMove) -> FocusMoveOutcome",
     ] {
         assert!(
             passes.contains(fragment),
@@ -419,7 +499,7 @@ fn m25_the_surface_rides_the_same_cut() {
     // coherent tree — the drift the M25 sweep repairs.
     let m7 = read_workspace_file("crates/alacer-testing/tests/m7_exit_criteria.rs");
     assert!(
-        m7.contains("M0 through M26"),
+        m7.contains("M0 through M27"),
         "the m7 suite's milestone pin moved with the documents"
     );
 

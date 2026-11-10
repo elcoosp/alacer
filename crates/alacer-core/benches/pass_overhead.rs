@@ -129,6 +129,14 @@ impl alacer_core::passes::SceneJournal for NullJournal {
             .expect("journal lock")
             .retain(|node, _| live.contains(node));
     }
+
+    fn stats(&self) -> alacer_core::passes::JournalStats {
+        alacer_core::passes::JournalStats {
+            commits: 0,
+            drops: 0,
+            live_layers: self.layers.lock().expect("journal lock").len(),
+        }
+    }
 }
 
 #[derive(Default)]

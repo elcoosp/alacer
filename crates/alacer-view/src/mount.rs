@@ -106,13 +106,6 @@ pub struct ViewRoot {
 }
 
 impl ViewRoot {
-    /// The arena node the view was mounted on (assembly-site introspection:
-    /// binding the footer label needs its node).
-    #[must_use]
-    pub const fn root(&self) -> NodeId {
-        self.root_id
-    }
-
     /// Mounts `view` as the pipeline's root element.
     ///
     /// # Panics

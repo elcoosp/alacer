@@ -30,6 +30,7 @@ pub struct Slider {
     max: f32,
     step: f32,
     value: f32,
+    enabled: bool,
     on_change: Option<Box<dyn FnMut(f32)>>,
     focused: bool,
     dragging: bool,
@@ -68,6 +69,7 @@ impl Slider {
             max,
             step: 1.0,
             value: min,
+            enabled: true,
             on_change: None,
             focused: false,
             dragging: false,
@@ -76,6 +78,16 @@ impl Slider {
             font_size: crate::theme::FONT_SIZE,
             style: Style::default(),
         }
+    }
+
+    /// Initial availability (M22, ADR-0028). An unavailable slider paints
+    /// muted, holds no focus, and refuses every write door honestly — the
+    /// value the tree carries is the app's, and the AT reads the refusal
+    /// before it happens.
+    #[must_use]
+    pub fn enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
     }
 
     /// The step every write snaps to (drag, arrows, AT acts alike).
@@ -137,6 +149,24 @@ impl Slider {
         self.value
     }
 
+    /// The availability the widget reports — the same flag the M22
+    /// `enabled()` contract carries into the a11y tree (test
+    /// introspection).
+    #[must_use]
+    pub const fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    /// The one availability write: report whether the flag moved (the
+    /// M21 idle-frame property, at the widget seam).
+    pub fn set_enabled(&mut self, enabled: bool) -> bool {
+        if self.enabled == enabled {
+            return false;
+        }
+        self.enabled = enabled;
+        true
+    }
+
     /// Sets the value in place (view reconciliation): clamped and snapped
     /// like every write, fires no handler — programmatic state, not a
     /// user act. A non-finite request is ignored.
@@ -194,6 +224,12 @@ impl Slider {
     /// answered request, not a refusal); `false` refuses a request the
     /// widget cannot carry (a non-finite value) — never munged.
     fn commit(&mut self, requested: f32, ctx: Option<&mut EventCtx>) -> bool {
+        // The availability tier guards the funnel's single entry (M22,
+        // ADR-0028): an unavailable slider answers nothing — every door
+        // refuses at its own edge too, so the request never gets here.
+        if !self.enabled {
+            return false;
+        }
         if !requested.is_finite() {
             return false;
         }
@@ -272,6 +308,18 @@ impl Widget for Slider {
         let width = ctx.size().width;
         let ratio = self.ratio();
         let track_y = (Self::THUMB - Self::TRACK_HEIGHT) * 0.5;
+        // The look tells the truth the tree carries (M22, ADR-0028): an
+        // unavailable slider paints the muted rail and the muted label.
+        let accent = if self.enabled {
+            self.accent
+        } else {
+            crate::theme::BORDER
+        };
+        let label_color = if self.enabled {
+            self.text_color
+        } else {
+            crate::theme::TEXT_MUTED
+        };
 
         // The track: a rounded rail the full width.
         ctx.push_quad(alacer_core::scene::Quad {
@@ -293,9 +341,9 @@ impl Widget for Slider {
                 Point::new(0.0, track_y),
                 Size::new(fill_width, Self::TRACK_HEIGHT),
             ),
-            color: self.accent,
+            color: accent,
             corner_radius: Self::TRACK_HEIGHT * 0.5,
-            border_color: self.accent,
+            border_color: accent,
             border_width: 0.0,
             clip: None,
         });
@@ -307,9 +355,9 @@ impl Widget for Slider {
                 Point::new(ratio * travel, 0.0),
                 Size::new(Self::THUMB, Self::THUMB),
             ),
-            color: self.accent,
+            color: accent,
             corner_radius: Self::THUMB * 0.5,
-            border_color: if self.focused {
+            border_color: if self.focused && self.enabled {
                 crate::theme::ACCENT_PRESSED
             } else {
                 crate::theme::BORDER
@@ -326,7 +374,7 @@ impl Widget for Slider {
                 ctx.push_glyph(alacer_core::scene::Glyph {
                     position: Point::new(text_origin.x + glyph.x, text_origin.y + glyph.y),
                     size: glyph.size,
-                    color: self.text_color,
+                    color: label_color,
                     font_id: glyph.font_id,
                     glyph_id: glyph.glyph_id,
                     clip: None,
@@ -346,11 +394,23 @@ impl Widget for Slider {
         self.focused = focused;
     }
 
+    /// The availability tier (M22, ADR-0028): the flag the a11y tree
+    /// carries — an unavailable slider reports itself before the AT tries
+    /// the write it will refuse.
+    fn enabled(&self) -> bool {
+        self.enabled
+    }
+
     /// The value tier (M20, ADR-0026): `SetValue` parses then rides the
     /// one funnel, `Increment`/`Decrement` step by the step — the same
     /// masks as a drag. `DefaultPress` is not a value control's contract —
     /// refused, never munged into a write (the M11 rule).
     fn on_a11y_action(&mut self, action: A11yAction) -> bool {
+        // The availability tier (M22, ADR-0028): an unavailable slider has
+        // no write door — every action is refused honestly, never munged.
+        if !self.enabled {
+            return false;
+        }
         match action {
             A11yAction::SetValue(value) => match value.trim().parse::<f32>() {
                 Ok(parsed) => self.commit(parsed, None),
@@ -375,6 +435,11 @@ impl Widget for Slider {
     fn on_pointer_event(&mut self, ctx: &mut EventCtx, event: &PointerEvent) -> EventResponse {
         match event {
             PointerEvent::Down { position, .. } => {
+                // The wall (M22, ADR-0028): a disabled slider consumes the
+                // press but arms nothing — no focus, no write, no masks.
+                if !self.enabled {
+                    return EventResponse::Handled;
+                }
                 self.dragging = true;
                 ctx.request(alacer_core::Change::PAINT.union(alacer_core::Change::FOCUS));
                 if let Some(bounds) = ctx.bounds() {
@@ -409,6 +474,12 @@ impl Widget for Slider {
     }
 
     fn on_key_event(&mut self, ctx: &mut EventCtx, event: &KeyEvent) -> EventResponse {
+        // The availability tier (M22, ADR-0028): the keyboard never
+        // reaches an unavailable control — it holds no focus, and a
+        // routed step key is ignored so the framework keeps it.
+        if !self.enabled {
+            return EventResponse::Ignored;
+        }
         if event.state != alacer_core::events::KeyState::Pressed {
             return EventResponse::Ignored;
         }
@@ -646,5 +717,58 @@ mod tests {
         assert!(result.is_err(), "min >= max has no value to carry");
         let result = std::panic::catch_unwind(|| Slider::new("Broken", 0.0, 10.0).step(0.0));
         assert!(result.is_err(), "a zero step divides by zero");
+    }
+
+    #[test]
+    fn a_disabled_slider_refuses_every_write_door() {
+        // M22, ADR-0028: the AT tier, the pointer, and the keys all refuse
+        // honestly — the value the tree carries is the app's, and the
+        // refusal queues nothing.
+        let mut slider = Slider::new("Volume", 0.0, 100.0)
+            .enabled(false)
+            .on_change(|_| panic!("an unavailable slider must not write"));
+        let mut ctx = EventCtx::new();
+
+        for action in [
+            A11yAction::SetValue("42".to_string()),
+            A11yAction::Increment,
+            A11yAction::Decrement,
+            A11yAction::DefaultPress,
+        ] {
+            assert!(
+                !slider.on_a11y_action(action),
+                "an unavailable value control has no write door"
+            );
+        }
+
+        let down = PointerEvent::Down {
+            position: Point::new(50.0, 8.0),
+            button: alacer_core::events::MouseButton::Left,
+            click_count: 1,
+        };
+        assert_eq!(
+            slider.on_pointer_event(&mut ctx, &down),
+            EventResponse::Handled,
+            "the wall consumes the gesture"
+        );
+        assert!(
+            ctx.take().is_empty(),
+            "a refused gesture queues no masks — an idle frame"
+        );
+        assert_eq!(
+            slider.on_key_event(&mut ctx, &arrow(Key::ArrowRight)),
+            EventResponse::Ignored,
+            "the keyboard never reaches an unavailable control"
+        );
+        assert!(!slider.focusable(), "an unavailable control holds no focus");
+        assert!(
+            same(slider.current_value(), 0.0),
+            "the refusals wrote nothing"
+        );
+
+        // The write answers the move (the M21 idle-frame property).
+        assert!(!slider.set_enabled(false), "already unavailable");
+        assert!(slider.set_enabled(true), "the write moved");
+        assert!(slider.is_enabled());
     }
 }

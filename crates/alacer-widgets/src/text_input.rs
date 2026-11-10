@@ -12,6 +12,7 @@
 //! [`ImePurpose::Text`] (or [`ImePurpose::Secure`]) so the platform attaches
 //! the IME while it is focused.
 
+use alacer_core::color::Color;
 use alacer_core::events::{EventCtx, ImeEvent, KeyEvent, PointerEvent};
 use alacer_core::geom::Point;
 use alacer_core::history::EditHistory;
@@ -59,6 +60,8 @@ pub struct TextInput {
     history: EditHistory,
     /// Whether this widget holds keyboard focus (paints the ring).
     focused: bool,
+    /// The availability tier's flag (M22, ADR-0028).
+    enabled: bool,
     placeholder: String,
     purpose: ImePurpose,
     font_size: f32,
@@ -80,6 +83,7 @@ impl TextInput {
             preedit: None,
             history: EditHistory::new(),
             focused: false,
+            enabled: true,
             placeholder: String::new(),
             purpose: ImePurpose::Text,
             font_size: crate::theme::FONT_SIZE,
@@ -93,6 +97,16 @@ impl TextInput {
     #[must_use]
     pub fn secure(mut self) -> Self {
         self.purpose = ImePurpose::Secure;
+        self
+    }
+
+    /// Initial availability (M22, ADR-0028). An unavailable input paints
+    /// muted, holds no focus, and refuses every editing door honestly —
+    /// the value the tree carries is the app's, and the AT reads the
+    /// refusal before it happens.
+    #[must_use]
+    pub fn enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
         self
     }
 
@@ -168,6 +182,24 @@ impl TextInput {
     /// Replaces the accessible name in place (view reconciliation).
     pub fn set_name(&mut self, name: impl Into<String>) {
         self.name = name.into();
+    }
+
+    /// The availability the widget reports — the same flag the M22
+    /// `enabled()` contract carries into the a11y tree (test
+    /// introspection).
+    #[must_use]
+    pub const fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    /// The one availability write: report whether the flag moved (the
+    /// M21 idle-frame property, at the widget seam).
+    pub fn set_enabled(&mut self, enabled: bool) -> bool {
+        if self.enabled == enabled {
+            return false;
+        }
+        self.enabled = enabled;
+        true
     }
 
     /// Replaces the placeholder in place (view reconciliation).
@@ -663,6 +695,17 @@ impl TextInput {
 
     /// The painted run: committed text with the preedit spliced in at the
     /// caret — what the user sees and what the IME anchors to.
+    /// The field's text color: the muted constant when the field is
+    /// unavailable (M22, ADR-0028) or showing the placeholder, the text
+    /// color once real content or a composition rides.
+    fn field_text_color(&self, has_preedit: bool) -> Color {
+        if !self.enabled || (self.text.is_empty() && !has_preedit) {
+            crate::theme::TEXT_MUTED
+        } else {
+            crate::theme::TEXT
+        }
+    }
+
     fn display_parts(&self) -> (String, Option<String>, String) {
         match &self.preedit {
             Some((preedit, _)) => {
@@ -712,6 +755,13 @@ impl Widget for TextInput {
         Some(self.text.clone())
     }
 
+    /// The availability tier (M22, ADR-0028): the flag the a11y tree
+    /// carries — an unavailable input reports itself before the AT tries
+    /// the edit it will refuse.
+    fn enabled(&self) -> bool {
+        self.enabled
+    }
+
     /// The M11 a11y contract (ADR-0017): the focused input exposes its
     /// selection — anchor and caret, UTF-16 units — and nothing while a
     /// composition is in flight (the IME owns the canvas; a stale range
@@ -753,6 +803,11 @@ impl Widget for TextInput {
         // The value tier (M11, ADR-0017): a faithful AT mapping, same masks
         // as a key edit. `DefaultPress` and the scroll/step tier are not an
         // input's contract — refused, never munged into an edit.
+        // The availability tier (M22, ADR-0028): an unavailable input has
+        // no write door — the AT's edit is refused honestly, never munged.
+        if !self.enabled {
+            return false;
+        }
         match action {
             A11yAction::SetValue(value) => {
                 self.set_value(value);
@@ -799,11 +854,7 @@ impl Widget for TextInput {
         let (before, preedit, after) = self.display_parts();
 
         alacer_core::text_seam::with_seam(|seam| {
-            let text_color = if self.text.is_empty() && preedit.is_none() {
-                crate::theme::TEXT_MUTED
-            } else {
-                crate::theme::TEXT
-            };
+            let text_color = self.field_text_color(preedit.is_some());
 
             // The selection highlight (M11, ADR-0017): one quad behind the
             // selected committed range, from the prefix widths the seam
@@ -901,6 +952,11 @@ impl Widget for TextInput {
     }
 
     fn on_pointer_event(&mut self, ctx: &mut EventCtx, event: &PointerEvent) -> EventResponse {
+        // The wall (M22, ADR-0028): a disabled input consumes the press —
+        // the caret gesture never starts, no focus, no masks.
+        if !self.enabled && matches!(event, PointerEvent::Down { .. } | PointerEvent::Up { .. }) {
+            return EventResponse::Handled;
+        }
         match event {
             PointerEvent::Down {
                 position,
@@ -963,6 +1019,12 @@ impl Widget for TextInput {
     }
 
     fn on_key_event(&mut self, ctx: &mut EventCtx, event: &KeyEvent) -> EventResponse {
+        // The availability tier (M22, ADR-0028): the keyboard never
+        // reaches an unavailable input — a routed edit key is ignored so
+        // the framework keeps it (Tab cycling).
+        if !self.enabled {
+            return EventResponse::Ignored;
+        }
         // Editing acts on presses only (§10.3); preedit state makes keys
         // inert — the IME owns the composition until commit/cancel.
         if event.state != alacer_core::events::KeyState::Pressed || self.preedit.is_some() {
@@ -982,6 +1044,12 @@ impl Widget for TextInput {
     }
 
     fn on_ime_event(&mut self, ctx: &mut EventCtx, event: &ImeEvent) -> EventResponse {
+        // The availability tier (M22, ADR-0028): an unavailable input
+        // answers no composition — the IME event is ignored (nothing else
+        // consumes it; the framework drops it).
+        if !self.enabled {
+            return EventResponse::Ignored;
+        }
         match event {
             // Composition in progress: show the marked text inline. An empty
             // preedit cancels the composition (winit's synthetic clear).
@@ -2111,5 +2179,58 @@ mod tests {
         let _ = input.on_key_event(&mut ctx, &ctrl(Key::Char('y')));
         assert_eq!(input.value(), "\u{1F600}x");
         assert_eq!(input.caret_utf16(), 3);
+    }
+
+    #[test]
+    fn a_disabled_input_refuses_every_editing_door() {
+        // M22, ADR-0028: the keys, the pointer, the IME, and the AT's
+        // value tier all refuse honestly — the value the tree carries is
+        // the app's, and the refusal queues nothing.
+        let mut input = TextInput::new("Email").enabled(false);
+        assert!(!input.focusable(), "an unavailable control holds no focus");
+        let mut ctx = EventCtx::new();
+
+        assert_eq!(
+            input.on_key_event(&mut ctx, &key(Key::Char('x'))),
+            EventResponse::Ignored,
+            "the keyboard never reaches an unavailable input"
+        );
+        let down = PointerEvent::Down {
+            position: Point::new(20.0, 10.0),
+            button: alacer_core::events::MouseButton::Left,
+            click_count: 1,
+        };
+        assert_eq!(
+            input.on_pointer_event(&mut ctx, &down),
+            EventResponse::Handled,
+            "the wall consumes the caret gesture"
+        );
+        assert!(
+            ctx.take().is_empty(),
+            "a refused gesture queues no masks — an idle frame"
+        );
+        assert_eq!(
+            input.on_ime_event(
+                &mut ctx,
+                &ImeEvent::Preedit {
+                    text: "é".to_string(),
+                    cursor_utf16: None,
+                }
+            ),
+            EventResponse::Ignored,
+            "an unavailable input answers no composition"
+        );
+        assert!(
+            !input.on_a11y_action(alacer_core::widget::A11yAction::SetValue(
+                "typed@at.io".to_string()
+            )),
+            "the AT's write is refused, never munged"
+        );
+        assert_eq!(input.value(), "", "the refusals wrote nothing");
+
+        // The write answers the move (the M21 idle-frame property).
+        assert!(!input.set_enabled(false), "already unavailable");
+        assert!(input.set_enabled(true), "the write moved");
+        assert!(input.is_enabled());
     }
 }

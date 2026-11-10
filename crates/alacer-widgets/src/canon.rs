@@ -132,7 +132,7 @@ impl TodoHandles {
     /// The mounted root's node.
     #[must_use]
     pub const fn root_node(&self) -> alacer_core::NodeId {
-        self.root.root()
+        self.root.root_id()
     }
 }
 
@@ -249,7 +249,7 @@ pub fn todo_app(pipeline: &mut PassPipeline, wake: WakeUp) -> TodoHandles {
 
     let view = todo_view(&todos, &footer, &wake);
     let root = ViewRoot::mount(&view, pipeline, crate::default_registry());
-    let root_id = root.root();
+    let root_id = root.root_id();
 
     // The footer is the root's last child (the view's declaration order).
     let footer_node = *pipeline
@@ -469,7 +469,7 @@ pub fn data_table_app(
 
     let view = data_table_view(&rows_signal, &headers, &wake);
     let root = ViewRoot::mount(&view, pipeline, crate::default_registry());
-    let root_node = root.root();
+    let root_node = root.root_id();
 
     DataTableHandles {
         rows: rows_signal,

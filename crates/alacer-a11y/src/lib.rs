@@ -255,6 +255,16 @@ impl AccessKitSink {
         if let Some(value) = &node.value {
             access_node.set_value(value.as_str());
         }
+        // The availability tier (M22, ADR-0028): the widget's `enabled`
+        // answer becomes AccessKit's `disabled` flag, so the AT reads an
+        // unavailable control instead of announcing an action the widget
+        // will refuse. The default is the honest absence: an available
+        // control sets nothing. The flag rides the same node-only delta
+        // as every other property — an availability write re-announces
+        // exactly that node.
+        if !node.enabled {
+            access_node.set_disabled();
+        }
         if let Some(toggled) = node.toggled {
             access_node.set_toggled(match toggled {
                 alacer_core::widget::ToggleState::Off => Toggled::False,
@@ -411,6 +421,7 @@ mod tests {
                     table_slot: None,
                     selection: None,
                     live: None,
+                    enabled: true,
                 },
                 TreeNode {
                     id: child_hash,
@@ -423,6 +434,7 @@ mod tests {
                     table_slot: None,
                     selection: None,
                     live: None,
+                    enabled: true,
                 },
                 TreeNode {
                     id: other_hash,
@@ -435,6 +447,7 @@ mod tests {
                     table_slot: None,
                     selection: None,
                     live: None,
+                    enabled: true,
                 },
             ],
         }
@@ -461,6 +474,43 @@ mod tests {
     fn bounds_map_with_f64_edges() {
         let r = map_bounds(Rect::new(Point::new(1.0, 2.0), Size::new(30.0, 40.0)));
         assert_eq!(r, accesskit::Rect::new(1.0, 2.0, 31.0, 42.0));
+    }
+
+    #[test]
+    fn the_availability_tier_maps_onto_the_disabled_property() {
+        // M22, ADR-0028: the widget's `enabled` answer becomes AccessKit's
+        // `disabled` property — the AT reads an unavailable control, not
+        // an actionable one the widget will refuse. The default is the
+        // honest absence: an available control sets nothing.
+        let mut sink = AccessKitSink::new();
+        let mut snap = snapshot();
+        snap.nodes[1].enabled = false; // the "Save" button
+        sink.apply(
+            std::sync::Arc::new(snap),
+            &alacer_core::passes::A11yDelta {
+                updated: {
+                    let mut ids = FxHashSet::default();
+                    ids.insert(snap_root_and_child().1);
+                    ids
+                },
+                removed: Vec::new(),
+                focus: None,
+                initializes: false,
+            },
+        );
+        let update = sink.last_update().expect("the delta produced an update");
+        let button = update
+            .nodes
+            .iter()
+            .find(|(id, _)| id.0 == snap_root_and_child().1)
+            .map(|(_, node)| node)
+            .expect("the disabled node is re-emitted");
+        assert!(button.is_disabled(), "the AT reads the unavailable control");
+    }
+
+    /// The `(root, child)` hash pair the `snapshot()` helper mounts.
+    fn snap_root_and_child() -> (u64, u64) {
+        (111, 222)
     }
 
     #[test]
@@ -504,6 +554,7 @@ mod tests {
             table_slot: None,
             selection: None,
             live: Some(alacer_core::announce::Politeness::Assertive),
+            enabled: true,
         });
         sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
         let update = sink.last_update().expect("update");
@@ -643,6 +694,7 @@ mod tests {
                     }),
                     selection: None,
                     live: None,
+                    enabled: true,
                 },
                 TreeNode {
                     id: 2,
@@ -655,6 +707,7 @@ mod tests {
                     table_slot: Some(TableSlot::Header { column: 0 }),
                     selection: None,
                     live: None,
+                    enabled: true,
                 },
                 TreeNode {
                     id: 3,
@@ -667,6 +720,7 @@ mod tests {
                     table_slot: Some(TableSlot::Cell { row: 1, column: 2 }),
                     selection: None,
                     live: None,
+                    enabled: true,
                 },
             ],
         };

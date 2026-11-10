@@ -8,7 +8,7 @@ use alacer_core::events::{MouseButton, PointerEvent};
 use alacer_core::flux::Flux;
 use alacer_core::geom::{Point, Size};
 use alacer_core::mask::Change;
-use alacer_core::passes::{A11yDelta, A11ySink, PassPipeline, SceneJournal, TreeSnapshot};
+use alacer_core::passes::{A11yDelta, A11ySink, FocusMove, PassPipeline, SceneJournal, TreeSnapshot};
 use alacer_core::scene::{Primitive, SceneSnapshot};
 use alacer_core::style::MeasureSpec;
 use alacer_core::widget::{LabelSource, Role, Widget};
@@ -19,6 +19,7 @@ use std::hint::black_box;
 const VIEWPORT: Size = Size::new(800.0, 600.0);
 const STORM: usize = 50;
 const CAPTURED_MOVES: usize = 100;
+const FOCUS_MOVES: usize = 100;
 
 /// A fixed-size leaf: geometry without text, so the routing walk is the
 /// cost under test.
@@ -37,6 +38,31 @@ impl Widget for FixedBox {
 
     fn label(&self) -> LabelSource {
         LabelSource::text("box")
+    }
+
+    fn measure_spec(&self) -> Option<MeasureSpec> {
+        Some(MeasureSpec::Fixed(self.size))
+    }
+}
+
+/// A focusable leaf: `Role::Button` joins the default `focusable()`
+/// derivation, so the walk's candidate list is the 1k children — the
+/// focus-move routes are the walk's cost per move, nothing else.
+struct FocusBox {
+    size: Size,
+}
+
+impl Widget for FocusBox {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+    fn role(&self) -> Role {
+        Role::Button
+    }
+
+    fn label(&self) -> LabelSource {
+        LabelSource::text("stop")
     }
 
     fn measure_spec(&self) -> Option<MeasureSpec> {
@@ -130,6 +156,25 @@ fn mount_1k(pipeline: &mut PassPipeline) {
     pipeline.tick(VIEWPORT).expect("bench layout");
 }
 
+/// A pipeline whose 1,000 children are all focusable — the walk's
+/// candidate list, stacked vertically so every child lies fully below the
+/// one before it (the directional route's geometry is exact: child *i + 1*
+/// starts where child *i* ends).
+fn mount_focusable_1k(pipeline: &mut PassPipeline) {
+    let root = pipeline.mount_root(Box::new(FixedBox {
+        size: Size::new(800.0, 0.0),
+    }));
+    for _ in 0..1000 {
+        let _ = pipeline.add_child(
+            root,
+            Box::new(FocusBox {
+                size: Size::new(20.0, 0.4),
+            }),
+        );
+    }
+    pipeline.tick(VIEWPORT).expect("bench layout");
+}
+
 fn move_at(i: usize) -> PointerEvent {
     PointerEvent::Move {
         position: Point::new(
@@ -190,6 +235,59 @@ fn bench_input_storm(c: &mut Criterion) {
                 pipeline.dispatch_pointer(&black_box(move_at(i)));
             }
             black_box(pipeline.captured().is_some());
+            let report = pipeline.tick(VIEWPORT).expect("bench layout");
+            black_box(report.passes.len());
+        });
+    });
+
+    // The focus routes (ADR-0030/ADR-0031/ADR-0032), one measured cost per
+    // move against the same 1k arena. `route_100_focus_moves_1k` is the
+    // tree-order funnel the keyboard's Tab rides; `route_100_scoped_moves_1k`
+    // adds the ancestor filter the scoped door's candidate list pays;
+    // `route_100_directional_moves_1k` is the M26 geometry selection — the
+    // bounds reads the directional walk answers with. The three joined the
+    // published corpus at the M26 cut's measurement run (the coordinated
+    // rule: measured, published, and gated in the same cut).
+    group.throughput(Throughput::Elements(
+        u64::try_from(FOCUS_MOVES).expect("non-negative"),
+    ));
+    group.bench_function("route_100_focus_moves_1k", |b| {
+        let mut pipeline = storm_pipeline();
+        mount_focusable_1k(&mut pipeline);
+        b.iter(|| {
+            for _ in 0..FOCUS_MOVES {
+                black_box(pipeline.focus_move(black_box(FocusMove::Next)));
+            }
+            let report = pipeline.tick(VIEWPORT).expect("bench layout");
+            black_box(report.passes.len());
+        });
+    });
+
+    group.bench_function("route_100_scoped_moves_1k", |b| {
+        let mut pipeline = storm_pipeline();
+        mount_focusable_1k(&mut pipeline);
+        let root = pipeline.arena().root().expect("the bench mounts a root");
+        b.iter(|| {
+            for _ in 0..FOCUS_MOVES {
+                black_box(pipeline.focus_move_in(black_box(root), black_box(FocusMove::Next)));
+            }
+            let report = pipeline.tick(VIEWPORT).expect("bench layout");
+            black_box(report.passes.len());
+        });
+    });
+
+    group.bench_function("route_100_directional_moves_1k", |b| {
+        let mut pipeline = storm_pipeline();
+        mount_focusable_1k(&mut pipeline);
+        b.iter(|| {
+            // Fifty steps down the stack, fifty back up — every move
+            // lands, no refusals, one route shape.
+            for _ in 0..FOCUS_MOVES / 2 {
+                black_box(pipeline.focus_move(black_box(FocusMove::Down)));
+            }
+            for _ in 0..FOCUS_MOVES / 2 {
+                black_box(pipeline.focus_move(black_box(FocusMove::Up)));
+            }
             let report = pipeline.tick(VIEWPORT).expect("bench layout");
             black_box(report.passes.len());
         });

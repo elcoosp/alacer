@@ -122,8 +122,23 @@ impl Parse for Body {
                     continue;
                 }
             }
-            // A prop: `name : expr` — `key` is special.
-            let name: proc_macro2::Ident = input.parse()?;
+            // A prop: `name : expr` — `key` is special. Anything that got
+            // this far is a malformed body: name what stood there (the
+            // ADR-0025 diagnostic species — never a bare syn parse error
+            // with no rsx context).
+            let name: proc_macro2::Ident = input.parse().map_err(|_| {
+                let found = input.parse::<proc_macro2::TokenTree>().map_or_else(
+                    |_| "the end of the macro body".to_string(),
+                    |token| token.to_string(),
+                );
+                syn::Error::new(
+                    input.span(),
+                    format!(
+                        "rsx! expected an element (`column {{ ... }}`), `for`, `if`, a \
+                         text literal, or a `name : value` prop, found {found}"
+                    ),
+                )
+            })?;
             let _colon: syn::Token![:] = input.parse()?;
             let expr: syn::Expr = input.parse()?;
             if name == "key" {
@@ -348,7 +363,16 @@ fn interpolate(literal: &syn::LitStr) -> syn::Result<TokenStream2> {
         }
         if let Some(after) = rest.strip_prefix('{') {
             let end = after.find('}').ok_or_else(|| {
-                syn::Error::new(literal.span(), "unterminated `{` in a text literal")
+                // The ADR-0025 diagnostic species: the error names the fix
+                // the sibling escape hatch ships — `{{` is a literal brace
+                // in a text literal, an unclosed `{` is a broken
+                // interpolation.
+                syn::Error::new(
+                    literal.span(),
+                    "unterminated `{` in a text literal; \
+                     write `{{` for a literal brace, or close the \
+                     interpolation before the literal ends",
+                )
             })?;
             let inner = &after[..end];
             let expr: syn::Expr = syn::parse_str(inner).map_err(|error| {

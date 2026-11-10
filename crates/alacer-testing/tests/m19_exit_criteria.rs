@@ -280,20 +280,21 @@ fn m19_the_surface_work_rides_the_same_cut() {
 
 #[test]
 fn m19_the_living_documents_re_agree() {
-    // The README's criterion count finally agrees with the published
-    // baseline: 60 cases since M20's measurement run joined the capture
-    // case (the M19-promised IOU) — the pin moves with the corpus.
+    // The README's criterion count agrees with the published baseline:
+    // 60 cases since M20's measurement run joined the capture case (the
+    // M19-promised IOU), 61 since M27's outcome route joined — the pin
+    // moves with the corpus.
     let readme = read_workspace_file("README.md");
     assert!(
-        readme.contains("All 60 criterion cases"),
-        "the README quotes the baselines.json bench_count (60)"
+        readme.contains("All 61 criterion cases"),
+        "the README quotes the baselines.json bench_count (61)"
     );
     assert!(
         readme.contains("Since M19 the drag holds its target"),
         "the README's input bullet carries the capture contract"
     );
     assert!(
-        readme.contains("M0 through M26"),
+        readme.contains("M0 through M27"),
         "the README status reflects the living cut — the M26 sweep joins the \
          milestone literal to this suite's pin set, the chain cannot drift"
     );
@@ -311,7 +312,7 @@ fn m19_the_living_documents_re_agree() {
     for fragment in [
         "ADR-0025",
         "The captured drag",
-        "33 decision records",
+        "34 decision records",
         "implicitly holds its deepest accepting hit",
     ] {
         assert!(
@@ -328,15 +329,16 @@ fn m19_the_living_documents_re_agree() {
         "ADR-0025 documents the captured-drag scope"
     );
 
-    // The corpus is 60: the refused route's criterion case joined at
-    // M20's measurement run by the coordinated rule and the value-write
-    // route joined at M21's — the checker fails an uncontracted
+    // The corpus is 61: the refused route's criterion case joined at
+    // M20's measurement run by the coordinated rule, the value-write
+    // route joined at M21's, and the M27 outcome route joined at this
+    // cut's measurement run — the checker fails an uncontracted
     // benchmark, so each bench and its baseline landed together
     // (ADR-0011, CONTRIBUTING's publishing rule).
     let baselines = parse_workspace_json("benchmarks/baselines/baselines.json");
     assert_eq!(
         baselines["bench_count"],
-        serde_json::json!(60),
+        serde_json::json!(61),
         "the published corpus carries the capture case the code half promised"
     );
 }

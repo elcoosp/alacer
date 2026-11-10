@@ -181,12 +181,6 @@ impl Slider {
         self.name = name.into();
     }
 
-    /// Replaces the change handler in place (view reconciliation). `None`
-    /// detaches it.
-    pub fn set_on_change(&mut self, handler: Option<Box<dyn FnMut(f32)>>) {
-        self.on_change = handler;
-    }
-
     /// The one float equality the widget owns: `total_cmp` ordering —
     /// `f32::eq` is a lint trap the whole workspace refuses.
     fn same_value(a: f32, b: f32) -> bool {

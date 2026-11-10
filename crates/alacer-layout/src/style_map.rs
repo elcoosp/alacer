@@ -2,9 +2,7 @@
 //!
 //! One conversion, one direction, no leakage of Taffy types above this crate.
 
-use alacer_core::style::{
-    CrossAxisAlignment, Display, FlexDirection, MainAxisAlignment, Style,
-};
+use alacer_core::style::{CrossAxisAlignment, Display, FlexDirection, MainAxisAlignment, Style};
 use taffy::style_helpers::length;
 use taffy::{
     AlignContent, AlignItems, AvailableSpace, Dimension, Display as TaffyDisplay,

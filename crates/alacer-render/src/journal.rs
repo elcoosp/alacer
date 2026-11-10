@@ -167,7 +167,11 @@ mod tests {
 
         journal.clear();
         assert_eq!(journal.stats().live_layers, 0);
-        assert_eq!(journal.stats().drops, 1, "the clear dropped the stale layer");
+        assert_eq!(
+            journal.stats().drops,
+            1,
+            "the clear dropped the stale layer"
+        );
         assert_eq!(journal.snapshot(&[keep]).primitives, []);
     }
 

@@ -81,7 +81,20 @@ impl InspectorServer {
             let recorder = self.recorder.clone();
             let app = self.app.clone();
             std::thread::spawn(move || {
-                let _ = serve_connection(stream, &recorder, &app);
+                if let Err(error) = serve_connection(stream, &recorder, &app) {
+                    // A session that dies reports why it died: the accept
+                    // loop's old `let _ = …` swallowed every handshake and
+                    // socket error silently, and the operator debugging a
+                    // dead client panel had nothing to read (ADR-0029's
+                    // observability rule at the inspector seam). The loop
+                    // itself keeps serving — a client's failure is not the
+                    // server's.
+                    tracing::warn!(
+                        target: "alacer::inspect",
+                        error = %error,
+                        "inspector session ended with an error"
+                    );
+                }
             });
         }
     }

@@ -303,15 +303,15 @@ fn m20_the_capture_case_joins_the_corpus_by_the_coordinated_rule() {
 fn m20_the_living_documents_re_agree() {
     // The README: the criterion count quotes the 57-case baseline, the
     // input bullet carries the value tier, the vocabulary names its
-    // newest control, and the status block is the 0.13.0 family — the
-    // status line and the register count move with the corpus at M21.
+    // newest control, and the status block is the 0.14.0 family — the
+    // status line and the register count moved with the M23 cut.
     let readme = read_workspace_file("README.md");
     for fragment in [
         "All 57 criterion cases",
         "Since M20 the value tier is a widget",
-        "version-0.13.0",
-        "M0 through M22",
-        "twenty-nine decision records",
+        "version-0.14.0",
+        "M0 through M23",
+        "thirty decision records",
         "`Slider`",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
@@ -340,7 +340,7 @@ fn m20_the_living_documents_re_agree() {
     let architecture = read_workspace_file("docs/architecture.md");
     for fragment in [
         "ADR-0026",
-        "29 decision records",
+        "30 decision records",
         "the slider joins the widget vocabulary",
     ] {
         assert!(

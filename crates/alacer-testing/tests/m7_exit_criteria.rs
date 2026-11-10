@@ -393,8 +393,10 @@ fn the_release_state_is_coherent() {
 
     let readme = read_workspace_file("README.md");
     assert!(
-        readme.contains("M0 through M22") || readme.contains("M0–M22"),
-        "the README status reflects M0–M22 (M22, ADR-0028, ships under [Unreleased])"
+        readme.contains("M0 through M25"),
+        "the README status reflects the living cut (the M22-era literal missed the \
+         M23/M24 pin sweeps and went red against a coherent tree — the M25 sweep \
+         re-joins the chain, ADR-0031)"
     );
     // The pending-cut convention (ADR-6; M7's own history): the docs
     // announce the NEXT cut while the branch-commit bump has not landed

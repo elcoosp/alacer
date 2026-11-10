@@ -7,7 +7,7 @@
 //! renderers; per-kind batching for instanced GPU draws happens downstream.
 
 use alacer_core::arena::NodeId;
-use alacer_core::passes::SceneJournal;
+use alacer_core::passes::{JournalStats, SceneJournal};
 use alacer_core::scene::{Primitive, SceneSnapshot};
 use rustc_hash::FxHashMap;
 
@@ -24,30 +24,6 @@ impl SceneJournalImpl {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
-    }
-
-    /// Number of layer commits so far (re-emissions included).
-    #[must_use]
-    pub const fn commits(&self) -> u64 {
-        self.commits
-    }
-
-    /// Number of layer drops (structural churn).
-    #[must_use]
-    pub const fn drops(&self) -> u64 {
-        self.drops
-    }
-
-    /// Number of live layers.
-    #[must_use]
-    pub fn layer_count(&self) -> usize {
-        self.layers.len()
-    }
-
-    /// The recorded primitives of one node's layer (replay access).
-    #[must_use]
-    pub fn layer(&self, node: NodeId) -> Option<&[Primitive]> {
-        self.layers.get(&node).map(Vec::as_slice)
     }
 }
 
@@ -87,6 +63,14 @@ impl SceneJournal for SceneJournalImpl {
     fn clear(&mut self) {
         self.drops += u64::try_from(self.layers.len()).unwrap_or(0);
         self.layers.clear();
+    }
+
+    fn stats(&self) -> JournalStats {
+        JournalStats {
+            commits: self.commits,
+            drops: self.drops,
+            live_layers: self.layers.len(),
+        }
     }
 }
 
@@ -157,8 +141,8 @@ mod tests {
         let order = [node];
         journal.commit_layer(node, vec![quad(0.0, Color::BLACK)]);
         journal.commit_layer(node, vec![quad(5.0, Color::WHITE)]);
-        assert_eq!(journal.layer_count(), 1, "replaced, not duplicated");
-        assert_eq!(journal.commits(), 2);
+        assert_eq!(journal.stats().live_layers, 1, "replaced, not duplicated");
+        assert_eq!(journal.stats().commits, 2);
         let snapshot = journal.snapshot(&order);
         assert_eq!(snapshot.primitives.len(), 1);
     }
@@ -179,10 +163,11 @@ mod tests {
         let keep = NodeId::allocate();
         journal.commit_layer(keep, vec![quad(0.0, Color::BLACK)]);
         journal.retain(&[keep]);
-        assert_eq!(journal.layer_count(), 1);
+        assert_eq!(journal.stats().live_layers, 1);
 
         journal.clear();
-        assert_eq!(journal.layer_count(), 0);
+        assert_eq!(journal.stats().live_layers, 0);
+        assert_eq!(journal.stats().drops, 1, "the clear dropped the stale layer");
         assert_eq!(journal.snapshot(&[keep]).primitives, []);
     }
 

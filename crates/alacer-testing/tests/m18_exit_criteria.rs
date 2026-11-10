@@ -276,7 +276,7 @@ fn m18_the_last_string_leaves_grow_their_chains() {
 fn m18_the_announce_case_stays_published_as_the_corpus_moves() {
     // The announce criterion case stays published with its baseline and
     // its regression contract; every M-suite pin moves with the corpus —
-    // 56 since M21's measurement run (the value-write route joined there).
+    // 57 since M22's measurement run (the refused-press route joined there).
     let baselines = parse_workspace_json("benchmarks/baselines/baselines.json");
     let contracts = parse_workspace_json("benchmarks/contracts.json");
     let id = "announce/route_100_announcements_1k";
@@ -304,8 +304,8 @@ fn m18_the_announce_case_stays_published_as_the_corpus_moves() {
     ] {
         let source = read_workspace_file(suite);
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 56;"),
-            "{suite} must pin the 56-case corpus (moved with the corpus at M21)"
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 57;"),
+            "{suite} must pin the 57-case corpus (moved with the corpus at M22)"
         );
     }
 }

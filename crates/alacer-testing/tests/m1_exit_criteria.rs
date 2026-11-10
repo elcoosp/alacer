@@ -1108,6 +1108,38 @@ fn s36_progress(h: &mut TestHarness) {
     h.settle();
 }
 
+/// The M22 demonstration (ADR-0028): the availability tier — a form's
+/// send button the app holds unavailable, the muted paint telling the
+/// same truth the a11y tree carries: the flag the AT reads before it
+/// tries the door the widget will refuse.
+fn s37_disabled(h: &mut TestHarness) {
+    let root = h
+        .pipeline_mut()
+        .mount_root(alacer_widgets::Column::new().gap(8.0).padding(12.0).boxed());
+    let _title = h.pipeline_mut().add_child(
+        root,
+        alacer_widgets::Label::new("The availability (ADR-0028)").boxed(),
+    );
+    // The muted look tells the truth the tree carries: the send button
+    // paints the muted rail and the muted label while it is unavailable.
+    let _send = h.pipeline_mut().add_child(
+        root,
+        alacer_widgets::Button::new("Send invite")
+            .enabled(false)
+            .on_click(|| {})
+            .boxed(),
+    );
+    let _ = h.pipeline_mut().add_child(
+        root,
+        alacer_widgets::Checkbox::new("Enable sending").boxed(),
+    );
+    let _status = h.pipeline_mut().add_child(
+        root,
+        alacer_widgets::Label::new("Sending: unavailable — the AT reads the flag").boxed(),
+    );
+    h.settle();
+}
+
 const SCENARIOS: &[Scenario] = &[
     ("hello_label", s01_hello_label),
     ("styled_label", s02_styled_label),
@@ -1145,6 +1177,7 @@ const SCENARIOS: &[Scenario] = &[
     ("drag_capture", s34_drag_capture),
     ("slider", s35_slider),
     ("progress", s36_progress),
+    ("disabled", s37_disabled),
 ];
 
 // ---------------------------------------------------------------------------
@@ -1152,16 +1185,16 @@ const SCENARIOS: &[Scenario] = &[
 // ---------------------------------------------------------------------------
 
 #[test]
-fn m1_corpus_is_thirty_six_scenarios() {
+fn m1_corpus_is_thirty_seven_scenarios() {
     assert_eq!(
         SCENARIOS.len(),
-        36,
-        "the M1 exit criterion is 36 blessed snapshots (M21 grew it: the reported value joins, ADR-0027)"
+        37,
+        "the M1 exit criterion is 37 blessed snapshots (M22 grew it: the availability tier joins, ADR-0028)"
     );
 }
 
 #[test]
-fn m1_thirty_six_blessed_snapshots_are_green() {
+fn m1_thirty_seven_blessed_snapshots_are_green() {
     for (index, (name, run)) in SCENARIOS.iter().enumerate() {
         let mut harness = TestHarness::new(VIEWPORT.0, VIEWPORT.1);
         run(&mut harness);

@@ -217,7 +217,11 @@ fn s14_list_scrolled_120(h: &mut TestHarness) {
     let view = rsx! {
         column { padding: 8.0,
             list { height: 220.0,
-                for i in 0_u64..10 {
+                // Twelve panels: content 12 × 32 = 384 against the 220
+                // viewport — the scroll's 120 px target must be inside the
+                // clamp's real range for the scenario to mean what it says
+                // (ADR-0029's repair; ten panels capped the range at 100).
+                for i in 0_u64..12 {
                     panel { key: i, height: 32.0, color: alacer_widgets::theme::PANEL }
                 }
             }
@@ -1302,6 +1306,20 @@ fn first_descendant_of_kind(
 }
 
 fn scroll_list(harness: &mut TestHarness, node: alacer_core::arena::NodeId, offset: f32) {
+    // The clamp is only as honest as the content height the app feeds it:
+    // the scenarios derive it from the laid-out children (the m0 pattern's
+    // `set_content_height` duty), so `scroll_to` clamps against the real
+    // range instead of folding every offset to zero — the repaired
+    // `list_scrolled` trio's root cause (ADR-0029).
+    let content_height: f32 = {
+        let arena = harness.pipeline().arena();
+        arena
+            .children(node)
+            .iter()
+            .filter_map(|child| arena.bounds(*child))
+            .map(|bounds| bounds.size.height)
+            .sum()
+    };
     {
         let mut guard = harness.pipeline_mut().arena_mut().mutate(node);
         let handle = guard
@@ -1310,6 +1328,7 @@ fn scroll_list(harness: &mut TestHarness, node: alacer_core::arena::NodeId, offs
             .downcast_mut::<alacer_widgets::List>()
             .expect("the node is a List")
             .handle();
+        handle.set_content_height(content_height);
         handle.scroll_to(offset);
         drop(handle);
         // A programmatic scroll is a mutation: the invalidation currency

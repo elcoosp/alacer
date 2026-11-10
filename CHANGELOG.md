@@ -113,6 +113,42 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M26 — the directional focus walk (ADR-0032)**: the walk reads the
+  window, not only the tree. ADR-0030's pre-registered re-open rule
+  (spatial/D-pad navigation) ships as four `FocusMove` directions
+  (`Left`/`Right`/`Up`/`Down`) riding the same two doors
+  (`PassPipeline::focus_move`, `PassPipeline::focus_move_in`) and the
+  same one walk (`cycle_focus_in(scope, movement)` — the boolean the
+  M25 walk took becomes the movement it aims). The tree-order moves
+  keep the pre-order list and their wrap; the directional moves read
+  the bounds pass 6 wrote (`directional_neighbor` — a candidate
+  qualifies fully beyond the focused node's edge in the direction, the
+  nearest edge distance wins, cross-axis center misalignment breaks
+  ties, then tree order), the M22 availability filter runs before the
+  geometry answers, the scope bounds the directional walk exactly as it
+  bounds the tree-order one, and space never wraps — the window's edge
+  is the walk's end, an edge refusal queues no masks (an idle frame),
+  and the refusals carry their help as plain diagnostic text on the
+  `alacer::focus` target (ADR-0029's rule). The entry contract is
+  repaired to what ADR-0031 has documented since M25: from no focus —
+  or from a focus outside the filtered candidate list — the walk takes
+  the list's first candidate, both directions (the M25-era arithmetic
+  landed the second forward and the last backward).
+  `examples/focus_direction.rs` is the consumer demonstration: a
+  two-by-two grid where the geometry's answer and the tree's next stop
+  disagree, the corner's honest refusal while `Next` still wraps, and
+  the modal's form walked directionally inside its scope, with tracing
+  spans at `alacer::focus_direction`. The micro-debt the sweep priced
+  rides the cut: the selection's dead `is_degenerate` and the color's
+  dead `to_premultiplied_rgba8` (its only caller was its own unit test
+  — the M25 species), and the corpus debt the M24/M25 coordinated rule
+  left rides the cut: the promised focus routes
+  (`input/route_100_focus_moves_1k`, `input/route_100_scoped_moves_1k`)
+  join the published corpus beside the directional route
+  (`input/route_100_directional_moves_1k`) at this cut's measurement
+  run, the corpus pins moving 57 → 60 across the m5–m25 chain in the
+  same commit.
+
 - **M25 — the focus scope (ADR-0031)**: the focus walk bounds to a
   subtree. ADR-0030's pre-registered re-open rule ships as one
   `PassPipeline::focus_move_in(scope, movement)` door beside the

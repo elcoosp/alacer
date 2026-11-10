@@ -2,9 +2,8 @@
 //!
 //! One conversion, one direction, no leakage of Taffy types above this crate.
 
-use alacer_core::geom::Size;
 use alacer_core::style::{
-    CrossAxisAlignment, Display, FlexDirection, MainAxisAlignment, MeasureSpec, Style,
+    CrossAxisAlignment, Display, FlexDirection, MainAxisAlignment, Style,
 };
 use taffy::style_helpers::length;
 use taffy::{
@@ -71,15 +70,6 @@ fn map_min_max(s: alacer_core::style::Size2) -> taffy::Size<LengthPercentageAuto
         height: s
             .height
             .map_or(LengthPercentageAuto::auto(), LengthPercentageAuto::length),
-    }
-}
-
-/// Resolves a fixed measure spec into the style's fixed size, if applicable.
-#[must_use]
-pub fn fixed_size_of(spec: &MeasureSpec) -> Option<Size> {
-    match spec {
-        MeasureSpec::Fixed(size) => Some(*size),
-        MeasureSpec::Text(_) => None,
     }
 }
 

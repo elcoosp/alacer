@@ -23,21 +23,13 @@ use tiny_skia::{
 
 /// Renders scenes into CPU pixmaps.
 #[derive(Debug, Default)]
-pub struct SoftwareRenderer {
-    glyphs_rendered: u64,
-}
+pub struct SoftwareRenderer {}
 
 impl SoftwareRenderer {
     /// A fresh renderer.
     #[must_use]
     pub fn new() -> Self {
         Self::default()
-    }
-
-    /// Glyphs blitted so far (instrumentation).
-    #[must_use]
-    pub const fn glyphs_rendered(&self) -> u64 {
-        self.glyphs_rendered
     }
 
     /// Rasterizes `scene` into a `width × height` pixmap over `background`.
@@ -63,7 +55,7 @@ impl SoftwareRenderer {
                 match primitive {
                     Primitive::Quad(quad) => Self::draw_quad(&mut painter, quad, None),
                     Primitive::Glyph(glyph) => {
-                        self.draw_glyph(&mut painter, glyph, glyphs, None);
+                        Self::draw_glyph(&mut painter, glyph, glyphs, None);
                     }
                 }
             }
@@ -128,7 +120,7 @@ impl SoftwareRenderer {
                         Self::draw_quad(&mut painter, quad, scissor.as_ref());
                     }
                     Primitive::Glyph(glyph) => {
-                        self.draw_glyph(&mut painter, glyph, glyphs, scissor.as_ref());
+                        Self::draw_glyph(&mut painter, glyph, glyphs, scissor.as_ref());
                     }
                 }
             }
@@ -180,7 +172,6 @@ impl SoftwareRenderer {
     }
 
     fn draw_glyph(
-        &mut self,
         painter: &mut tiny_skia::PixmapMut<'_>,
         glyph: &Glyph,
         source: &mut dyn GlyphSource,
@@ -211,7 +202,6 @@ impl SoftwareRenderer {
             Transform::identity(),
             clip.as_ref(),
         );
-        self.glyphs_rendered += 1;
     }
 }
 

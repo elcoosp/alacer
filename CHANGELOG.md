@@ -9,6 +9,49 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M22 — the unavailable control (ADR-0028)**: the availability tier
+  joins the widget contract. The ledger M21 emptied had no value-tier
+  candidate left, and the audit-before-the-cut pass priced the property
+  every real form needs beside it: no widget could *report that it must
+  refuse* — a spent button looked, read, focused, and answered exactly
+  like a live one, the AT announced a control the tree claimed was
+  actionable, and the press died silently. One `Widget::enabled` source
+  of truth ships: the default `focusable()` derivation consults it (an
+  unavailable control is never a Tab stop and never a focus candidate),
+  pass 3's sentinel discipline evicts focus from a control that becomes
+  unavailable, and every door refuses honestly — the pointer is a wall
+  that never clicks through (the HTML `disabled` semantics), the
+  keyboard and the IME are answered with silence, and every AT action is
+  refused, never munged (the M11 rule). The flag rides pass 9's
+  snapshot — `TreeNode.enabled`, no second channel — and the a11y sink
+  maps it faithfully onto AccessKit's `disabled` property, so the AT
+  reads the refusal before it happens. Two doors land the same
+  `PAINT | A11Y` currency: the fixed door (`.enabled(bool)` at
+  construction, `set_enabled` in place) answers the move it made — a
+  write that lands where the flag already is queues nothing — and the
+  button's binding door (`enabled_binding`) tracks a `RenderBinding<bool>`
+  the flux bridge drives (the `Progress::bound` rule, at the
+  availability tier). The look tells the truth the tree carries: the
+  muted paint the theme constants borrow, with the shipped corpus's
+  enabled pixels untouched. The consumer demonstration ships:
+  `examples/disabled.rs` drives the bound door from the consumer side
+  (the *Enable sending* checkbox's one write batch) and walks the mutate
+  seam at startup, with `tracing` spans at the new `alacer::disabled`
+  target. The coordinated corpus completes: the refused press's criterion
+  case `disabled/route_100_refused_presses_1k` is measured (100
+  samples), published with its baseline entry, and gated same-host —
+  corpus 56 → 57, every M-suite pin moved together — and the m1 corpus
+  grows 36 → 37 with the availability window. The micro-debt the sweep
+  priced rides the cut: the software renderer's dead `glyphs_rendered`
+  (the M21 gate's own blind spot — the same-named accessor the wgpu cut
+  removed still shipped here), the dead `PassPipeline::clear_observer`
+  and `PassPipeline::timings_enabled`, and the `ViewRoot::root`
+  duplicate whose doc claimed a caller that does not exist; the `rsx!`
+  fall-through diagnostic names what stood where an element was
+  expected, and the unterminated-`{` text error carries the escape
+  hatch's `help:`. The living documents re-agree: the README's count,
+  bullet, table, and status block, the catalog, the architecture
+  register (28 → 29), the roadmap, and this changelog moved with it
 - **M21 — the reported value (ADR-0027)**: the value tier grows its read
   half. The ledger M20 emptied had one unclaimed completion: the AT can
   *write* a value, but an app had no widget-shaped way to *report* one.

@@ -113,7 +113,10 @@ fn main() {
     // Beat one: the mount frame. Every layer commits once — the tree's
     // full shape, as the journal accounts it.
     settle(&mut pipeline);
-    report_ledger(&pipeline, "the mount frame's ledger: every layer committed once");
+    report_ledger(
+        &pipeline,
+        "the mount frame's ledger: every layer committed once",
+    );
 
     // Beat two: one write batch. The ticker's layer re-commits; the
     // static label's clean layer replays untouched.

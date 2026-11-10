@@ -14,7 +14,7 @@
 //! Every test runs the real pipeline (A4) with the real layout host — the
 //! exact route a window's Tab key and the consumer's door take.
 
-use alacer_core::events::{Key, KeyState, KeyEvent, Modifiers};
+use alacer_core::events::{Key, KeyEvent, KeyState, Modifiers};
 use alacer_core::mask::Change;
 use alacer_core::passes::FocusMove;
 use alacer_core::widget::Role;
@@ -90,7 +90,7 @@ fn m24_the_walk_lands_where_tab_lands() {
     mount_form(&mut driven);
     let mut by_door = Vec::new();
     for _ in 0..5 {
-        let moved = driven.pipeline_mut().focus_move(FocusMove::Next);
+        let moved = driven.pipeline_mut().focus_move(FocusMove::Next).moved();
         assert!(moved, "a four-candidate walk always has a next stop");
         let focused = driven
             .pipeline()
@@ -99,8 +99,35 @@ fn m24_the_walk_lands_where_tab_lands() {
         by_door.push(focused);
     }
 
+    // The two windows hold different node ids (the arena's counter is
+    // process-global and this test mounts two windows) — the contract is
+    // the landing *order*, read as positions in each window's own
+    // candidate list: one funnel, the keyboard and the app's code riding
+    // it alike (ADR-0030).
+    let keyed_order: Vec<usize> = by_key
+        .iter()
+        .map(|id| {
+            keyed
+                .pipeline()
+                .focusables()
+                .iter()
+                .position(|candidate| candidate == id)
+                .expect("Tab rests on a candidate")
+        })
+        .collect();
+    let door_order: Vec<usize> = by_door
+        .iter()
+        .map(|id| {
+            driven
+                .pipeline()
+                .focusables()
+                .iter()
+                .position(|candidate| candidate == id)
+                .expect("the door rests on a candidate")
+        })
+        .collect();
     assert_eq!(
-        by_key, by_door,
+        keyed_order, door_order,
         "Tab and focus_move land on the same candidates in the same order"
     );
 
@@ -116,7 +143,10 @@ fn m24_the_walk_lands_where_tab_lands() {
     // stops wrap back to the first, and the focused input is named, the
     // M3 way tests read the tree.
     assert!(
-        driven.query(Role::TextInput).named(expected_order()[0]).exists(),
+        driven
+            .query(Role::TextInput)
+            .named(expected_order()[0])
+            .exists(),
         "the walk rests on a named control — the tree carries it"
     );
 }
@@ -146,9 +176,13 @@ fn m24_shift_tab_walks_backward() {
         driven.pipeline_mut().focus_move(FocusMove::Next);
     }
     driven.pipeline_mut().focus_move(FocusMove::Prev);
+    // The two windows hold different node ids — the contract is the stop:
+    // each door reverses to the third candidate of its own window's list,
+    // the same one Shift+Tab landed on in the keyed half above.
+    let back_door = driven.pipeline().focus().expect("the door holds a stop");
     assert_eq!(
-        keyed.pipeline().focus(),
-        driven.pipeline().focus(),
+        back_door,
+        driven.pipeline().focusables()[2],
         "Shift+Tab and focus_move(Prev) reverse through the same funnel"
     );
 }
@@ -210,29 +244,29 @@ fn m24_the_refusal_is_honest() {
     for node in &nodes {
         let mut guard = harness.pipeline_mut().arena_mut().mutate(*node);
         let widget = guard.widget_mut();
-        let moved = if let Some(button) =
-            widget.as_any_mut().downcast_mut::<alacer_widgets::Button>()
-        {
-            button.set_enabled(false)
-        } else if let Some(input) =
-            widget.as_any_mut().downcast_mut::<alacer_widgets::TextInput>()
-        {
-            input.set_enabled(false)
-        } else if let Some(checkbox) =
-            widget.as_any_mut().downcast_mut::<alacer_widgets::Checkbox>()
-        {
-            checkbox.set_enabled(false)
-        } else {
-            panic!("the form holds only actionable controls")
-        };
+        let moved =
+            if let Some(button) = widget.as_any_mut().downcast_mut::<alacer_widgets::Button>() {
+                button.set_enabled(false)
+            } else if let Some(input) = widget
+                .as_any_mut()
+                .downcast_mut::<alacer_widgets::TextInput>()
+            {
+                input.set_enabled(false)
+            } else if let Some(checkbox) = widget
+                .as_any_mut()
+                .downcast_mut::<alacer_widgets::Checkbox>()
+            {
+                checkbox.set_enabled(false)
+            } else {
+                panic!("the form holds only actionable controls")
+            };
         assert!(moved, "the write moves the flag — masks are owed");
-        drop(widget);
         guard.request(Change::PAINT.union(Change::A11Y));
     }
     harness.settle();
 
-    let moved = harness.pipeline_mut().focus_move(FocusMove::Next);
-    assert!(!moved, "no candidate exists — the walk refuses");
+    let outcome = harness.pipeline_mut().focus_move(FocusMove::Next);
+    assert!(!outcome.moved(), "no candidate exists — the walk refuses");
     assert!(
         harness.pipeline().focus().is_none(),
         "a refused walk leaves focus where it was — nowhere"
@@ -246,7 +280,7 @@ fn m24_the_refusal_is_honest() {
     // The empty arena refuses the same way — no candidates, no masks.
     let mut empty = TestHarness::new(360.0, 240.0);
     assert!(
-        !empty.pipeline_mut().focus_move(FocusMove::Prev),
+        !empty.pipeline_mut().focus_move(FocusMove::Prev).moved(),
         "an arena without widgets has no stop to offer"
     );
     assert!(empty.pipeline().focus().is_none());
@@ -260,7 +294,7 @@ fn m24_a_move_costs_one_frame() {
     let mut harness = TestHarness::new(360.0, 240.0);
     mount_form(&mut harness);
 
-    let moved = harness.pipeline_mut().focus_move(FocusMove::Next);
+    let moved = harness.pipeline_mut().focus_move(FocusMove::Next).moved();
     assert!(moved, "the walk moves");
     assert!(
         harness.pipeline().focus().is_some(),
@@ -316,8 +350,8 @@ fn m24_the_living_documents_re_agree() {
     // the demonstration.
     let readme = read_workspace_file("README.md");
     for fragment in [
-        "M0 through M26",
-        "thirty-three decision records",
+        "M0 through M27",
+        "thirty-four decision records",
         "Since M24 the focus walk is public vocabulary",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
@@ -339,7 +373,7 @@ fn m24_the_living_documents_re_agree() {
     let architecture = read_workspace_file("docs/architecture.md");
     for fragment in [
         "ADR-0030",
-        "33 decision records",
+        "34 decision records",
         "the focus walk joins the dispatch contract",
     ] {
         assert!(
@@ -377,11 +411,11 @@ fn m24_the_living_documents_re_agree() {
             "crates/alacer-testing/tests/{suite}_exit_criteria.rs"
         ));
         assert!(
-            source.contains("M0 through M26") && source.contains("thirty-three decision records"),
+            source.contains("M0 through M27") && source.contains("thirty-four decision records"),
             "the {suite} suite's README pins moved with the documents"
         );
         assert!(
-            source.contains("33 decision records"),
+            source.contains("34 decision records"),
             "the {suite} suite's architecture pin moved with the register"
         );
     }
@@ -395,7 +429,7 @@ fn m24_the_surface_rides_the_same_cut() {
     let passes = read_workspace_file("crates/alacer-core/src/passes.rs");
     for fragment in [
         "pub enum FocusMove",
-        "pub fn focus_move(&mut self, movement: FocusMove) -> bool",
+        "pub fn focus_move(&mut self, movement: FocusMove) -> FocusMoveOutcome",
     ] {
         assert!(
             passes.contains(fragment),
@@ -404,7 +438,7 @@ fn m24_the_surface_rides_the_same_cut() {
     }
     assert!(
         passes.contains("let movement = if event.modifiers.shift {")
-            && passes.contains("self.focus_move(movement)"),
+            && passes.contains("self.focus_move(movement).moved()"),
         "dispatch_key's Tab fallback rides the same funnel — the walk is not duplicated"
     );
 

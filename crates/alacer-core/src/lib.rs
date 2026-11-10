@@ -65,8 +65,9 @@ pub use inspect::{
 };
 pub use mask::Change;
 pub use passes::{
-    A11yDelta, A11ySink, FrameReport, ImePurpose, ImeRequest, LayoutEngine, LayoutError, PassKind,
-    PassPipeline, PassRun, SceneJournal, TreeNode, TreeSnapshot,
+    A11yDelta, A11ySink, FocusLanding, FocusMoveOutcome, FocusRefusal, FrameReport, ImePurpose,
+    ImeRequest, LayoutEngine, LayoutError, PassKind, PassPipeline, PassRun, SceneJournal, TreeNode,
+    TreeSnapshot,
 };
 pub use reactive_graph::traits::{Get, GetUntracked, Set};
 pub use scene::{

@@ -8,7 +8,9 @@ use alacer_core::events::{MouseButton, PointerEvent};
 use alacer_core::flux::Flux;
 use alacer_core::geom::{Point, Size};
 use alacer_core::mask::Change;
-use alacer_core::passes::{A11yDelta, A11ySink, FocusMove, PassPipeline, SceneJournal, TreeSnapshot};
+use alacer_core::passes::{
+    A11yDelta, A11ySink, FocusMove, FocusMoveOutcome, PassPipeline, SceneJournal, TreeSnapshot,
+};
 use alacer_core::scene::{Primitive, SceneSnapshot};
 use alacer_core::style::MeasureSpec;
 use alacer_core::widget::{LabelSource, Role, Widget};
@@ -240,14 +242,19 @@ fn bench_input_storm(c: &mut Criterion) {
         });
     });
 
-    // The focus routes (ADR-0030/ADR-0031/ADR-0032), one measured cost per
-    // move against the same 1k arena. `route_100_focus_moves_1k` is the
-    // tree-order funnel the keyboard's Tab rides; `route_100_scoped_moves_1k`
-    // adds the ancestor filter the scoped door's candidate list pays;
-    // `route_100_directional_moves_1k` is the M26 geometry selection — the
-    // bounds reads the directional walk answers with. The three joined the
-    // published corpus at the M26 cut's measurement run (the coordinated
-    // rule: measured, published, and gated in the same cut).
+    // The focus routes and the outcome route — extracted below, they share
+    // this group and the same 1k arena.
+    bench_focus_routes(group);
+}
+
+/// The focus routes (ADR-0030/ADR-0031/ADR-0032/ADR-0033), one measured
+/// cost per move against the same 1k arena: the tree-order funnel the
+/// keyboard's Tab rides (`route_100_focus_moves_1k`), the scoped door's
+/// ancestor filter (`route_100_scoped_moves_1k`), the M26 geometry
+/// selection (`route_100_directional_moves_1k`), and the M27 outcome
+/// vocabulary consumed as data (`route_100_outcome_moves_1k`) — the
+/// walk's answer priced against the boolean's on the same arena.
+fn bench_focus_routes(mut group: criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>) {
     group.throughput(Throughput::Elements(
         u64::try_from(FOCUS_MOVES).expect("non-negative"),
     ));
@@ -287,6 +294,30 @@ fn bench_input_storm(c: &mut Criterion) {
             }
             for _ in 0..FOCUS_MOVES / 2 {
                 black_box(pipeline.focus_move(black_box(FocusMove::Up)));
+            }
+            let report = pipeline.tick(VIEWPORT).expect("bench layout");
+            black_box(report.passes.len());
+        });
+    });
+
+    // The M27 outcome route (ADR-0033): the same tree-order funnel as
+    // `route_100_focus_moves_1k`, the answer consumed as data — the full
+    // `FocusMoveOutcome` (landing endpoints and wrap, or the refusal
+    // species) is what the caller keeps. The walk is untouched; the route
+    // prices the vocabulary's answer against the boolean's, on the same
+    // 1k arena, in the same cut (the coordinated rule).
+    group.bench_function("route_100_outcome_moves_1k", |b| {
+        let mut pipeline = storm_pipeline();
+        mount_focusable_1k(&mut pipeline);
+        b.iter(|| {
+            for _ in 0..FOCUS_MOVES {
+                let outcome = pipeline.focus_move(black_box(FocusMove::Next));
+                // The consumer's read: the landing or the refusal species,
+                // resolved to the data the door carried back.
+                black_box(match outcome {
+                    FocusMoveOutcome::Moved(landing) => landing.wrapped,
+                    FocusMoveOutcome::Refused(_) => false,
+                });
             }
             let report = pipeline.tick(VIEWPORT).expect("bench layout");
             black_box(report.passes.len());

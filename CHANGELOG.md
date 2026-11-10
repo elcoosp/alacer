@@ -5,6 +5,16 @@ All notable changes to **Alacer** will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
+## [0.17.0] — 2026-11-10
+
+
+
+### Added
+
+
+- The walk's answer becomes data
+
+
 ## [0.16.0] — 2026-11-10
 
 

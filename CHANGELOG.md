@@ -5,6 +5,64 @@ All notable changes to **Alacer** will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
+## [0.16.0] — 2026-11-10
+
+
+
+### Added
+
+
+- The focus walk bounds to a subtree
+
+- The focus trap drives the consumer's window
+
+- The directional walk reads the window
+
+- The directional walk drives the consumer's window
+
+
+### Changed
+
+
+- The dead fixed-size spec goes
+
+- The dead color conversion goes
+
+- The dead selection predicate goes
+
+- The dead color conversion goes
+
+
+### Documentation
+
+
+- The living documents re-agree at M25 and 0.16.0
+
+- The living documents re-agree at M26 and 0.16.0
+
+
+### Fixed
+
+
+- The m7 release-state pin re-joins the chain
+
+
+### Performance
+
+
+- The focus routes join the published corpus
+
+
+### Tests
+
+
+- The m25 exit suite pins the focus scope
+
+- The m26 exit suite pins the directional walk
+
+- The m-suite pins move with the 60-case corpus
+
+
 ## [0.15.0] — 2026-11-10
 
 

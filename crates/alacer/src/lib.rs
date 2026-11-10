@@ -30,8 +30,10 @@
 //! The shipped surface (ADR-9): the prelude and the re-exports over the
 //! eleven crates — the widget vocabulary and the M6 canons, the editing
 //! contract's editor (selection, pointer, word, clipboard, and history
-//! tiers), the two render backends, the Causality inspector, the headless
-//! testing harness, and the examples catalog that demonstrates each seam.
+//! tiers), the value tier's two halves, the availability tier the
+//! actionable controls answer, the two render backends, the Causality
+//! inspector, the headless testing harness, and the examples catalog
+//! that demonstrates each seam.
 
 #![doc = include_str!("../../../README.md")]
 

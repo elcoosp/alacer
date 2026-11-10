@@ -18,6 +18,7 @@ use alacer_core::widget::{A11yAction, EventResponse, LabelSource, Role, ToggleSt
 pub struct Checkbox {
     name: String,
     checked: bool,
+    enabled: bool,
     on_toggle: Option<Box<dyn FnMut(bool)>>,
     focused: bool,
     accent: Color,
@@ -33,6 +34,7 @@ impl Checkbox {
         Self {
             name: name.into(),
             checked: false,
+            enabled: true,
             on_toggle: None,
             focused: false,
             accent: crate::theme::ACCENT,
@@ -40,6 +42,15 @@ impl Checkbox {
             font_size: crate::theme::FONT_SIZE,
             style: Style::default(),
         }
+    }
+
+    /// Initial availability (M22, ADR-0028). An unavailable checkbox
+    /// paints muted, holds no focus, and refuses every toggle door
+    /// honestly — the AT reads the refusal before it happens.
+    #[must_use]
+    pub fn enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
     }
 
     /// Initial checked state.
@@ -84,6 +95,24 @@ impl Checkbox {
         self.checked
     }
 
+    /// The availability the widget reports — the same flag the M22
+    /// `enabled()` contract carries into the a11y tree (test
+    /// introspection).
+    #[must_use]
+    pub const fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    /// The one availability write: report whether the flag moved (the
+    /// M21 idle-frame property, at the widget seam).
+    pub fn set_enabled(&mut self, enabled: bool) -> bool {
+        if self.enabled == enabled {
+            return false;
+        }
+        self.enabled = enabled;
+        true
+    }
+
     /// Sets the checked state in place (view reconciliation). Fires no
     /// handler — programmatic state, not a user toggle.
     pub fn set_checked(&mut self, checked: bool) {
@@ -102,8 +131,13 @@ impl Checkbox {
     }
 
     /// The one toggle path: flip the bit, fire the handler with the new
-    /// state, request the masks the change costs.
+    /// state, request the masks the change costs. The availability tier
+    /// guards the funnel's single entry (M22, ADR-0028): an unavailable
+    /// checkbox refuses, never munges (the M11 rule).
     fn toggle(&mut self, ctx: &mut EventCtx) {
+        if !self.enabled {
+            return;
+        }
         self.checked = !self.checked;
         ctx.request(alacer_core::Change::PAINT.union(alacer_core::Change::A11Y));
         if let Some(handler) = &mut self.on_toggle {
@@ -151,10 +185,29 @@ impl Widget for Checkbox {
         Some(ToggleState::from(self.checked))
     }
 
+    /// The availability tier (M22, ADR-0028): the flag the a11y tree
+    /// carries — an unavailable checkbox reports itself before the AT
+    /// tries the toggle it will refuse.
+    fn enabled(&self) -> bool {
+        self.enabled
+    }
+
     fn paint(&self, ctx: &mut PaintCtx<'_>) {
         let size = ctx.size();
         let box_side = 18.0_f32.min(size.height);
         let box_top = (size.height - box_side) * 0.5;
+        // The look tells the truth the tree carries (M22, ADR-0028): an
+        // unavailable checkbox paints the muted rail and the muted label.
+        let accent = if self.enabled {
+            self.accent
+        } else {
+            crate::theme::BORDER
+        };
+        let label_color = if self.enabled {
+            self.text_color
+        } else {
+            crate::theme::TEXT_MUTED
+        };
 
         // The track: an outlined square; filled with the accent when checked.
         ctx.push_quad(alacer_core::scene::Quad {
@@ -162,14 +215,10 @@ impl Widget for Checkbox {
                 Point::new(0.0, box_top),
                 alacer_core::geom::Size::new(box_side, box_side),
             ),
-            color: if self.checked {
-                self.accent
-            } else {
-                Color::WHITE
-            },
+            color: if self.checked { accent } else { Color::WHITE },
             corner_radius: 4.0,
             border_color: if self.focused {
-                self.accent
+                accent
             } else {
                 crate::theme::BORDER
             },
@@ -206,7 +255,7 @@ impl Widget for Checkbox {
                 ctx.push_glyph(alacer_core::scene::Glyph {
                     position: Point::new(text_origin.x + glyph.x, text_origin.y + glyph.y),
                     size: glyph.size,
-                    color: self.text_color,
+                    color: label_color,
                     font_id: glyph.font_id,
                     glyph_id: glyph.glyph_id,
                     clip: None,
@@ -224,6 +273,12 @@ impl Widget for Checkbox {
     }
 
     fn on_a11y_action(&mut self, action: A11yAction) -> bool {
+        // The availability tier (M22, ADR-0028): an unavailable checkbox
+        // has no write door — the toggle is refused honestly, never
+        // munged (the M11 rule).
+        if !self.enabled {
+            return false;
+        }
         if action == A11yAction::DefaultPress {
             // The a11y path has no EventCtx; masks land on the next widget
             // event or the frame's PAINT churn — the toggle itself is
@@ -240,6 +295,11 @@ impl Widget for Checkbox {
     fn on_pointer_event(&mut self, ctx: &mut EventCtx, event: &PointerEvent) -> EventResponse {
         match event {
             PointerEvent::Down { .. } => {
+                // The wall (M22, ADR-0028): a disabled checkbox consumes
+                // the press but requests nothing — no focus, no repaint.
+                if !self.enabled {
+                    return EventResponse::Handled;
+                }
                 ctx.request(alacer_core::Change::PAINT.union(alacer_core::Change::FOCUS));
                 EventResponse::Handled
             }
@@ -389,5 +449,52 @@ mod tests {
     fn table_slot_defaults_to_none() {
         let checkbox = Checkbox::new("Done");
         assert_eq!(checkbox.table_slot(), None);
+    }
+
+    #[test]
+    fn a_disabled_checkbox_refuses_every_toggle_door() {
+        // M22, ADR-0028: the AT tier is refused, the pointer arms nothing,
+        // Space flips nothing, and the write that moved the flag is the
+        // only mask the tier costs.
+        let mut checkbox = Checkbox::new("Done").enabled(false).on_toggle(|_| {
+            panic!("an unavailable checkbox must not toggle");
+        });
+        let mut ctx = EventCtx::new();
+
+        assert!(
+            !checkbox.on_a11y_action(A11yAction::DefaultPress),
+            "an unavailable toggle has no write door"
+        );
+        assert_eq!(
+            checkbox.on_pointer_event(
+                &mut ctx,
+                &PointerEvent::Down {
+                    position: Point::new(4.0, 4.0),
+                    button: alacer_core::events::MouseButton::Left,
+                    click_count: 1,
+                }
+            ),
+            EventResponse::Handled,
+            "the wall consumes the press"
+        );
+        assert!(
+            ctx.take().is_empty(),
+            "a refused press queues no masks — an idle frame"
+        );
+        assert_eq!(
+            checkbox.on_key_event(&mut ctx, &space()),
+            EventResponse::Handled,
+            "Space is an activation key, so the event is handled…"
+        );
+        assert!(!checkbox.is_checked(), "…but the toggle wrote nothing");
+        assert!(
+            !checkbox.focusable(),
+            "an unavailable control holds no focus"
+        );
+
+        // The write answers the move (the M21 idle-frame property).
+        assert!(!checkbox.set_enabled(false), "already unavailable");
+        assert!(checkbox.set_enabled(true), "the write moved");
+        assert!(checkbox.is_enabled());
     }
 }

@@ -307,9 +307,9 @@ fn m21_the_living_documents_re_agree() {
     for fragment in [
         "All 57 criterion cases",
         "Since M21 the value is reportable too",
-        "version-0.14.0",
-        "M0 through M24",
-        "thirty-one decision records",
+        "version-0.16.0",
+        "M0 through M25",
+        "thirty-two decision records",
         "`Progress`",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
@@ -338,7 +338,7 @@ fn m21_the_living_documents_re_agree() {
     let architecture = read_workspace_file("docs/architecture.md");
     for fragment in [
         "ADR-0027",
-        "31 decision records",
+        "32 decision records",
         "the progress indicator joins the value tier",
     ] {
         assert!(
@@ -368,7 +368,7 @@ fn m21_the_living_documents_re_agree() {
     for guide in ["docs/migration/from-iced.md", "docs/migration/from-egui.md"] {
         let guide = read_workspace_file(guide);
         assert!(
-            guide.contains("onto Alacer **0.14.0**"),
+            guide.contains("onto Alacer **0.16.0**"),
             "{guide} names the shipped family"
         );
         assert!(

@@ -306,7 +306,7 @@ fn m19_the_living_documents_re_agree() {
     for fragment in [
         "ADR-0025",
         "The captured drag",
-        "29 decision records",
+        "32 decision records",
         "implicitly holds its deepest accepting hit",
     ] {
         assert!(

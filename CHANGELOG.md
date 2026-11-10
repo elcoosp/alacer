@@ -113,6 +113,35 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M25 — the focus scope (ADR-0031)**: the focus walk bounds to a
+  subtree. ADR-0030's pre-registered re-open rule ships as one
+  `PassPipeline::focus_move_in(scope, movement)` door beside the
+  unscoped funnel — the modal's focus trap priced by the real UI it
+  names. The scope is the subtree's root node (the cheapest honest
+  predicate specialization: no closures in the public API, no second
+  walk), the walk generalizes behind both doors (`cycle_focus_in` — the
+  same pre-order candidate list pass 2 recomputes, the M22 cycle-time
+  `enabled` filter, the wrap at both ends, the immediate resolution),
+  the scope bounds the walk never the candidate list (`focusables()`
+  and `focus()` keep answering the whole tree, the unscoped door stays
+  the keyboard's funnel, and a root-scoped walk lands exactly where
+  `focus_move` lands), and the refusals are honest and named — a dead
+  scope, an empty trap, or a trap the availability tier holds down
+  answers `false` with no masks (an idle frame, never a
+  first-candidate reset), their help plain diagnostic text on the
+  `alacer::focus` target (ADR-0029's rule). The landings and refusals
+  ride the `alacer::focus` tracing target, and
+  `examples/focus_trap.rs` is the consumer demonstration: a background
+  control and a modal's form walked forward, backward, and into the
+  refusal inside the trap, with the window's Tab proving the unscoped
+  door live. The micro-debt the sweep priced rides the cut: the layout
+  mapping's dead `fixed_size_of` and the color's dead `to_f32_rgba`
+  (documented for a GPU-uniform consumer that never landed), and the
+  living documents re-agree at M25 and 0.16.0 — the README badge and
+  status block riding the pending-cut convention, the migration guides'
+  family line among them, and the m7 release-state pin re-joining the
+  chain after missing the M23/M24 sweeps.
+
 - **M24 — the focus walk (ADR-0030)**: the focus walk joins the
   dispatch contract. Tab's private cycle becomes public vocabulary: one
   `FocusMove` direction (`Next`/`Prev`) and one pipeline door —

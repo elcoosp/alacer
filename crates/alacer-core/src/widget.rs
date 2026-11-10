@@ -207,12 +207,6 @@ impl TextSelection {
             (self.focus, self.anchor)
         }
     }
-
-    /// Whether this is the degenerate selection — a bare caret.
-    #[must_use]
-    pub const fn is_degenerate(&self) -> bool {
-        self.anchor == self.focus
-    }
 }
 
 /// An accessibility action requested by an assistive technology.

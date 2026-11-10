@@ -92,6 +92,9 @@ impl SceneJournal for NullJournal {
     }
     fn retain(&mut self, _order: &[NodeId]) {}
     fn clear(&mut self) {}
+    fn stats(&self) -> alacer_core::passes::JournalStats {
+        alacer_core::passes::JournalStats::default()
+    }
 }
 
 struct NullA11y;

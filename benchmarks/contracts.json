@@ -316,6 +316,21 @@
       "id": "disabled_route_100_refused_presses_1k",
       "baseline": "disabled/route_100_refused_presses_1k",
       "scope": "same-host"
+    },
+    {
+      "id": "input_route_100_focus_moves_1k",
+      "baseline": "input/route_100_focus_moves_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "input_route_100_scoped_moves_1k",
+      "baseline": "input/route_100_scoped_moves_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "input_route_100_directional_moves_1k",
+      "baseline": "input/route_100_directional_moves_1k",
+      "scope": "same-host"
     }
   ],
   "test_enforced_gates": [

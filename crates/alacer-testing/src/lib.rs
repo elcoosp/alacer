@@ -24,11 +24,10 @@ use alacer_core::events::{EventCtx, MouseButton, PointerEvent};
 use alacer_core::flux::Flux;
 use alacer_core::geom::{Point, Rect, Size};
 use alacer_core::passes::PassPipeline;
-use alacer_core::style::MeasureSpec;
 use alacer_core::widget::{A11yAction, Role, Widget};
 use alacer_layout::LayoutHost;
 use alacer_render::{SceneJournalImpl, SoftwareRenderer};
-use alacer_text::{ThreadLocalGlyphSource, ThreadLocalMeasurer, ThreadLocalTextSeam, with_text};
+use alacer_text::{ThreadLocalGlyphSource, ThreadLocalMeasurer, ThreadLocalTextSeam};
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -506,32 +505,6 @@ impl TestHarness {
     #[must_use]
     pub const fn viewport(&self) -> Size {
         self.viewport
-    }
-
-    /// Access to the thread-local text context (test setup).
-    pub fn with_text_context<R>(&self, f: impl FnOnce(&mut alacer_text::TextContext) -> R) -> R {
-        with_text(f)
-    }
-
-    /// The intrinsic text size helper (list item sizing in tests).
-    #[must_use]
-    pub fn text_size(&self, text: &str, font_size: f32) -> Size {
-        with_text(|ctx| {
-            ctx.measure(
-                &alacer_core::style::TextSpec {
-                    text: text.to_string(),
-                    font_id: 0,
-                    font_size,
-                },
-                None,
-            )
-        })
-    }
-
-    /// A spec probe: does a widget expose a measure spec?
-    #[must_use]
-    pub fn spec_of(&self, node: NodeId) -> Option<MeasureSpec> {
-        self.pipeline.arena().widget(node).measure_spec()
     }
 }
 

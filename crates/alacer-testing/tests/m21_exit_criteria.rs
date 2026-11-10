@@ -302,14 +302,14 @@ fn m21_the_value_write_route_joins_the_corpus_by_the_coordinated_rule() {
 fn m21_the_living_documents_re_agree() {
     // The README: the criterion count quotes the 57-case baseline, the
     // a11y bullet carries the reported value, the vocabulary names its
-    // newest control, and the status block is the 0.13.0 family at M21.
+    // newest control, and the status block is the 0.14.0 family at M23.
     let readme = read_workspace_file("README.md");
     for fragment in [
         "All 57 criterion cases",
         "Since M21 the value is reportable too",
-        "version-0.13.0",
-        "M0 through M22",
-        "twenty-nine decision records",
+        "version-0.14.0",
+        "M0 through M23",
+        "thirty decision records",
         "`Progress`",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
@@ -338,7 +338,7 @@ fn m21_the_living_documents_re_agree() {
     let architecture = read_workspace_file("docs/architecture.md");
     for fragment in [
         "ADR-0027",
-        "29 decision records",
+        "30 decision records",
         "the progress indicator joins the value tier",
     ] {
         assert!(
@@ -368,7 +368,7 @@ fn m21_the_living_documents_re_agree() {
     for guide in ["docs/migration/from-iced.md", "docs/migration/from-egui.md"] {
         let guide = read_workspace_file(guide);
         assert!(
-            guide.contains("onto Alacer **0.13.0**"),
+            guide.contains("onto Alacer **0.14.0**"),
             "{guide} names the shipped family"
         );
         assert!(

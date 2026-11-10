@@ -9,6 +9,45 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M23 — the frame's ledger (ADR-0029)**: the scene journal becomes
+  legible to its consumers. Every seam since M16 paired with a consumer
+  demonstration, but the M2 headline — the journal whose economics every
+  other seam spends — stayed undemonstrated, and its introspection
+  accessors were dead code precisely because no consumer existed. One
+  required `SceneJournal::stats()` seam ships, carrying the
+  `JournalStats` vocabulary (commits, drops, live layers) with
+  `PassPipeline::journal_stats()` as the pipeline's one read door; the
+  consumer demonstration ships: `examples/frame_ledger.rs` reads the
+  ledger at the two beats that matter — the mount frame (every layer
+  commits once) and one ticker write batch (exactly one layer
+  re-commits, the static layer's clean pixels replaying untouched) —
+  with the interactive *Tick* press riding the same one-batch route and
+  the ledger on the `alacer::frame_ledger` tracing target. The m1
+  corpus's broken trio is repaired at the source: the `list_scrolled`
+  scenarios never fed `set_content_height`, so the scroll clamp folded
+  every offset to zero and three distinct scroll positions blessed one
+  byte-identical image — the shared helper now derives the content
+  height from the laid-out children, `list_scrolled_120` grows to twelve
+  panels so its 120 px target is inside the clamp's real range, the
+  m23 exit suite pins the delta headlessly and the three images
+  pairwise-distinct, and the next bless run re-blesses them distinct
+  (CONTRIBUTING's diff-is-the-review rule). The micro-debt the sweep
+  priced rides the cut: the journal's dead inherent accessors
+  (`commits`, `drops`, `layer_count`, the slice-view `layer` duplicate)
+  replaced by the seam that gives their data a caller, the todo canon's
+  dead `footer_node` getter with its write-only field, the `rsx!`
+  body-cardinality diagnostic that now names its cardinality with
+  miette-class `help:` text (plain diagnostic text — the
+  no-new-dependency rule outranks adopting the crate), and the
+  inspector's accept loop reporting the session errors its silent
+  `let _ =` swallowed (through the adopted `tracing` core — the one
+  dependency edge the cut adds, and it stays inside the resolved graph).
+  The living documents re-agree at 0.14.0: the README's badge, status
+  block, quickstart, perf bullet, and example table; the catalog; the
+  architecture register (28 → 29 with ADR-0029); the roadmap; the
+  migration guides' family line; the widgets manifest's shipped
+  vocabulary; the facade's shipped-surface rustdoc; and the m20/m21/m22
+  pins move with them in the same commit
 - **M22 — the unavailable control (ADR-0028)**: the availability tier
   joins the widget contract. The ledger M21 emptied had no value-tier
   candidate left, and the audit-before-the-cut pass priced the property

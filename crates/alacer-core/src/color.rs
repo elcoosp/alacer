@@ -43,17 +43,6 @@ impl Color {
         Self { a, ..self }
     }
 
-    /// Normalized non-premultiplied RGBA, for GPU uniform upload.
-    #[must_use]
-    pub fn to_f32_rgba(self) -> [f32; 4] {
-        [
-            f32::from(self.r) / 255.0,
-            f32::from(self.g) / 255.0,
-            f32::from(self.b) / 255.0,
-            f32::from(self.a) / 255.0,
-        ]
-    }
-
     /// Premultiplied RGBA8 bytes, for software blending into a `0RGB` pixel buffer.
     #[must_use]
     pub fn to_premultiplied_rgba8(self) -> [u8; 4] {
@@ -68,12 +57,6 @@ impl Color {
 #[cfg(test)]
 mod tests {
     use super::Color;
-
-    #[test]
-    fn to_f32_rgba_is_normalized() {
-        let rgba = Color::rgb(255, 128, 0).to_f32_rgba();
-        assert_eq!(rgba, [1.0, 128.0 / 255.0, 0.0, 1.0]);
-    }
 
     #[test]
     fn premultiplication_scales_channels_by_alpha() {

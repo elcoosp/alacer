@@ -241,7 +241,7 @@ fn m21_the_value_write_route_joins_the_corpus_by_the_coordinated_rule() {
 
     assert_eq!(
         baselines["bench_count"],
-        serde_json::json!(57),
+        serde_json::json!(60),
         "the corpus grows 56 → 57 at M22's measurement run"
     );
     let benches = baselines["benches"].as_object().expect("benches object");
@@ -255,7 +255,7 @@ fn m21_the_value_write_route_joins_the_corpus_by_the_coordinated_rule() {
     let gates = contracts["regressions"].as_array().expect("regressions");
     assert_eq!(
         gates.len(),
-        57,
+        60,
         "every case carries exactly one regression gate"
     );
     assert!(
@@ -282,34 +282,34 @@ fn m21_the_value_write_route_joins_the_corpus_by_the_coordinated_rule() {
     ] {
         let source = read_workspace_file(&format!("crates/alacer-testing/tests/{suite}"));
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 57;"),
-            "{suite} must pin the 57-case corpus"
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 60;"),
+            "{suite} must pin the 60-case corpus"
         );
     }
     let m19 = read_workspace_file("crates/alacer-testing/tests/m19_exit_criteria.rs");
     assert!(
-        m19.contains("All 57 criterion cases") && m19.contains("serde_json::json!(57)"),
+        m19.contains("All 60 criterion cases") && m19.contains("serde_json::json!(60)"),
         "the m19 suite's pins moved with the corpus"
     );
     let m20 = read_workspace_file("crates/alacer-testing/tests/m20_exit_criteria.rs");
     assert!(
-        m20.contains("serde_json::json!(57)") && m20.contains("usize = 57;"),
+        m20.contains("serde_json::json!(60)") && m20.contains("usize = 60;"),
         "the m20 suite's pins moved with the corpus (the one-cycle drift the pattern prices)"
     );
 }
 
 #[test]
 fn m21_the_living_documents_re_agree() {
-    // The README: the criterion count quotes the 57-case baseline, the
+    // The README: the criterion count quotes the 60-case baseline, the
     // a11y bullet carries the reported value, the vocabulary names its
     // newest control, and the status block is the 0.14.0 family at M23.
     let readme = read_workspace_file("README.md");
     for fragment in [
-        "All 57 criterion cases",
+        "All 60 criterion cases",
         "Since M21 the value is reportable too",
         "version-0.16.0",
-        "M0 through M25",
-        "thirty-two decision records",
+        "M0 through M26",
+        "thirty-three decision records",
         "`Progress`",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
@@ -338,7 +338,7 @@ fn m21_the_living_documents_re_agree() {
     let architecture = read_workspace_file("docs/architecture.md");
     for fragment in [
         "ADR-0027",
-        "32 decision records",
+        "33 decision records",
         "the progress indicator joins the value tier",
     ] {
         assert!(

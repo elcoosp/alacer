@@ -1126,6 +1126,7 @@ mod tests {
                 table_slot: None,
                 selection: None,
                 live: None,
+                enabled: true,
             }],
         });
         sink.apply(

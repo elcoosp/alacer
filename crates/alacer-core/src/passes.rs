@@ -123,6 +123,10 @@ pub struct TreeNode {
     /// the pipeline's reserved announcement region — assistive
     /// technologies speak the changes of a live-region node.
     pub live: Option<crate::announce::Politeness>,
+    /// The widget's availability (M22, ADR-0028): `false` on a control
+    /// that must refuse — the AT reads the truth (AccessKit's `disabled`
+    /// property), the same snapshot every other property rides.
+    pub enabled: bool,
 }
 
 /// The full accessibility snapshot of the widget tree, built by pass 9.
@@ -582,25 +586,16 @@ impl PassPipeline {
         self.observer = Some(observer);
     }
 
-    /// Removes the observer (back to zero-cost silence).
-    pub fn clear_observer(&mut self) {
-        self.observer = None;
-    }
-
     /// Enables per-pass wall timing and the overhead ledger (the M1 gate
     /// instrumentation; benches and the overhead test turn this on).
     pub fn set_timings(&mut self, on: bool) {
         self.timings = on;
     }
 
-    /// Whether per-pass timing is enabled.
-    #[must_use]
-    pub const fn timings_enabled(&self) -> bool {
-        self.timings
-    }
-
     /// Requests keyboard focus for `node` (resolved by pass 3 next tick).
-    /// Requests for non-focusable or dead nodes are dropped silently.
+    /// Requests for non-focusable, unavailable, or dead nodes are dropped
+    /// silently (the focusable derivation includes the availability tier,
+    /// M22 — ADR-0028).
     pub fn request_focus(&mut self, node: NodeId) {
         self.pending_focus = Some(node);
     }
@@ -1146,25 +1141,31 @@ impl PassPipeline {
     /// Moves focus one candidate forward (or backward with `reverse`).
     /// Wraps at both ends; `true` when focus moved.
     fn cycle_focus(&mut self, reverse: bool) -> bool {
-        if self.focusables.is_empty() {
+        // The candidates the tier still answers for (M22, ADR-0028): the
+        // cache may name a control that became unavailable since pass 2
+        // recomputed it — the cycle-time check keeps Tab honest without
+        // paying a recompute on every availability write.
+        let candidates: Vec<NodeId> = self
+            .focusables
+            .iter()
+            .copied()
+            .filter(|id| self.arena.widget(*id).enabled())
+            .collect();
+        if candidates.is_empty() {
             return false;
         }
         let next = match self.focused {
             Some(current) => {
-                let position = self
-                    .focusables
-                    .iter()
-                    .position(|c| *c == current)
-                    .unwrap_or(0);
+                let position = candidates.iter().position(|c| *c == current).unwrap_or(0);
                 if reverse {
-                    (position + self.focusables.len() - 1) % self.focusables.len()
+                    (position + candidates.len() - 1) % candidates.len()
                 } else {
-                    (position + 1) % self.focusables.len()
+                    (position + 1) % candidates.len()
                 }
             }
             None => 0,
         };
-        let target = self.focusables[next];
+        let target = candidates[next];
         if Some(target) == self.focused {
             return false;
         }
@@ -1529,11 +1530,22 @@ impl PassPipeline {
         // Focus held by a removed widget is dropped (Masonry's sentinel
         // discipline: a dead focus target must never survive the frame). The
         // dead slot is gone from the index — no mask to merge, just release.
-        if let Some(current) = self.focused
-            && !self.node_is_live(current)
-        {
-            self.focused = None;
-            changed = true;
+        // The same discipline evicts a control that became unavailable
+        // (M22, ADR-0028): the slot is live, so the release repainting the
+        // focus ring is the widget's own PAINT merge, exactly like a move.
+        if let Some(current) = self.focused {
+            let dead = !self.node_is_live(current);
+            let unavailable = !dead && !self.arena.widget(current).enabled();
+            if dead || unavailable {
+                if unavailable {
+                    self.arena
+                        .merge_mask(current, Change::FOCUS.union(Change::PAINT));
+                    let mut guard = self.arena.mutate(current);
+                    guard.widget_mut().set_focused(false);
+                }
+                self.focused = None;
+                changed = true;
+            }
         }
         changed
     }
@@ -1774,6 +1786,7 @@ impl PassPipeline {
                 table_slot: slot.widget().table_slot(),
                 selection: slot.widget().selection(),
                 live: None,
+                enabled: slot.widget().enabled(),
             };
             if snapshot.root.is_none() {
                 snapshot.root = Some(node.id);
@@ -1805,6 +1818,7 @@ impl PassPipeline {
                 table_slot: None,
                 selection: None,
                 live: Some(politeness),
+                enabled: true,
             });
         }
         snapshot
@@ -2362,6 +2376,66 @@ mod tests {
         }
     }
 
+    /// A button whose availability flips through the mutate seam — the
+    /// M22 exit route's test double (the tier's single source of truth,
+    /// read by the focus passes and the snapshot alike).
+    struct Switchable {
+        size: crate::geom::Size,
+        enabled: bool,
+        pressed: bool,
+    }
+
+    impl Switchable {
+        fn new(size: crate::geom::Size) -> Self {
+            Self {
+                size,
+                enabled: true,
+                pressed: false,
+            }
+        }
+    }
+
+    impl Widget for Switchable {
+        fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+            self
+        }
+        fn role(&self) -> Role {
+            Role::Button
+        }
+
+        fn label(&self) -> LabelSource {
+            LabelSource::text("switchable")
+        }
+
+        fn measure_spec(&self) -> Option<crate::style::MeasureSpec> {
+            Some(crate::style::MeasureSpec::Fixed(self.size))
+        }
+
+        fn enabled(&self) -> bool {
+            self.enabled
+        }
+
+        fn on_pointer_event(
+            &mut self,
+            ctx: &mut crate::events::EventCtx,
+            event: &PointerEvent,
+        ) -> EventResponse {
+            match event {
+                PointerEvent::Down { .. } => {
+                    self.pressed = true;
+                    ctx.request(Change::PAINT.union(Change::FOCUS));
+                    EventResponse::Handled
+                }
+                PointerEvent::Up { .. } => {
+                    self.pressed = false;
+                    ctx.request(Change::PAINT);
+                    EventResponse::Handled
+                }
+                _ => EventResponse::Ignored,
+            }
+        }
+    }
+
     /// Records `(phase, name)` for every routed event into a shared log; can
     /// stop a phase early to prove capture/bubble semantics.
     struct Recorder {
@@ -2600,6 +2674,142 @@ mod tests {
             p.focusables(),
             &[button],
             "the button is the only candidate"
+        );
+    }
+
+    #[test]
+    fn an_unavailable_control_is_no_focus_candidate_and_no_tab_stop() {
+        // M22, ADR-0028: the availability tier joins the focusable
+        // derivation — a control that must refuse is never a candidate,
+        // and a request aimed at it is refused silently (the M18
+        // species' rule, one predicate wider).
+        let mut p = pipeline();
+        let root = p.mount_root(Box::new(Fixed {
+            size: Size::new(200.0, 100.0),
+        }));
+        let disabled = p.add_child(
+            root,
+            Box::new(Switchable {
+                size: Size::new(80.0, 20.0),
+                enabled: false,
+                pressed: false,
+            }),
+        );
+        let _ = p.tick(viewport()).expect("first frame");
+        assert!(
+            p.focusables().is_empty(),
+            "the unavailable control is no candidate"
+        );
+
+        p.request_focus(disabled);
+        let _ = p.tick(viewport()).expect("request frame");
+        assert_eq!(p.focus(), None, "the request is refused");
+    }
+
+    #[test]
+    fn focus_is_evicted_when_a_control_becomes_unavailable() {
+        // The sentinel discipline one predicate wider: focus held by a
+        // control that becomes unavailable does not survive the frame —
+        // and the release repaints the focus ring (the live slot merges
+        // FOCUS | PAINT, exactly like a move).
+        let mut p = pipeline();
+        let root = p.mount_root(Box::new(Fixed {
+            size: Size::new(200.0, 100.0),
+        }));
+        let button = p.add_child(root, Box::new(Switchable::new(Size::new(80.0, 20.0))));
+        let _ = p.tick(viewport()).expect("first frame");
+        p.request_focus(button);
+        let _ = p.tick(viewport()).expect("focus frame");
+        assert_eq!(p.focus(), Some(button));
+
+        // The mutate seam: the availability write in place, the write's
+        // own masks on the guard (the walk the m22 exit suite drives).
+        let mut guard = p.arena_mut().mutate(button);
+        let widget = guard
+            .widget_mut()
+            .as_any_mut()
+            .downcast_mut::<Switchable>()
+            .expect("the node is the switchable");
+        widget.enabled = false;
+        drop(guard);
+        let _ = p.tick(viewport()).expect("eviction frame");
+        assert_eq!(p.focus(), None, "an unavailable control holds no focus");
+    }
+
+    #[test]
+    fn the_availability_flag_rides_the_a11y_snapshot() {
+        // M22, ADR-0028: pass 9 carries the flag the widget reports, so
+        // the AT reads the truth without a second channel — and the
+        // reserved live region stays available (it is never a control).
+        let mut p = pipeline();
+        let root = p.mount_root(Box::new(Fixed {
+            size: Size::new(200.0, 100.0),
+        }));
+        let button = p.add_child(root, Box::new(Switchable::new(Size::new(80.0, 20.0))));
+        let _ = p.tick(viewport()).expect("first frame");
+        let tree = p.a11y_snapshot().expect("a11y tree");
+        let node = tree
+            .nodes
+            .iter()
+            .find(|n| n.role == Role::Button)
+            .expect("the button is in the snapshot");
+        assert!(node.enabled, "an available control reports available");
+
+        let mut guard = p.arena_mut().mutate(button);
+        guard
+            .widget_mut()
+            .as_any_mut()
+            .downcast_mut::<Switchable>()
+            .expect("the node is the switchable")
+            .enabled = false;
+        drop(guard);
+        p.arena_mut()
+            .merge_mask(button, Change::PAINT.union(Change::A11Y));
+        let _ = p.tick(viewport()).expect("availability frame");
+        let tree = p.a11y_snapshot().expect("a11y tree");
+        let node = tree
+            .nodes
+            .iter()
+            .find(|n| n.role == Role::Button)
+            .expect("the button is in the snapshot");
+        assert!(!node.enabled, "the snapshot carries the refusal");
+    }
+
+    #[test]
+    fn a_refused_press_costs_an_idle_frame() {
+        // The M11 rule at the availability seam: the action is refused —
+        // never munged — and the refusal queues no masks, so the frame
+        // after the refused action runs nothing at all.
+        let mut p = pipeline();
+        let root = p.mount_root(Box::new(Fixed {
+            size: Size::new(200.0, 100.0),
+        }));
+        let _button = p.add_child(
+            root,
+            Box::new(Switchable {
+                size: Size::new(80.0, 20.0),
+                enabled: false,
+                pressed: false,
+            }),
+        );
+        let _ = p.tick(viewport()).expect("first frame");
+
+        let hash = {
+            let tree = p.a11y_snapshot().expect("a11y tree");
+            tree.nodes
+                .iter()
+                .find(|n| n.role == Role::Button)
+                .expect("the button is in the snapshot")
+                .id
+        };
+        assert!(
+            !p.dispatch_a11y_action(hash, crate::widget::A11yAction::DefaultPress),
+            "the press is refused"
+        );
+        let report = p.tick(viewport()).expect("the frame after the refusal");
+        assert!(
+            !report.paint_ran && !report.a11y_ran,
+            "a refused action costs an idle frame"
         );
     }
 

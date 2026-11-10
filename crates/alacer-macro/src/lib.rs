@@ -69,7 +69,7 @@ impl Parse for Body {
             }
             // `for` — a keyword child.
             if input.peek(syn::Token![for]) {
-                let for_token: syn::Token![for] = input.parse()?;
+                input.parse::<syn::Token![for]>()?;
                 let pattern = syn::Pat::parse_single(input)?;
                 let _in_token: syn::Token![in] = input.parse()?;
                 let iter = expr_until_brace(input)?;
@@ -77,7 +77,6 @@ impl Parse for Body {
                 syn::braced!(body in input);
                 let parsed: Body = body.parse()?;
                 let element = one_element(parsed, "a `for` body", body.span())?;
-                let _ = &element;
                 let counter = LOOP_DEPTH.with(|cell| {
                     let mut depth = cell.borrow_mut();
                     *depth += 1;
@@ -88,7 +87,6 @@ impl Parse for Body {
                     ::std::iter::Iterator::map(#counter, |#pattern| #element)
                         .collect::<::std::vec::Vec<::alacer_view::ViewNode>>()
                 }) }));
-                let _ = for_token;
                 continue;
             }
             // `if` — a keyword child.
@@ -211,12 +209,20 @@ thread_local! {
 
 /// Exactly one compiled element from a `for`/`if` body (the body contract).
 fn one_element(body: Body, what: &str, span: proc_macro2::Span) -> syn::Result<TokenStream2> {
+    let found = body.items.len();
     let mut items = body.items;
     match (items.pop(), items.is_empty()) {
         (Some(Item::Child(element)), true) => Ok(element),
+        // The ADR-0025 diagnostic species: the cardinality is named —
+        // "found 0" is a missing element, "found 2" a collision — with
+        // the miette-class `help:` the fix suggests.
         _ => Err(syn::Error::new(
             span,
-            format!("{what} must contain exactly one element"),
+            format!(
+                "{what} must contain exactly one element, found {found}; \
+                 help: a body holds one element like `label {{ ... }}` — \
+                 wrap siblings in a container (column or row)"
+            ),
         )),
     }
 }

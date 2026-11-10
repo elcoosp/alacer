@@ -401,6 +401,20 @@ pub trait Widget: 'static {
         None
     }
 
+    /// Whether the control accepts interaction (M22, ADR-0028): the
+    /// availability tier's single source of truth. An unavailable control
+    /// reports itself to the a11y tree (the sink maps the flag onto
+    /// AccessKit's `disabled` property), refuses every door honestly —
+    /// the pointer is a wall (the gesture never clicks through), the
+    /// keyboard never reaches it, and every AT action is refused, never
+    /// munged (the M11 rule) — holds no focus (the default [`Self::
+    /// focusable`] derivation consults this), and is never a Tab stop.
+    /// Reporting widgets and decorations are always available: only
+    /// actionable controls override this.
+    fn enabled(&self) -> bool {
+        true
+    }
+
     /// The widget's toggle state for the a11y tree (M6): checkboxes report
     /// their checked state so screen readers announce "checked"/"not
     /// checked". Non-toggle roles return `None`.
@@ -442,13 +456,16 @@ pub trait Widget: 'static {
     /// Whether this widget can hold keyboard focus (§7.2 pass 2 recomputes
     /// the candidates from this predicate after structure changes).
     ///
-    /// The default derives from the semantic role: actionable inputs are
-    /// focusable. Override for custom controls.
+    /// The default derives from the semantic role — actionable inputs are
+    /// focusable — *and* from the availability tier (M22, ADR-0028): an
+    /// unavailable control is never a focus candidate, so a widget that
+    /// overrides [`Self::enabled`] needs no `focusable` override of its
+    /// own. Override for custom controls.
     fn focusable(&self) -> bool {
         matches!(
             self.role(),
             Role::Button | Role::TextInput | Role::CheckBox | Role::Slider
-        )
+        ) && self.enabled()
     }
 
     /// The `Any` escape hatch for in-place patching (§6.1: view diffs mutate

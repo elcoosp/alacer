@@ -396,12 +396,6 @@ impl Flux {
     pub const fn counters(&self) -> &Arc<FluxCounters> {
         &self.counters
     }
-
-    /// Number of live effects owned by this flux.
-    #[must_use]
-    pub fn effect_count(&self) -> usize {
-        self.effects.len()
-    }
 }
 
 /// A shared, live value written by effects and read by widgets — the render

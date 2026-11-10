@@ -50,7 +50,6 @@ pub struct TodoHandles {
     /// The footer binding: "N items left", updated by the flux bridge.
     pub footer: RenderBinding<String>,
     root: ViewRoot,
-    footer_node: alacer_core::NodeId,
     wake: WakeUp,
 }
 
@@ -120,13 +119,6 @@ impl TodoHandles {
             }
             self.todos.set(next);
         });
-    }
-
-    /// The footer label's arena node (the binding's target; assembly-site
-    /// introspection).
-    #[must_use]
-    pub const fn footer_node(&self) -> alacer_core::NodeId {
-        self.footer_node
     }
 
     /// The mounted root's node.
@@ -272,7 +264,6 @@ pub fn todo_app(pipeline: &mut PassPipeline, wake: WakeUp) -> TodoHandles {
         todos,
         footer,
         root,
-        footer_node,
         wake,
     }
 }
@@ -525,6 +516,9 @@ mod tests {
         }
         fn retain(&mut self, _: &[NodeId]) {}
         fn clear(&mut self) {}
+        fn stats(&self) -> alacer_core::passes::JournalStats {
+            alacer_core::passes::JournalStats::default()
+        }
     }
 
     /// A recording sink: keeps the last resolved tree for queries.

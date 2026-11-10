@@ -310,6 +310,28 @@ pub trait SceneJournal {
 
     /// Drops every layer (structural rebuilds).
     fn clear(&mut self);
+
+    /// The journal's own ledger (ADR-0029): the commits and drops it has
+    /// recorded and the layers currently live. The consumer reads it
+    /// through [`PassPipeline::journal_stats`] — the frame's cost, as the
+    /// journal itself accounts it (one write batch ⇒ one layer re-commit;
+    /// clean layers replay untouched; idle frames write nothing).
+    #[must_use]
+    fn stats(&self) -> JournalStats;
+}
+
+/// The scene journal's ledger (ADR-0029): what the paint pass has cost the
+/// journal so far. `SceneJournalImpl` accounts it exactly; a journal that
+/// does not account answers the zero value — the honest default for
+/// storage that keeps no books.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct JournalStats {
+    /// Layer commits so far (re-emissions included).
+    pub commits: u64,
+    /// Layer drops (structural churn).
+    pub drops: u64,
+    /// Layers currently live.
+    pub live_layers: usize,
 }
 
 /// Counters for the frame-level scheduling contract.
@@ -724,6 +746,15 @@ impl PassPipeline {
     #[must_use]
     pub const fn counters(&self) -> FrameCounters {
         self.counters
+    }
+
+    /// The scene journal's ledger (ADR-0029): commits, drops, and live
+    /// layers, as the journal itself accounts them. One read, no second
+    /// channel — the consumer's window into what one write batch cost
+    /// (`examples/frame_ledger.rs` is the demonstration).
+    #[must_use]
+    pub fn journal_stats(&self) -> JournalStats {
+        self.journal.stats()
     }
 
     /// The a11y sink's resolved tree (harness queries).
@@ -2011,6 +2042,16 @@ mod tests {
 
         fn clear(&mut self) {
             self.layers.lock().expect("journal lock").clear();
+        }
+
+        fn stats(&self) -> JournalStats {
+            let commits = *self.commits.lock().expect("journal lock");
+            let live_layers = self.layers.lock().expect("journal lock").len();
+            JournalStats {
+                commits,
+                drops: 0,
+                live_layers,
+            }
         }
     }
 

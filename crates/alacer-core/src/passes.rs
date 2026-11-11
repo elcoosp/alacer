@@ -27,7 +27,7 @@ use crate::events::{EventPhase, ImeEvent, KeyEvent, PointerEvent};
 use crate::flux::Flux;
 use crate::geom::{Point, Rect, Size, Vector};
 use crate::inspect::{
-    DIRTY_HEATMAP_CAP, DirtyNode, FrameSummary, InputKind, InputRecord, InspectEvent,
+    DIRTY_HEATMAP_CAP, DirtyNode, FocusRecord, FrameSummary, InputKind, InputRecord, InspectEvent,
     InspectObserver, PassTiming,
 };
 use crate::mask::Change;
@@ -636,6 +636,9 @@ impl FrameReport {
 
     /// The four injected stages do the frame's substantive work; everything
     /// else in the tick is pass-system bookkeeping (§7.2 kill criterion).
+    /// Gate-only measurement: the M1 gate test is the sole reader (the M28
+    /// sweep's finding — the introspection was never a public surface).
+    #[cfg(test)]
     fn work_nanos(&self) -> u64 {
         self.passes
             .iter()
@@ -654,15 +657,22 @@ impl FrameReport {
 
     /// Pass-system bookkeeping nanoseconds: the tick minus the injected
     /// stages' substantive work. Only meaningful with timings on.
+    ///
+    /// Crate-private: the §7.2 M1 gate is the only consumer (the M25
+    /// species — a public accessor whose callers were all in-crate tests).
+    #[cfg(test)]
     #[must_use]
-    pub fn pass_overhead_nanos(&self) -> u64 {
+    pub(crate) fn pass_overhead_nanos(&self) -> u64 {
         self.total_nanos.saturating_sub(self.work_nanos())
     }
 
     /// `pass_overhead_nanos / total_nanos` — the M1 gate ratio: the collapse
     /// trigger fires above 0.15 on the 10k-node churn workload (§7.2).
+    /// Crate-private: the gate test is the only consumer (the M25
+    /// species).
+    #[cfg(test)]
     #[must_use]
-    pub fn pass_overhead_ratio(&self) -> f32 {
+    pub(crate) fn pass_overhead_ratio(&self) -> f32 {
         if self.total_nanos == 0 {
             return 0.0;
         }
@@ -829,6 +839,10 @@ impl PassPipeline {
         );
         let _guard = span.enter();
         let outcome = self.cycle_focus(movement);
+        // The causal log (ADR-0034): the door's answer streams as data
+        // — the landing or the named refusal — the moment the walk resolves,
+        // one record per ride, whoever the rider is.
+        self.notify_focus(movement, None, outcome);
         if let Some(landing) = outcome.landing() {
             tracing::trace!(
                 target: "alacer::focus",
@@ -889,9 +903,16 @@ impl PassPipeline {
                 scope = scope.raw(),
                 "refused: the scope node is dead — help: focus_move_in walks the live subtree rooted at `scope`; the unscoped door is focus_move"
             );
-            return FocusMoveOutcome::Refused(FocusRefusal::DeadScope { scope });
+            let refused = FocusMoveOutcome::Refused(FocusRefusal::DeadScope { scope });
+            // The early refusal streams too (ADR-0034): the causal log
+            // answers "why didn't focus change" for the dead scope.
+            self.notify_focus(movement, Some(scope), refused);
+            return refused;
         }
         let outcome = self.cycle_focus_in(Some(scope), movement);
+        // The scoped ride streams with its scope named (ADR-0034) — the
+        // trap's landings and refusals trail beside the unscoped ones.
+        self.notify_focus(movement, Some(scope), outcome);
         if let Some(landing) = outcome.landing() {
             tracing::trace!(
                 target: "alacer::focus",
@@ -1309,6 +1330,38 @@ impl PassPipeline {
             run.ran = true;
         }
 
+        // The directional keys (M29, ADR-0035): a plain arrow the
+        // focused widget did not answer — a D-pad button, a TV
+        // remote's ring — maps onto its [`FocusMove`] at the same
+        // fallback seam and rides the same funnel (ADR-0030's rule; the
+        // platform's key map already carries the arrows). The widget's
+        // answer always took precedence above — a focused input's
+        // caret and a slider's step are the widget's vocabulary. The
+        // chords stay the widgets' vocabulary too: a modifier held (a
+        // caret's Shift+Arrow, a word hop's Alt+Arrow) is never the
+        // window's walk, and a refused direction falls through — the
+        // key is nobody's, the M11 rule at the dispatch seam, the M28
+        // trail carrying the refusal like every ride.
+        if response == EventResponse::Ignored
+            && event.state == crate::events::KeyState::Pressed
+            && !event.modifiers.shift
+            && !event.modifiers.control
+            && !event.modifiers.alt
+            && !event.modifiers.meta
+            && let Some(movement) = match event.key {
+                crate::events::Key::ArrowLeft => Some(FocusMove::Left),
+                crate::events::Key::ArrowRight => Some(FocusMove::Right),
+                crate::events::Key::ArrowUp => Some(FocusMove::Up),
+                crate::events::Key::ArrowDown => Some(FocusMove::Down),
+                _ => None,
+            }
+        {
+            if self.focus_move(movement).moved() {
+                response = EventResponse::Handled;
+            }
+            run.ran = true;
+        }
+
         run.nanos = start.map_or(0, |t| crate::num::u128_to_u64(t.elapsed().as_nanos()));
         drop(guard);
         self.interframe.push(run);
@@ -1363,6 +1416,29 @@ impl PassPipeline {
     fn notify_input(&mut self, kind: InputKind, target: Option<NodeId>) {
         if let Some(observer) = self.observer.as_mut() {
             observer.observe(InspectEvent::Input(InputRecord { kind, target }));
+        }
+    }
+
+    /// Forwards one focus-door answer to the observer, when installed
+    /// (§13.3, ADR-0034): the walk's landing or its named refusal — the
+    /// "why did focus change — or why didn't it" trail. The record is the
+    /// door's own outcome verbatim ([`FocusRecord`]), streamed when the
+    /// door resolves — before the input record the dispatch forwards and
+    /// the frame summary the tick forwards — so a key event's trail reads
+    /// focus → input → frame. One branch when no
+    /// observer is installed: the A7 idle contract is unchanged.
+    fn notify_focus(
+        &mut self,
+        movement: FocusMove,
+        scope: Option<NodeId>,
+        outcome: FocusMoveOutcome,
+    ) {
+        if let Some(observer) = self.observer.as_mut() {
+            observer.observe(InspectEvent::Focus(FocusRecord {
+                movement,
+                scope,
+                outcome,
+            }));
         }
     }
 

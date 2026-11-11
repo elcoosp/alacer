@@ -13,13 +13,14 @@
 //! | "Who subscribes to this signal?" | the flux's edge table (`Flux::edge_table`) — the binding registrations |
 //! | "Why is this frame slow?" | [`FrameSummary::passes`] — the per-pass ledger with wall times |
 //! | "What did this mask touch?" | [`FrameSummary::dirty`] — the mask heatmap: role, label, bounds, mask per dirty node |
+//! | "Why did focus change — or why didn't it?" | [`InspectEvent::Focus`] — the walk's own answer, streamed as the doors resolve (ADR-0034) |
 
 use crate::arena::NodeId;
 use crate::damage::Damage;
 use crate::geom::Rect;
 use crate::geom::Size;
 use crate::mask::Change;
-use crate::passes::PassKind;
+use crate::passes::{FocusMove, FocusMoveOutcome, PassKind};
 use crate::widget::Role;
 
 /// Identity of one signal in the causal log: a 64-bit key hashed from the
@@ -151,6 +152,28 @@ pub struct FrameSummary {
     pub dirty_truncated: usize,
 }
 
+/// One focus-move door ride (§13.3, ADR-0034): the causal log's answer to
+/// "why did focus change — or why didn't it". The record is the door's own
+/// outcome ([`FocusMoveOutcome`]) carried verbatim — the movement the
+/// caller asked for, the scope that bounded the walk, and the landing or
+/// the named refusal species the walk answered. It streams the moment the
+/// door resolves (a refused ride streams too — that is exactly the fact
+/// the log exists for), so a key event's trail reads focus → input →
+/// frame (the record streams when the door resolves, before the input
+/// record the dispatch forwards).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FocusRecord {
+    /// The movement the caller asked the walk for.
+    pub movement: FocusMove,
+    /// The subtree root that bounded the walk — the modal's focus trap
+    /// ([`crate::passes::PassPipeline::focus_move_in`]); `None` for the
+    /// unscoped funnel ([`crate::passes::PassPipeline::focus_move`]).
+    pub scope: Option<NodeId>,
+    /// The outcome the door returned — the landing or the refusal
+    /// species, the same value the door handed its caller.
+    pub outcome: FocusMoveOutcome,
+}
+
 /// One observation: what the pipeline and the flux surface to devtools.
 #[derive(Debug, Clone)]
 pub enum InspectEvent {
@@ -160,6 +183,10 @@ pub enum InspectEvent {
     Write(SignalWrite),
     /// An input event was routed.
     Input(InputRecord),
+    /// A focus-move door answered — the walk's landing or
+    /// refusal, the "why did focus change — or why didn't it" trail
+    /// (ADR-0034).
+    Focus(FocusRecord),
     /// A frame completed — the frame's causal summary.
     Frame(FrameSummary),
 }

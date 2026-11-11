@@ -181,6 +181,56 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M29 — the directional keys ride the walk (ADR-0035)**: a plain
+  directional key the focused widget did not answer — a D-pad button,
+  a TV remote's ring — maps onto its `FocusMove` at
+  `PassPipeline::dispatch_key`'s fallback (the seam Tab and Shift+Tab
+  ride since M24) and lands the geometry's answer through the real
+  dispatch path — ADR-0032's pre-registered re-open rule cashed. The
+  platform's key map already carries the four arrows
+  (`alacer-platform/src/keys.rs`), so the seam is one `match` — no
+  second dispatch channel. The widget's answer always takes precedence
+  (a focused input's caret, a slider's step — the m20/m11/m13
+  contracts stand), a modifier held means the key belongs to whatever
+  vocabulary answers it (the chords are the widgets'; the window's
+  walk is never a chord's rider), and a refused direction falls
+  through honestly (`EventResponse::Ignored`, the refused Tab's
+  shape) with the M28 trail carrying the arrows' rides like every
+  ride — one funnel, now three riders: Tab, the code, the ring.
+  `examples/dpad_navigation.rs` is the consumer demonstration: the
+  M26 window walked by arrow presses through the real dispatch, with
+  tracing spans at `alacer::dpad_navigation`. The corpus stands at 62:
+  the arrows ride the published routes (no new criterion case).
+
+- **M28 — the walk joins the causal log (ADR-0034)**: every focus-move
+  door ride streams one `InspectEvent::Focus` the moment the door
+  resolves, carrying a `FocusRecord` (the movement the caller asked
+  for, the scope that bounded the walk — `None` for the unscoped
+  funnel — and the door's own `FocusMoveOutcome` verbatim) —
+  ADR-0033's pre-registered re-open rule ("a consumer needs to observe
+  the walk's refusals as *streamed events*") cashed. One funnel, two
+  doors, one trail: the keyboard's Tab fallback rides `focus_move`, so
+  its rides stream the same records the consumer's code streams, and
+  the scoped door's dead-scope refusal streams before the walk runs.
+  The walk behind the doors is untouched (the same candidate list, the
+  same availability filter, the same wrap, the same immediate
+  resolution, the same no-mask idle refusals — the M11 rule stays);
+  without an observer the doors pay one branch per call (the A7 idle
+  contract unchanged). The recorder grows the bounded focus ring
+  beside its frames/edges/writes/inputs (`FOCUS_RING_CAP`, oldest
+  dropped first — the §14.3 discipline; `CausalRecorder::focus()` is
+  the read door), and the wire grows `WireEvent::Focus` with the
+  documented flat shape (`movement`, `scope`, `moved`, `from`, `to`,
+  `wrapped`, `refusal`, `node`, `direction`) — a new event kind,
+  additive by the protocol's own versioning rule, `PROTOCOL_VERSION`
+  stays 1. `examples/focus_trail.rs` is the consumer demonstration:
+  the M26 window walked one beat per `FocusMove` with the observer
+  riding, every beat logging the streamed record beside the door's
+  own answer, with tracing spans at `alacer::focus_trail`. The
+  observed route (`input/route_100_observed_moves_1k`) joins the
+  published corpus beside the four focus routes, the corpus pins
+  moving 61 → 62 across the m5–m27 chain in the same cut.
+
 - **M27 — the walk's answer as data (ADR-0033)**: the two focus doors
   (`PassPipeline::focus_move`, `PassPipeline::focus_move_in`) grow their
   answer from the M24-era boolean into the `FocusMoveOutcome` vocabulary —

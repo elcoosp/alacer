@@ -74,12 +74,14 @@ impl MountedView {
                         crate::view::PropValue::Handler(_)
                             | crate::view::PropValue::TextHandler(_)
                             | crate::view::PropValue::FlagHandler(_)
+                            | crate::view::PropValue::NumberHandler(_)
                     )
                     && !matches!(
                         b.1,
                         crate::view::PropValue::Handler(_)
                             | crate::view::PropValue::TextHandler(_)
                             | crate::view::PropValue::FlagHandler(_)
+                            | crate::view::PropValue::NumberHandler(_)
                     )
             })
     }

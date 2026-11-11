@@ -7,7 +7,7 @@
 use crate::server::push_broadcast;
 use crate::wire::WireEvent;
 use alacer_core::inspect::{
-    EdgeActivation, FocusRecord, InputKind, InspectEvent, InspectObserver, SignalWrite,
+    EdgeActivation, EditRecord, FocusRecord, InputKind, InspectEvent, InspectObserver, SignalWrite,
 };
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -27,6 +27,10 @@ pub const WRITE_RING_CAP: usize = 1_024;
 pub const INPUT_RING_CAP: usize = 512;
 /// The focus-trail ring's cap (oldest dropped first, ADR-0034).
 pub const FOCUS_RING_CAP: usize = 512;
+/// The edit-trail ring's cap (oldest dropped first, ADR-0037) — the
+/// journal's own bound ([`alacer_core::history::EDIT_TRAIL_CAP`]) at the
+/// recorder side, the same order the input and focus rings ride.
+pub const EDIT_RING_CAP: usize = 512;
 
 /// One recorded frame (the wire conversion lives in [`crate::wire`]).
 #[derive(Debug, Clone)]
@@ -44,6 +48,7 @@ struct Recording {
     writes: VecDeque<SignalWrite>,
     inputs: VecDeque<(InputKind, Option<alacer_core::arena::NodeId>)>,
     focus: VecDeque<FocusRecord>,
+    edits: VecDeque<EditRecord>,
     /// The most recent frame, for "what does the inspector see right now".
     latest: Option<alacer_core::inspect::FrameSummary>,
     /// The wire-shaped events awaiting the server's session drain (push, not
@@ -116,6 +121,14 @@ impl CausalRecorder {
         self.lock().focus.iter().copied().collect()
     }
 
+    /// The recorded edit trail, oldest first (ADR-0037): every journal
+    /// action the pipeline's drain forwarded — applied steps, refused
+    /// chords, the app's resets — bounded by [`EDIT_RING_CAP`].
+    #[must_use]
+    pub fn edits(&self) -> Vec<EditRecord> {
+        self.lock().edits.iter().copied().collect()
+    }
+
     /// The most recent frame, when any frame was observed.
     #[must_use]
     pub fn latest_frame(&self) -> Option<alacer_core::inspect::FrameSummary> {
@@ -136,6 +149,7 @@ impl CausalRecorder {
             recording.writes.clear();
             recording.inputs.clear();
             recording.focus.clear();
+            recording.edits.clear();
         }
     }
 
@@ -201,6 +215,9 @@ impl InspectObserver for RecorderHandle {
             }
             InspectEvent::Focus(record) => {
                 push_bounded(&mut recording.focus, FOCUS_RING_CAP, record);
+            }
+            InspectEvent::Edit(record) => {
+                push_bounded(&mut recording.edits, EDIT_RING_CAP, record);
             }
             InspectEvent::Frame(summary) => {
                 self.frames_seen.fetch_add(1, Ordering::Relaxed);
@@ -331,6 +348,53 @@ mod tests {
         assert!(!*moved);
         assert_eq!(refusal.as_deref(), Some("nothing_in_direction"));
         assert_eq!(direction.as_deref(), Some("right"));
+    }
+
+    #[test]
+    fn edit_records_ring_in_order_and_are_bounded() {
+        use alacer_core::history::EditAction;
+        let recorder = CausalRecorder::new("edits");
+        let mut handle = recorder.clone_handle();
+        for _ in 0..(super::EDIT_RING_CAP + 10) {
+            handle.observe(InspectEvent::Edit(alacer_core::inspect::EditRecord {
+                action: EditAction::Record,
+                coalesced: true,
+                refused: false,
+                undo_depth: 1,
+                redo_depth: 0,
+            }));
+        }
+        let edits = recorder.edits();
+        assert_eq!(edits.len(), super::EDIT_RING_CAP, "the ring is bounded");
+        assert_eq!(
+            edits[0].action,
+            EditAction::Record,
+            "the survivors keep order"
+        );
+
+        // The refused chord rides the same ring, the wire carrying the
+        // refusal flag beside the action.
+        handle.observe(InspectEvent::Edit(alacer_core::inspect::EditRecord {
+            action: EditAction::Undo,
+            coalesced: false,
+            refused: true,
+            undo_depth: 0,
+            redo_depth: 0,
+        }));
+        let drained = recorder.take_broadcast();
+        let last = drained.last().expect("the refusal broadcast");
+        let crate::wire::WireEvent::Edit {
+            action,
+            refused,
+            undo_depth,
+            ..
+        } = last
+        else {
+            panic!("the edit broadcast");
+        };
+        assert_eq!(action, "undo");
+        assert!(*refused);
+        assert_eq!(*undo_depth, 0);
     }
 
     #[test]

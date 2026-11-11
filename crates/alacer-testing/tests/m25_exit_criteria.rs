@@ -370,9 +370,9 @@ fn m25_the_living_documents_re_agree() {
     // example table carries the demonstration.
     let readme = read_workspace_file("README.md");
     for fragment in [
-        "version-0.16.0",
-        "M0 through M27",
-        "thirty-four decision records",
+        "version-0.17.0",
+        "M0 through M29",
+        "thirty-six decision records",
         "Since M25 the walk is bounded too",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
@@ -394,7 +394,7 @@ fn m25_the_living_documents_re_agree() {
     let architecture = read_workspace_file("docs/architecture.md");
     for fragment in [
         "ADR-0031",
-        "34 decision records",
+        "36 decision records",
         "the focus walk bounds to a subtree",
     ] {
         assert!(
@@ -432,11 +432,11 @@ fn m25_the_living_documents_re_agree() {
             "crates/alacer-testing/tests/{suite}_exit_criteria.rs"
         ));
         assert!(
-            source.contains("M0 through M27") && source.contains("thirty-four decision records"),
+            source.contains("M0 through M29") && source.contains("thirty-six decision records"),
             "the {suite} suite's README pins moved with the documents"
         );
         assert!(
-            source.contains("34 decision records"),
+            source.contains("36 decision records"),
             "the {suite} suite's architecture pin moved with the register"
         );
     }
@@ -445,7 +445,7 @@ fn m25_the_living_documents_re_agree() {
             "crates/alacer-testing/tests/{suite}_exit_criteria.rs"
         ));
         assert!(
-            source.contains("version-0.16.0"),
+            source.contains("version-0.17.0"),
             "the {suite} suite's badge pin moved with the pending-cut convention"
         );
     }
@@ -499,7 +499,7 @@ fn m25_the_surface_rides_the_same_cut() {
     // coherent tree — the drift the M25 sweep repairs.
     let m7 = read_workspace_file("crates/alacer-testing/tests/m7_exit_criteria.rs");
     assert!(
-        m7.contains("M0 through M27"),
+        m7.contains("M0 through M29"),
         "the m7 suite's milestone pin moved with the documents"
     );
 

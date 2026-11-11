@@ -411,12 +411,6 @@ impl Arena {
         self.pending.push(PendingMutation { node, closure });
     }
 
-    /// The number of queued-but-not-drained mutations.
-    #[must_use]
-    pub fn pending_mutations(&self) -> usize {
-        self.pending.len()
-    }
-
     /// Drains all queued mutations, returning the nodes that were mutated
     /// (pass 4 feeds them to the style pass's recalc candidates, §7.2).
     ///
@@ -761,11 +755,11 @@ mod tests {
                 let _ = w;
             }),
         );
-        assert_eq!(arena.pending_mutations(), 1);
+        assert_eq!(arena.pending.len(), 1);
         let _ = arena.take_masks(Change::ALL); // isolate from mount masks
         let mutated = arena.drain_mutations();
         assert_eq!(mutated, vec![a], "the mutated node is reported to pass 5");
-        assert_eq!(arena.pending_mutations(), 0);
+        assert_eq!(arena.pending.len(), 0);
         assert_eq!(arena.mask(a), Change::empty());
     }
 

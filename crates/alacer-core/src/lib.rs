@@ -60,8 +60,8 @@ pub use flux::{Flux, FluxCounters, FluxRwSignal, FluxWriter, RenderBinding};
 pub use geom::{Point, Rect, Size, Vector};
 pub use input::EventCoalescer;
 pub use inspect::{
-    BindingId, DirtyNode, EdgeActivation, FocusRecord, FrameSummary, InputKind, InputRecord,
-    InspectEvent, InspectObserver, PassTiming, SignalKey, SignalWrite,
+    BindingId, DirtyNode, EdgeActivation, FocusRecord, FocusRider, FrameSummary, InputKind,
+    InputRecord, InspectEvent, InspectObserver, PassTiming, SignalKey, SignalWrite,
 };
 pub use mask::Change;
 pub use passes::{

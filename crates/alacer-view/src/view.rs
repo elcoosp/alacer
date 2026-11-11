@@ -84,6 +84,9 @@ impl ViewNode {
 pub type SharedTextHandler = Rc<RefCell<dyn FnMut(&str)>>;
 /// A shared state-carrying handler cell (the `PropValue::FlagHandler` slot).
 pub type SharedFlagHandler = Rc<RefCell<dyn FnMut(bool)>>;
+/// A shared value-carrying handler cell (the `PropValue::NumberHandler`
+/// slot) — the value tier's change handlers (`on_change` on a slider).
+pub type SharedNumberHandler = Rc<RefCell<dyn FnMut(f32)>>;
 
 /// A property value: the small, typed vocabulary `rsx!` props compile to.
 #[derive(Clone)]
@@ -104,9 +107,18 @@ pub enum PropValue {
     /// A state-carrying handler (`on_toggle` — M6): the event's payload is
     /// the widget's new state.
     FlagHandler(SharedFlagHandler),
+    /// A value-carrying handler (`on_change` — M32): the event's payload
+    /// is the widget's new value (the funnel's f32, clamped and snapped
+    /// inside the widget).
+    NumberHandler(SharedNumberHandler),
     /// A reactive text binding (`binding: my_binding`) — the label re-renders
     /// when the bound signal changes, no view re-run required (§6.1).
     Binding(alacer_core::flux::RenderBinding<String>),
+    /// A reactive value binding (`binding: my_f32_binding` — M32): the
+    /// value tier's reported value re-renders when the bound signal
+    /// changes, no view re-run required — the progress bridge's door,
+    /// typed by the value it carries.
+    NumberBinding(alacer_core::flux::RenderBinding<f32>),
 }
 
 impl std::fmt::Debug for PropValue {
@@ -119,7 +131,9 @@ impl std::fmt::Debug for PropValue {
             Self::Handler(_) => f.debug_tuple("Handler").field(&"<fn>").finish(),
             Self::TextHandler(_) => f.debug_tuple("TextHandler").field(&"<fn>").finish(),
             Self::FlagHandler(_) => f.debug_tuple("FlagHandler").field(&"<fn>").finish(),
+            Self::NumberHandler(_) => f.debug_tuple("NumberHandler").field(&"<fn>").finish(),
             Self::Binding(_) => f.debug_tuple("Binding").field(&"<bound>").finish(),
+            Self::NumberBinding(_) => f.debug_tuple("NumberBinding").field(&"<bound>").finish(),
         }
     }
 }
@@ -136,6 +150,7 @@ impl PartialEq for PropValue {
             (Self::Handler(a), Self::Handler(b)) => Rc::ptr_eq(a, b),
             (Self::TextHandler(a), Self::TextHandler(b)) => Rc::ptr_eq(a, b),
             (Self::FlagHandler(a), Self::FlagHandler(b)) => Rc::ptr_eq(a, b),
+            (Self::NumberHandler(a), Self::NumberHandler(b)) => Rc::ptr_eq(a, b),
             // Bindings never compare equal — nor does any other pairing:
             // a rebuild re-hangs the same binding slot, and the patcher
             // re-hangs idempotently.
@@ -189,6 +204,12 @@ impl From<bool> for PropValue {
 impl From<alacer_core::flux::RenderBinding<String>> for PropValue {
     fn from(value: alacer_core::flux::RenderBinding<String>) -> Self {
         Self::Binding(value)
+    }
+}
+
+impl From<alacer_core::flux::RenderBinding<f32>> for PropValue {
+    fn from(value: alacer_core::flux::RenderBinding<f32>) -> Self {
+        Self::NumberBinding(value)
     }
 }
 

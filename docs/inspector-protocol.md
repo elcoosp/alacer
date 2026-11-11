@@ -78,11 +78,16 @@ client frames must be (per RFC). The server answers `ping` with `pong`
 ### `focus` — a focus-move door answered ("why did focus change — or why didn't it?")
 
 ```json
-{"kind":"focus","movement":"right","scope":null,"moved":false,"from":null,"to":null,"wrapped":false,"refusal":"nothing_in_direction","node":9,"direction":"right"}
+{"kind":"focus","movement":"right","rider":"ring","scope":null,"moved":false,"from":null,"to":null,"wrapped":false,"refusal":"nothing_in_direction","node":9,"direction":"right"}
 ```
 
 - `movement` — the movement the caller asked for: one of `next`,
   `prev`, `left`, `right`, `up`, `down`.
+- `rider` — who rode the walk (M30, ADR-0036): `keyboard` (the
+  keyboard's Tab/Shift+Tab fallback), `ring` (the directional keys'
+  fallback — a D-pad button, a TV remote's ring), or `consumer` (the
+  app's own door calls). One funnel, three riders; the field is the
+  additive kind the versioning rule admits at version 1.
 - `scope` — the subtree root that bounded the walk (the scoped door's
   trap), `null` for the unscoped funnel.
 - `moved` — `true` when the walk landed, `false` when it refused.
@@ -104,7 +109,7 @@ streams too — so a key event's trail reads `focus` → `input` →
 `frame` (the record precedes the input record the dispatch forwards
 and the frame summary). Every ride on the funnel streams: the
 keyboard's Tab fallback, the app's doors, and the ring's arrows alike
-(ADR-0034/ADR-0035).
+(ADR-0034/ADR-0035), each naming its rider in `rider` (ADR-0036).
 
 ### `frame` — a completed frame ("why is this frame slow?", "what did this mask touch?")
 

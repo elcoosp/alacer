@@ -6,7 +6,9 @@
 
 use crate::server::push_broadcast;
 use crate::wire::WireEvent;
-use alacer_core::inspect::{EdgeActivation, InputKind, InspectEvent, InspectObserver, SignalWrite};
+use alacer_core::inspect::{
+    EdgeActivation, FocusRecord, InputKind, InspectEvent, InspectObserver, SignalWrite,
+};
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -23,6 +25,8 @@ pub const EDGE_RING_CAP: usize = 1_024;
 pub const WRITE_RING_CAP: usize = 1_024;
 /// The input ring's cap (oldest dropped first).
 pub const INPUT_RING_CAP: usize = 512;
+/// The focus-trail ring's cap (oldest dropped first, ADR-0034).
+pub const FOCUS_RING_CAP: usize = 512;
 
 /// One recorded frame (the wire conversion lives in [`crate::wire`]).
 #[derive(Debug, Clone)]
@@ -39,6 +43,7 @@ struct Recording {
     edges: VecDeque<EdgeActivation>,
     writes: VecDeque<SignalWrite>,
     inputs: VecDeque<(InputKind, Option<alacer_core::arena::NodeId>)>,
+    focus: VecDeque<FocusRecord>,
     /// The most recent frame, for "what does the inspector see right now".
     latest: Option<alacer_core::inspect::FrameSummary>,
     /// The wire-shaped events awaiting the server's session drain (push, not
@@ -103,6 +108,14 @@ impl CausalRecorder {
         self.lock().inputs.iter().copied().collect()
     }
 
+    /// The recorded focus trail, oldest first (ADR-0034): every
+    /// focus-move door ride the pipeline answered, landings and
+    /// refusals alike, bounded by [`FOCUS_RING_CAP`].
+    #[must_use]
+    pub fn focus(&self) -> Vec<FocusRecord> {
+        self.lock().focus.iter().copied().collect()
+    }
+
     /// The most recent frame, when any frame was observed.
     #[must_use]
     pub fn latest_frame(&self) -> Option<alacer_core::inspect::FrameSummary> {
@@ -122,6 +135,7 @@ impl CausalRecorder {
             recording.edges.clear();
             recording.writes.clear();
             recording.inputs.clear();
+            recording.focus.clear();
         }
     }
 
@@ -184,6 +198,9 @@ impl InspectObserver for RecorderHandle {
                     INPUT_RING_CAP,
                     (input.kind, input.target),
                 );
+            }
+            InspectEvent::Focus(record) => {
+                push_bounded(&mut recording.focus, FOCUS_RING_CAP, record);
             }
             InspectEvent::Frame(summary) => {
                 self.frames_seen.fetch_add(1, Ordering::Relaxed);
@@ -259,6 +276,59 @@ mod tests {
             2,
             "latest is the most recent frame"
         );
+    }
+
+    #[test]
+    fn focus_records_ring_in_order_and_are_bounded() {
+        use alacer_core::passes::{FocusMove, FocusMoveOutcome, FocusRefusal};
+        let recorder = CausalRecorder::new("focus");
+        let mut handle = recorder.clone_handle();
+        let node = alacer_core::arena::NodeId::allocate();
+        for i in 0..(super::FOCUS_RING_CAP + 10) {
+            handle.observe(InspectEvent::Focus(alacer_core::inspect::FocusRecord {
+                movement: FocusMove::Next,
+                scope: None,
+                outcome: FocusMoveOutcome::Moved(alacer_core::passes::FocusLanding {
+                    from: None,
+                    to: node,
+                    wrapped: false,
+                }),
+            }));
+            let _ = i;
+        }
+        let trail = recorder.focus();
+        assert_eq!(trail.len(), super::FOCUS_RING_CAP, "the trail is bounded");
+        assert_eq!(
+            trail[0].movement,
+            FocusMove::Next,
+            "the survivors keep order"
+        );
+
+        // The refusal rides the same ring, the wire carrying its species.
+        handle.observe(InspectEvent::Focus(alacer_core::inspect::FocusRecord {
+            movement: FocusMove::Right,
+            scope: None,
+            outcome: FocusMoveOutcome::Refused(FocusRefusal::NothingInDirection {
+                node,
+                direction: FocusMove::Right,
+            }),
+        }));
+        let drained = recorder.take_broadcast();
+        let last = drained.last().expect("the refusal broadcast");
+        let crate::wire::WireEvent::Focus {
+            movement,
+            moved,
+            refusal,
+            direction,
+            ..
+        } = last
+        else {
+            panic!("the focus broadcast");
+        };
+        assert_eq!(movement, "right");
+        assert!(!*moved);
+        assert_eq!(refusal.as_deref(), Some("nothing_in_direction"));
+        assert_eq!(direction.as_deref(), Some("right"));
     }
 
     #[test]

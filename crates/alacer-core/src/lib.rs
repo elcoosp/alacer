@@ -150,10 +150,13 @@ mod tests {
             Role::ListItem,
             Role::List,
             Role::CheckBox,
+            Role::Slider,
+            Role::ProgressIndicator,
             Role::Table,
             Role::TableRow,
             Role::TableCell,
             Role::ColumnHeader,
+            Role::LiveRegion,
         ];
         for role in roles {
             assert!(!role.name().is_empty(), "{role:?} has a name");

@@ -3,7 +3,8 @@
 //! the stable, versioned surface devtools clients code against; the core
 //! vocabulary (`alacer_core::inspect`) never leaks onto the wire.
 
-use alacer_core::inspect::{EdgeActivation, FrameSummary, InputKind, SignalWrite};
+use alacer_core::inspect::{EdgeActivation, FocusRecord, FrameSummary, InputKind, SignalWrite};
+use alacer_core::passes::FocusRefusal;
 use serde::{Deserialize, Serialize};
 
 /// The protocol version this server speaks. Clients gate on it.
@@ -63,6 +64,37 @@ pub enum WireEvent {
         input: String,
         /// The target widget node, when routed.
         target: Option<u64>,
+    },
+    /// A focus-move door answered — the walk's landing or its named
+    /// refusal ("why did focus change — or why didn't it", ADR-0034).
+    Focus {
+        /// The movement the caller asked for (`next`, `prev`, `left`,
+        /// `right`, `up`, `down`).
+        movement: String,
+        /// The subtree root that bounded the walk (the scoped door's
+        /// trap), `null` for the unscoped funnel.
+        scope: Option<u64>,
+        /// Whether the walk landed (`true`) or refused (`false`).
+        moved: bool,
+        /// The node that held focus before the move, `null` for the
+        /// entry.
+        from: Option<u64>,
+        /// The node the walk rests on now; `null` on a refusal.
+        to: Option<u64>,
+        /// The tree-order move crossed a list end (directional moves
+        /// never wrap).
+        wrapped: bool,
+        /// The refusal species (`no_candidates`, `dead_scope`,
+        /// `no_geometry`, `nothing_in_direction`, `already_focused`),
+        /// `null` on a landing.
+        refusal: Option<String>,
+        /// The refusal's node (the dead scope, the geometry-less focus,
+        /// the searched-from node at the edge, the stall's node); `null`
+        /// on a landing.
+        node: Option<u64>,
+        /// The empty direction at the edge (`nothing_in_direction`
+        /// only), else `null`.
+        direction: Option<String>,
     },
     /// A completed frame — the ledger + the mask heatmap.
     Frame {
@@ -235,6 +267,71 @@ pub fn wire_write(write: &SignalWrite) -> WireEvent {
         signal: write.signal,
         sequence: write.sequence,
         origin: write.origin.to_string(),
+    }
+}
+
+/// The refusal species' wire name (`snake_case`, the protocol's tag
+/// vocabulary).
+#[must_use]
+pub fn refusal_name(refusal: &FocusRefusal) -> &'static str {
+    match refusal {
+        FocusRefusal::NoCandidates => "no_candidates",
+        FocusRefusal::DeadScope { .. } => "dead_scope",
+        FocusRefusal::NoGeometry { .. } => "no_geometry",
+        FocusRefusal::NothingInDirection { .. } => "nothing_in_direction",
+        FocusRefusal::AlreadyFocused { .. } => "already_focused",
+    }
+}
+
+/// Converts a core [`FocusRecord`] into the wire event: the outcome's
+/// landing or refusal resolved into the documented flat shape.
+#[must_use]
+pub fn wire_focus(record: &FocusRecord) -> WireEvent {
+    let (moved, from, to, wrapped, refusal, node, direction) = match record.outcome {
+        alacer_core::passes::FocusMoveOutcome::Moved(landing) => (
+            true,
+            landing.from.map(alacer_core::NodeId::raw),
+            Some(landing.to.raw()),
+            landing.wrapped,
+            None,
+            None,
+            None,
+        ),
+        alacer_core::passes::FocusMoveOutcome::Refused(refusal) => {
+            let node = match refusal {
+                FocusRefusal::NoCandidates => None,
+                FocusRefusal::DeadScope { scope } => Some(scope.raw()),
+                FocusRefusal::NoGeometry { node }
+                | FocusRefusal::NothingInDirection { node, .. }
+                | FocusRefusal::AlreadyFocused { node } => Some(node.raw()),
+            };
+            let direction = match refusal {
+                FocusRefusal::NothingInDirection { direction, .. } => {
+                    Some(direction.name().to_string())
+                }
+                _ => None,
+            };
+            (
+                false,
+                None,
+                None,
+                false,
+                Some(refusal_name(&refusal).to_string()),
+                node,
+                direction,
+            )
+        }
+    };
+    WireEvent::Focus {
+        movement: record.movement.name().to_string(),
+        scope: record.scope.map(alacer_core::NodeId::raw),
+        moved,
+        from,
+        to,
+        wrapped,
+        refusal,
+        node,
+        direction,
     }
 }
 

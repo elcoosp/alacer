@@ -151,3 +151,120 @@ fn rsx_string_children_become_the_text_prop() {
     harness.settle();
     let _found = harness.expect_a11y(Role::Label, "3 items left");
 }
+
+/// The value tier in a view (M32, ADR-0038): a slider whose funnel routes
+/// to the app's sink, and a progress whose value rides a binding the
+/// app's effect side owns — the value tier's two doors, now view
+/// vocabulary like the M6 canon before them.
+fn value_view(
+    sink: std::rc::Rc<std::cell::RefCell<Vec<f32>>>,
+    level: alacer_core::flux::RenderBinding<f32>,
+    slider_value: f32,
+) -> ViewNode {
+    rsx! {
+        column { gap: 8.0_f32, padding: 12.0_f32,
+            slider {
+                name: "Volume",
+                min: 0.0_f32,
+                max: 100.0_f32,
+                step: 10.0_f32,
+                value: slider_value,
+                on_change: alacer_view::PropValue::NumberHandler(std::rc::Rc::new(
+                    std::cell::RefCell::new(move |value: f32| {
+                        sink.borrow_mut().push(value);
+                    }),
+                )),
+            }
+            progress {
+                name: "Level",
+                min: 0.0_f32,
+                max: 100.0_f32,
+                binding: level,
+            }
+        }
+    }
+}
+
+#[test]
+fn rsx_value_tier_slider_and_progress_are_view_vocabulary() {
+    let mut harness = TestHarness::new(320.0, 240.0);
+    let sink = std::rc::Rc::new(std::cell::RefCell::new(Vec::<f32>::new()));
+    let level = alacer_core::flux::RenderBinding::new(20.0_f32);
+    let view = value_view(std::rc::Rc::clone(&sink), level.clone(), 50.0);
+    let mut root = alacer::mount_view(&view, harness.pipeline_mut());
+    harness.settle();
+
+    // Both elements are reachable and named through the a11y tree — the
+    // only query API — and the value tier's tree vocabulary is honest
+    // from the first frame: the slider's create write rode the funnel,
+    // the bound progress reports the binding's number.
+    let slider = harness.expect_a11y(Role::Slider, "Volume");
+    assert_eq!(
+        slider.value,
+        Some("50".to_string()),
+        "the create write rode the funnel"
+    );
+    let progress = harness.expect_a11y(Role::ProgressIndicator, "Level");
+    assert_eq!(
+        progress.value,
+        Some("20".to_string()),
+        "the binding's value is the report"
+    );
+
+    // The slider's drag: press at the thumb, drag toward the track's end
+    // — the funnel routes the gesture, the handler observes the values,
+    // and the a11y tree carries the new value.
+    let bounds = slider.bounds.expect("laid out slider");
+    let start = alacer_core::geom::Point::new(
+        bounds.origin.x + bounds.size.width * 0.5,
+        bounds.origin.y + bounds.size.height / 2.0,
+    );
+    let end = alacer_core::geom::Point::new(
+        bounds.origin.x + bounds.size.width * 0.95,
+        bounds.origin.y + bounds.size.height / 2.0,
+    );
+    harness.drag(start, end);
+    harness.settle();
+
+    let heard = sink.borrow().clone();
+    assert!(
+        !heard.is_empty(),
+        "the view handler observed the funnel's writes"
+    );
+    let last = heard[heard.len() - 1];
+    assert!(last > 50.0, "the drag moved the value up, got {last}");
+    assert!(
+        heard.windows(2).all(|pair| pair[0] <= pair[1]),
+        "the funnel's writes arrive in gesture order"
+    );
+    let slider = harness.expect_a11y(Role::Slider, "Volume");
+    assert_eq!(
+        slider.value,
+        Some(format!("{last}")),
+        "the a11y tree carries what the funnel wrote"
+    );
+
+    // A rebuild patches the static slider in place (no churn, no
+    // re-mount): the new value prop lands through the same funnel, and
+    // the bound progress keeps reporting its binding.
+    let again = value_view(sink, level, 30.0);
+    let report = root.update(&again, harness.pipeline_mut());
+    harness.settle();
+    assert_eq!(
+        report.created, 0,
+        "the value tier patches, never re-creates"
+    );
+    assert_eq!(report.removed, 0, "the value tier patches, never unmounts");
+    let slider = harness.expect_a11y(Role::Slider, "Volume");
+    assert_eq!(
+        slider.value,
+        Some("30".to_string()),
+        "the rebuild's value prop landed through the funnel"
+    );
+    let progress = harness.expect_a11y(Role::ProgressIndicator, "Level");
+    assert_eq!(
+        progress.value,
+        Some("20".to_string()),
+        "the bound progress keeps the binding's number"
+    );
+}

@@ -181,6 +181,33 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M30 — the trail names the rider (ADR-0036)**: every `FocusRecord`
+  the causal log streams grows a `rider` field beside its `movement` —
+  a `FocusRider` naming who rode the walk: `Keyboard` (the keyboard's
+  Tab/Shift+Tab fallback, the M24 seam), `Ring` (the four directional
+  keys' fallback, the M29 seam — a D-pad button, a TV remote's ring),
+  or `Consumer` (the app's own `focus_move`/`focus_move_in` door
+  calls) — ADR-0035's pre-registered re-open rule ("a consumer needs
+  the rides distinguished in the causal log → grow `FocusRecord`
+  beside its `movement` (a rider field), priced by a real reader —
+  never a second trail") cashed. One funnel, three riders, one trail:
+  the attribution is declared where the route is known — the public
+  doors stream `Consumer`, the dispatch fallbacks stream through one
+  private rider-aware door (`Keyboard` for Tab, `Ring` for the
+  arrows), the walk behind the doors untouched (the same candidate
+  list, the same availability filter, the same wrap, the same
+  immediate resolution, the same no-mask idle refusals — the M11 rule
+  stays). The wire grows the `rider` field (`keyboard` / `ring` /
+  `consumer`, `FocusRider::name` the single source) as the additive
+  kind the protocol's versioning rule admits at version 1 —
+  `PROTOCOL_VERSION` stays 1 — and the embedded client renders the
+  rider beside the movement (M31). `examples/focus_riders.rs` is the
+  consumer demonstration: the M26 window walked by all three riders,
+  every beat logging the record's rider beside the answer it names,
+  with tracing spans at `alacer::focus_riders`. The corpus stands at
+  62: the riders ride the published routes (the coordinated rule's
+  no-growth arm).
+
 - **M29 — the directional keys ride the walk (ADR-0035)**: a plain
   directional key the focused widget did not answer — a D-pad button,
   a TV remote's ring — maps onto its `FocusMove` at

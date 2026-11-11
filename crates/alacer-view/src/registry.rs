@@ -116,12 +116,42 @@ impl<'a> ElementProps<'a> {
             _ => None,
         }
     }
+
+    /// A value-carrying handler prop (`on_change` — M32): the widget calls
+    /// it with its new value (the funnel's f32, clamped and snapped inside
+    /// the widget).
+    #[must_use]
+    pub fn number_handler(&self, name: &str) -> Option<BoxedNumberHandler> {
+        match self.props.get(name)? {
+            PropValue::NumberHandler(handler) => {
+                let handler = Rc::clone(handler);
+                Some(Box::new(move |value: f32| {
+                    (handler.borrow_mut())(value);
+                }))
+            }
+            _ => None,
+        }
+    }
+
+    /// A reactive value-binding prop (`binding: my_f32_binding` — M32):
+    /// the value tier's reported value, the progress bridge's door. The
+    /// flux bridge owns a bound widget's value (§6.1): the patcher re-hangs
+    /// the same binding idempotently, never a visual change.
+    #[must_use]
+    pub fn number_binding(&self) -> Option<alacer_core::flux::RenderBinding<f32>> {
+        match self.props.get("binding")? {
+            crate::view::PropValue::NumberBinding(binding) => Some(binding.clone()),
+            _ => None,
+        }
+    }
 }
 
 /// A boxed text-carrying handler, ready to hang on a widget.
 pub type BoxedTextHandler = Box<dyn FnMut(&str)>;
 /// A boxed state-carrying handler, ready to hang on a widget.
 pub type BoxedFlagHandler = Box<dyn FnMut(bool)>;
+/// A boxed value-carrying handler, ready to hang on a widget.
+pub type BoxedNumberHandler = Box<dyn FnMut(f32)>;
 
 /// A boxed widget factory over a view node.
 type CreateFn = Box<dyn Fn(&ViewNode) -> Box<dyn alacer_core::Widget>>;

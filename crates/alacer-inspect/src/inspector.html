@@ -93,7 +93,8 @@
     <code>write</code> = a provenance-tagged signal write (who wrote);
     <code>input</code> = a routed input; <code>focus</code> = a focus-move
     door answered — the walk's landing or its named refusal (why focus
-    changed, or why it didn't, ADR-0034); <code>frame</code> = the frame
+    changed, or why it didn't, ADR-0034), with the rider naming who rode
+    (keyboard / ring / consumer, ADR-0036); <code>frame</code> = the frame
     summary. "Who subscribes" is the edge table the flux publishes —
     every <code>edge</code> line names its binding.</p>
   </section>
@@ -223,6 +224,11 @@ function connect() {
           (event.target != null ? " → node #" + event.target : " (unrouted)"));
         break;
       case "focus": {
+        // The client names the rider (M30, ADR-0036): the attribution
+        // rides the record — keyboard / ring / consumer — rendered
+        // beside the movement, the trail pane answering "who moved
+        // focus" from the log alone.
+        const rider = event.rider != null ? " (" + event.rider + ")" : "";
         const scope = event.scope != null ? " @ scope #" + event.scope : "";
         const answer = event.moved
           ? "moved " + (event.from != null ? "#" + event.from : "(entry)") +
@@ -230,7 +236,7 @@ function connect() {
           : "refused: " + event.refusal +
             (event.node != null ? " (node #" + event.node +
               (event.direction ? ", " + event.direction : "") + ")" : "");
-        addLog("focus", "focus " + event.movement + scope, answer);
+        addLog("focus", "focus " + event.movement + rider + scope, answer);
         break;
       }
       case "frame":

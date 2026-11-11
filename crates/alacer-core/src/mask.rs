@@ -70,12 +70,6 @@ impl Change {
         self.intersects(Self::LAYOUT.union(Self::STRUCTURE))
     }
 
-    /// `true` when the node's scene ops must be re-emitted.
-    #[must_use]
-    pub fn forces_paint(self) -> bool {
-        self.intersects(Self::PAINT.union(Self::STRUCTURE))
-    }
-
     /// `true` when the AccessKit update must be rebuilt for this node.
     #[must_use]
     pub fn forces_a11y(self) -> bool {
@@ -120,7 +114,6 @@ mod tests {
     fn focus_is_a_side_channel() {
         assert_eq!(Change::FOCUS.propagated_to_ancestors(), Change::FOCUS);
         assert!(!Change::FOCUS.forces_layout());
-        assert!(!Change::FOCUS.forces_paint());
     }
 
     #[test]
@@ -135,7 +128,6 @@ mod tests {
     fn predicates_partition_the_flags() {
         assert!(Change::LAYOUT.forces_layout());
         assert!(Change::STRUCTURE.forces_layout());
-        assert!(Change::PAINT.forces_paint());
         assert!(Change::A11Y.forces_a11y());
         assert!(Change::STRUCTURE.forces_a11y());
     }

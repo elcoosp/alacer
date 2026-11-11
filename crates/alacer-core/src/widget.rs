@@ -140,13 +140,9 @@ impl fmt::Debug for LabelSource {
 }
 
 impl LabelSource {
-    /// Resolves to the current accessible name.
-    ///
-    /// # Panics
-    ///
-    /// Never in release; in debug builds a poisoned lock panics (same as
-    /// `.unwrap()` semantics chosen deliberately: a poisoned name cell is a
-    /// widget-implementation bug).
+    /// Resolves to the current accessible name. Never panics: a poisoned
+    /// name cell resolves to the empty string — a name is a label, never
+    /// a frame-buster.
     #[must_use]
     pub fn resolve(&self) -> String {
         match self {

@@ -27,8 +27,8 @@ use crate::events::{EventPhase, ImeEvent, KeyEvent, PointerEvent};
 use crate::flux::Flux;
 use crate::geom::{Point, Rect, Size, Vector};
 use crate::inspect::{
-    DIRTY_HEATMAP_CAP, DirtyNode, FocusRecord, FrameSummary, InputKind, InputRecord, InspectEvent,
-    InspectObserver, PassTiming,
+    DIRTY_HEATMAP_CAP, DirtyNode, FocusRecord, FocusRider, FrameSummary, InputKind, InputRecord,
+    InspectEvent, InspectObserver, PassTiming,
 };
 use crate::mask::Change;
 use crate::scene::{PaintCtx, Primitive, SceneSnapshot};
@@ -832,30 +832,10 @@ impl PassPipeline {
     /// and wrap when the walk moved, the [`FocusRefusal`] species when it
     /// refused — the caller no longer guesses at a bare `false`.
     pub fn focus_move(&mut self, movement: FocusMove) -> FocusMoveOutcome {
-        let span = tracing::trace_span!(
-            target: "alacer::focus",
-            "focus_move",
-            direction = movement.name()
-        );
-        let _guard = span.enter();
-        let outcome = self.cycle_focus(movement);
-        // The causal log (ADR-0034): the door's answer streams as data
-        // — the landing or the named refusal — the moment the walk resolves,
-        // one record per ride, whoever the rider is.
-        self.notify_focus(movement, None, outcome);
-        if let Some(landing) = outcome.landing() {
-            tracing::trace!(
-                target: "alacer::focus",
-                node = landing.to.raw(),
-                "the walk rests on the next candidate"
-            );
-        } else {
-            tracing::trace!(
-                target: "alacer::focus",
-                "refused: the walk has no candidate to offer — no masks, an idle frame"
-            );
-        }
-        outcome
+        // The door is the app's own call: the record names the consumer
+        // as the rider (ADR-0036) — the keyboard's and the ring's rides
+        // stream through [`Self::focus_move_via`], the same funnel.
+        self.focus_move_via(FocusRider::Consumer, movement)
     }
 
     /// Moves focus one candidate inside the subtree rooted at `scope`
@@ -905,14 +885,18 @@ impl PassPipeline {
             );
             let refused = FocusMoveOutcome::Refused(FocusRefusal::DeadScope { scope });
             // The early refusal streams too (ADR-0034): the causal log
-            // answers "why didn't focus change" for the dead scope.
-            self.notify_focus(movement, Some(scope), refused);
+            // answers "why didn't focus change" for the dead scope. The
+            // door is the app's own call — the rider is the consumer
+            // (ADR-0036).
+            self.notify_focus(FocusRider::Consumer, movement, Some(scope), refused);
             return refused;
         }
         let outcome = self.cycle_focus_in(Some(scope), movement);
         // The scoped ride streams with its scope named (ADR-0034) — the
         // trap's landings and refusals trail beside the unscoped ones.
-        self.notify_focus(movement, Some(scope), outcome);
+        // The door is the app's own call: the rider is the consumer
+        // (ADR-0036).
+        self.notify_focus(FocusRider::Consumer, movement, Some(scope), outcome);
         if let Some(landing) = outcome.landing() {
             tracing::trace!(
                 target: "alacer::focus",
@@ -1324,7 +1308,10 @@ impl PassPipeline {
             } else {
                 FocusMove::Next
             };
-            if self.focus_move(movement).moved() {
+            // The keyboard's ride is named as the keyboard's (M30,
+            // ADR-0036): the same funnel, the record attributing the
+            // user's navigation to the keyboard's fallback.
+            if self.focus_move_via(FocusRider::Keyboard, movement).moved() {
                 response = EventResponse::Handled;
             }
             run.ran = true;
@@ -1356,7 +1343,10 @@ impl PassPipeline {
                 _ => None,
             }
         {
-            if self.focus_move(movement).moved() {
+            // The ring's ride is named as the ring's (M30, ADR-0036): a
+            // D-pad button or a remote's ring is the user's navigation,
+            // distinguishable in the trail from the app's own doors.
+            if self.focus_move_via(FocusRider::Ring, movement).moved() {
                 response = EventResponse::Handled;
             }
             run.ran = true;
@@ -1425,10 +1415,14 @@ impl PassPipeline {
     /// door's own outcome verbatim ([`FocusRecord`]), streamed when the
     /// door resolves — before the input record the dispatch forwards and
     /// the frame summary the tick forwards — so a key event's trail reads
-    /// focus → input → frame. One branch when no
+    /// focus → input → frame. Since M30 the record names its rider
+    /// (ADR-0036): the attribution the caller declared — the app's doors
+    /// stream [`FocusRider::Consumer`], the dispatch fallbacks stream the
+    /// keyboard and the ring. One branch when no
     /// observer is installed: the A7 idle contract is unchanged.
     fn notify_focus(
         &mut self,
+        rider: FocusRider,
         movement: FocusMove,
         scope: Option<NodeId>,
         outcome: FocusMoveOutcome,
@@ -1437,9 +1431,45 @@ impl PassPipeline {
             observer.observe(InspectEvent::Focus(FocusRecord {
                 movement,
                 scope,
+                rider,
                 outcome,
             }));
         }
+    }
+
+    /// The one funnel, ridden with a name (M30, ADR-0036): the unscoped
+    /// walk the doors and the dispatch fallbacks share, streaming the
+    /// record under the rider the route declares — the app's doors name
+    /// [`FocusRider::Consumer`], the keyboard's Tab fallback names
+    /// [`FocusRider::Keyboard`], the ring's arrows name
+    /// [`FocusRider::Ring`]. The walk behind the doors is untouched (the
+    /// same candidate list, the same availability filter, the same wrap,
+    /// the same immediate resolution); only the record's attribution
+    /// moves with the route, so a trail reader answers "who moved focus —
+    /// or why didn't it" without re-implementing the observation.
+    fn focus_move_via(&mut self, rider: FocusRider, movement: FocusMove) -> FocusMoveOutcome {
+        let span = tracing::trace_span!(
+            target: "alacer::focus",
+            "focus_move",
+            direction = movement.name(),
+            rider = rider.name()
+        );
+        let _guard = span.enter();
+        let outcome = self.cycle_focus(movement);
+        self.notify_focus(rider, movement, None, outcome);
+        if let Some(landing) = outcome.landing() {
+            tracing::trace!(
+                target: "alacer::focus",
+                node = landing.to.raw(),
+                "the walk rests on the next candidate"
+            );
+        } else {
+            tracing::trace!(
+                target: "alacer::focus",
+                "refused: the walk has no candidate to offer — no masks, an idle frame"
+            );
+        }
+        outcome
     }
 
     /// Builds and forwards the frame's causal summary (§13.3): the drained

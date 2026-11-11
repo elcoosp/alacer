@@ -27,8 +27,8 @@ use crate::events::{EventPhase, ImeEvent, KeyEvent, PointerEvent};
 use crate::flux::Flux;
 use crate::geom::{Point, Rect, Size, Vector};
 use crate::inspect::{
-    DIRTY_HEATMAP_CAP, DirtyNode, FocusRecord, FocusRider, FrameSummary, InputKind, InputRecord,
-    InspectEvent, InspectObserver, PassTiming,
+    DIRTY_HEATMAP_CAP, DirtyNode, EditRecord, FocusRecord, FocusRider, FrameSummary, InputKind,
+    InputRecord, InspectEvent, InspectObserver, PassTiming,
 };
 use crate::mask::Change;
 use crate::scene::{PaintCtx, Primitive, SceneSnapshot};
@@ -779,9 +779,14 @@ impl PassPipeline {
     }
 
     /// Installs the devtools observer (§13.3): the pipeline forwards frame
-    /// summaries and routed-input records. Replaces any previous observer.
+    /// summaries, routed-input records, focus-door answers, and the edit
+    /// trail (ADR-0037 — the journal's facts ride the tick's start drain).
+    /// Replaces any previous observer. Installing one also enables the
+    /// edit trail: the journal notes its facts on this thread from here
+    /// on, and the disabled path stays one branch per action.
     pub fn set_observer(&mut self, observer: Box<dyn InspectObserver>) {
         self.observer = Some(observer);
+        crate::history::set_edit_trail_enabled(true);
     }
 
     /// Enables per-pass wall timing and the overhead ledger (the M1 gate
@@ -1437,6 +1442,19 @@ impl PassPipeline {
         }
     }
 
+    /// Forwards one journal fact to the observer, when installed (§13.3,
+    /// ADR-0037): the edit trail — the journal's own record of the action
+    /// it answered, depths beside it. The record is the journal's own
+    /// fact verbatim ([`EditRecord`]), streamed at the tick's start
+    /// drain — one frame after the chord, the announcement drain's
+    /// currency. One branch when no observer is installed: the A7 idle
+    /// contract is unchanged.
+    fn notify_edit(&mut self, record: EditRecord) {
+        if let Some(observer) = self.observer.as_mut() {
+            observer.observe(InspectEvent::Edit(record));
+        }
+    }
+
     /// The one funnel, ridden with a name (M30, ADR-0036): the unscoped
     /// walk the doors and the dispatch fallbacks share, streaming the
     /// record under the rider the route declares — the app's doors name
@@ -1826,6 +1844,17 @@ impl PassPipeline {
                     "dropped at the drain: no root is mounted, the region has no tree"
                 );
             }
+        }
+
+        // The edit-trail drain (§13.3, ADR-0037): the journal facts the
+        // edit funnels queued on this thread ride the observer at the
+        // tick's start — the announcement drain's shape, one frame after
+        // the chord. Every fact streams (a bounded queue, never
+        // collapsed — the journal's own history), and the drain empties
+        // the queue whether an observer listens or not: a fact streams
+        // once, an absent reader just never sees it.
+        for record in crate::history::take_edit_trail() {
+            self.notify_edit(record);
         }
 
         let mut ledger: Vec<PassRun> = std::mem::take(&mut self.interframe);

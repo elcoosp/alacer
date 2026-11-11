@@ -324,7 +324,60 @@ fn bench_focus_routes(mut group: criterion::BenchmarkGroup<'_, criterion::measur
         });
     });
 
+    // The M28 observed route (ADR-0034): the same tree-order funnel as
+    // `route_100_focus_moves_1k` with the causal observer installed — the
+    // walk's answer streams as a `FocusRecord` the moment each door
+    // resolves. The delta against the unobserved funnel is the
+    // observation seam's own cost: the branch, the record, and the
+    // observer call, on the same 1k arena, in the same cut (the
+    // coordinated rule).
+    group.bench_function("route_100_observed_moves_1k", |b| {
+        let mut pipeline = storm_pipeline();
+        mount_focusable_1k(&mut pipeline);
+        let trail: std::rc::Rc<std::cell::RefCell<CountingObserver>> =
+            std::rc::Rc::new(std::cell::RefCell::new(CountingObserver::default()));
+        pipeline.set_observer(Box::new(Share(std::rc::Rc::clone(&trail))));
+        b.iter(|| {
+            for _ in 0..FOCUS_MOVES {
+                black_box(pipeline.focus_move(black_box(FocusMove::Next)));
+            }
+            // The consumer's read: the trail the door rides produced.
+            black_box(trail.borrow().focus_records);
+            black_box(trail.borrow().last_movement.is_some());
+            let report = pipeline.tick(VIEWPORT).expect("bench layout");
+            black_box(report.passes.len());
+        });
+    });
+
     group.finish();
+}
+
+/// The observer wrapper the pipeline owns: the sink is `&mut`-driven,
+/// so the bench shares the counter through `Rc<RefCell>`.
+struct Share(std::rc::Rc<std::cell::RefCell<CountingObserver>>);
+
+impl alacer_core::inspect::InspectObserver for Share {
+    fn observe(&mut self, event: alacer_core::inspect::InspectEvent) {
+        if let alacer_core::inspect::InspectEvent::Focus(record) = event {
+            self.0.borrow_mut().observe_focus(record);
+        }
+    }
+}
+
+/// The bench's recording observer: a bounded trail (the ring discipline,
+/// not unbounded growth under `b.iter`) that counts the streamed records
+/// and keeps the last movement — the read the route prices.
+#[derive(Default)]
+struct CountingObserver {
+    focus_records: u64,
+    last_movement: Option<FocusMove>,
+}
+
+impl CountingObserver {
+    fn observe_focus(&mut self, record: alacer_core::inspect::FocusRecord) {
+        self.focus_records = self.focus_records.saturating_add(1);
+        self.last_movement = Some(record.movement);
+    }
 }
 
 criterion_group!(benches, bench_input_storm);

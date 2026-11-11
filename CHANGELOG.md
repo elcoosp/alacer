@@ -5,181 +5,65 @@ All notable changes to **Alacer** will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
-## [0.17.0] — 2026-11-10
-
-
-
-### Added
-
-
-- The walk's answer becomes data
-
-
-## [0.16.0] — 2026-11-10
-
-
-
-### Added
-
-
-- The focus walk bounds to a subtree
-
-- The focus trap drives the consumer's window
-
-- The directional walk reads the window
-
-- The directional walk drives the consumer's window
-
-
-### Changed
-
-
-- The dead fixed-size spec goes
-
-- The dead color conversion goes
-
-- The dead selection predicate goes
-
-- The dead color conversion goes
-
-
-### Documentation
-
-
-- The living documents re-agree at M25 and 0.16.0
-
-- The living documents re-agree at M26 and 0.16.0
-
-
-### Fixed
-
-
-- The m7 release-state pin re-joins the chain
-
-
-### Performance
-
-
-- The focus routes join the published corpus
-
-
-### Tests
-
-
-- The m25 exit suite pins the focus scope
-
-- The m26 exit suite pins the directional walk
-
-- The m-suite pins move with the 60-case corpus
-
-
-## [0.15.0] — 2026-11-10
-
-
-
-### Added
-
-
-- The focus walk joins the dispatch contract
-
-- The focus walk drives the consumer's window
-
-
-### Documentation
-
-
-- The living documents re-agree at M24
-
-
-### Miscellaneous
-
-
-- The dead effect counter goes
-
-- The harness's dead probes go
-
-
-### Tests
-
-
-- The m24 exit suite pins the focus walk
-
-
-## [0.14.0] — 2026-11-10
-
-
-
-### Added
-
-
-- The availability tier joins the widget contract
-
-- The sink maps the disabled flag faithfully
-
-- The actionable controls answer the availability tier
-
-- The availability tier drives the consumer's window
-
-- The journal reports its own ledger
-
-- The frame's ledger drives the consumer's window
-
-
-### Changed
-
-
-- The root duplicate goes
-
-- The dead glyph counter goes
-
-
-### Documentation
-
-
-- The living documents re-agree at M22
-
-- The living documents re-agree at M23 and 0.14.0
-
-
-### Fixed
-
-
-- The fall-through diagnostic names the token
-
-- The body-cardinality diagnostic names its cardinality
-
-- The accept loop reports the session errors it swallowed
-
-
-### Miscellaneous
-
-
-- The availability case joins the blessed corpus
-
-- The manifest describes the shipped vocabulary
-
-- The handoff manifest rides the gitignore
-
-
-### Performance
-
-
-- The refused route joins the published corpus
-
-
-### Tests
-
-
-- The m22 exit suite pins the availability tier
-
-- The m-suite pins move with the 57-case corpus
-
-- The m23 exit suite pins the ledger and the scroll trio
-
-
 ## [Unreleased]
 
 ### Added
+
+- **M31 — the journal rides the causal log (ADR-0037)**: every
+  `EditHistory` action streams one `InspectEvent::Edit` — the hook the
+  journal's own docs pre-registered ("the inspector may *someday*
+  surface the depth") cashed. The record carries the action
+  (`EditAction`: `record`/`undo`/`redo`/`reset`, `name()` the wire's
+  tag), the `coalesced` flag (the pure-append fold visible as a depth
+  that never moves), the `refused` flag (an exhausted undo or an empty
+  redo branch — the refusal streams too, the depths naming the journal
+  it did not move), and the depths the action left. The journal queues
+  the fact on the editing thread (the clipboard-seam shape, ADR-0020 —
+  handlers cannot reach the pipeline, axiom A1) and the dispatching
+  pipeline drains it at the tick's start (the announcement drain's
+  shape, ADR-0024) — one frame after the chord. The trail is dev-mode
+  and bounded: one branch per action when no observer is installed
+  (the A7 idle contract; `PassPipeline::set_observer` enables it), a
+  256-fact queue with the journal's own oldest-first eviction (the
+  §14.3 rule applied to the echo). The wire grows the `edit` event
+  additively at version 1 (the rider field's rule, ADR-0010), the
+  recorder grows the bounded edit ring beside its rings
+  (`CausalRecorder::edits()`, 512), and the embedded client renders
+  the echo beside the focus trail.
+  `examples/edit_trail.rs` is the consumer demonstration: the M15
+  journal driven with the observer riding — the coalescing, the
+  applied chords, the app-write reset, the exhausted journal's
+  refusal — with tracing spans at `alacer::edit_trail`. The corpus
+  stands at 62: the echo rides no hot loop the corpus does not
+  already price (the coordinated rule's no-growth arm).
+
+- **M32 — the value tier joins the view registry (ADR-0038)**: the
+  re-open rule the M6 canon's registry work left open cashed — the
+  `slider` and `progress` elements join `default_registry`, so the
+  value tier's widgets are `rsx!` vocabulary like the M6 canon before
+  them. Create reads the value props (`name`/`min`/`max`/`step`/
+  `value`/`on_change`/`accent`, `fill`, `binding`); patch takes what
+  has an in-place writer, and the patch answers are the widgets' own:
+  the slider's programmatic write clamps and snaps inside the widget,
+  fires no handler, and reports visual only when the funnel moved the
+  value (the widget's own `total_cmp` equality — never `f32::eq`);
+  the progress's `set_value` bool is the M21 idle-frame property — a
+  write that lands where the value already is queues no masks. The
+  prop vocabulary grows the two types the tier needs:
+  `PropValue::NumberHandler` carries the funnel's value (`on_change` —
+  the flag/text handlers' rule at a value, the patcher's
+  handler-churn exemption covering it), and `PropValue::NumberBinding`
+  rides the f32 `RenderBinding` (`binding: my_f32_binding` — the value
+  typed by what it carries; a bound progress's patch re-hangs the same
+  slot idempotently, the bound label's rule at the value tier). The
+  bridge still owns the value: the assembly-time `bind_value` the
+  `counter_view` rule names — the DSL expresses the shape, the flux
+  bridge expresses the reactivity, neither grows a second channel
+  (axiom A1). `examples/value_view.rs` is the consumer demonstration:
+  the slider's funnel routing to one signal, the bridge fanning the
+  write out to the bar, the label, and the tree's answer. The corpus
+  stands at 62: the elements ride the published view routes (the
+  coordinated rule's no-growth arm).
 
 - **M30 — the trail names the rider (ADR-0036)**: every `FocusRecord`
   the causal log streams grows a `rider` field beside its `movement` —
@@ -891,6 +775,178 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
   ADR-0012…0015 register rows; §4.2's phantom `alacer-hot`/`alacer-devtools`
   rows become the real `alacer-macro`/`alacer-inspect` and the facade row
   names the hot-reload runtime it actually hosts
+
+## [0.17.0] — 2026-11-10
+
+
+
+### Added
+
+
+- The walk's answer becomes data
+
+
+## [0.16.0] — 2026-11-10
+
+
+
+### Added
+
+
+- The focus walk bounds to a subtree
+
+- The focus trap drives the consumer's window
+
+- The directional walk reads the window
+
+- The directional walk drives the consumer's window
+
+
+### Changed
+
+
+- The dead fixed-size spec goes
+
+- The dead color conversion goes
+
+- The dead selection predicate goes
+
+- The dead color conversion goes
+
+
+### Documentation
+
+
+- The living documents re-agree at M25 and 0.16.0
+
+- The living documents re-agree at M26 and 0.16.0
+
+
+### Fixed
+
+
+- The m7 release-state pin re-joins the chain
+
+
+### Performance
+
+
+- The focus routes join the published corpus
+
+
+### Tests
+
+
+- The m25 exit suite pins the focus scope
+
+- The m26 exit suite pins the directional walk
+
+- The m-suite pins move with the 60-case corpus
+
+
+## [0.15.0] — 2026-11-10
+
+
+
+### Added
+
+
+- The focus walk joins the dispatch contract
+
+- The focus walk drives the consumer's window
+
+
+### Documentation
+
+
+- The living documents re-agree at M24
+
+
+### Miscellaneous
+
+
+- The dead effect counter goes
+
+- The harness's dead probes go
+
+
+### Tests
+
+
+- The m24 exit suite pins the focus walk
+
+
+## [0.14.0] — 2026-11-10
+
+
+
+### Added
+
+
+- The availability tier joins the widget contract
+
+- The sink maps the disabled flag faithfully
+
+- The actionable controls answer the availability tier
+
+- The availability tier drives the consumer's window
+
+- The journal reports its own ledger
+
+- The frame's ledger drives the consumer's window
+
+
+### Changed
+
+
+- The root duplicate goes
+
+- The dead glyph counter goes
+
+
+### Documentation
+
+
+- The living documents re-agree at M22
+
+- The living documents re-agree at M23 and 0.14.0
+
+
+### Fixed
+
+
+- The fall-through diagnostic names the token
+
+- The body-cardinality diagnostic names its cardinality
+
+- The accept loop reports the session errors it swallowed
+
+
+### Miscellaneous
+
+
+- The availability case joins the blessed corpus
+
+- The manifest describes the shipped vocabulary
+
+- The handoff manifest rides the gitignore
+
+
+### Performance
+
+
+- The refused route joins the published corpus
+
+
+### Tests
+
+
+- The m22 exit suite pins the availability tier
+
+- The m-suite pins move with the 57-case corpus
+
+- The m23 exit suite pins the ledger and the scroll trio
+
 
 ## [0.7.0] — 2026-11-08
 

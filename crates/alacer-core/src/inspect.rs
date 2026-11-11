@@ -14,6 +14,7 @@
 //! | "Why is this frame slow?" | [`FrameSummary::passes`] — the per-pass ledger with wall times |
 //! | "What did this mask touch?" | [`FrameSummary::dirty`] — the mask heatmap: role, label, bounds, mask per dirty node |
 //! | "Why did focus change — or why didn't it?" | [`InspectEvent::Focus`] — the walk's own answer, streamed as the doors resolve (ADR-0034) |
+//! | "Who rode the walk — the keyboard, the code, or the ring?" | [`FocusRider`] — the attribution every [`FocusRecord`] carries beside its movement (ADR-0036) |
 
 use crate::arena::NodeId;
 use crate::damage::Damage;
@@ -152,6 +153,45 @@ pub struct FrameSummary {
     pub dirty_truncated: usize,
 }
 
+/// Who rode the focus walk (M30, ADR-0036): the attribution the causal
+/// log carries beside every [`FocusRecord`]'s movement. One funnel, three
+/// riders — the keyboard's Tab/Shift+Tab fallback (the M24 seam), the
+/// ring's directional keys (the M29 seam), and the app's own door calls —
+/// and until the record named its rider, a trail reader could not answer
+/// "did the user navigate, or did the app?". The rider is the route's
+/// name, not a second channel: the walk behind the doors is untouched,
+/// and the wire carries the rider's [`FocusRider::name`] beside the
+/// movement (the protocol's additive rule, ADR-0010).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FocusRider {
+    /// The keyboard's Tab/Shift+Tab fallback — the dispatch seam the
+    /// walk joined in M24 (ADR-0030): the user tabbed, the window's
+    /// funnel answered.
+    Keyboard,
+    /// The ring's directional keys — the dispatch seam the four arrows
+    /// joined in M29 (ADR-0035): a D-pad button, a TV remote's ring, a
+    /// plain arrow the focused widget did not answer.
+    Ring,
+    /// The app's own code — the [`crate::passes::PassPipeline::focus_move`]
+    /// and [`crate::passes::PassPipeline::focus_move_in`] doors the
+    /// consumer calls directly (the M24/M25 doors).
+    Consumer,
+}
+
+impl FocusRider {
+    /// The rider's name, the wire vocabulary's `snake_case` tag
+    /// ([`crate::passes::FocusMove::name`] for movements, this for
+    /// riders — the protocol's stable, documented field values).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Keyboard => "keyboard",
+            Self::Ring => "ring",
+            Self::Consumer => "consumer",
+        }
+    }
+}
+
 /// One focus-move door ride (§13.3, ADR-0034): the causal log's answer to
 /// "why did focus change — or why didn't it". The record is the door's own
 /// outcome ([`FocusMoveOutcome`]) carried verbatim — the movement the
@@ -161,6 +201,12 @@ pub struct FrameSummary {
 /// the log exists for), so a key event's trail reads focus → input →
 /// frame (the record streams when the door resolves, before the input
 /// record the dispatch forwards).
+///
+/// Since M30 the record names its rider (ADR-0036, the attribution rule
+/// ADR-0035 pre-registered): [`FocusRider`] beside the movement — the
+/// keyboard's Tab fallback, the ring's arrows, or the app's code — so a
+/// trail reader answers "who moved focus" from the log, never from a
+/// re-implementation at the call site.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FocusRecord {
     /// The movement the caller asked the walk for.
@@ -169,6 +215,9 @@ pub struct FocusRecord {
     /// ([`crate::passes::PassPipeline::focus_move_in`]); `None` for the
     /// unscoped funnel ([`crate::passes::PassPipeline::focus_move`]).
     pub scope: Option<NodeId>,
+    /// Who rode the walk — the keyboard's Tab fallback, the ring's
+    /// directional keys, or the app's own doors (ADR-0036).
+    pub rider: FocusRider,
     /// The outcome the door returned — the landing or the refusal
     /// species, the same value the door handed its caller.
     pub outcome: FocusMoveOutcome,

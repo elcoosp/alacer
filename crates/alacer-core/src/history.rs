@@ -33,8 +33,27 @@
 //!    and evicts its *oldest* entry when the bound is crossed — a cache
 //!    with an eviction policy and tests that prove it (§14.3), never an
 //!    unbounded vector riding a long editing session.
+//!
+//! **The echo (§13.3, ADR-0037).** The journal speaks for itself: every
+//! [`EditHistory`] action streams one [`EditRecord`] — the action, the
+//! depths it left, the refusal it named — into this thread's edit trail,
+//! the queue the dispatching pipeline drains at the tick's start into
+//! [`crate::inspect::InspectEvent::Edit`]. The seam is dev-mode and
+//! opt-in: the journal notes a fact only while the trail is enabled (one
+//! branch per action otherwise — the A7 idle contract), the pipeline
+//! enables it when an observer installs, and the queue itself is bounded
+//! by [`EDIT_TRAIL_CAP`] with the journal's own oldest-first eviction
+//! (rule 3's discipline, applied to the echo). The clipboard-seam shape
+//! (ADR-0020): handlers cannot reach the pipeline (axiom A1), so the
+//! journal queues on the calling thread and the dispatching pipeline
+//! drains — the input queue's shape (ADR-0014): push now, the tick
+//! routes, one frame. An action queued with no pipeline anywhere still
+//! terminates: the bound evicts, never the app's memory.
 
+use crate::inspect::EditRecord;
 use crate::utf16;
+use std::cell::{Cell, RefCell};
+use std::collections::VecDeque;
 
 /// One committed value edit: the inverse pair the journal replays.
 ///
@@ -84,6 +103,104 @@ pub struct EditHistory {
     capacity: usize,
 }
 
+/// What the journal just answered (ADR-0037): the edit trail's action
+/// vocabulary, one [`EditRecord`] per resolved action. The names are the
+/// wire's stable tags ([`EditAction::name`], the protocol's
+/// `snake_case` rule).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EditAction {
+    /// A committed value edit was journaled — the widget's edit funnel
+    /// call. The record's `coalesced` names whether it folded into the
+    /// journal's tip (the pure-append rule) or opened a fresh step.
+    Record,
+    /// An undo chord was answered — applied, or refused on an exhausted
+    /// branch (the record's `refused`).
+    Undo,
+    /// A redo chord was answered — applied, or refused on an empty
+    /// branch.
+    Redo,
+    /// The whole-value replacement's reset — the app's write cleared
+    /// both branches (never refused; there is nothing to refuse).
+    Reset,
+}
+
+impl EditAction {
+    /// The action's name, the wire vocabulary's `snake_case` tag (the
+    /// protocol's stable, documented field values —
+    /// [`crate::passes::FocusMove::name`] for movements, this for
+    /// journal actions).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Record => "record",
+            Self::Undo => "undo",
+            Self::Redo => "redo",
+            Self::Reset => "reset",
+        }
+    }
+}
+
+/// The edit trail's cap: facts carried per thread before the oldest
+/// evicts — the journal's own bounded rule (§14.3) applied to its echo
+/// (a devtools log, not a frame-budget liability; the same order the
+/// recorder's input and focus rings ride).
+pub const EDIT_TRAIL_CAP: usize = 256;
+
+thread_local! {
+    /// Whether the trail notes facts: enabled by the dispatching
+    /// pipeline when a devtools observer installs ([`crate::passes`]
+    /// `PassPipeline::set_observer`), off otherwise — the disabled
+    /// journal costs one branch per action (the A7 idle contract).
+    static TRAIL_ENABLED: Cell<bool> = const { Cell::new(false) };
+    /// The facts queued since the last tick drain — the handler side of
+    /// the seam, bounded by [`EDIT_TRAIL_CAP`] with oldest-first
+    /// eviction, so an action queued where no pipeline will ever drain
+    /// still terminates.
+    static TRAIL: RefCell<VecDeque<EditRecord>> = const { RefCell::new(VecDeque::new()) };
+}
+
+/// Enables or disables the edit trail (the pipeline's side of the seam:
+/// `PassPipeline::set_observer` turns it on when a devtools observer
+/// installs). Disabling never clears the queue — the drain owns that.
+pub(crate) fn set_edit_trail_enabled(enabled: bool) {
+    TRAIL_ENABLED.with(|slot| slot.set(enabled));
+}
+
+/// Notes one journal fact on this thread's trail (the journal's side of
+/// the seam): a no-op while the trail is disabled, an oldest-evicting
+/// push while it rides.
+fn note(record: EditRecord) {
+    TRAIL_ENABLED.with(|enabled| {
+        if !enabled.get() {
+            return;
+        }
+        tracing::trace!(
+            target: "alacer::history",
+            action = record.action.name(),
+            coalesced = record.coalesced,
+            refused = record.refused,
+            undo_depth = record.undo_depth,
+            redo_depth = record.redo_depth,
+            "journal fact queued for the next tick"
+        );
+        TRAIL.with(|slot| {
+            let mut queue = slot.borrow_mut();
+            if queue.len() >= EDIT_TRAIL_CAP {
+                queue.pop_front();
+            }
+            queue.push_back(record);
+        });
+    });
+}
+
+/// The dispatching pipeline's drain: every fact queued on this thread
+/// since the last tick, oldest first — the whole queue clears (a fact
+/// streams once), the records then riding the observer as
+/// `InspectEvent::Edit`.
+pub(crate) fn take_edit_trail() -> Vec<EditRecord> {
+    TRAIL.with(|slot| slot.borrow_mut().drain(..).collect())
+}
+
 impl EditHistory {
     /// The default bound: 100 steps, the depth every platform editor's
     /// undo carries or exceeds — deep enough that a user never notices,
@@ -98,8 +215,8 @@ impl EditHistory {
     }
 
     /// An empty journal with an explicit capacity — the eviction policy's
-    /// seam (tests pin the eviction at small bounds; the inspector may
-    /// someday surface the depth).
+    /// seam (tests pin the eviction at small bounds; the trail's records
+    /// carry the depth live, ADR-0037).
     #[must_use]
     pub const fn with_capacity(capacity: usize) -> Self {
         Self {
@@ -128,23 +245,34 @@ impl EditHistory {
         selection_after: (usize, usize),
     ) {
         self.redo.clear();
-        match self.undo.last_mut() {
+        let coalesced = match self.undo.last_mut() {
             Some(tip) if Self::coalesces(tip, at_utf16, &removed, &inserted, selection_before) => {
                 tip.inserted.push_str(&inserted);
                 tip.selection_after = selection_after;
+                true
             }
-            _ => self.undo.push(EditEntry {
-                at_utf16,
-                removed,
-                inserted,
-                selection_before,
-                selection_after,
-            }),
-        }
+            _ => {
+                self.undo.push(EditEntry {
+                    at_utf16,
+                    removed,
+                    inserted,
+                    selection_before,
+                    selection_after,
+                });
+                false
+            }
+        };
         if self.undo.len() > self.capacity {
             let excess = self.undo.len() - self.capacity;
             self.undo.drain(0..excess);
         }
+        note(EditRecord {
+            action: EditAction::Record,
+            coalesced,
+            refused: false,
+            undo_depth: self.undo.len(),
+            redo_depth: 0,
+        });
     }
 
     /// The pure-append coalescing rule: a fresh pure insertion continues
@@ -169,9 +297,19 @@ impl EditHistory {
     /// the edit removed, restores the selection the edit consumed, and
     /// returns it as `(anchor, caret)` in UTF-16 units. `None` is the
     /// honest answer for an exhausted journal — the caller refuses the
-    /// chord with no masks (the refuse-don't-munge rule).
+    /// chord with no masks (the refuse-don't-munge rule), and the trail
+    /// carries the refusal beside the depths it did not move (ADR-0037).
     pub fn undo(&mut self, text: &mut String) -> Option<(usize, usize)> {
-        let entry = self.undo.pop()?;
+        let Some(entry) = self.undo.pop() else {
+            note(EditRecord {
+                action: EditAction::Undo,
+                coalesced: false,
+                refused: true,
+                undo_depth: 0,
+                redo_depth: self.redo.len(),
+            });
+            return None;
+        };
         let range = utf16::byte_range(
             text,
             entry.at_utf16,
@@ -179,27 +317,58 @@ impl EditHistory {
         );
         text.replace_range(range, &entry.removed);
         self.redo.push(entry.clone());
+        note(EditRecord {
+            action: EditAction::Undo,
+            coalesced: false,
+            refused: false,
+            undo_depth: self.undo.len(),
+            redo_depth: self.redo.len(),
+        });
         Some(entry.selection_before)
     }
 
     /// Redoes the newest undone step: replaces its removed span with the
     /// text the edit inserted, restores the selection the edit left, and
     /// returns it as `(anchor, caret)` in UTF-16 units. `None` is the
-    /// honest answer for an empty redo branch.
+    /// honest answer for an empty redo branch, and the trail carries the
+    /// refusal beside the depths it did not move (ADR-0037).
     pub fn redo(&mut self, text: &mut String) -> Option<(usize, usize)> {
-        let entry = self.redo.pop()?;
+        let Some(entry) = self.redo.pop() else {
+            note(EditRecord {
+                action: EditAction::Redo,
+                coalesced: false,
+                refused: true,
+                undo_depth: self.undo.len(),
+                redo_depth: 0,
+            });
+            return None;
+        };
         let range = utf16::byte_range(text, entry.at_utf16, entry.at_utf16 + entry.removed_units());
         text.replace_range(range, &entry.inserted);
         self.undo.push(entry.clone());
+        note(EditRecord {
+            action: EditAction::Redo,
+            coalesced: false,
+            refused: false,
+            undo_depth: self.undo.len(),
+            redo_depth: self.redo.len(),
+        });
         Some(entry.selection_after)
     }
 
     /// Resets the journal — the whole-value replacement's rule (the view
-    /// reconciliation, the AT's `SetValue`): both stacks clear, and the
-    /// next undo refuses.
+    /// reconciliation, the AT's `SetValue`): both stacks clear, the next
+    /// undo refuses, and the trail names the emptied journal (ADR-0037).
     pub fn reset(&mut self) {
         self.undo.clear();
         self.redo.clear();
+        note(EditRecord {
+            action: EditAction::Reset,
+            coalesced: false,
+            refused: false,
+            undo_depth: 0,
+            redo_depth: 0,
+        });
     }
 
     /// Whether a step is available to undo.
@@ -220,8 +389,8 @@ impl EditHistory {
         self.undo.is_empty() && self.redo.is_empty()
     }
 
-    /// The journal's depth: the undo branch's length — the inspector's
-    /// future vocabulary, and the tests' direct read.
+    /// The journal's depth: the undo branch's length — the trail's
+    /// records carry it live (ADR-0037), and the tests' direct read.
     #[must_use]
     pub const fn undo_depth(&self) -> usize {
         self.undo.len()
@@ -236,7 +405,8 @@ impl Default for EditHistory {
 
 #[cfg(test)]
 mod tests {
-    use super::EditHistory;
+    use super::{EditAction, EditHistory};
+    use crate::inspect::EditRecord;
 
     /// Drives the journal the way the widget's edit funnel does: one
     /// helper that records an edit and applies it to the text, so every
@@ -394,5 +564,150 @@ mod tests {
             history.undo(&mut text).is_none(),
             "the oldest steps evicted"
         );
+    }
+
+    #[test]
+    fn the_journal_notes_its_facts_when_the_trail_rides() {
+        crate::history::set_edit_trail_enabled(true);
+        let mut history = EditHistory::new();
+        let mut text = String::new();
+        edit(&mut history, &mut text, 0, 0, "he");
+        edit(&mut history, &mut text, 2, 2, "y");
+        assert_eq!(text, "hey");
+        assert_eq!(history.undo_depth(), 1, "a typed run is one step");
+
+        let (anchor, caret) = history.undo(&mut text).expect("a step to undo");
+        assert_eq!((anchor, caret), (0, 0));
+        let (anchor2, caret2) = history.redo(&mut text).expect("a step to redo");
+        assert_eq!((anchor2, caret2), (3, 3));
+
+        let trail = crate::history::take_edit_trail();
+        crate::history::set_edit_trail_enabled(false);
+        assert_eq!(trail.len(), 4, "every journal action streamed");
+        assert_eq!(
+            trail[0],
+            EditRecord {
+                action: EditAction::Record,
+                coalesced: false,
+                refused: false,
+                undo_depth: 1,
+                redo_depth: 0,
+            },
+            "the first keystroke opens the step"
+        );
+        assert!(
+            trail[1].coalesced,
+            "the continued keystroke folds into the tip"
+        );
+        assert_eq!(trail[1].undo_depth, 1, "coalescing never deepens");
+        assert_eq!(
+            trail[2],
+            EditRecord {
+                action: EditAction::Undo,
+                coalesced: false,
+                refused: false,
+                undo_depth: 0,
+                redo_depth: 1,
+            },
+            "the undo names the depth it left"
+        );
+        assert_eq!(trail[3].action, EditAction::Redo);
+        assert_eq!(trail[3].undo_depth, 1, "redo re-pushes the step");
+    }
+
+    #[test]
+    fn a_refused_chord_streams_too() {
+        crate::history::set_edit_trail_enabled(true);
+        let mut history = EditHistory::new();
+        let mut text = String::new();
+        assert!(
+            history.undo(&mut text).is_none(),
+            "an exhausted journal refuses"
+        );
+        assert!(history.redo(&mut text).is_none(), "an empty branch refuses");
+        let trail = crate::history::take_edit_trail();
+        crate::history::set_edit_trail_enabled(false);
+        assert_eq!(trail.len(), 2, "the refusals are facts the log carries");
+        assert!(trail[0].refused, "the undo refused — the fact is named");
+        assert_eq!(trail[0].action, EditAction::Undo);
+        assert_eq!(trail[0].undo_depth, 0, "the refusal moved nothing");
+        assert!(trail[1].refused);
+        assert_eq!(trail[1].action, EditAction::Redo);
+    }
+
+    #[test]
+    fn the_app_write_reset_streams_and_clears_the_redo_branch() {
+        crate::history::set_edit_trail_enabled(true);
+        let mut history = EditHistory::new();
+        let mut text = String::new();
+        edit(&mut history, &mut text, 0, 0, "typed");
+        let _ = history.undo(&mut text);
+        history.reset();
+        let trail = crate::history::take_edit_trail();
+        crate::history::set_edit_trail_enabled(false);
+        assert_eq!(trail.len(), 3);
+        assert_eq!(
+            trail[2],
+            EditRecord {
+                action: EditAction::Reset,
+                coalesced: false,
+                refused: false,
+                undo_depth: 0,
+                redo_depth: 0,
+            },
+            "the reset names the emptied journal"
+        );
+    }
+
+    #[test]
+    fn the_trail_is_bounded_and_evicts_the_oldest_fact() {
+        crate::history::set_edit_trail_enabled(true);
+        let mut history = EditHistory::new();
+        let mut text = String::new();
+        for word in 0..(super::EDIT_TRAIL_CAP + 10) {
+            edit(&mut history, &mut text, 0, 0, "x");
+            // A caret jump each time: every insertion opens its own step,
+            // so the journal's own bound never coalesces the facts away.
+            edit(&mut history, &mut text, 0, 0, "\u{0}");
+            let _ = history.undo(&mut text);
+            let _ = word;
+        }
+        let trail = crate::history::take_edit_trail();
+        crate::history::set_edit_trail_enabled(false);
+        assert_eq!(trail.len(), super::EDIT_TRAIL_CAP, "the bound holds");
+        assert!(
+            trail
+                .last()
+                .is_some_and(|last| last.action == EditAction::Undo),
+            "the newest fact is the last chord the loop drove"
+        );
+    }
+
+    #[test]
+    fn the_trail_stays_silent_when_no_one_listens() {
+        crate::history::set_edit_trail_enabled(false);
+        let mut history = EditHistory::new();
+        let mut text = String::new();
+        edit(&mut history, &mut text, 0, 0, "unheard");
+        let _ = history.undo(&mut text);
+        assert!(
+            crate::history::take_edit_trail().is_empty(),
+            "the disabled trail queues nothing — the edit path's one branch"
+        );
+    }
+
+    #[test]
+    fn the_drain_empties_the_queue() {
+        crate::history::set_edit_trail_enabled(true);
+        let mut history = EditHistory::new();
+        let mut text = String::new();
+        edit(&mut history, &mut text, 0, 0, "once");
+        let first = crate::history::take_edit_trail();
+        assert_eq!(first.len(), 1);
+        assert!(
+            crate::history::take_edit_trail().is_empty(),
+            "the drain clears — a fact streams once"
+        );
+        crate::history::set_edit_trail_enabled(false);
     }
 }

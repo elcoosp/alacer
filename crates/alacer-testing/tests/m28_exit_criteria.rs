@@ -19,7 +19,7 @@
 
 use alacer_core::arena::NodeId;
 use alacer_core::events::{Key, KeyEvent, KeyState, Modifiers};
-use alacer_core::inspect::{FocusRecord, InspectEvent, InspectObserver};
+use alacer_core::inspect::{FocusRecord, FocusRider, InspectEvent, InspectObserver};
 use alacer_core::passes::{FocusMove, FocusMoveOutcome, FocusRefusal};
 use alacer_testing::TestHarness;
 use alacer_widgets::{BoxedWidget as _, Button, Column, Label, Row, TextInput};
@@ -147,6 +147,7 @@ fn m28_the_doors_stream_their_answers_to_the_causal_log() {
         FocusRecord {
             movement: FocusMove::Next,
             scope: None,
+            rider: FocusRider::Consumer,
             outcome,
         },
         "the record is the door's answer, verbatim"
@@ -174,6 +175,7 @@ fn m28_the_doors_stream_their_answers_to_the_causal_log() {
         FocusRecord {
             movement: FocusMove::Next,
             scope: None,
+            rider: FocusRider::Consumer,
             outcome,
         },
         "the wrapped landing streams with the wrap set"
@@ -224,6 +226,7 @@ fn m28_the_refusals_stream_their_species() {
         FocusRecord {
             movement: FocusMove::Right,
             scope: None,
+            rider: FocusRider::Consumer,
             outcome,
         },
         "the empty direction names its node and direction in the log"
@@ -262,6 +265,7 @@ fn m28_the_scoped_door_streams_its_scope_and_its_dead_scope() {
         FocusRecord {
             movement: FocusMove::Next,
             scope: Some(modal),
+            rider: FocusRider::Consumer,
             outcome,
         },
         "the record names the scope the walk was bounded to"
@@ -284,6 +288,7 @@ fn m28_the_scoped_door_streams_its_scope_and_its_dead_scope() {
         FocusRecord {
             movement: FocusMove::Next,
             scope: Some(modal),
+            rider: FocusRider::Consumer,
             outcome,
         },
         "the dead-scope record names the scope and the species"
@@ -323,6 +328,7 @@ fn m28_the_keyboard_ride_streams_the_same_record() {
         FocusRecord {
             movement: FocusMove::Next,
             scope: None,
+            rider: FocusRider::Keyboard,
             outcome: FocusMoveOutcome::Moved(alacer_core::passes::FocusLanding {
                 from: None,
                 to: top_left,
@@ -444,13 +450,13 @@ fn m28_the_surface_rides_the_same_cut() {
     );
     let readme = std::fs::read_to_string(root.join("README.md")).expect("README");
     assert!(
-        readme.contains("M0 through M29") && readme.contains("thirty-six decision records"),
+        readme.contains("M0 through M30") && readme.contains("thirty-seven decision records"),
         "the README's status block and ADR count re-agree at M28"
     );
     let architecture = std::fs::read_to_string(root.join("docs/architecture.md"))
         .expect("the architecture document");
     assert!(
-        architecture.contains("36 decision records"),
+        architecture.contains("37 decision records"),
         "the architecture register re-agrees at 36 decision records"
     );
 

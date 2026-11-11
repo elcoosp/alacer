@@ -75,6 +75,37 @@ client frames must be (per RFC). The server answers `ping` with `pong`
 - `target` — the widget node the router resolved (deepest hit for pointer
   events, the focused widget for key/IME), or `null` when unrouted.
 
+### `focus` — a focus-move door answered ("why did focus change — or why didn't it?")
+
+```json
+{"kind":"focus","movement":"right","scope":null,"moved":false,"from":null,"to":null,"wrapped":false,"refusal":"nothing_in_direction","node":9,"direction":"right"}
+```
+
+- `movement` — the movement the caller asked for: one of `next`,
+  `prev`, `left`, `right`, `up`, `down`.
+- `scope` — the subtree root that bounded the walk (the scoped door's
+  trap), `null` for the unscoped funnel.
+- `moved` — `true` when the walk landed, `false` when it refused.
+- `from` / `to` / `wrapped` — the landing's endpoints and the wrap
+  (the tree-order move crossed a list end; the entry carries `from`
+  `null` and the directional moves never wrap). All three are inert on
+  a refusal (`to` `null`, `wrapped` `false`).
+- `refusal` — the species on a refused ride: `no_candidates`,
+  `dead_scope`, `no_geometry`, `nothing_in_direction`,
+  `already_focused`; `null` on a landing.
+- `node` — the refusal's node (the dead scope, the geometry-less
+  focus, the searched-from node at the edge, the stall's node); `null`
+  on a landing.
+- `direction` — the empty direction (`nothing_in_direction` only);
+  `null` otherwise.
+
+The record streams the moment the door resolves — a refused ride
+streams too — so a key event's trail reads `focus` → `input` →
+`frame` (the record precedes the input record the dispatch forwards
+and the frame summary). Every ride on the funnel streams: the
+keyboard's Tab fallback, the app's doors, and the ring's arrows alike
+(ADR-0034/ADR-0035).
+
 ### `frame` — a completed frame ("why is this frame slow?", "what did this mask touch?")
 
 ```json
@@ -138,7 +169,7 @@ malformed text frame is treated as `bye`.
   observer thread and the session is bounded at 4 096 events and drops the
   oldest (a slow client never back-pressures the app).
 - The recorder's rings are bounded (frames 256, edges 1 024, writes 1 024,
-  inputs 512); `clear` empties them.
+  inputs 512, focus 512); `clear` empties them.
 - Recording is opt-in: the pipeline forwards only when an observer is
   installed, and the flux records activations and provenance only when
   `Flux::set_causal_capture(true)`. With both off, the framework's default

@@ -28,9 +28,6 @@ const FULL_FRAME_COVER_RATIO: f32 = 0.75;
 pub struct Damage {
     regions: [Option<Rect>; DAMAGE_REGION_BUDGET],
     full: bool,
-    /// Whether the merge overflowed the region budget before finishing —
-    /// the degradation-ladder signal (§14.4) for tracing and devtools.
-    overflowed: bool,
 }
 
 impl Default for Damage {
@@ -44,14 +41,12 @@ impl Damage {
     pub const NONE: Self = Self {
         regions: [None; DAMAGE_REGION_BUDGET],
         full: false,
-        overflowed: false,
     };
 
     /// The full-frame fallback: every pixel is repainted.
     pub const FULL: Self = Self {
         regions: [None; DAMAGE_REGION_BUDGET],
         full: true,
-        overflowed: false,
     };
 
     /// Whether the frame must be repainted in full (the escape hatch).
@@ -66,13 +61,6 @@ impl Damage {
         !self.full && self.regions.iter().all(Option::is_none)
     }
 
-    /// Whether the merge overflowed the region budget before finishing
-    /// (devtools/tracing introspection).
-    #[must_use]
-    pub const fn overflowed(&self) -> bool {
-        self.overflowed
-    }
-
     /// The merged region boxes, clamped to `viewport`, in merge order.
     #[must_use]
     pub fn regions(&self, viewport: Size) -> Vec<Rect> {
@@ -83,14 +71,6 @@ impl Damage {
             .iter()
             .filter_map(|r| r.and_then(|rect| clamp_to_viewport(rect, viewport)))
             .collect()
-    }
-
-    /// The bounding box of all regions (`None` when empty).
-    #[must_use]
-    pub fn bounding_box(&self, viewport: Size) -> Option<Rect> {
-        let mut iter = self.regions(viewport).into_iter();
-        let first = iter.next()?;
-        Some(iter.fold(first, |acc, r| acc.union(&r)))
     }
 }
 
@@ -105,7 +85,6 @@ fn clamp_to_viewport(rect: Rect, viewport: Size) -> Option<Rect> {
 #[derive(Debug, Default)]
 pub struct DamageBuilder {
     regions: [Option<Rect>; DAMAGE_REGION_BUDGET],
-    overflowed: bool,
 }
 
 impl DamageBuilder {
@@ -135,7 +114,6 @@ impl DamageBuilder {
             *slot = Some(rect);
             return;
         }
-        self.overflowed = true;
         let mut best_index = 0_usize;
         let mut best_cost = f32::INFINITY;
         let mut best_merged = rect;
@@ -182,7 +160,6 @@ impl DamageBuilder {
         Damage {
             regions,
             full: false,
-            overflowed: self.overflowed,
         }
     }
 }
@@ -242,7 +219,6 @@ mod tests {
         let damage = builder.finish(Size::new(1000.0, 1000.0));
         let regions = damage.regions(Size::new(1000.0, 1000.0));
         assert_eq!(regions.len(), 3, "budget holds under merging");
-        assert!(damage.overflowed(), "the overflow is observable");
         assert!(
             regions
                 .iter()
@@ -284,10 +260,11 @@ mod tests {
         builder.add(rect(0.0, 0.0, 10.0, 10.0));
         builder.add(rect(50.0, 50.0, 10.0, 10.0));
         let damage = builder.finish(Size::new(1000.0, 1000.0));
-        let bbox = damage
-            .bounding_box(Size::new(1000.0, 1000.0))
-            .expect("bbox");
-        assert_eq!(bbox, rect(0.0, 0.0, 60.0, 60.0));
+        assert_eq!(
+            damage.regions(Size::new(1000.0, 1000.0)),
+            vec![rect(0.0, 0.0, 10.0, 10.0), rect(50.0, 50.0, 10.0, 10.0)],
+            "both the old and the new rect survive the merge"
+        );
     }
 
     #[test]
@@ -330,10 +307,5 @@ mod tests {
         assert!(!Damage::FULL.is_empty());
         assert!(Damage::NONE.is_empty());
         assert!(!Damage::NONE.is_full());
-        assert_eq!(
-            Damage::FULL.bounding_box(Size::new(4.0, 4.0)),
-            Some(rect(0.0, 0.0, 4.0, 4.0))
-        );
-        assert_eq!(Damage::NONE.bounding_box(Size::new(4.0, 4.0)), None);
     }
 }

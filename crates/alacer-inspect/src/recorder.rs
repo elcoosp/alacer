@@ -288,6 +288,7 @@ mod tests {
             handle.observe(InspectEvent::Focus(alacer_core::inspect::FocusRecord {
                 movement: FocusMove::Next,
                 scope: None,
+                rider: alacer_core::inspect::FocusRider::Consumer,
                 outcome: FocusMoveOutcome::Moved(alacer_core::passes::FocusLanding {
                     from: None,
                     to: node,
@@ -308,6 +309,7 @@ mod tests {
         handle.observe(InspectEvent::Focus(alacer_core::inspect::FocusRecord {
             movement: FocusMove::Right,
             scope: None,
+            rider: alacer_core::inspect::FocusRider::Consumer,
             outcome: FocusMoveOutcome::Refused(FocusRefusal::NothingInDirection {
                 node,
                 direction: FocusMove::Right,

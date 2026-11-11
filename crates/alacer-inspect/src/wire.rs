@@ -67,10 +67,18 @@ pub enum WireEvent {
     },
     /// A focus-move door answered — the walk's landing or its named
     /// refusal ("why did focus change — or why didn't it", ADR-0034).
+    /// Since M30 the event names its rider too (ADR-0036): the
+    /// keyboard's Tab fallback, the ring's arrows, or the app's own
+    /// doors — the additive field the protocol's versioning rule admits
+    /// at version 1.
     Focus {
         /// The movement the caller asked for (`next`, `prev`, `left`,
         /// `right`, `up`, `down`).
         movement: String,
+        /// Who rode the walk (M30, ADR-0036): `keyboard` (the Tab
+        /// fallback), `ring` (the directional keys), or `consumer`
+        /// (the app's own door calls).
+        rider: String,
         /// The subtree root that bounded the walk (the scoped door's
         /// trap), `null` for the unscoped funnel.
         scope: Option<u64>,
@@ -283,8 +291,17 @@ pub fn refusal_name(refusal: &FocusRefusal) -> &'static str {
     }
 }
 
+/// The rider's wire name
+/// ([`alacer_core::inspect::FocusRider::name`], the protocol's
+/// `snake_case` tag vocabulary).
+#[must_use]
+pub const fn rider_name(rider: alacer_core::inspect::FocusRider) -> &'static str {
+    rider.name()
+}
+
 /// Converts a core [`FocusRecord`] into the wire event: the outcome's
-/// landing or refusal resolved into the documented flat shape.
+/// landing or refusal resolved into the documented flat shape, the rider
+/// named beside the movement (M30, ADR-0036).
 #[must_use]
 pub fn wire_focus(record: &FocusRecord) -> WireEvent {
     let (moved, from, to, wrapped, refusal, node, direction) = match record.outcome {
@@ -324,6 +341,7 @@ pub fn wire_focus(record: &FocusRecord) -> WireEvent {
     };
     WireEvent::Focus {
         movement: record.movement.name().to_string(),
+        rider: rider_name(record.rider).to_string(),
         scope: record.scope.map(alacer_core::NodeId::raw),
         moved,
         from,
@@ -406,5 +424,25 @@ mod tests {
         };
         assert_eq!(damage, "full");
         assert_eq!(regions, 1, "full damage is the whole viewport");
+    }
+}
+
+#[cfg(test)]
+mod client_tests {
+    /// M31 (ADR-0036, this cut): the embedded standalone client renders
+    /// the trail's rider beside the movement — the field the wire
+    /// carries is a field the client shows, the attribution a reader of
+    /// the log pane answers "who moved focus" with. The client is a
+    /// single embedded file; the pin is the file's own fragments, the
+    /// same surface route the exit suites ride.
+    #[test]
+    fn the_client_names_the_rider_beside_the_movement() {
+        let page = include_str!("inspector.html");
+        for fragment in ["event.rider", "The client names the rider (M30, ADR-0036)"] {
+            assert!(
+                page.contains(fragment),
+                "the embedded client renders the rider: {fragment}"
+            );
+        }
     }
 }

@@ -310,8 +310,8 @@ fn m20_the_living_documents_re_agree() {
         "All 62 criterion cases",
         "Since M20 the value tier is a widget",
         "version-0.17.0",
-        "M0 through M29",
-        "thirty-six decision records",
+        "M0 through M30",
+        "thirty-seven decision records",
         "`Slider`",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
@@ -340,7 +340,7 @@ fn m20_the_living_documents_re_agree() {
     let architecture = read_workspace_file("docs/architecture.md");
     for fragment in [
         "ADR-0026",
-        "36 decision records",
+        "37 decision records",
         "the slider joins the widget vocabulary",
     ] {
         assert!(

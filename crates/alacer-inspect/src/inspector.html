@@ -52,6 +52,7 @@
   ul.log li.edge .t { color: var(--accent); }
   ul.log li.write .t { color: var(--warn); }
   ul.log li.input .t { color: var(--ok); }
+  ul.log li.focus .t { color: var(--hot); }
   ul.log li.frame .t { color: var(--text); }
   .hint { color: var(--dim); font-size: 12px; margin: 8px 0 0; }
   .zero { color: var(--dim); font-family: var(--mono); font-size: 12px; padding: 6px 0; }
@@ -90,7 +91,9 @@
     (<code>docs/inspector-protocol.md</code>, version 1): <code>edge</code> =
     a reactive edge activation queued masks (why this rendered);
     <code>write</code> = a provenance-tagged signal write (who wrote);
-    <code>input</code> = a routed input; <code>frame</code> = the frame
+    <code>input</code> = a routed input; <code>focus</code> = a focus-move
+    door answered — the walk's landing or its named refusal (why focus
+    changed, or why it didn't, ADR-0034); <code>frame</code> = the frame
     summary. "Who subscribes" is the edge table the flux publishes —
     every <code>edge</code> line names its binding.</p>
   </section>
@@ -219,6 +222,17 @@ function connect() {
         addLog("input", "input", event.input +
           (event.target != null ? " → node #" + event.target : " (unrouted)"));
         break;
+      case "focus": {
+        const scope = event.scope != null ? " @ scope #" + event.scope : "";
+        const answer = event.moved
+          ? "moved " + (event.from != null ? "#" + event.from : "(entry)") +
+            " → #" + event.to + (event.wrapped ? " (wrapped)" : "")
+          : "refused: " + event.refusal +
+            (event.node != null ? " (node #" + event.node +
+              (event.direction ? ", " + event.direction : "") + ")" : "");
+        addLog("focus", "focus " + event.movement + scope, answer);
+        break;
+      }
       case "frame":
         renderFrame(event);
         addLog("frame", "frame " + event.number,

@@ -111,6 +111,36 @@ and the frame summary). Every ride on the funnel streams: the
 keyboard's Tab fallback, the app's doors, and the ring's arrows alike
 (ADR-0034/ADR-0035), each naming its rider in `rider` (ADR-0036).
 
+### `edit` — a journal action answered ("what did this field's journal do?")
+
+```json
+{"kind":"edit","action":"record","coalesced":true,"refused":false,"undo_depth":1,"redo_depth":0}
+```
+
+- `action` — the journal action the record carries (M31, ADR-0037):
+  `record` (a committed value edit was journaled — the widget's edit
+  funnel call), `undo`, `redo`, or `reset` (the whole-value
+  replacement's rule — the app's write, never the user's).
+- `coalesced` — whether a `record` folded into the journal's tip (the
+  pure-append rule, ADR-0021: a typed run is one step). `false` for
+  every other action; a coalescing record is visible in the log as a
+  depth that never moves.
+- `refused` — whether the chord was refused (an exhausted `undo` or an
+  empty `redo` branch): the refusal streams too — the M28 honesty, the
+  edit tier's own — with `undo_depth`/`redo_depth` naming the journal
+  it did not move. Never `true` for `record` or `reset`.
+- `undo_depth` / `redo_depth` — the journal's branch depths when the
+  fact streamed (the M15 journal's own introspection vocabulary,
+  `EditHistory::undo_depth`).
+
+The record streams at the tick's start drain — one frame after the
+chord, the announcement drain's currency (the journal queues the fact
+on the editing thread, the dispatching pipeline drains it), so an edit
+chord's trail reads `edit` → `frame`. Every journal action streams,
+applied steps and refused chords alike; the queue behind it is bounded
+(the journal's own oldest-first eviction, 256 facts per thread) and
+the recorder's `edit` ring holds 512.
+
 ### `frame` — a completed frame ("why is this frame slow?", "what did this mask touch?")
 
 ```json
@@ -174,7 +204,7 @@ malformed text frame is treated as `bye`.
   observer thread and the session is bounded at 4 096 events and drops the
   oldest (a slow client never back-pressures the app).
 - The recorder's rings are bounded (frames 256, edges 1 024, writes 1 024,
-  inputs 512, focus 512); `clear` empties them.
+  inputs 512, focus 512, edits 512); `clear` empties them.
 - Recording is opt-in: the pipeline forwards only when an observer is
   installed, and the flux records activations and provenance only when
   `Flux::set_causal_capture(true)`. With both off, the framework's default

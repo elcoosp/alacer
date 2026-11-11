@@ -3,7 +3,10 @@
 //! the stable, versioned surface devtools clients code against; the core
 //! vocabulary (`alacer_core::inspect`) never leaks onto the wire.
 
-use alacer_core::inspect::{EdgeActivation, FocusRecord, FrameSummary, InputKind, SignalWrite};
+use alacer_core::history::EditAction;
+use alacer_core::inspect::{
+    EdgeActivation, EditRecord, FocusRecord, FrameSummary, InputKind, SignalWrite,
+};
 use alacer_core::passes::FocusRefusal;
 use serde::{Deserialize, Serialize};
 
@@ -103,6 +106,25 @@ pub enum WireEvent {
         /// The empty direction at the edge (`nothing_in_direction`
         /// only), else `null`.
         direction: Option<String>,
+    },
+    /// A journal action answered — the edit trail (ADR-0037): the
+    /// applied step, the refused chord, or the app's reset, the depths
+    /// beside it. Additive at version 1 (the rider field's rule):
+    /// clients that ignore unknown kinds are unaffected.
+    Edit {
+        /// The action the journal answered (`record`, `undo`, `redo`,
+        /// `reset`).
+        action: String,
+        /// Whether a `record` folded into the journal's tip (the
+        /// pure-append coalescing rule); `false` for every other action.
+        coalesced: bool,
+        /// Whether the chord was refused (an exhausted undo or redo
+        /// branch — the depths name the journal it did not move).
+        refused: bool,
+        /// The undo branch's depth when the fact streamed.
+        undo_depth: usize,
+        /// The redo branch's depth when the fact streamed.
+        redo_depth: usize,
     },
     /// A completed frame — the ledger + the mask heatmap.
     Frame {
@@ -299,6 +321,27 @@ pub const fn rider_name(rider: alacer_core::inspect::FocusRider) -> &'static str
     rider.name()
 }
 
+/// The edit action's wire name
+/// ([`alacer_core::history::EditAction::name`], the protocol's
+/// `snake_case` tag vocabulary).
+#[must_use]
+pub const fn edit_action_name(action: EditAction) -> &'static str {
+    action.name()
+}
+
+/// Converts a core [`EditRecord`] into the wire event: the journal's own
+/// fact, flat on the wire (ADR-0037).
+#[must_use]
+pub fn wire_edit(record: &EditRecord) -> WireEvent {
+    WireEvent::Edit {
+        action: edit_action_name(record.action).to_string(),
+        coalesced: record.coalesced,
+        refused: record.refused,
+        undo_depth: record.undo_depth,
+        redo_depth: record.redo_depth,
+    }
+}
+
 /// Converts a core [`FocusRecord`] into the wire event: the outcome's
 /// landing or refusal resolved into the documented flat shape, the rider
 /// named beside the movement (M30, ADR-0036).
@@ -394,6 +437,56 @@ mod tests {
     }
 
     #[test]
+    fn edit_events_carry_the_journal_vocabulary() {
+        let event = wire_edit(&EditRecord {
+            action: EditAction::Record,
+            coalesced: true,
+            refused: false,
+            undo_depth: 1,
+            redo_depth: 0,
+        });
+        let json = serde_json::to_string(&event).expect("edit json");
+        assert_eq!(
+            json,
+            r#"{"kind":"edit","action":"record","coalesced":true,"refused":false,"undo_depth":1,"redo_depth":0}"#,
+            "the documented edit shape (the focus event's flat rule)"
+        );
+        let WireEvent::Edit {
+            action,
+            coalesced,
+            refused,
+            undo_depth,
+            redo_depth,
+        } = event
+        else {
+            panic!("edit event");
+        };
+        assert_eq!(action, "record");
+        assert!(coalesced);
+        assert!(!refused);
+        assert_eq!((undo_depth, redo_depth), (1, 0));
+    }
+
+    #[test]
+    fn a_refused_chord_carries_the_refusal_flag() {
+        let event = wire_edit(&EditRecord {
+            action: EditAction::Undo,
+            coalesced: false,
+            refused: true,
+            undo_depth: 0,
+            redo_depth: 0,
+        });
+        let WireEvent::Edit {
+            action, refused, ..
+        } = event
+        else {
+            panic!("edit event");
+        };
+        assert_eq!(action, "undo", "the refusal names its action");
+        assert!(refused, "the refusal is the fact the wire carries");
+    }
+
+    #[test]
     fn frames_carry_the_damage_verdict_and_regions() {
         use alacer_core::geom::Size;
         use alacer_core::passes::PassKind;
@@ -429,7 +522,7 @@ mod tests {
 
 #[cfg(test)]
 mod client_tests {
-    /// M31 (ADR-0036, this cut): the embedded standalone client renders
+    /// M30 (ADR-0036, this cut): the embedded standalone client renders
     /// the trail's rider beside the movement — the field the wire
     /// carries is a field the client shows, the attribution a reader of
     /// the log pane answers "who moved focus" with. The client is a
@@ -442,6 +535,25 @@ mod client_tests {
             assert!(
                 page.contains(fragment),
                 "the embedded client renders the rider: {fragment}"
+            );
+        }
+    }
+
+    /// M31 (ADR-0037, this cut): the embedded standalone client renders
+    /// the journal's echo — the edit event the wire now carries lands in
+    /// the log pane beside the focus trail, the action and the depths
+    /// named, the refusal rendered the way the walk's refusals are. The
+    /// pin rides the file's own fragments (the M30 route).
+    #[test]
+    fn the_client_renders_the_journals_echo() {
+        let page = include_str!("inspector.html");
+        for fragment in [
+            "case \"edit\":",
+            "The client renders the journal's echo (M31, ADR-0037)",
+        ] {
+            assert!(
+                page.contains(fragment),
+                "the embedded client renders the edit event: {fragment}"
             );
         }
     }

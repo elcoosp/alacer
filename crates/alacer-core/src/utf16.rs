@@ -104,18 +104,9 @@ pub fn byte_range(s: &str, start_utf16: usize, end_utf16: usize) -> std::ops::Ra
     start..byte_offset(s, end_floor)
 }
 
-/// Splits `s` at the caret (UTF-16 offset) into `(before, after)` byte slices.
-#[must_use]
-pub fn split_at(s: &str, utf16_caret: usize) -> (&str, &str) {
-    let at = byte_offset(s, utf16_caret);
-    s.split_at(at)
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{
-        byte_offset, byte_range, floor_boundary, is_boundary, len_utf16, split_at, utf16_offset,
-    };
+    use super::{byte_offset, byte_range, floor_boundary, is_boundary, len_utf16, utf16_offset};
 
     #[test]
     fn ascii_offsets_are_identity() {
@@ -159,23 +150,6 @@ mod tests {
         );
         assert_eq!(byte_range(s, 3, 1), 1..1, "inverted ranges collapse");
         assert_eq!(byte_range(s, 0, 99), 0..s.len(), "out-of-range clamps");
-    }
-
-    #[test]
-    fn split_and_floor_agree() {
-        let s = "ab\u{1F600}cd";
-        // Offset 4 is the true boundary after the pair (a=0, b=1, pair=2..3).
-        let (before, after) = split_at(s, 4);
-        assert_eq!(before, "ab\u{1F600}");
-        assert_eq!(after, "cd");
-        // Offsets 2 (pair start) and 3 (mid-pair) both floor left to the
-        // pair's start — a caret never slices a surrogate pair.
-        let (before, after) = split_at(s, 2);
-        assert_eq!(before, "ab", "the pair's start boundary floors in place");
-        assert_eq!(after, "\u{1F600}cd");
-        let (before, after) = split_at(s, 3);
-        assert_eq!(before, "ab", "mid-surrogate caret floors left");
-        assert_eq!(after, "\u{1F600}cd");
     }
 
     #[test]

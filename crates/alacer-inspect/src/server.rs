@@ -367,6 +367,7 @@ pub(crate) fn wire_event_of(event: &alacer_core::inspect::InspectEvent) -> WireE
             input: wire::input_name(input.kind).to_string(),
             target: input.target.map(alacer_core::NodeId::raw),
         },
+        alacer_core::inspect::InspectEvent::Focus(record) => wire::wire_focus(record),
         alacer_core::inspect::InspectEvent::Frame(summary) => wire::wire_frame(summary),
     }
 }

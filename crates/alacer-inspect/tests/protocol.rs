@@ -246,6 +246,98 @@ fn frames_carry_the_full_documented_shape() {
     assert!(json.contains(r#""masks":"layout""#));
 }
 
+#[test]
+fn focus_events_carry_the_documented_flat_shape() {
+    // The wire conversion is pinned here (the client codes against it):
+    // a landing's endpoints and wrap, a refusal's species, node, and
+    // direction — the documented `focus` shape (ADR-0034).
+    use alacer_core::arena::NodeId;
+    use alacer_core::inspect::FocusRecord;
+    use alacer_core::passes::{FocusLanding, FocusMove, FocusMoveOutcome, FocusRefusal};
+    use alacer_inspect::wire::wire_focus;
+
+    let node = NodeId::allocate();
+    let landing = wire_focus(&FocusRecord {
+        movement: FocusMove::Next,
+        scope: None,
+        outcome: FocusMoveOutcome::Moved(FocusLanding {
+            from: None,
+            to: node,
+            wrapped: true,
+        }),
+    });
+    let json = serde_json::to_string(&landing).expect("landing json");
+    for fragment in [
+        r#""kind":"focus""#,
+        r#""movement":"next""#,
+        r#""scope":null"#,
+        r#""moved":true"#,
+        r#""from":null"#,
+        r#""wrapped":true"#,
+        r#""refusal":null"#,
+    ] {
+        assert!(json.contains(fragment), "missing {fragment} in {json}");
+    }
+
+    let refused = wire_focus(&FocusRecord {
+        movement: FocusMove::Right,
+        scope: Some(node),
+        outcome: FocusMoveOutcome::Refused(FocusRefusal::NothingInDirection {
+            node,
+            direction: FocusMove::Right,
+        }),
+    });
+    let json = serde_json::to_string(&refused).expect("refusal json");
+    for fragment in [
+        r#""kind":"focus""#,
+        r#""movement":"right""#,
+        r#""moved":false"#,
+        r#""refusal":"nothing_in_direction""#,
+        r#""direction":"right""#,
+    ] {
+        assert!(json.contains(fragment), "missing {fragment} in {json}");
+    }
+}
+
+#[test]
+fn a_session_streams_focus_records_over_the_real_socket() {
+    use alacer_core::inspect::FocusRecord;
+    use alacer_core::passes::{FocusLanding, FocusMove, FocusMoveOutcome};
+
+    // The recorder serializes the walk's answers as it records them: a
+    // focus record lands on the wire in record order, beside the input
+    // trail (the protocol's additive rule — new event kind, version 1).
+    let recorder = CausalRecorder::new("focus-wire");
+    let server =
+        InspectorServer::bind("127.0.0.1:0", recorder.clone(), "focus-wire").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let _hello = read_text_frame(&mut reader);
+
+    std::thread::sleep(Duration::from_millis(30));
+    let node = alacer_core::arena::NodeId::allocate();
+    recorder
+        .clone_handle()
+        .observe(InspectEvent::Focus(FocusRecord {
+            movement: FocusMove::Down,
+            scope: None,
+            outcome: FocusMoveOutcome::Moved(FocusLanding {
+                from: None,
+                to: node,
+                wrapped: false,
+            }),
+        }));
+
+    let focus = read_text_frame(&mut reader);
+    assert!(
+        focus.contains(r#""kind":"focus""#)
+            && focus.contains(r#""movement":"down""#)
+            && focus.contains(r#""moved":true"#),
+        "focus event over the socket: {focus}"
+    );
+}
+
 /// A minimal frame summary with a real ledger shape.
 fn dummy_frame(number: u64) -> alacer_core::inspect::FrameSummary {
     use alacer_core::passes::PassKind;

@@ -9,7 +9,7 @@ use alacer_view::{ElementProps, WidgetRegistry};
 /// Creates the registry pre-loaded with the element set: the M0 canon
 /// (`label`, `button`, `column`, `row`, `spacer`, `panel`, `list`) plus the
 /// M6 canon (`checkbox`, `text_input`, `table`, `table_row`, `table_cell`,
-/// `column_header`).
+/// `column_header`) plus the M32 value tier (`slider`, `progress`).
 #[must_use]
 pub fn default_registry() -> WidgetRegistry {
     let mut registry = WidgetRegistry::new();
@@ -26,6 +26,8 @@ pub fn default_registry() -> WidgetRegistry {
     registry.register("table_row", table_row_create, table_row_patch);
     registry.register("table_cell", table_cell_create, table_cell_patch);
     registry.register("column_header", column_header_create, column_header_patch);
+    registry.register("slider", slider_create, slider_patch);
+    registry.register("progress", progress_create, progress_patch);
     registry
 }
 
@@ -374,6 +376,106 @@ fn column_header_patch(header: &mut crate::ColumnHeader, props: &ElementProps<'_
     visual
 }
 
+// ---------------------------------------------------------------------------
+// The M32 value-tier elements
+// ---------------------------------------------------------------------------
+
+/// The value prop's create write: the widget's own funnel clamps and
+/// snaps every write, so the view's number lands exactly where a drag or
+/// an arrow would put it.
+fn slider_create(props: &ElementProps<'_>) -> crate::Slider {
+    let mut slider = crate::Slider::new(
+        props.text("name").unwrap_or_default(),
+        props.number("min").unwrap_or(0.0),
+        props.number("max").unwrap_or(100.0),
+    );
+    if let Some(step) = props.number("step") {
+        slider = slider.step(step);
+    }
+    if let Some(value) = props.number("value") {
+        slider = slider.value(value);
+    }
+    if let Some(handler) = props.number_handler("on_change") {
+        let mut handler = handler;
+        slider = slider.on_change(move |value: f32| handler(value));
+    }
+    if let Some(accent) = props.color("accent") {
+        slider = slider.accent(accent);
+    }
+    slider
+}
+
+fn slider_patch(slider: &mut crate::Slider, props: &ElementProps<'_>) -> bool {
+    let mut visual = false;
+    if let Some(name) = props.text("name") {
+        slider.set_name(name);
+        visual = true;
+    }
+    if let Some(value) = props.number("value") {
+        // The programmatic write fires no handler (the widget's own
+        // contract: state, not a user act) and clamps/snaps inside the
+        // widget — the funnel every door rides. The write moved the
+        // value only when the funnel changed it (the widget's own
+        // `total_cmp` equality, never `f32::eq`).
+        let before = slider.current_value();
+        slider.set_value(value);
+        visual |= !same_value(before, slider.current_value());
+    }
+    visual
+}
+
+/// The float equality the patcher borrows: `total_cmp` ordering, the
+/// widget's own rule (`f32::eq` is a lint trap the whole workspace
+/// refuses) — a patch reports "visual" only when the funnel moved the
+/// value.
+fn same_value(a: f32, b: f32) -> bool {
+    use std::cmp::Ordering;
+    a.total_cmp(&b) == Ordering::Equal
+}
+
+fn progress_create(props: &ElementProps<'_>) -> crate::Progress {
+    let name = props.text("name").unwrap_or_default();
+    let min = props.number("min").unwrap_or(0.0);
+    let max = props.number("max").unwrap_or(100.0);
+    // The two doors the value tier's report half ships (M21): the
+    // reactive bridge (a `binding` prop — the flux bridge owns the
+    // value, §6.1) or the static value. The binding wins, the bound
+    // label's rule.
+    if let Some(binding) = props.number_binding() {
+        return crate::Progress::bound(name, min, max, binding);
+    }
+    let mut progress = crate::Progress::new(name, min, max);
+    if let Some(value) = props.number("value") {
+        progress = progress.value(value);
+    }
+    if let Some(fill) = props.color("fill") {
+        progress = progress.fill(fill);
+    }
+    progress
+}
+
+fn progress_patch(progress: &mut crate::Progress, props: &ElementProps<'_>) -> bool {
+    let mut visual = false;
+    if let Some(name) = props.text("name") {
+        progress.set_name(name);
+        visual = true;
+    }
+    if let Some(binding) = props.number_binding() {
+        // The bridge owns a bound progress's value: re-hanging the same
+        // binding is a no-op, never a visual change (the bound label's
+        // rule, at the value tier).
+        let _ = binding;
+        return visual;
+    }
+    if let Some(value) = props.number("value") {
+        // The widget's own answer is the idle-frame property: a write
+        // that lands where the value already is reports `false` — no
+        // masks, an idle frame (M21).
+        visual |= progress.set_value(value);
+    }
+    visual
+}
+
 #[cfg(test)]
 mod tests {
     use super::default_registry;
@@ -404,10 +506,123 @@ mod tests {
             "table_row",
             "table_cell",
             "column_header",
+            // The M32 value-tier elements.
+            "slider",
+            "progress",
         ] {
             assert!(registry.contains(name), "{name} is a default element");
         }
         assert!(!registry.contains("video"));
+    }
+
+    #[test]
+    fn slider_props_create_and_patch_in_place() {
+        let registry = default_registry();
+        let node = ViewNode::element("slider")
+            .prop("name", "Volume")
+            .prop("min", 0.0_f32)
+            .prop("max", 100.0_f32)
+            .prop("step", 5.0_f32)
+            .prop("value", 42.0_f32);
+        let mut widget = registry.create(&node);
+        assert_eq!(widget.label().resolve(), "Volume");
+        assert!(
+            downcast_slider(widget.as_mut()).is_some_and(|s| same_value(s.current_value(), 40.0)),
+            "the create write rides the widget's own funnel (clamped and snapped)"
+        );
+
+        // The value patch: clamped and snapped like every write, in place.
+        let updated = ViewNode::element("slider").prop("value", 99.0_f32);
+        assert!(
+            registry.patch(widget.as_mut(), &updated),
+            "a value patch is visual"
+        );
+        assert!(
+            downcast_slider(widget.as_mut()).is_some_and(|s| same_value(s.current_value(), 100.0)),
+            "the patch write clamps to the range the widget owns"
+        );
+
+        // A write that lands where the value already is: no visual change
+        // (the M20 idle-frame property, at the view seam).
+        let again = ViewNode::element("slider").prop("value", 100.0_f32);
+        assert!(
+            !registry.patch(widget.as_mut(), &again),
+            "a no-op write patches to no masks"
+        );
+
+        // The name patch: the label the a11y tree carries.
+        let renamed = ViewNode::element("slider").prop("name", "Bass");
+        assert!(registry.patch(widget.as_mut(), &renamed));
+        assert_eq!(widget.label().resolve(), "Bass", "patched in place");
+    }
+
+    #[test]
+    fn progress_props_create_and_patch_and_the_idle_frame() {
+        let registry = default_registry();
+        let node = ViewNode::element("progress")
+            .prop("name", "Upload")
+            .prop("min", 0.0_f32)
+            .prop("max", 4.0_f32)
+            .prop("value", 2.0_f32);
+        let mut widget = registry.create(&node);
+        assert_eq!(widget.label().resolve(), "Upload");
+        assert!(
+            downcast_progress(widget.as_mut()).is_some_and(|p| same_value(p.current_value(), 2.0)),
+            "the reported value lands at create"
+        );
+
+        let updated = ViewNode::element("progress").prop("value", 3.0_f32);
+        assert!(registry.patch(widget.as_mut(), &updated));
+        assert!(
+            downcast_progress(widget.as_mut()).is_some_and(|p| same_value(p.current_value(), 3.0)),
+            "the value patch lands in place"
+        );
+
+        // A write that lands where the value already is queues no masks
+        // (the M21 idle-frame property — the patcher's `false` is exactly
+        // the widget's own `set_value` answer).
+        let again = ViewNode::element("progress").prop("value", 3.0_f32);
+        assert!(!registry.patch(widget.as_mut(), &again));
+    }
+
+    #[test]
+    fn progress_binds_its_value_and_rehangs_idempotently() {
+        let registry = default_registry();
+        let binding = alacer_core::flux::RenderBinding::new(1.5_f32);
+        let node = ViewNode::element("progress")
+            .prop("name", "Bound")
+            .prop("min", 0.0_f32)
+            .prop("max", 4.0_f32)
+            .prop("binding", binding.clone());
+        let mut widget = registry.create(&node);
+        assert!(
+            downcast_progress(widget.as_mut()).is_some_and(|p| same_value(p.current_value(), 1.5)),
+            "the number binding rides the bound constructor"
+        );
+
+        // The flux bridge owns a bound progress's value (§6.1): a rebuild
+        // re-hangs the same binding slot — a no-op patch, never a visual
+        // change (the bound label's rule, at the value tier).
+        let rebuilt = ViewNode::element("progress").prop("binding", binding);
+        assert!(!registry.patch(widget.as_mut(), &rebuilt));
+    }
+
+    /// The float equality the tests borrow: `total_cmp` ordering, the
+    /// widget's own rule (`f32::eq` is a lint trap the whole workspace
+    /// refuses).
+    fn same_value(a: f32, b: f32) -> bool {
+        use std::cmp::Ordering;
+        a.total_cmp(&b) == Ordering::Equal
+    }
+
+    /// Downcasts the erased widget to `Slider` (the test's introspection).
+    fn downcast_slider(widget: &mut dyn alacer_core::Widget) -> Option<&mut crate::Slider> {
+        widget.as_any_mut().downcast_mut::<crate::Slider>()
+    }
+
+    /// Downcasts the erased widget to `Progress` (the test's introspection).
+    fn downcast_progress(widget: &mut dyn alacer_core::Widget) -> Option<&mut crate::Progress> {
+        widget.as_any_mut().downcast_mut::<crate::Progress>()
     }
 
     #[test]

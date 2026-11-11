@@ -239,6 +239,21 @@ function connect() {
         addLog("focus", "focus " + event.movement + rider + scope, answer);
         break;
       }
+      case "edit": {
+        // The client renders the journal's echo (M31, ADR-0037): the
+        // edit trail lands in the log pane beside the focus trail — the
+        // action and the depths named, the refusal rendered the way the
+        // walk's refusals are, so a reader answers "what did this
+        // field's journal do" from the log alone.
+        const depths = " (undo " + event.undo_depth + " · redo " + event.redo_depth + ")";
+        const answer = event.refused
+          ? "refused: the journal was " + (event.action === "undo" ? "exhausted" : "empty") + depths
+          : (event.action === "record"
+            ? (event.coalesced ? "coalesced into the tip" : "opened a step") + depths
+            : "answered" + depths);
+        addLog("edit", "edit " + event.action, answer);
+        break;
+      }
       case "frame":
         renderFrame(event);
         addLog("frame", "frame " + event.number,

@@ -15,11 +15,13 @@
 //! | "What did this mask touch?" | [`FrameSummary::dirty`] — the mask heatmap: role, label, bounds, mask per dirty node |
 //! | "Why did focus change — or why didn't it?" | [`InspectEvent::Focus`] — the walk's own answer, streamed as the doors resolve (ADR-0034) |
 //! | "Who rode the walk — the keyboard, the code, or the ring?" | [`FocusRider`] — the attribution every [`FocusRecord`] carries beside its movement (ADR-0036) |
+//! | "What did this field's journal do?" | [`InspectEvent::Edit`] — the edit trail: one record per journal action, streamed the moment the journal answers (ADR-0037) |
 
 use crate::arena::NodeId;
 use crate::damage::Damage;
 use crate::geom::Rect;
 use crate::geom::Size;
+use crate::history::EditAction;
 use crate::mask::Change;
 use crate::passes::{FocusMove, FocusMoveOutcome, PassKind};
 use crate::widget::Role;
@@ -223,6 +225,36 @@ pub struct FocusRecord {
     pub outcome: FocusMoveOutcome,
 }
 
+/// One journal action's record (§13.3, ADR-0037): the causal log's
+/// answer to "what did this field's journal do — and how deep is it
+/// now". The journal itself writes the fact the moment [`EditAction`]
+/// resolves — an applied step, a refused chord, the app's reset — so an
+/// inspector trail, a status line, or a test reads the edit history
+/// without re-implementing the observation at the chord site. The depths
+/// are the journal's own introspection reads
+/// ([`crate::history::EditHistory::undo_depth`] vocabulary) taken when
+/// the fact streamed; the fields are the additive wire rule's shape
+/// (ADR-0010), `EditAction::name` the single source for the action's tag.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EditRecord {
+    /// The action the journal answered.
+    pub action: EditAction,
+    /// Whether a [`EditAction::Record`] folded into the journal's tip
+    /// (the pure-append coalescing rule, ADR-0021) — `false` for every
+    /// other action, whose fact never coalesces.
+    pub coalesced: bool,
+    /// Whether the chord was refused — an exhausted undo or redo branch
+    /// (the refuse-don't-munge discipline: the refusal streams too, the
+    /// depths naming the journal it did not move). Never `true` for
+    /// [`EditAction::Record`] or [`EditAction::Reset`], which cannot
+    /// refuse.
+    pub refused: bool,
+    /// The undo branch's depth when the fact streamed.
+    pub undo_depth: usize,
+    /// The redo branch's depth when the fact streamed.
+    pub redo_depth: usize,
+}
+
 /// One observation: what the pipeline and the flux surface to devtools.
 #[derive(Debug, Clone)]
 pub enum InspectEvent {
@@ -236,6 +268,11 @@ pub enum InspectEvent {
     /// refusal, the "why did focus change — or why didn't it" trail
     /// (ADR-0034).
     Focus(FocusRecord),
+    /// A journal action answered — the edit trail (ADR-0037): the
+    /// applied step, the refused chord, or the app's reset, depths
+    /// beside it. Streams with the frame's own records (the tick's
+    /// start drain, the announcement drain's shape).
+    Edit(EditRecord),
     /// A frame completed — the frame's causal summary.
     Frame(FrameSummary),
 }

@@ -260,6 +260,7 @@ fn focus_events_carry_the_documented_flat_shape() {
     let landing = wire_focus(&FocusRecord {
         movement: FocusMove::Next,
         scope: None,
+        rider: alacer_core::inspect::FocusRider::Consumer,
         outcome: FocusMoveOutcome::Moved(FocusLanding {
             from: None,
             to: node,
@@ -282,6 +283,7 @@ fn focus_events_carry_the_documented_flat_shape() {
     let refused = wire_focus(&FocusRecord {
         movement: FocusMove::Right,
         scope: Some(node),
+        rider: alacer_core::inspect::FocusRider::Consumer,
         outcome: FocusMoveOutcome::Refused(FocusRefusal::NothingInDirection {
             node,
             direction: FocusMove::Right,
@@ -322,6 +324,7 @@ fn a_session_streams_focus_records_over_the_real_socket() {
         .observe(InspectEvent::Focus(FocusRecord {
             movement: FocusMove::Down,
             scope: None,
+            rider: alacer_core::inspect::FocusRider::Consumer,
             outcome: FocusMoveOutcome::Moved(FocusLanding {
                 from: None,
                 to: node,

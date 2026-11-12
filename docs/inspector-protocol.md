@@ -141,6 +141,38 @@ applied steps and refused chords alike; the queue behind it is bounded
 (the journal's own oldest-first eviction, 256 facts per thread) and
 the recorder's `edit` ring holds 512.
 
+### `announce` — a speech act answered ("why did the live region speak — or refuse?")
+
+```json
+{"kind":"announce","politeness":"polite","outcome":"delivered","refusal":null}
+```
+
+- `politeness` — the `aria-live` priority the act asked for (M33,
+  ADR-0039): `polite` (speak at the next break) or `assertive`
+  (interrupt now) — the same vocabulary the reserved region carries.
+- `outcome` — what the pipeline answered: `delivered` (the act landed
+  on the reserved live region — its content and priority ride the
+  frame's a11y delta), `superseded` (a later act in the same batch
+  replaced this one before the tick drained it — last write wins,
+  ADR-0024, the replace rule visible as data instead of a silent
+  drop), or `refused` (the act never reached the AT — the M28 honesty
+  at the speech-act tier: the fact a trail reader wants is exactly the
+  act that never landed).
+- `refusal` — the species on a refused act: `empty_text` (an empty or
+  all-whitespace text speaks nothing — refused at the push route or at
+  the direct door) or `no_root` (no root is mounted — the region has
+  no tree to join, refused at the direct door or dropped at the
+  drain); `null` otherwise.
+
+The record streams where the answer resolves — the direct door's
+answers at the door, the push-side empty refusal riding the thread's
+announcement trail to the tick's start drain (the edit trail's shape,
+ADR-0037), the drain's batch answers at the tick's start — so a speech
+act's trail reads `announce` → `frame`. Every answered act streams,
+delivered, replaced, and refused alike; the queue behind it is bounded
+(256 facts per thread, oldest-first eviction) and the recorder's
+`announce` ring holds 512.
+
 ### `frame` — a completed frame ("why is this frame slow?", "what did this mask touch?")
 
 ```json
@@ -204,7 +236,7 @@ malformed text frame is treated as `bye`.
   observer thread and the session is bounded at 4 096 events and drops the
   oldest (a slow client never back-pressures the app).
 - The recorder's rings are bounded (frames 256, edges 1 024, writes 1 024,
-  inputs 512, focus 512, edits 512); `clear` empties them.
+  inputs 512, focus 512, edits 512, announces 512); `clear` empties them.
 - Recording is opt-in: the pipeline forwards only when an observer is
   installed, and the flux records activations and provenance only when
   `Flux::set_causal_capture(true)`. With both off, the framework's default

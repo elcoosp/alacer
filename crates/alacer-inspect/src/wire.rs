@@ -4,10 +4,11 @@
 //! vocabulary (`alacer_core::inspect`) never leaks onto the wire.
 
 use alacer_core::announce::Politeness;
+use alacer_core::events::Key;
 use alacer_core::history::EditAction;
 use alacer_core::inspect::{
     AnnounceOutcome, AnnounceRecord, EdgeActivation, EditRecord, FocusRecord, FrameSummary,
-    InputKind, SignalWrite,
+    InputKind, KeyRecord, SignalWrite,
 };
 use alacer_core::passes::FocusRefusal;
 use serde::{Deserialize, Serialize};
@@ -142,6 +143,25 @@ pub enum WireEvent {
         /// The refusal species (`empty_text`, `no_root`) on a refused
         /// act; `null` otherwise.
         refusal: Option<String>,
+    },
+    /// A keymap consult answered — the shortcut trail (ADR-0042): the
+    /// chord the funnel asked the app's shortcuts about beside the
+    /// species it got back. Additive at version 1 (the rider field's
+    /// rule): clients that ignore unknown kinds are unaffected.
+    Key {
+        /// The logical key the chord carries (`char`, `enter`, `tab`,
+        /// `arrow_left`, … — [`key_name`]'s tags).
+        key: String,
+        /// The character the chord carries when `key` is `char`;
+        /// `null` otherwise.
+        character: Option<String>,
+        /// The chord's exact modifier shape, canonical order
+        /// (`shift`, `ctrl`, `alt`, `meta`) joined with `+`; empty
+        /// string when none held.
+        modifiers: String,
+        /// What the consult answered (`fired`, `fell_through`,
+        /// `uninstalled`).
+        outcome: String,
     },
     /// A completed frame — the ledger + the mask heatmap.
     Frame {
@@ -379,6 +399,67 @@ pub fn wire_announce(record: &AnnounceRecord) -> WireEvent {
             AnnounceOutcome::Refused(refusal) => Some(refusal.name().to_string()),
             AnnounceOutcome::Delivered | AnnounceOutcome::Superseded => None,
         },
+    }
+}
+
+/// The chord's key, named for the wire ([`KeyRecord`]'s `key` field):
+/// the logical key's `snake_case` tag, the protocol's stable,
+/// documented field values — the wire-local naming vocabulary's rule
+/// ([`input_name`], [`refusal_name`]).
+#[must_use]
+pub const fn key_name(key: &Key) -> &'static str {
+    match key {
+        Key::Char(_) => "char",
+        Key::Enter => "enter",
+        Key::Backspace => "backspace",
+        Key::Delete => "delete",
+        Key::Tab => "tab",
+        Key::Space => "space",
+        Key::Escape => "escape",
+        Key::ArrowLeft => "arrow_left",
+        Key::ArrowRight => "arrow_right",
+        Key::ArrowUp => "arrow_up",
+        Key::ArrowDown => "arrow_down",
+        Key::Home => "home",
+        Key::End => "end",
+        Key::Unknown => "unknown",
+    }
+}
+
+/// The chord's modifier shape, canonical order joined with `+` — the
+/// masks field's joined-names rule at the key tier; empty when none
+/// held (the exact-shape chord matches exactly this string's flags).
+#[must_use]
+fn modifiers_wire(modifiers: alacer_core::events::Modifiers) -> String {
+    let mut parts: Vec<&'static str> = Vec::with_capacity(4);
+    if modifiers.shift {
+        parts.push("shift");
+    }
+    if modifiers.control {
+        parts.push("ctrl");
+    }
+    if modifiers.alt {
+        parts.push("alt");
+    }
+    if modifiers.meta {
+        parts.push("meta");
+    }
+    parts.join("+")
+}
+
+/// Converts a core [`KeyRecord`] into the wire event: the consult's
+/// answer, flat on the wire (ADR-0042) — the chord's key beside its
+/// modifier shape and the species the funnel got back.
+#[must_use]
+pub fn wire_key(record: &KeyRecord) -> WireEvent {
+    WireEvent::Key {
+        key: key_name(record.chord.key()).to_string(),
+        character: match record.chord.key() {
+            Key::Char(character) => Some(character.to_string()),
+            _ => None,
+        },
+        modifiers: modifiers_wire(record.chord.modifiers()),
+        outcome: record.outcome.name().to_string(),
     }
 }
 

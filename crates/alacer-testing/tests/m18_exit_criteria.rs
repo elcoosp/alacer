@@ -304,7 +304,7 @@ fn m18_the_announce_case_stays_published_as_the_corpus_moves() {
     ] {
         let source = read_workspace_file(suite);
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 62;"),
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 63;"),
             "{suite} must pin the 60-case corpus (moved with the corpus at M22)"
         );
     }

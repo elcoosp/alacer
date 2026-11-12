@@ -297,18 +297,29 @@ impl Widget for Progress {
     /// The AT tier is read-only (M21, ADR-0027): a reporting widget has no
     /// write door — every action is refused honestly, never munged into a
     /// step or a press (the M11 rule). The tree keeps the value the app
-    /// wrote.
+    /// wrote. Since M40 (ADR-0046) the value-tier refusals stream as
+    /// [`alacer_core::inspect::ValueRecord`]s — the `no_write_door`
+    /// species the `bool` collapsed into one silence, the read-only
+    /// tier's honesty visible on the log (the clipboard trail's shape,
+    /// ADR-0045); a question outside the value tier (a press, a scroll,
+    /// a text edit) is not a value fact and stays silent.
     fn on_a11y_action(&mut self, action: A11yAction) -> bool {
-        match action {
-            A11yAction::SetValue(_)
-            | A11yAction::Increment
-            | A11yAction::Decrement
-            | A11yAction::DefaultPress
+        let tier = match action {
+            A11yAction::SetValue(_) => alacer_core::ValueAction::SetValue,
+            A11yAction::Increment => alacer_core::ValueAction::Increment,
+            A11yAction::Decrement => alacer_core::ValueAction::Decrement,
+            A11yAction::DefaultPress
             | A11yAction::ScrollUp(_)
             | A11yAction::ScrollDown(_)
             | A11yAction::ReplaceSelectedText(_)
-            | A11yAction::SetTextSelection(_) => false,
-        }
+            | A11yAction::SetTextSelection(_) => return false,
+        };
+        alacer_core::value::note_write(alacer_core::ValueRecord {
+            action: tier,
+            outcome: alacer_core::ValueOutcome::Refused(alacer_core::ValueRefusal::NoWriteDoor),
+            value: self.reported(),
+        });
+        false
     }
 }
 

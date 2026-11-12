@@ -25,7 +25,22 @@
 //! with_clipboard(|clipboard| clipboard.write_text(&selected));
 //! ```
 
+//! Since M39 the round trips ride the causal log too (ADR-0045): every
+//! clipboard round trip the editing chords answer — a copy, a cut, a
+//! paste, and every honest refusal — streams one
+//! [`crate::inspect::ClipboardRecord`] onto the thread's trail below,
+//! and the dispatching pipeline drains it at the tick's start into
+//! [`crate::inspect::InspectEvent::Clipboard`] — the edit trail's shape
+//! (ADR-0037), dev-mode and bounded, silent while nobody listens. The
+//! record carries the payload's scalar count, never the payload: a
+//! clipboard can carry a secret, and the log is a devtools surface, not
+//! a shadow clipboard.
+//!
+//! [`crate::passes::PassPipeline::announce`]: crate::passes::PassPipeline::announce
+
+use std::cell::Cell;
 use std::cell::RefCell;
+use std::collections::VecDeque;
 use std::rc::Rc;
 
 /// The clipboard services seam. One implementation per process — installed
@@ -119,6 +134,71 @@ pub fn with_clipboard<R>(f: impl FnOnce(&dyn ClipboardSeam) -> R) -> R {
 
 thread_local! {
     static CLIPBOARD: RefCell<Option<Rc<dyn ClipboardSeam>>> = const { RefCell::new(None) };
+}
+
+/// The clipboard trail's cap: facts carried per thread before the oldest
+/// evicts — the journal's own bounded rule (§14.3) applied to its echo
+/// (a devtools log, not a frame-budget liability; the same order the
+/// edit and announcement trails ride).
+pub const CLIPBOARD_TRAIL_CAP: usize = 256;
+
+thread_local! {
+    /// Whether the trail notes facts: enabled by the dispatching
+    /// pipeline when a devtools observer installs ([`crate::passes`]
+    /// `PassPipeline::set_observer`), off otherwise — the disabled
+    /// trail costs one branch per round trip (the A7 idle contract).
+    static TRAIL_ENABLED: Cell<bool> = const { Cell::new(false) };
+    /// The facts queued since the last tick drain — the handler side of
+    /// the seam, bounded by [`CLIPBOARD_TRAIL_CAP`] with oldest-first
+    /// eviction, so a round trip queued where no pipeline will ever
+    /// drain still terminates.
+    static TRAIL: RefCell<VecDeque<crate::inspect::ClipboardRecord>> =
+        const { RefCell::new(VecDeque::new()) };
+}
+
+/// Enables or disables the clipboard trail (the pipeline's side of the
+/// seam: `PassPipeline::set_observer` turns it on when a devtools
+/// observer installs). Disabling never clears the queue — the drain
+/// owns that.
+pub(crate) fn set_clipboard_trail_enabled(enabled: bool) {
+    TRAIL_ENABLED.with(|slot| slot.set(enabled));
+}
+
+/// Notes one clipboard fact on this thread's trail (the clipboard's
+/// side of the seam, ADR-0045): a no-op while the trail is disabled, an
+/// oldest-evicting push while it rides. The editing chords call this
+/// where the round trip resolves — the widget knows the action and the
+/// payload it moved, the trail knows the drain — so a status line, an
+/// inspector trail, or a test reads the clipboard tier without
+/// re-implementing the observation at the chord site.
+pub fn note_round_trip(record: crate::inspect::ClipboardRecord) {
+    TRAIL_ENABLED.with(|enabled| {
+        if !enabled.get() {
+            return;
+        }
+        tracing::trace!(
+            target: "alacer::clipboard",
+            action = record.action.name(),
+            outcome = record.outcome.name(),
+            chars = record.chars,
+            "clipboard fact queued for the next tick"
+        );
+        TRAIL.with(|slot| {
+            let mut queue = slot.borrow_mut();
+            if queue.len() >= CLIPBOARD_TRAIL_CAP {
+                queue.pop_front();
+            }
+            queue.push_back(record);
+        });
+    });
+}
+
+/// The dispatching pipeline's drain: every fact queued on this thread
+/// since the last tick, oldest first — the whole queue clears (a fact
+/// streams once), the records then riding the observer as
+/// [`crate::inspect::InspectEvent::Clipboard`].
+pub(crate) fn take_clipboard_trail() -> Vec<crate::inspect::ClipboardRecord> {
+    TRAIL.with(|slot| slot.borrow_mut().drain(..).collect())
 }
 
 /// The in-memory clipboard: the tests' and headless harnesses' honest

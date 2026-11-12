@@ -344,14 +344,14 @@ fn m35_the_surface_rides_the_same_cut() {
     );
     let readme = std::fs::read_to_string(root.join("README.md")).expect("README");
     assert!(
-        readme.contains("M0 through M36") && readme.contains("forty-three decision records"),
+        readme.contains("M0 through M38") && readme.contains("forty-five decision records"),
         "the README's status block and ADR count re-agree at M35"
     );
     let architecture = std::fs::read_to_string(root.join("docs/architecture.md"))
         .expect("the architecture document");
     assert!(
-        architecture.contains("43 decision records"),
-        "the architecture register re-agrees at 43 decision records"
+        architecture.contains("45 decision records"),
+        "the architecture register re-agrees at 45 decision records"
     );
 
     // The corpus stands at 63: the keymap's mixed walk joins the

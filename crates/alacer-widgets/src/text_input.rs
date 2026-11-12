@@ -507,6 +507,7 @@ impl TextInput {
                 outcome: alacer_core::ClipboardOutcome::Refused(
                     alacer_core::ClipboardRefusal::NoSelection,
                 ),
+                engine: None,
                 chars: 0,
             });
             return false;
@@ -514,13 +515,21 @@ impl TextInput {
         let (min, max) = self.selection_range();
         let range = utf16::byte_range(&self.text, min, max);
         let copied = &self.text[range];
-        let accepted = alacer_core::clipboard::with_clipboard(|seam| seam.write_text(copied));
+        // The engine's reported write (M41, ADR-0047): the platform-side
+        // fact rides the record beside the round trip's verdict — the
+        // log answers "which clipboard failed it", not only "it failed".
+        let fact = alacer_core::clipboard::with_clipboard(|seam| seam.write_reported(copied));
+        let accepted = matches!(fact, alacer_core::clipboard::ClipboardWriteFact::Accepted);
         alacer_core::clipboard::note_round_trip(alacer_core::ClipboardRecord {
             action: alacer_core::ClipboardAction::Copy,
             outcome: if accepted {
                 alacer_core::ClipboardOutcome::Delivered
             } else {
                 alacer_core::ClipboardOutcome::Refused(alacer_core::ClipboardRefusal::WriteRefused)
+            },
+            engine: match fact {
+                alacer_core::clipboard::ClipboardWriteFact::Accepted => None,
+                alacer_core::clipboard::ClipboardWriteFact::Refused(refusal) => Some(refusal),
             },
             chars: if accepted { copied.chars().count() } else { 0 },
         });
@@ -546,6 +555,7 @@ impl TextInput {
                 outcome: alacer_core::ClipboardOutcome::Refused(
                     alacer_core::ClipboardRefusal::NoSelection,
                 ),
+                engine: None,
                 chars: 0,
             });
             return false;
@@ -553,13 +563,22 @@ impl TextInput {
         let (min, max) = self.selection_range();
         let range = utf16::byte_range(&self.text, min, max);
         let moved = &self.text[range];
-        let accepted = alacer_core::clipboard::with_clipboard(|seam| seam.write_text(moved));
+        // The engine's reported write (M41, ADR-0047): the platform-side
+        // fact rides the record beside the round trip's verdict — the
+        // cut's refusal names which clipboard failed it, the deletion
+        // still following only an accepted write (ADR-0020's rule).
+        let fact = alacer_core::clipboard::with_clipboard(|seam| seam.write_reported(moved));
+        let accepted = matches!(fact, alacer_core::clipboard::ClipboardWriteFact::Accepted);
         if !accepted {
             alacer_core::clipboard::note_round_trip(alacer_core::ClipboardRecord {
                 action: alacer_core::ClipboardAction::Cut,
                 outcome: alacer_core::ClipboardOutcome::Refused(
                     alacer_core::ClipboardRefusal::WriteRefused,
                 ),
+                engine: match fact {
+                    alacer_core::clipboard::ClipboardWriteFact::Refused(refusal) => Some(refusal),
+                    alacer_core::clipboard::ClipboardWriteFact::Accepted => None,
+                },
                 chars: 0,
             });
             return false;
@@ -568,6 +587,7 @@ impl TextInput {
         alacer_core::clipboard::note_round_trip(alacer_core::ClipboardRecord {
             action: alacer_core::ClipboardAction::Cut,
             outcome: alacer_core::ClipboardOutcome::Delivered,
+            engine: None,
             chars,
         });
         let (from, to) = self.selection_span();
@@ -594,6 +614,7 @@ impl TextInput {
                 outcome: alacer_core::ClipboardOutcome::Refused(
                     alacer_core::ClipboardRefusal::EmptyClipboard,
                 ),
+                engine: None,
                 chars: 0,
             });
             return false;
@@ -605,6 +626,7 @@ impl TextInput {
                 outcome: alacer_core::ClipboardOutcome::Refused(
                     alacer_core::ClipboardRefusal::EmptyClipboard,
                 ),
+                engine: None,
                 chars: 0,
             });
             return false;
@@ -613,6 +635,7 @@ impl TextInput {
         alacer_core::clipboard::note_round_trip(alacer_core::ClipboardRecord {
             action: alacer_core::ClipboardAction::Paste,
             outcome: alacer_core::ClipboardOutcome::Delivered,
+            engine: None,
             chars,
         });
         self.insert(&sanitized);

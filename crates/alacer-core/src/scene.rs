@@ -65,8 +65,12 @@ pub enum Primitive {
     Glyph(Glyph),
 }
 
-/// Sink the paint pass records primitives into — implemented by the scene
-/// journal in `alacer-render`.
+/// Sink the paint pass records primitives into — implemented by the
+/// pipeline's crate-private journal adapter (the paint pass in
+/// [`crate::passes`]), which streams the primitives into the injected
+/// [`crate::passes::SceneJournal`] — the layer store whose production
+/// implementation is `alacer-render`'s journal. The renderer replays
+/// the recorded layers; it never implements this trait itself.
 pub trait PaintSink {
     /// Records one primitive; order defines paint order.
     fn push(&mut self, primitive: Primitive);

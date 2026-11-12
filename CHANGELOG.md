@@ -9,6 +9,63 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M41 — the clipboard engine names its facts (ADR-0047)**: ADR-0045's
+  own re-open rule cashed — a consumer needs the clipboard's
+  *platform-side* facts the widget's round trips cannot name, so the
+  seam's engine contract grows beside `ClipboardSeam`: one *provided*
+  `write_reported` door answering `ClipboardWriteFact` (the M37
+  provided-method discipline — the provided default maps the `bool`
+  door and names its absence honestly, a real engine overrides and
+  names its species; the `write_text` door stays the contract of record
+  byte-for-byte, and a refusal through either deletes nothing). The
+  species are the engine's own answers: `unnamed` (the honest absence),
+  `unsupported` (no clipboard subsystem at all), `occupied` (another
+  party held the clipboard), `conversion` (the payload the format
+  cannot carry), `os_error` (the platform answered, the engine never
+  classifies past its answer) — the arboard engine mapping its own
+  error kinds onto the species in the windowed assembly. The round
+  trip's record grows the additive `engine` field beside the
+  `write_refused` verdict (`Some(species)` on a refused write, `None`
+  on a delivery and on every other refusal — a paste reads, a
+  no-selection copy never asked the engine), the wire growing the same
+  field at version 1 (clients that ignore unknown fields unaffected),
+  the recorder's ring carrying the record verbatim, and the embedded
+  client rendering the species beside the refusal — the log answering
+  "which clipboard failed it", not only "it failed". The trail's shape
+  is untouched (the same 256-bounded queue, the same tick's start
+  drain, one branch per chord while nobody listens).
+- **M40 — the value tier rides the causal log (ADR-0046)**: the ride
+  ADR-0010's additive rule and the M31/M33/M36/M37/M39 rhythm
+  pre-register cashed. The value tier's AT actions (ADR-0026, the
+  `Slider`; ADR-0027, the read-only `Progress`) answered the widget's
+  own `bool`, whose `false` collapsed four different facts — the
+  control the availability tier holds down, the payload that parsed to
+  nothing, the payload the funnel cannot carry, the control that never
+  had a write door — into one silence; a status line, an inspector
+  trail, or a test could not answer "did the write land — where, or
+  why not" without re-implementing the observation at the action site.
+  Now every value-tier write the AT asks streams one
+  `InspectEvent::Value` — the action beside the outcome and the value
+  the control holds, the refusals named (`unavailable`,
+  `invalid_payload`, `non_finite_value`, `no_write_door`), the refused
+  writes streaming too. The two parse facts the `bool` collapsed are
+  named apart at last ("loud" is `invalid_payload`, "inf" is
+  `non_finite_value` — the m20 suite's two refusals), a no-op delivery
+  answers like the landed write it is (the M20 idle-frame property,
+  the log naming it), and a question outside the value tier (a press,
+  a scroll, a text edit) is not a value fact. The fact is noted where
+  the write resolves (`value::note_write`, the new trail module — the
+  journal's own rule), and the value is the tree's own vocabulary the
+  AT already reads, never a secret (the clipboard's count-not-payload
+  rule was a secret's rule; the value tier has no payload to hide).
+  The trail is the clipboard trail's shape (thread-local, 256-bounded,
+  oldest-first eviction, the A7 gate — one branch per action while
+  nobody listens), the tick's start drain running after the edit drain
+  (a value write explains itself; it deletes nothing); the wire grows
+  one `value` kind additively at version 1 (the clipboard event's flat
+  rule — `docs/inspector-protocol.md` documents it), the recorder's
+  ring holds 512 beside the other seams' rings, and the embedded client
+  renders the echo in the causal log pane.
 - **M39 — the clipboard rides the causal log (ADR-0045)**: the ride
   ADR-0010's additive rule and the M31/M33/M36/M37 rhythm
   pre-register cashed. The editing contract's clipboard chords

@@ -278,10 +278,17 @@ function connect() {
         // trails — the chord and the consult's species named, so a
         // reader answers "did a shortcut take this key — or why not"
         // from the log alone.
+        //
+        // The client names the binding (M37, ADR-0043): when the
+        // consult fired and the seam names one, the prose name rides
+        // the answer — the log's row labels itself, a settings UI
+        // reading the log never keeps its own chord → name table.
         const chord = (event.modifiers ? event.modifiers + "+" : "") +
           (event.key === "char" ? "'" + event.character + "'" : event.key);
         const answer = event.outcome === "fired"
-          ? "a shortcut took the key"
+          ? (event.name
+            ? "a shortcut took the key — " + event.name
+            : "a shortcut took the key")
           : (event.outcome === "fell_through"
             ? "no binding named it — the fallbacks' key"
             : "no keymap installed — the window has no shortcuts");

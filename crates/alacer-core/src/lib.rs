@@ -67,8 +67,9 @@ pub use flux::{Flux, FluxCounters, FluxRwSignal, FluxWriter, RenderBinding};
 pub use geom::{Point, Rect, Size, Vector};
 pub use input::EventCoalescer;
 pub use inspect::{
-    BindingId, DirtyNode, EdgeActivation, FocusRecord, FocusRider, FrameSummary, InputKind,
-    InputRecord, InspectEvent, InspectObserver, KeyRecord, PassTiming, SignalKey, SignalWrite,
+    BindingId, ClipboardAction, ClipboardOutcome, ClipboardRecord, ClipboardRefusal, DirtyNode,
+    EdgeActivation, FocusRecord, FocusRider, FrameSummary, InputKind, InputRecord, InspectEvent,
+    InspectObserver, KeyRecord, PassTiming, SignalKey, SignalWrite,
 };
 pub use keymap::{Chord, Keymap, KeymapConsult, KeymapSeam};
 pub use mask::Change;
@@ -102,7 +103,7 @@ pub mod prelude {
     };
     pub use crate::flux::{Flux, RenderBinding};
     pub use crate::geom::{Point, Rect, Size, Vector};
-    pub use crate::inspect::{InspectEvent, InspectObserver, KeyRecord};
+    pub use crate::inspect::{ClipboardRecord, InspectEvent, InspectObserver, KeyRecord};
     pub use crate::keymap::{Chord, Keymap, KeymapConsult, KeymapSeam};
     pub use crate::mask::Change;
     pub use crate::passes::{PassKind, PassPipeline};

@@ -7,8 +7,8 @@ use alacer_core::announce::Politeness;
 use alacer_core::events::Key;
 use alacer_core::history::EditAction;
 use alacer_core::inspect::{
-    AnnounceOutcome, AnnounceRecord, EdgeActivation, EditRecord, FocusRecord, FrameSummary,
-    InputKind, KeyRecord, SignalWrite,
+    AnnounceOutcome, AnnounceRecord, ClipboardAction, ClipboardOutcome, ClipboardRecord,
+    EdgeActivation, EditRecord, FocusRecord, FrameSummary, InputKind, KeyRecord, SignalWrite,
 };
 use alacer_core::passes::FocusRefusal;
 use serde::{Deserialize, Serialize};
@@ -170,6 +170,26 @@ pub enum WireEvent {
         /// binding name or a custom seam's own answer; `null` on a
         /// miss, an uninstalled window, or a seam that names none.
         name: Option<String>,
+    },
+    /// A clipboard round trip answered — the clipboard trail (ADR-0045):
+    /// the copy, cut, or paste the editing chords answered, the
+    /// payload's count beside the outcome, the refusals named. Additive
+    /// at version 1 (the rider field's rule): clients that ignore
+    /// unknown kinds are unaffected.
+    Clipboard {
+        /// The round trip the field answered (`copy`, `cut`, `paste`).
+        action: String,
+        /// What the field answered (`delivered`, `refused`).
+        outcome: String,
+        /// The refusal species (`no_selection`, `empty_clipboard`,
+        /// `write_refused`) on a refused round trip; `null` otherwise.
+        refusal: Option<String>,
+        /// The payload's UTF-8 scalar count when the round trip
+        /// delivered — the span copied, the span cut, the text pasted.
+        /// Zero on a refusal: a refusal moves nothing. The payload
+        /// itself never rides the wire (a clipboard can carry a
+        /// secret); the length names the fact.
+        chars: usize,
     },
     /// A completed frame — the ledger + the mask heatmap.
     Frame {
@@ -407,6 +427,31 @@ pub fn wire_announce(record: &AnnounceRecord) -> WireEvent {
             AnnounceOutcome::Refused(refusal) => Some(refusal.name().to_string()),
             AnnounceOutcome::Delivered | AnnounceOutcome::Superseded => None,
         },
+    }
+}
+
+/// The clipboard action's wire name
+/// ([`alacer_core::inspect::ClipboardAction::name`], the protocol's
+/// `snake_case` tag vocabulary).
+#[must_use]
+pub const fn clipboard_action_name(action: ClipboardAction) -> &'static str {
+    action.name()
+}
+
+/// Converts a core [`ClipboardRecord`] into the wire event: the round
+/// trip's answer, flat on the wire (ADR-0045) — the announce event's
+/// flat rule, the refusal species carried beside the outcome and the
+/// payload's count beside both.
+#[must_use]
+pub fn wire_clipboard(record: &ClipboardRecord) -> WireEvent {
+    WireEvent::Clipboard {
+        action: clipboard_action_name(record.action).to_string(),
+        outcome: record.outcome.name().to_string(),
+        refusal: match record.outcome {
+            ClipboardOutcome::Refused(refusal) => Some(refusal.name().to_string()),
+            ClipboardOutcome::Delivered => None,
+        },
+        chars: record.chars,
     }
 }
 
@@ -678,6 +723,55 @@ mod tests {
     }
 
     #[test]
+    fn clipboard_events_carry_the_round_trip_vocabulary() {
+        use alacer_core::inspect::ClipboardAction;
+        let event = wire_clipboard(&ClipboardRecord {
+            action: ClipboardAction::Copy,
+            outcome: ClipboardOutcome::Delivered,
+            chars: 11,
+        });
+        let json = serde_json::to_string(&event).expect("clipboard json");
+        assert_eq!(
+            json,
+            r#"{"kind":"clipboard","action":"copy","outcome":"delivered","refusal":null,"chars":11}"#,
+            "the documented clipboard shape (the announce event's flat rule)"
+        );
+        let WireEvent::Clipboard {
+            action,
+            outcome,
+            refusal,
+            chars,
+        } = event
+        else {
+            panic!("clipboard event");
+        };
+        assert_eq!(action, "copy");
+        assert_eq!(outcome, "delivered");
+        assert_eq!(refusal, None);
+        assert_eq!(chars, 11, "the record counts the span it moved");
+    }
+
+    #[test]
+    fn a_refused_round_trip_carries_its_species() {
+        use alacer_core::inspect::ClipboardRefusal;
+        let event = wire_clipboard(&ClipboardRecord {
+            action: ClipboardAction::Cut,
+            outcome: ClipboardOutcome::Refused(ClipboardRefusal::WriteRefused),
+            chars: 0,
+        });
+        let json = serde_json::to_string(&event).expect("refusal json");
+        assert_eq!(
+            json,
+            r#"{"kind":"clipboard","action":"cut","outcome":"refused","refusal":"write_refused","chars":0}"#,
+            "the refusal species rides beside the outcome, the count honest at zero"
+        );
+        let WireEvent::Clipboard { refusal, .. } = event else {
+            panic!("clipboard event");
+        };
+        assert_eq!(refusal.as_deref(), Some("write_refused"));
+    }
+
+    #[test]
     fn frames_carry_the_damage_verdict_and_regions() {
         use alacer_core::geom::Size;
         use alacer_core::passes::PassKind;
@@ -765,6 +859,27 @@ mod client_tests {
             assert!(
                 page.contains(fragment),
                 "the embedded client renders the announce event: {fragment}"
+            );
+        }
+    }
+
+    /// M39 (ADR-0045, this cut): the embedded standalone client renders
+    /// the clipboard's echo — the clipboard event the wire now carries
+    /// lands in the log pane beside the focus, edit, announce, and key
+    /// trails, the action and the outcome named, the refusal rendered
+    /// the way the walk's refusals are, the payload's count beside the
+    /// delivered answer. The pin rides the file's own fragments (the
+    /// M31 route).
+    #[test]
+    fn the_client_renders_the_clipboards_echo() {
+        let page = include_str!("inspector.html");
+        for fragment in [
+            "case \"clipboard\":",
+            "The client renders the clipboard's echo (M39, ADR-0045)",
+        ] {
+            assert!(
+                page.contains(fragment),
+                "the embedded client renders the clipboard event: {fragment}"
             );
         }
     }

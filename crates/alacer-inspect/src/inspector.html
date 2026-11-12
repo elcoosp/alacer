@@ -254,6 +254,22 @@ function connect() {
         addLog("edit", "edit " + event.action, answer);
         break;
       }
+      case "announce": {
+        // The client renders the announcements' echo (M33, ADR-0039):
+        // the announce trail lands in the log pane beside the focus and
+        // edit trails — the politeness and the outcome named, the
+        // refusal rendered the way the walk's refusals are, so a reader
+        // answers "why did the live region speak — or refuse" from the
+        // log alone.
+        const priority = " (" + event.politeness + ")";
+        const answer = event.outcome === "refused"
+          ? "refused: " + event.refusal
+          : (event.outcome === "superseded"
+            ? "replaced: last write wins"
+            : "the region carries it now");
+        addLog("announce", "announce" + priority, answer);
+        break;
+      }
       case "frame":
         renderFrame(event);
         addLog("frame", "frame " + event.number,

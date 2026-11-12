@@ -17,4 +17,3 @@ workspace = true
 alacer-core.workspace = true
 alacer-view.workspace = true
 rustc-hash.workspace = true
-tracing.workspace = true

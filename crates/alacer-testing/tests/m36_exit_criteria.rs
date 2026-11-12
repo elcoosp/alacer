@@ -63,7 +63,7 @@ impl TrailCollector {
         self.events
             .iter()
             .filter_map(|event| match event {
-                InspectEvent::Key(record) => Some(*record),
+                InspectEvent::Key(record) => Some(record.clone()),
                 _ => None,
             })
             .collect()
@@ -152,7 +152,7 @@ fn m36_the_fired_chord_streams_one_record_with_its_chord() {
 
     let records = trail(&observer).key_records();
     assert_eq!(records.len(), 1, "one consult, one record");
-    let record = records[0];
+    let record = &records[0];
     assert_eq!(record.outcome, KeymapConsult::Fired, "the firing streams");
     assert_eq!(
         *record.chord.key(),
@@ -457,8 +457,8 @@ fn m36_the_living_documents_re_agree() {
     let architecture = std::fs::read_to_string(root.join("docs/architecture.md"))
         .expect("the architecture document");
     assert!(
-        architecture.contains("43 decision records"),
-        "the architecture register re-agrees at 43 decision records"
+        architecture.contains("45 decision records"),
+        "the architecture register re-agrees at 45 decision records"
     );
     assert!(
         architecture.contains("ADR-0042"),
@@ -468,7 +468,7 @@ fn m36_the_living_documents_re_agree() {
     // The README's status block, count, and ADR line re-agree.
     let readme = std::fs::read_to_string(root.join("README.md")).expect("README");
     assert!(
-        readme.contains("M0 through M36") && readme.contains("forty-three decision records"),
+        readme.contains("M0 through M38") && readme.contains("forty-five decision records"),
         "the README's status block and ADR count re-agree at M36"
     );
 

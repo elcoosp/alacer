@@ -53,7 +53,7 @@ fn bench_table() -> Keymap {
 /// interleave.
 fn mixed_events() -> Vec<KeyEvent> {
     let hit = KeyEvent {
-        key: binding_chord(BINDINGS / 2).key().clone(),
+        key: *binding_chord(BINDINGS / 2).key(),
         state: KeyState::Pressed,
         modifiers: binding_chord(BINDINGS / 2).modifiers(),
         text: None,

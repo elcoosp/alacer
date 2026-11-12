@@ -154,7 +154,7 @@ impl CausalRecorder {
     /// by [`KEY_RING_CAP`].
     #[must_use]
     pub fn keys(&self) -> Vec<KeyRecord> {
-        self.lock().keys.iter().copied().collect()
+        self.lock().keys.iter().cloned().collect()
     }
 
     /// The most recent frame, when any frame was observed.
@@ -488,6 +488,7 @@ mod tests {
             handle.observe(InspectEvent::Key(alacer_core::inspect::KeyRecord {
                 chord: Chord::new(Key::Char('s')).control(),
                 outcome: KeymapConsult::Fired,
+                name: Some("save".to_string()),
             }));
         }
         let keys = recorder.keys();
@@ -499,10 +500,12 @@ mod tests {
         );
 
         // The miss rides the same ring, the wire carrying the chord's
-        // flat shape beside the species.
+        // flat shape beside the species — and no name, a miss naming
+        // no binding (M37, ADR-0043).
         handle.observe(InspectEvent::Key(alacer_core::inspect::KeyRecord {
             chord: Chord::new(Key::Char('x')),
             outcome: KeymapConsult::FellThrough,
+            name: None,
         }));
         let drained = recorder.take_broadcast();
         let last = drained.last().expect("the miss broadcast");
@@ -511,6 +514,7 @@ mod tests {
             character,
             modifiers,
             outcome,
+            name,
         } = last
         else {
             panic!("the key broadcast");
@@ -519,11 +523,14 @@ mod tests {
         assert_eq!(character.as_deref(), Some("x"));
         assert_eq!(modifiers, "", "no modifiers held — the exact shape");
         assert_eq!(outcome, "fell_through");
+        assert_eq!(name, &None, "the miss carries no name on the wire");
 
-        // The chord's modifier shape rides the same flat event.
+        // The chord's modifier shape rides the same flat event — the
+        // fired binding's prose name beside it (M37, ADR-0043).
         handle.observe(InspectEvent::Key(alacer_core::inspect::KeyRecord {
             chord: Chord::new(Key::ArrowUp).control(),
             outcome: KeymapConsult::Fired,
+            name: Some("increment".to_string()),
         }));
         let drained = recorder.take_broadcast();
         let last = drained.last().expect("the chord broadcast");
@@ -532,6 +539,7 @@ mod tests {
             character,
             modifiers,
             outcome,
+            name,
         } = last
         else {
             panic!("the chord broadcast");
@@ -540,6 +548,11 @@ mod tests {
         assert!(character.is_none(), "a non-char key carries no character");
         assert_eq!(modifiers, "ctrl");
         assert_eq!(outcome, "fired");
+        assert_eq!(
+            name.as_deref(),
+            Some("increment"),
+            "the fired binding's name rides the flat event"
+        );
     }
 
     #[test]

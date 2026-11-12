@@ -8,7 +8,7 @@ use crate::server::push_broadcast;
 use crate::wire::WireEvent;
 use alacer_core::inspect::{
     AnnounceRecord, EdgeActivation, EditRecord, FocusRecord, InputKind, InspectEvent,
-    InspectObserver, SignalWrite,
+    InspectObserver, KeyRecord, SignalWrite,
 };
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -36,6 +36,10 @@ pub const EDIT_RING_CAP: usize = 512;
 /// the speech acts' facts at the recorder side, the same order the
 /// input, focus, and edit rings ride.
 pub const ANNOUNCE_RING_CAP: usize = 512;
+/// The shortcut-trail ring's cap (oldest dropped first, ADR-0042) —
+/// the keymap consults' facts at the recorder side, the same order the
+/// input, focus, edit, and announce rings ride.
+pub const KEY_RING_CAP: usize = 512;
 
 /// One recorded frame (the wire conversion lives in [`crate::wire`]).
 #[derive(Debug, Clone)]
@@ -55,6 +59,7 @@ struct Recording {
     focus: VecDeque<FocusRecord>,
     edits: VecDeque<EditRecord>,
     announces: VecDeque<AnnounceRecord>,
+    keys: VecDeque<KeyRecord>,
     /// The most recent frame, for "what does the inspector see right now".
     latest: Option<alacer_core::inspect::FrameSummary>,
     /// The wire-shaped events awaiting the server's session drain (push, not
@@ -143,6 +148,15 @@ impl CausalRecorder {
         self.lock().announces.iter().copied().collect()
     }
 
+    /// The recorded shortcut trail, oldest first (ADR-0042): every
+    /// keymap consult the funnel ran — fired chords, the tables'
+    /// fall-throughs, the uninstalled windows' honest answers — bounded
+    /// by [`KEY_RING_CAP`].
+    #[must_use]
+    pub fn keys(&self) -> Vec<KeyRecord> {
+        self.lock().keys.iter().copied().collect()
+    }
+
     /// The most recent frame, when any frame was observed.
     #[must_use]
     pub fn latest_frame(&self) -> Option<alacer_core::inspect::FrameSummary> {
@@ -165,6 +179,7 @@ impl CausalRecorder {
             recording.focus.clear();
             recording.edits.clear();
             recording.announces.clear();
+            recording.keys.clear();
         }
     }
 
@@ -236,6 +251,9 @@ impl InspectObserver for RecorderHandle {
             }
             InspectEvent::Announce(record) => {
                 push_bounded(&mut recording.announces, ANNOUNCE_RING_CAP, record);
+            }
+            InspectEvent::Key(record) => {
+                push_bounded(&mut recording.keys, KEY_RING_CAP, record);
             }
             InspectEvent::Frame(summary) => {
                 self.frames_seen.fetch_add(1, Ordering::Relaxed);
@@ -458,6 +476,70 @@ mod tests {
         assert_eq!(politeness, "assertive");
         assert_eq!(outcome, "refused");
         assert_eq!(refusal.as_deref(), Some("no_root"));
+    }
+
+    #[test]
+    fn key_records_ring_in_order_and_are_bounded() {
+        use alacer_core::events::Key;
+        use alacer_core::keymap::{Chord, KeymapConsult};
+        let recorder = CausalRecorder::new("keys");
+        let mut handle = recorder.clone_handle();
+        for _ in 0..(super::KEY_RING_CAP + 10) {
+            handle.observe(InspectEvent::Key(alacer_core::inspect::KeyRecord {
+                chord: Chord::new(Key::Char('s')).control(),
+                outcome: KeymapConsult::Fired,
+            }));
+        }
+        let keys = recorder.keys();
+        assert_eq!(keys.len(), super::KEY_RING_CAP, "the ring is bounded");
+        assert_eq!(
+            keys[0].outcome,
+            KeymapConsult::Fired,
+            "the survivors keep order"
+        );
+
+        // The miss rides the same ring, the wire carrying the chord's
+        // flat shape beside the species.
+        handle.observe(InspectEvent::Key(alacer_core::inspect::KeyRecord {
+            chord: Chord::new(Key::Char('x')),
+            outcome: KeymapConsult::FellThrough,
+        }));
+        let drained = recorder.take_broadcast();
+        let last = drained.last().expect("the miss broadcast");
+        let crate::wire::WireEvent::Key {
+            key,
+            character,
+            modifiers,
+            outcome,
+        } = last
+        else {
+            panic!("the key broadcast");
+        };
+        assert_eq!(key, "char");
+        assert_eq!(character.as_deref(), Some("x"));
+        assert_eq!(modifiers, "", "no modifiers held — the exact shape");
+        assert_eq!(outcome, "fell_through");
+
+        // The chord's modifier shape rides the same flat event.
+        handle.observe(InspectEvent::Key(alacer_core::inspect::KeyRecord {
+            chord: Chord::new(Key::ArrowUp).control(),
+            outcome: KeymapConsult::Fired,
+        }));
+        let drained = recorder.take_broadcast();
+        let last = drained.last().expect("the chord broadcast");
+        let crate::wire::WireEvent::Key {
+            key,
+            character,
+            modifiers,
+            outcome,
+        } = last
+        else {
+            panic!("the chord broadcast");
+        };
+        assert_eq!(key, "arrow_up");
+        assert!(character.is_none(), "a non-char key carries no character");
+        assert_eq!(modifiers, "ctrl");
+        assert_eq!(outcome, "fired");
     }
 
     #[test]

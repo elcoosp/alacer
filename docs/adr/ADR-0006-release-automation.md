@@ -14,7 +14,9 @@ and Windows attach to a GitHub Release via softprops/action-gh-release.
 
 `actions/checkout@v7`, `actions/upload-artifact@v7`, `actions/download-
 artifact@v8`, `Swatinem/rust-cache@v2`, `EmbarkStudios/cargo-deny-action@v2`,
-`taiki-e/install-action@v2`, `softprops/action-gh-release@v2`.
+`taiki-e/install-action@v2`, `softprops/action-gh-release@v3` (the release
+workflow's current major — the record's earlier `@v2` pin lagged the
+bump; latest majors as of 2026-11).
 
 ## Consequences
 

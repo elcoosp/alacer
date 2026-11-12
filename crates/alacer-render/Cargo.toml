@@ -17,7 +17,6 @@ workspace = true
 alacer-core.workspace = true
 tiny-skia.workspace = true
 rustc-hash.workspace = true
-tracing.workspace = true
 
 [dev-dependencies]
 criterion.workspace = true

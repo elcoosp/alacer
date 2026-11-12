@@ -380,6 +380,124 @@ pub struct KeyRecord {
     pub name: Option<String>,
 }
 
+/// What the clipboard tier just answered (§13.3, ADR-0045): the
+/// clipboard trail's action vocabulary, one [`ClipboardRecord`] per
+/// round trip. The names are the wire's stable tags
+/// ([`ClipboardAction::name`], the protocol's `snake_case` rule).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ClipboardAction {
+    /// A copy chord wrote the selection's span to the clipboard seam
+    /// (the editing contract's Ctrl/Cmd+C, ADR-0020).
+    Copy,
+    /// A cut chord wrote the selection's span out, then deleted it —
+    /// the deletion only ever followed an accepted write.
+    Cut,
+    /// A paste chord read the clipboard's text, sanitized it through
+    /// the single-line rule, and inserted it at the caret.
+    Paste,
+}
+
+impl ClipboardAction {
+    /// The action's name, the wire vocabulary's `snake_case` tag (the
+    /// protocol's stable, documented field values —
+    /// [`EditAction::name`] for journal actions, this for clipboard
+    /// round trips).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Copy => "copy",
+            Self::Cut => "cut",
+            Self::Paste => "paste",
+        }
+    }
+}
+
+/// Why one clipboard round trip moved nothing (§13.3, ADR-0045): the
+/// honest refusals the editing contract names (ADR-0020's refuse-don't-
+/// munge rules, now facts on the log). The refusal streams too — the
+/// fact a trail reader wants is exactly the round trip that never moved
+/// anything.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ClipboardRefusal {
+    /// The chord asked for a selection the field did not carry — a copy
+    /// or a cut never invents content, so a degenerate selection is the
+    /// honest `no_selection`.
+    NoSelection,
+    /// The clipboard had nothing to paste: the read answered `None`
+    /// (an empty clipboard, a non-text payload, a clipboard this
+    /// process cannot open), or the payload sanitized to nothing — a
+    /// paste never invents content either.
+    EmptyClipboard,
+    /// The platform refused the write (the permission/escape story made
+    /// observable) — a cut whose write was refused did not delete, the
+    /// selection surviving a clipboard that failed it.
+    WriteRefused,
+}
+
+impl ClipboardRefusal {
+    /// The refusal's name, the wire vocabulary's `snake_case` tag
+    /// (the protocol's stable, documented field values).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::NoSelection => "no_selection",
+            Self::EmptyClipboard => "empty_clipboard",
+            Self::WriteRefused => "write_refused",
+        }
+    }
+}
+
+/// What the clipboard tier answered one round trip (§13.3, ADR-0045):
+/// the record is the round trip's own outcome
+/// ([`AnnounceOutcome`]'s shape at the clipboard tier) — the payload
+/// moved, or the round trip was refused with its named species.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ClipboardOutcome {
+    /// The payload moved: the write landed (a copy or a cut), or the
+    /// sanitized read landed at the caret (a paste).
+    Delivered,
+    /// The round trip moved nothing — [`ClipboardRefusal`] names the
+    /// species.
+    Refused(ClipboardRefusal),
+}
+
+impl ClipboardOutcome {
+    /// The outcome's name, the wire vocabulary's `snake_case` tag
+    /// (the protocol's stable, documented field values).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Delivered => "delivered",
+            Self::Refused(_) => "refused",
+        }
+    }
+}
+
+/// One clipboard round trip's record (§13.3, ADR-0045): the causal
+/// log's answer to "did the text move — or why not". The editing
+/// contract's chords (ADR-0020) answered the field's own `bool`, whose
+/// `false` collapsed three different facts — the selection that was not
+/// there, the clipboard that carried nothing, the platform that refused
+/// the write — and the ride the M31/M33/M36 rhythm pre-registered prices
+/// the record: every round trip the field answers streams one fact, the
+/// refused round trips included. The record carries the payload's
+/// UTF-8 scalar count beside the outcome — the length names the fact,
+/// never the payload itself: a clipboard can carry a secret, and the
+/// log is a devtools surface, not a shadow clipboard. The fields are
+/// the additive wire rule's shape (ADR-0010).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClipboardRecord {
+    /// The round trip the field answered.
+    pub action: ClipboardAction,
+    /// What the field answered — the delivered payload or the named
+    /// refusal.
+    pub outcome: ClipboardOutcome,
+    /// The payload's UTF-8 scalar count when the round trip delivered —
+    /// the span copied, the span cut, the text pasted. Zero on a
+    /// refusal: a refusal moves nothing.
+    pub chars: usize,
+}
+
 /// One observation: what the pipeline and the flux surface to devtools.
 #[derive(Debug, Clone)]
 pub enum InspectEvent {
@@ -410,6 +528,13 @@ pub enum InspectEvent {
     /// before the fallbacks' focus records, so a key event's trail
     /// reads keymap → focus → input → frame.
     Key(KeyRecord),
+    /// A clipboard round trip answered — the clipboard trail
+    /// (ADR-0045): the copy, cut, or paste the editing chords answered,
+    /// the payload's count beside the outcome, the refusals named.
+    /// Streams with the frame's own records (the tick's start drain,
+    /// the edit trail's shape — the fact queues where the round trip
+    /// resolves, one frame after the chord).
+    Clipboard(ClipboardRecord),
     /// A frame completed — the frame's causal summary.
     Frame(FrameSummary),
 }

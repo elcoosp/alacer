@@ -155,8 +155,15 @@ fn main() {
     );
 
     // The data table (M6): headers + positioned cells, the navigable-grid
-    // a11y contract live.
-    let table = pipeline.add_child(root, Table::new("Inventory", 3).boxed());
+    // a11y contract live. The header row rides the builder's own fill, and
+    // one emphasized data cell shows the strong tier (the builder
+    // vocabulary the canon's `header_fill`/`strong` carry).
+    let table = pipeline.add_child(
+        root,
+        Table::new("Inventory", 3)
+            .header_fill(Color::rgb(30, 41, 59))
+            .boxed(),
+    );
     let header_row = pipeline.add_child(table, TableRow::new().boxed());
     for (column, name) in ["Item", "Quantity", "Location"].iter().enumerate() {
         let _ = pipeline.add_child(header_row, ColumnHeader::new(*name, column).boxed());
@@ -171,7 +178,11 @@ fn main() {
     {
         let row = pipeline.add_child(table, TableRow::new().boxed());
         for (column, cell) in row_data.iter().enumerate() {
-            let _ = pipeline.add_child(row, TableCell::new(*cell, row_index, column).boxed());
+            let cell = TableCell::new(*cell, row_index, column);
+            // The quantity column is the emphasized tier: header-like
+            // data cells, the `strong` builder's own styling.
+            let cell = if column == 1 { cell.strong(true) } else { cell };
+            let _ = pipeline.add_child(row, cell.boxed());
         }
     }
 

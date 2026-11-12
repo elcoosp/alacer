@@ -7,11 +7,21 @@
 
 pub mod clipboard;
 pub mod keys;
+// The backend features are true (M34, ADR-0040): each present path's
+// module compiles only when its feature rides — a single-backend build
+// (no wgpu, no softbuffer, or either alone) is a supported shape, not a
+// latent breakage. With no backend compiled the platform still builds:
+// the pipeline, the window plumbing, and the typed refusal at startup
+// are the crate's whole surface then.
+#[cfg(feature = "backend-softbuffer")]
 pub mod softbuffer;
+#[cfg(feature = "backend-wgpu")]
 pub mod wgpu_backend;
 
 pub use keys::{ime_cursor_utf16, map_ime_event, map_key, map_logical_key};
+#[cfg(feature = "backend-softbuffer")]
 pub use softbuffer::{SoftbufferPresenter, pixmap_to_argb};
+#[cfg(feature = "backend-wgpu")]
 pub use wgpu_backend::{BackendError, WgpuRenderer};
 
 use accesskit_winit::{Adapter, Event as AccessKitEvent, WindowEvent as AccessKitWindowEvent};
@@ -20,7 +30,9 @@ use alacer_core::events::{ImeEvent, KeyEvent, PointerEvent};
 use alacer_core::geom::{Point, Size};
 use alacer_core::passes::{FrameReport, ImeRequest, PassPipeline};
 use alacer_core::widget::EventResponse;
-use alacer_text::{ThreadLocalGlyphSource, ThreadLocalTextSeam};
+#[cfg(any(feature = "backend-wgpu", feature = "backend-softbuffer"))]
+use alacer_text::ThreadLocalGlyphSource;
+use alacer_text::ThreadLocalTextSeam;
 use std::sync::Arc;
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, StartCause, WindowEvent};
@@ -57,6 +69,20 @@ pub enum BackendPreference {
     Softbuffer,
 }
 
+impl BackendPreference {
+    /// The preference's name, the build-refusal's vocabulary (the
+    /// protocol's `snake_case` tag style, [`FocusRider::name`]'s rule).
+    ///
+    /// [`FocusRider::name`]: alacer_core::inspect::FocusRider::name
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Wgpu => "wgpu",
+            Self::Softbuffer => "softbuffer",
+        }
+    }
+}
+
 /// Platform failures.
 #[derive(Debug)]
 pub enum PlatformError {
@@ -65,11 +91,24 @@ pub enum PlatformError {
     /// Window creation failed.
     Window(winit::error::OsError),
     /// The present backend failed at startup.
+    #[cfg(feature = "backend-wgpu")]
     Backend(BackendError),
     /// The softbuffer path failed at startup (M18, ADR-0024): the
     /// structured [`SoftBufferError`](::softbuffer::SoftBufferError) rides the chain — a
     /// consumer walks to the real cause instead of a formatted string.
+    #[cfg(feature = "backend-softbuffer")]
     Softbuffer(::softbuffer::SoftBufferError),
+    /// The requested present path is not part of this build (M34,
+    /// ADR-0040): the backend features gate their own backends, so a
+    /// preference the build compiled out refuses honestly at startup —
+    /// a fact about the build, not a wrapped failure (the
+    /// [`PlatformError::Loop`]-adjacent leaf rule, the chain staying
+    /// walkable).
+    BackendUnavailable {
+        /// The preference that has no compiled backend (`wgpu`,
+        /// `softbuffer`).
+        requested: &'static str,
+    },
 }
 
 impl std::fmt::Display for PlatformError {
@@ -77,8 +116,14 @@ impl std::fmt::Display for PlatformError {
         match self {
             Self::Loop(e) => write!(f, "event loop: {e}"),
             Self::Window(e) => write!(f, "window: {e}"),
+            #[cfg(feature = "backend-wgpu")]
             Self::Backend(e) => write!(f, "backend: {e}"),
+            #[cfg(feature = "backend-softbuffer")]
             Self::Softbuffer(e) => write!(f, "softbuffer present path: {e}"),
+            Self::BackendUnavailable { requested } => write!(
+                f,
+                "no present backend compiled: `{requested}` is gated off — enable backend-wgpu or backend-softbuffer"
+            ),
         }
     }
 }
@@ -86,23 +131,34 @@ impl std::fmt::Display for PlatformError {
 impl std::error::Error for PlatformError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         // The chain a consumer walks with anyhow or `source().unwrap()`:
-        // every wrapped failure stays reachable; `NoAdapter` is the one
-        // honest leaf — a fact about the host, not a wrapped failure.
+        // every wrapped failure stays reachable; the honest leaves — a
+        // fact about the host or the build, not a wrapped failure — name
+        // themselves and carry no cause.
         match self {
             Self::Loop(e) => Some(e),
             Self::Window(e) => Some(e),
+            #[cfg(feature = "backend-wgpu")]
             Self::Backend(e) => Some(e),
+            #[cfg(feature = "backend-softbuffer")]
             Self::Softbuffer(e) => Some(e),
+            Self::BackendUnavailable { .. } => None,
         }
     }
 }
 
+// The present paths compile with their features (M34, ADR-0040): the
+// enum's variants are the compiled backends — a single-backend build
+// carries one, a no-backend build carries none and refuses at the
+// preference resolution instead.
 enum Backend {
+    #[cfg(feature = "backend-wgpu")]
     Wgpu(Box<WgpuBackend>),
+    #[cfg(feature = "backend-softbuffer")]
     Softbuffer(SoftbufferPresenter),
 }
 
 /// The wgpu present path, boxed to keep the enum small.
+#[cfg(feature = "backend-wgpu")]
 struct WgpuBackend {
     surface: wgpu::Surface<'static>,
     renderer: WgpuRenderer,
@@ -111,7 +167,6 @@ struct WgpuBackend {
 /// The running app: pipeline + window + backend, driven by winit.
 pub struct AlacerApp {
     pipeline: PassPipeline,
-    glyph_source: ThreadLocalGlyphSource,
     backend_preference: BackendPreference,
     title: String,
     start_size: (f32, f32),
@@ -121,6 +176,11 @@ pub struct AlacerApp {
     proxy: Option<EventLoopProxy<PlatformEvent>>,
     cursor: Point,
     needs_present: bool,
+    /// The frame's glyph source (the text seam's rasterizer side): the
+    /// present paths' last rendering argument — compiled with the
+    /// backends that consume it (M34, ADR-0040).
+    #[cfg(any(feature = "backend-wgpu", feature = "backend-softbuffer"))]
+    glyph_source: ThreadLocalGlyphSource,
     /// Tracked keyboard modifiers (winit delivers them via
     /// `ModifiersChanged`, not on key events).
     modifiers: alacer_core::events::Modifiers,
@@ -132,6 +192,7 @@ pub struct AlacerApp {
     applied_ime: Option<ImeRequest>,
     /// The softbuffer path's persistent framebuffer: partial paint repaints
     /// damage regions onto this instead of re-rasterizing everything (§9.3).
+    #[cfg(feature = "backend-softbuffer")]
     framebuffer: Option<tiny_skia::Pixmap>,
     /// The hot-reload patch channel: `Patch` user events wake the loop for
     /// the patch hook (§13.2). `None` in every default path.
@@ -203,7 +264,6 @@ impl AlacerApp {
         alacer_core::clipboard::install(clipboard);
         Self {
             pipeline,
-            glyph_source: ThreadLocalGlyphSource,
             backend_preference: backend,
             title: title.into(),
             start_size: size,
@@ -213,9 +273,12 @@ impl AlacerApp {
             proxy: None,
             cursor: Point::zero(),
             needs_present: true,
+            #[cfg(any(feature = "backend-wgpu", feature = "backend-softbuffer"))]
+            glyph_source: ThreadLocalGlyphSource,
             modifiers: alacer_core::events::Modifiers::default(),
             clicks: ClickCounter::default(),
             applied_ime: None,
+            #[cfg(feature = "backend-softbuffer")]
             framebuffer: None,
             patch_channel: None,
             patch_hook: None,
@@ -256,38 +319,64 @@ impl AlacerApp {
     }
 
     fn ensure_backend(&mut self, event_loop: &ActiveEventLoop) -> Result<(), PlatformError> {
-        let Some(window) = self.window.clone() else {
-            return Ok(());
-        };
         if self.backend.is_some() {
             return Ok(());
         }
-        match self.backend_preference {
-            BackendPreference::Wgpu => {
-                let surface = wgpu::Instance::new(instance_descriptor())
-                    .create_surface(window.clone())
-                    .map_err(BackendError::SurfaceCreation)
-                    .map_err(PlatformError::Backend)?;
-                let (renderer, _config) = WgpuRenderer::new(
-                    &surface,
-                    (size_px(self.start_size.0), size_px(self.start_size.1)),
-                )
-                .map_err(PlatformError::Backend)?;
-                self.backend = Some(Backend::Wgpu(Box::new(WgpuBackend { surface, renderer })));
-            }
-            BackendPreference::Softbuffer => {
-                let display: Arc<dyn raw_window_handle::HasDisplayHandle> =
-                    Arc::new(window.clone());
-                let window_handle: Arc<dyn raw_window_handle::HasWindowHandle> = Arc::new(window);
-                let mut presenter = SoftbufferPresenter::new(display, window_handle)
-                    .map_err(PlatformError::Softbuffer)?;
-                presenter
-                    .resize(size_px(self.start_size.0), size_px(self.start_size.1))
-                    .map_err(PlatformError::Softbuffer)?;
-                self.backend = Some(Backend::Softbuffer(presenter));
-            }
-        }
+        let outcome = match self.backend_preference {
+            #[cfg(feature = "backend-wgpu")]
+            BackendPreference::Wgpu => self.build_wgpu_backend(),
+            #[cfg(feature = "backend-softbuffer")]
+            BackendPreference::Softbuffer => self.build_softbuffer_backend(),
+            // The build compiled this preference's backend out (M34,
+            // ADR-0040): the refusal is typed and names the preference —
+            // a fact about the build, never a panic, never a munged
+            // fallback to a backend the consumer did not ask for.
+            #[cfg(not(all(feature = "backend-wgpu", feature = "backend-softbuffer")))]
+            other => Err(PlatformError::BackendUnavailable {
+                requested: other.name(),
+            }),
+        };
         let _ = event_loop;
+        outcome
+    }
+
+    /// Builds the wgpu present path (the window's surface + the renderer)
+    /// — the preference's arm, compiled with the feature that owns it
+    /// (M34, ADR-0040).
+    #[cfg(feature = "backend-wgpu")]
+    fn build_wgpu_backend(&mut self) -> Result<(), PlatformError> {
+        let Some(window) = self.window.clone() else {
+            return Ok(());
+        };
+        let surface = wgpu::Instance::new(instance_descriptor())
+            .create_surface(window.clone())
+            .map_err(BackendError::SurfaceCreation)
+            .map_err(PlatformError::Backend)?;
+        let (renderer, _config) = WgpuRenderer::new(
+            &surface,
+            (size_px(self.start_size.0), size_px(self.start_size.1)),
+        )
+        .map_err(PlatformError::Backend)?;
+        self.backend = Some(Backend::Wgpu(Box::new(WgpuBackend { surface, renderer })));
+        Ok(())
+    }
+
+    /// Builds the softbuffer present path (the presenter over the
+    /// window's raw handles) — the preference's arm, compiled with the
+    /// feature that owns it (M34, ADR-0040).
+    #[cfg(feature = "backend-softbuffer")]
+    fn build_softbuffer_backend(&mut self) -> Result<(), PlatformError> {
+        let Some(window) = self.window.clone() else {
+            return Ok(());
+        };
+        let display: Arc<dyn raw_window_handle::HasDisplayHandle> = Arc::new(window.clone());
+        let window_handle: Arc<dyn raw_window_handle::HasWindowHandle> = Arc::new(window);
+        let mut presenter =
+            SoftbufferPresenter::new(display, window_handle).map_err(PlatformError::Softbuffer)?;
+        presenter
+            .resize(size_px(self.start_size.0), size_px(self.start_size.1))
+            .map_err(PlatformError::Softbuffer)?;
+        self.backend = Some(Backend::Softbuffer(presenter));
         Ok(())
     }
 
@@ -319,96 +408,115 @@ impl AlacerApp {
 
     /// The damage ladder (§9.3): a NONE frame skips the present entirely —
     /// zero fill rate for zero change — a FULL frame re-rasterizes, a partial
-    /// frame repaints only the damage regions.
+    /// frame repaints only the damage regions. Each compiled backend
+    /// answers its own variant (M34, ADR-0040); a no-backend build never
+    /// reaches the ladder — `ensure_backend` refused at startup.
     fn present(&mut self, report: &FrameReport, width: u32, height: u32) {
-        let Some(backend) = &mut self.backend else {
+        #[cfg(feature = "backend-wgpu")]
+        self.present_wgpu(report);
+        #[cfg(feature = "backend-softbuffer")]
+        self.present_softbuffer(report, width, height);
+        #[cfg(not(feature = "backend-softbuffer"))]
+        let _ = (width, height);
+        #[cfg(not(feature = "backend-wgpu"))]
+        let _ = report;
+    }
+
+    /// The wgpu ladder: a NONE frame skips, a FULL frame re-renders, a
+    /// partial frame re-renders the damage regions on the GPU path.
+    #[cfg(feature = "backend-wgpu")]
+    fn present_wgpu(&mut self, report: &FrameReport) {
+        let Some(Backend::Wgpu(backend)) = &mut self.backend else {
             return;
         };
         let scene = &report.scene;
         let damage = &report.damage;
-        match backend {
-            Backend::Wgpu(backend) => {
-                let result = if damage.is_empty() {
-                    Ok(()) // nothing changed; the last presented frame stands
-                } else if damage.is_full() {
-                    backend
-                        .renderer
-                        .render(scene, &mut self.glyph_source, &backend.surface)
-                } else {
-                    backend.renderer.render_partial(
-                        scene,
-                        damage,
-                        &mut self.glyph_source,
-                        &backend.surface,
-                    )
-                };
-                if let Err(error) = result {
-                    tracing::error!("wgpu render failed: {error}");
-                }
+        let result = if damage.is_empty() {
+            Ok(()) // nothing changed; the last presented frame stands
+        } else if damage.is_full() {
+            backend
+                .renderer
+                .render(scene, &mut self.glyph_source, &backend.surface)
+        } else {
+            backend
+                .renderer
+                .render_partial(scene, damage, &mut self.glyph_source, &backend.surface)
+        };
+        if let Err(error) = result {
+            tracing::error!("wgpu render failed: {error}");
+        }
+    }
+
+    /// The softbuffer ladder: a NONE frame skips, a FULL frame
+    /// re-rasterizes, a partial frame repaints only the damage regions
+    /// onto the persistent framebuffer (§9.3).
+    #[cfg(feature = "backend-softbuffer")]
+    fn present_softbuffer(&mut self, report: &FrameReport, width: u32, height: u32) {
+        let Some(Backend::Softbuffer(presenter)) = &mut self.backend else {
+            return;
+        };
+        let scene = &report.scene;
+        let damage = &report.damage;
+        // The persistent framebuffer (§9.3): partial frames repaint
+        // damage regions onto the previous frame instead of
+        // re-rasterizing the whole scene.
+        if damage.is_empty() {
+            return;
+        }
+        let size_changed = self
+            .framebuffer
+            .as_ref()
+            .is_none_or(|frame| frame.width() != width || frame.height() != height);
+        if size_changed {
+            self.framebuffer = None;
+        }
+        let Some(frame) = self.framebuffer.as_mut() else {
+            let mut renderer = alacer_render::SoftwareRenderer::new();
+            let Some(pixmap) = renderer.render(
+                scene,
+                width,
+                height,
+                alacer_widgets::theme::SURFACE,
+                &mut self.glyph_source,
+            ) else {
+                tracing::error!("framebuffer allocation failed");
+                return;
+            };
+            self.framebuffer = Some(pixmap);
+            let Some(frame) = self.framebuffer.as_mut() else {
+                return;
+            };
+            if let Err(error) = presenter.present(frame) {
+                tracing::error!("present failed: {error}");
             }
-            Backend::Softbuffer(presenter) => {
-                // The persistent framebuffer (§9.3): partial frames repaint
-                // damage regions onto the previous frame instead of
-                // re-rasterizing the whole scene.
-                if damage.is_empty() {
-                    return;
-                }
-                let size_changed = self
-                    .framebuffer
-                    .as_ref()
-                    .is_none_or(|frame| frame.width() != width || frame.height() != height);
-                if size_changed {
-                    self.framebuffer = None;
-                }
-                let Some(frame) = self.framebuffer.as_mut() else {
-                    let mut renderer = alacer_render::SoftwareRenderer::new();
-                    let Some(pixmap) = renderer.render(
-                        scene,
-                        width,
-                        height,
-                        alacer_widgets::theme::SURFACE,
-                        &mut self.glyph_source,
-                    ) else {
-                        tracing::error!("framebuffer allocation failed");
-                        return;
-                    };
-                    self.framebuffer = Some(pixmap);
-                    let Some(frame) = self.framebuffer.as_mut() else {
-                        return;
-                    };
-                    if let Err(error) = presenter.present(frame) {
-                        tracing::error!("present failed: {error}");
-                    }
-                    return;
-                };
-                let mut renderer = alacer_render::SoftwareRenderer::new();
-                if damage.is_full() {
-                    let fresh = renderer.render(
-                        scene,
-                        width,
-                        height,
-                        alacer_widgets::theme::SURFACE,
-                        &mut self.glyph_source,
-                    );
-                    if let Some(pixmap) = fresh {
-                        *frame = pixmap;
-                    }
-                } else if renderer
-                    .render_partial(
-                        scene,
-                        frame,
-                        damage,
-                        alacer_widgets::theme::SURFACE,
-                        &mut self.glyph_source,
-                    )
-                    .is_none()
-                {
-                    tracing::error!("partial repaint failed");
-                }
-                if let Err(error) = presenter.present(frame) {
-                    tracing::error!("present failed: {error}");
-                }
+            return;
+        };
+        let mut renderer = alacer_render::SoftwareRenderer::new();
+        if damage.is_full() {
+            let fresh = renderer.render(
+                scene,
+                width,
+                height,
+                alacer_widgets::theme::SURFACE,
+                &mut self.glyph_source,
+            );
+            if let Some(pixmap) = fresh {
+                *frame = pixmap;
             }
+        } else if renderer
+            .render_partial(
+                scene,
+                frame,
+                damage,
+                alacer_widgets::theme::SURFACE,
+                &mut self.glyph_source,
+            )
+            .is_none()
+        {
+            tracing::error!("partial repaint failed");
+        }
+        if let Err(error) = presenter.present(frame) {
+            tracing::error!("present failed: {error}");
         }
     }
 
@@ -674,14 +782,18 @@ impl ApplicationHandler<PlatformEvent> for AlacerApp {
             WindowEvent::Resized(size) => {
                 let width = size.width.max(1);
                 let height = size.height.max(1);
+                #[cfg(feature = "backend-wgpu")]
                 if let Some(Backend::Wgpu(backend)) = &mut self.backend {
                     backend.renderer.resize(width, height, &backend.surface);
                 }
+                #[cfg(feature = "backend-softbuffer")]
                 if let Some(Backend::Softbuffer(presenter)) = &mut self.backend
                     && let Err(error) = presenter.resize(width, height)
                 {
                     tracing::error!("softbuffer resize failed: {error}");
                 }
+                #[cfg(not(any(feature = "backend-wgpu", feature = "backend-softbuffer")))]
+                let _ = (width, height);
                 self.needs_present = true;
             }
             WindowEvent::RedrawRequested => {
@@ -907,6 +1019,9 @@ fn f64_to_i32(v: f64) -> i32 {
     }
 }
 
+/// The wgpu instance descriptor (the GPU path's own; M34, ADR-0040 —
+/// the descriptor compiles with the feature that uses it).
+#[cfg(feature = "backend-wgpu")]
 fn instance_descriptor() -> wgpu::InstanceDescriptor {
     wgpu::InstanceDescriptor {
         backends: wgpu::Backends::all(),
@@ -984,7 +1099,9 @@ mod tests {
     // them, and the messages that know an escape hatch name it.
     // ------------------------------------------------------------------
 
-    use super::{BackendError, PlatformError};
+    #[cfg(feature = "backend-wgpu")]
+    use super::BackendError;
+    use super::PlatformError;
 
     #[test]
     fn platform_error_sources_the_underlying_failure() {
@@ -999,6 +1116,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "backend-wgpu")]
     #[test]
     fn an_error_without_an_inner_error_sources_none() {
         // NoAdapter is a fact about the host, not a wrapped failure: the
@@ -1011,6 +1129,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "backend-softbuffer")]
     #[test]
     fn the_softbuffer_path_sources_the_present_path_error() {
         // M18 (ADR-0024): the last String leaf grew its chain — the
@@ -1031,6 +1150,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "backend-wgpu")]
     #[test]
     fn a_failed_surface_creation_carries_the_wgpu_cause() {
         // M18 (ADR-0024): the surface-creation String flattened the
@@ -1047,6 +1167,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "backend-wgpu")]
     #[test]
     fn the_no_adapter_message_names_the_software_escape_hatch() {
         let error = PlatformError::Backend(BackendError::NoAdapter);
@@ -1157,5 +1278,33 @@ mod tests {
             _delta: &A11yDelta,
         ) {
         }
+    }
+
+    // ------------------------------------------------------------------
+    // M34 (ADR-0040): the backend features are true. The refusal the
+    // build itself makes is typed at the platform boundary — a fact
+    // about the build, never a panic, never a munged fallback — and it
+    // names the preference it cannot honor, the leaf rule the chain's
+    // doc comment carries (nothing wrapped rides it).
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn the_build_refusal_names_its_preference_and_is_its_own_leaf() {
+        let error = PlatformError::BackendUnavailable { requested: "wgpu" };
+        assert_eq!(
+            error.to_string(),
+            "no present backend compiled: `wgpu` is gated off — enable backend-wgpu or backend-softbuffer",
+            "the refusal names the gate that answers it"
+        );
+        assert!(
+            std::error::Error::source(&error).is_none(),
+            "a build fact is its own leaf — nothing wrapped rides the chain"
+        );
+    }
+
+    #[test]
+    fn preferences_name_themselves_for_the_refusal() {
+        assert_eq!(super::BackendPreference::Wgpu.name(), "wgpu");
+        assert_eq!(super::BackendPreference::Softbuffer.name(), "softbuffer");
     }
 }

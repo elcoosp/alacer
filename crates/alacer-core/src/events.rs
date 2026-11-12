@@ -167,7 +167,13 @@ impl PointerEvent {
 }
 
 /// A logical key, normalized across platforms (§10.3).
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+///
+/// `Copy` since M36 (ADR-0042): every variant carries its data by
+/// value — a `char` and unit variants — so the chord vocabulary the
+/// keymap seam consults with can ride records
+/// ([`crate::inspect::KeyRecord`]) by value like the modifiers beside
+/// it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Key {
     /// A character key with its text representation already resolved by the
     /// platform (printable input; the IME-free path).

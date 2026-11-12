@@ -247,7 +247,7 @@ fn m20_the_capture_case_joins_the_corpus_by_the_coordinated_rule() {
 
     assert_eq!(
         baselines["bench_count"],
-        serde_json::json!(62),
+        serde_json::json!(63),
         "the corpus's pins moved to 57 at M22's measurement run (the one-cycle drift the coordinated rule prices)"
     );
     let benches = baselines["benches"].as_object().expect("benches object");
@@ -261,7 +261,7 @@ fn m20_the_capture_case_joins_the_corpus_by_the_coordinated_rule() {
     let gates = contracts["regressions"].as_array().expect("regressions");
     assert_eq!(
         gates.len(),
-        62,
+        63,
         "every case carries exactly one regression gate"
     );
     assert!(
@@ -288,13 +288,13 @@ fn m20_the_capture_case_joins_the_corpus_by_the_coordinated_rule() {
     ] {
         let source = read_workspace_file(&format!("crates/alacer-testing/tests/{suite}"));
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 62;"),
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 63;"),
             "{suite} must pin the 60-case corpus"
         );
     }
     let m19 = read_workspace_file("crates/alacer-testing/tests/m19_exit_criteria.rs");
     assert!(
-        m19.contains("All 62 criterion cases") && m19.contains("serde_json::json!(62)"),
+        m19.contains("All 63 criterion cases") && m19.contains("serde_json::json!(63)"),
         "the m19 suite's pins moved with the corpus"
     );
 }
@@ -307,11 +307,11 @@ fn m20_the_living_documents_re_agree() {
     // status line and the register count moved with the M23 cut.
     let readme = read_workspace_file("README.md");
     for fragment in [
-        "All 62 criterion cases",
+        "All 63 criterion cases",
         "Since M20 the value tier is a widget",
         "version-0.17.0",
-        "M0 through M34",
-        "forty-one decision records",
+        "M0 through M35",
+        "forty-two decision records",
         "`Slider`",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
@@ -340,7 +340,7 @@ fn m20_the_living_documents_re_agree() {
     let architecture = read_workspace_file("docs/architecture.md");
     for fragment in [
         "ADR-0026",
-        "41 decision records",
+        "42 decision records",
         "the slider joins the widget vocabulary",
     ] {
         assert!(

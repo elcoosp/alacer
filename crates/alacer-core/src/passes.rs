@@ -1347,9 +1347,23 @@ impl PassPipeline {
         // → focus → input → frame. The behavior is the M35 funnel
         // byte-for-byte: [`KeymapConsult::fired`] is the
         // `dispatch_installed` verdict that always stood here.
+        //
+        // Since M37 (ADR-0043) the record names the binding too: the
+        // prose name is captured *before* the consult's dispatch — the
+        // name the consult resolves to, never what a mid-flight rebind
+        // leaves behind — and only when an observer rides (the name
+        // leg's read never runs on the unobserved funnel: the A7 idle
+        // contract, one branch). One consult channel still: the name
+        // leg runs no action, the consult's dispatch stays the only
+        // door.
         if response == EventResponse::Ignored {
+            let name = if self.observer.is_some() {
+                crate::keymap::consult_name(event)
+            } else {
+                None
+            };
             let consult = crate::keymap::consult(event);
-            self.notify_key(event, consult);
+            self.notify_key(event, consult, name);
             if consult.fired() {
                 response = EventResponse::Handled;
                 run.ran = true;
@@ -1526,17 +1540,21 @@ impl PassPipeline {
     /// (§13.3, ADR-0042): the shortcut trail — the chord the funnel
     /// asked the app's shortcuts about beside the species the consult
     /// answered ([`KeymapConsult`]), streamed the moment the consult
-    /// resolves. The consult is the funnel's own route: the focused
+    /// resolves. Since M37 (ADR-0043) the record names the binding too:
+    /// the prose name the seam answered beside the consult, carried
+    /// only on a fired consult (a miss and an uninstalled window name
+    /// no binding). The consult is the funnel's own route: the focused
     /// widget's answer pre-empts it entirely (the M35 precedence), so a
     /// pre-empted key streams the input record and no key record — the
     /// absent record *is* the precedence, visible in the trail. One
     /// branch when no observer is installed: the A7 idle contract is
     /// unchanged.
-    fn notify_key(&mut self, event: &KeyEvent, consult: KeymapConsult) {
+    fn notify_key(&mut self, event: &KeyEvent, consult: KeymapConsult, name: Option<String>) {
         if let Some(observer) = self.observer.as_mut() {
             observer.observe(InspectEvent::Key(KeyRecord {
                 chord: Chord::with_modifiers(event.key, event.modifiers),
                 outcome: consult,
+                name: if consult.fired() { name } else { None },
             }));
         }
     }

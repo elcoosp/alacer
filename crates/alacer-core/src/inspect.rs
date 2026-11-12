@@ -354,14 +354,17 @@ pub struct AnnounceRecord {
 /// → frame. The chord is the event's own shape
 /// ([`Chord::with_modifiers`], the exact modifier flags the funnel
 /// asked about) — one binding per chord (the M35 invariant), so the
-/// chord *is* the fired binding's identity and the record needs no
-/// second naming channel. The outcome is the consult's own
+/// chord *is* the fired binding's identity, and since M37 (ADR-0043)
+/// the record carries the binding's prose name beside it — answered by
+/// the seam's provided `fired_name` read beside the consult, captured
+/// before the consult's dispatch, never a second consult channel. The
+/// outcome is the consult's own
 /// ([`KeymapConsult`]) — the firing, the table's fall-through, or the
 /// uninstalled window, each named; a consult the focused widget's
 /// answer pre-empted never ran and streams nothing (the M35
 /// precedence, visible as an absent record). The fields are the
 /// additive wire rule's shape (ADR-0010).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KeyRecord {
     /// The chord the funnel asked the app's shortcuts about — the
     /// event's key plus its exact modifier shape.
@@ -369,6 +372,12 @@ pub struct KeyRecord {
     /// What the consult answered — the fired binding, the table's
     /// silence, or the uninstalled window.
     pub outcome: KeymapConsult,
+    /// The fired binding's prose name (M37, ADR-0043) — what the
+    /// seam's provided `fired_name` answered when the consult fired;
+    /// `None` when nothing fired, or when the seam that fired names no
+    /// binding (the provided method's default, the record staying
+    /// honest about it).
+    pub name: Option<String>,
 }
 
 /// One observation: what the pipeline and the flux surface to devtools.

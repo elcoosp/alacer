@@ -202,14 +202,13 @@ impl LayoutHost {
     /// size, and if the candidate's own box changes, the candidate walks up
     /// one level and recomputes — bounded by tree depth (ADR-0008 item 1).
     /// Returns the Taffy node the computation was rooted at.
-    #[must_use]
     fn compute_region(
         &mut self,
         arena: &Arena,
         dirty: &FxHashMap<NodeId, Change>,
         root: NodeId,
         viewport: Size,
-    ) -> taffy::NodeId {
+    ) -> Result<taffy::NodeId, LayoutError> {
         let root_taffy = self.nodes.get(&root).copied().expect("root mapped");
         let structural = dirty.values().any(|m| m.contains(Change::STRUCTURE));
         let resized = self.last_viewport != Some(viewport);
@@ -217,10 +216,10 @@ impl LayoutHost {
         if structural || resized {
             let fill_root = self.ensure_fill_root(root_taffy, root);
             self.mark_layout_dirty(dirty);
-            self.compute_from(fill_root, definite_available(viewport));
+            self.compute_from(fill_root, definite_available(viewport))?;
             self.pending_region = None;
             self.last_viewport = Some(viewport);
-            return fill_root;
+            return Ok(fill_root);
         }
 
         // Candidate path (torin's root candidate, §8.2 item 3): the compute
@@ -257,7 +256,7 @@ impl LayoutHost {
             match compute_root {
                 None => {
                     let fill_root = self.ensure_fill_root(root_taffy, root);
-                    self.compute_from(fill_root, definite_available(viewport));
+                    self.compute_from(fill_root, definite_available(viewport))?;
                     break (root, Point::zero());
                 }
                 Some(node) => {
@@ -270,7 +269,7 @@ impl LayoutHost {
                     // zeroes a compute root's location, so its own layout
                     // store is not authoritative for compute roots.
                     let cached_loc = self.loc_cache.get(&node).copied().unwrap_or(Point::zero());
-                    self.compute_from(node_taffy, definite_available(cached_size));
+                    self.compute_from(node_taffy, definite_available(cached_size))?;
                     let new_size = {
                         let layout = self.tree.layout(node_taffy).expect("layout");
                         Size::new(layout.size.width, layout.size.height)
@@ -294,10 +293,11 @@ impl LayoutHost {
         self.pending_region = Some(region);
         self.last_viewport = Some(viewport);
         let (region_root, _) = region;
-        self.nodes
+        Ok(self
+            .nodes
             .get(&region_root)
             .copied()
-            .expect("region root mapped")
+            .expect("region root mapped"))
     }
 
     /// The synthetic viewport-fill root, attached under the arena root.
@@ -343,7 +343,7 @@ impl LayoutHost {
         &mut self,
         compute_root: taffy::NodeId,
         available: taffy::Size<taffy::AvailableSpace>,
-    ) {
+    ) -> Result<(), LayoutError> {
         let mut calls = 0_u64;
         let mut cache = std::mem::take(&mut self.cache);
         let measurer = Arc::clone(&self.measurer);
@@ -396,9 +396,18 @@ impl LayoutHost {
                 }
             },
         );
-        compute.expect("taffy compute succeeds on well-formed trees");
+        // The honest error (ADR-0023's shape): taffy's failure surfaces as
+        // the engine's own `LayoutError` — the injected seam's contract —
+        // never an internal panic out of a `Result` door. The failing node
+        // is taffy-internal (its ids are not the arena's), so the record
+        // names no node; the message carries the engine's own summary.
+        compute.map_err(|error| LayoutError {
+            message: format!("taffy compute failed: {error}"),
+            node: None,
+        })?;
         self.cache = cache;
         self.measure_calls += calls;
+        Ok(())
     }
 
     /// The closest common ancestor of `nodes` in the arena (root included).
@@ -523,7 +532,7 @@ impl LayoutEngine for LayoutHost {
             return Ok(());
         }
         self.refresh_dirty(arena, root, dirty);
-        let _region = self.compute_region(arena, dirty, root, viewport);
+        let _region = self.compute_region(arena, dirty, root, viewport)?;
         self.publish_bounds(arena, root);
         Ok(())
     }

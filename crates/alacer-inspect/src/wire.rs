@@ -3,9 +3,11 @@
 //! the stable, versioned surface devtools clients code against; the core
 //! vocabulary (`alacer_core::inspect`) never leaks onto the wire.
 
+use alacer_core::announce::Politeness;
 use alacer_core::history::EditAction;
 use alacer_core::inspect::{
-    EdgeActivation, EditRecord, FocusRecord, FrameSummary, InputKind, SignalWrite,
+    AnnounceOutcome, AnnounceRecord, EdgeActivation, EditRecord, FocusRecord, FrameSummary,
+    InputKind, SignalWrite,
 };
 use alacer_core::passes::FocusRefusal;
 use serde::{Deserialize, Serialize};
@@ -125,6 +127,21 @@ pub enum WireEvent {
         undo_depth: usize,
         /// The redo branch's depth when the fact streamed.
         redo_depth: usize,
+    },
+    /// A speech act answered — the announcement trail (ADR-0039): the
+    /// delivered act, the superseded act, or the named refusal, the
+    /// politeness beside it. Additive at version 1 (the rider field's
+    /// rule): clients that ignore unknown kinds are unaffected.
+    Announce {
+        /// The `aria-live` priority the act asked for (`polite`,
+        /// `assertive`).
+        politeness: String,
+        /// What the pipeline answered (`delivered`, `superseded`,
+        /// `refused`).
+        outcome: String,
+        /// The refusal species (`empty_text`, `no_root`) on a refused
+        /// act; `null` otherwise.
+        refusal: Option<String>,
     },
     /// A completed frame — the ledger + the mask heatmap.
     Frame {
@@ -342,6 +359,29 @@ pub fn wire_edit(record: &EditRecord) -> WireEvent {
     }
 }
 
+/// The politeness's wire name
+/// ([`alacer_core::announce::Politeness::name`], the protocol's
+/// `snake_case` tag vocabulary).
+#[must_use]
+pub const fn politeness_name(politeness: Politeness) -> &'static str {
+    politeness.name()
+}
+
+/// Converts a core [`AnnounceRecord`] into the wire event: the speech
+/// act's answer, flat on the wire (ADR-0039) — the focus event's flat
+/// rule, the refusal species carried beside the outcome.
+#[must_use]
+pub fn wire_announce(record: &AnnounceRecord) -> WireEvent {
+    WireEvent::Announce {
+        politeness: politeness_name(record.politeness).to_string(),
+        outcome: record.outcome.name().to_string(),
+        refusal: match record.outcome {
+            AnnounceOutcome::Refused(refusal) => Some(refusal.name().to_string()),
+            AnnounceOutcome::Delivered | AnnounceOutcome::Superseded => None,
+        },
+    }
+}
+
 /// Converts a core [`FocusRecord`] into the wire event: the outcome's
 /// landing or refusal resolved into the documented flat shape, the rider
 /// named beside the movement (M30, ADR-0036).
@@ -487,6 +527,66 @@ mod tests {
     }
 
     #[test]
+    fn announce_events_carry_the_speech_vocabulary() {
+        use alacer_core::inspect::AnnounceOutcome;
+        let event = wire_announce(&AnnounceRecord {
+            politeness: Politeness::Polite,
+            outcome: AnnounceOutcome::Delivered,
+        });
+        let json = serde_json::to_string(&event).expect("announce json");
+        assert_eq!(
+            json,
+            r#"{"kind":"announce","politeness":"polite","outcome":"delivered","refusal":null}"#,
+            "the documented announce shape (the edit event's flat rule)"
+        );
+        let WireEvent::Announce {
+            politeness,
+            outcome,
+            refusal,
+        } = event
+        else {
+            panic!("announce event");
+        };
+        assert_eq!(politeness, "polite");
+        assert_eq!(outcome, "delivered");
+        assert_eq!(refusal, None);
+
+        // A superseded act names its outcome, the refusal `null` — the
+        // last-write-wins rule visible as data (ADR-0024).
+        let event = wire_announce(&AnnounceRecord {
+            politeness: Politeness::Assertive,
+            outcome: AnnounceOutcome::Superseded,
+        });
+        let WireEvent::Announce {
+            outcome, refusal, ..
+        } = event
+        else {
+            panic!("announce event");
+        };
+        assert_eq!(outcome, "superseded");
+        assert_eq!(refusal, None);
+    }
+
+    #[test]
+    fn a_refused_act_carries_its_species() {
+        use alacer_core::inspect::{AnnounceOutcome, AnnounceRefusal};
+        let event = wire_announce(&AnnounceRecord {
+            politeness: Politeness::Polite,
+            outcome: AnnounceOutcome::Refused(AnnounceRefusal::EmptyText),
+        });
+        let json = serde_json::to_string(&event).expect("refusal json");
+        assert_eq!(
+            json,
+            r#"{"kind":"announce","politeness":"polite","outcome":"refused","refusal":"empty_text"}"#,
+            "the refusal species rides beside the outcome"
+        );
+        let WireEvent::Announce { refusal, .. } = event else {
+            panic!("announce event");
+        };
+        assert_eq!(refusal.as_deref(), Some("empty_text"));
+    }
+
+    #[test]
     fn frames_carry_the_damage_verdict_and_regions() {
         use alacer_core::geom::Size;
         use alacer_core::passes::PassKind;
@@ -554,6 +654,26 @@ mod client_tests {
             assert!(
                 page.contains(fragment),
                 "the embedded client renders the edit event: {fragment}"
+            );
+        }
+    }
+
+    /// M33 (ADR-0039, this cut): the embedded standalone client renders
+    /// the announcements' echo — the announce event the wire now carries
+    /// lands in the log pane beside the focus and edit trails, the
+    /// politeness and the outcome named, the refusal rendered the way the
+    /// walk's refusals are. The pin rides the file's own fragments (the
+    /// M31 route).
+    #[test]
+    fn the_client_renders_the_announcements_echo() {
+        let page = include_str!("inspector.html");
+        for fragment in [
+            "case \"announce\":",
+            "The client renders the announcements' echo (M33, ADR-0039)",
+        ] {
+            assert!(
+                page.contains(fragment),
+                "the embedded client renders the announce event: {fragment}"
             );
         }
     }

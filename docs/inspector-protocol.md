@@ -219,10 +219,10 @@ name before the consult's dispatch, one consult channel still (the
 name leg runs no action). The queue behind it is dev-mode and
 the recorder's `key` ring holds 512.
 
-### `frame` — a completed frame### `clipboard` — a clipboard round trip answered ("did the text move — or why not?")
+### `clipboard` — a clipboard round trip answered ("did the text move — or why not?")
 
 ```json
-{"kind":"clipboard","action":"copy","outcome":"delivered","refusal":null,"chars":11}
+{"kind":"clipboard","action":"copy","outcome":"delivered","refusal":null,"engine":null,"chars":11}
 ```
 
 - `action` — the round trip the field answered (M39, ADR-0045):
@@ -242,6 +242,18 @@ the recorder's `key` ring holds 512.
   whose write was refused did not delete, the selection surviving a
   clipboard that failed it, ADR-0020's refuse-don't-munge rule);
   `null` on a delivery.
+- `engine` — the engine's platform-side species when the round trip's
+  refusal was a refused write (M41, ADR-0047, ADR-0045's own re-open
+  rule): `unnamed` (the engine answered only its `bool` — the fact
+  honest about its absence), `unsupported` (no clipboard subsystem at
+  all: a headless box, a sandboxed session), `occupied` (another party
+  held the clipboard while the write ran), `conversion` (the payload
+  could not be converted to the platform's format), or `os_error` (the
+  platform answered with an error the engine cannot classify — its
+  description traced engine-side, never guessed onto the wire); `null`
+  on a delivery and on every other refusal — a paste reads, a
+  no-selection copy never asked the engine. The log answers "which
+  clipboard failed it", not only "it failed".
 - `chars` — the payload's UTF-8 scalar count when the round trip
   delivered (the span copied, the span cut, the text pasted); zero on
   a refusal. The payload itself never rides the log: a clipboard can
@@ -255,6 +267,49 @@ running ahead of the edit drain so a cut's trail reads `clipboard` →
 deletion it drove. Every round trip streams, delivered and refused
 alike; the queue behind it is bounded (256 facts per thread,
 oldest-first eviction) and the recorder's `clipboard` ring holds 512.
+
+### `value` — a value-tier write answered ("did the write land — where, or why not?")
+
+```json
+{"kind":"value","action":"set_value","outcome":"delivered","refusal":null,"value":42.0}
+```
+
+- `action` — the value-tier action the AT asked (M40, ADR-0046):
+  `set_value` (a payload that parses, then rides the same
+  clamp-and-snap funnel every other write rides), `increment`, or
+  `decrement` (one step, the funnel's own arithmetic).
+- `outcome` — what the control answered: `delivered` (the value the
+  request asked for — a write that lands where the value already was
+  is an answered request, not a refusal, ADR-0026's own rule) or
+  `refused` (the write moved nothing — the M28 honesty at the value
+  tier: the fact a trail reader wants is exactly the write that never
+  landed).
+- `refusal` — the species on a refused write: `unavailable` (the
+  availability tier holds the control down — every door refuses before
+  the request is even parsed, ADR-0028), `invalid_payload` (the AT's
+  string was not a number — a SetValue never invents a value from
+  prose), `non_finite_value` ("inf" parses fine — the funnel carries
+  only finite scalars, and the wall is its own fact), or
+  `no_write_door` (a reporting widget's read-only tier — every AT
+  write refused, never munged into a step or a press, ADR-0027);
+  `null` on a delivery.
+- `value` — the value the control holds as the event resolves: the
+  funnel's clamp-and-snap result on a delivery, the untouched current
+  value on a refusal (the tree keeps the value the app wrote). A
+  slider's value is the tree's own vocabulary the AT already reads,
+  never a secret.
+
+The record streams at the tick's start drain — one frame after the
+act, the clipboard trail's currency (the widget notes the fact where
+the write resolves, the dispatching pipeline drains it), the drain
+running after the edit drain — a value write explains itself; it
+deletes nothing. Every value-tier action the AT asks streams, delivered
+and refused alike; a question outside the value tier (a press, a
+scroll, a text edit) is not a value fact. The queue behind it is
+bounded (256 facts per thread, oldest-first eviction) and the
+recorder's `value` ring holds 512.
+
+### `frame` — a completed frame
 
  ("why is this frame slow?", "what did this mask touch?")
 

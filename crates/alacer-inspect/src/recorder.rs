@@ -7,7 +7,8 @@
 use crate::server::push_broadcast;
 use crate::wire::WireEvent;
 use alacer_core::inspect::{
-    EdgeActivation, EditRecord, FocusRecord, InputKind, InspectEvent, InspectObserver, SignalWrite,
+    AnnounceRecord, EdgeActivation, EditRecord, FocusRecord, InputKind, InspectEvent,
+    InspectObserver, SignalWrite,
 };
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -31,6 +32,10 @@ pub const FOCUS_RING_CAP: usize = 512;
 /// journal's own bound ([`alacer_core::history::EDIT_TRAIL_CAP`]) at the
 /// recorder side, the same order the input and focus rings ride.
 pub const EDIT_RING_CAP: usize = 512;
+/// The announcement-trail ring's cap (oldest dropped first, ADR-0039) —
+/// the speech acts' facts at the recorder side, the same order the
+/// input, focus, and edit rings ride.
+pub const ANNOUNCE_RING_CAP: usize = 512;
 
 /// One recorded frame (the wire conversion lives in [`crate::wire`]).
 #[derive(Debug, Clone)]
@@ -49,6 +54,7 @@ struct Recording {
     inputs: VecDeque<(InputKind, Option<alacer_core::arena::NodeId>)>,
     focus: VecDeque<FocusRecord>,
     edits: VecDeque<EditRecord>,
+    announces: VecDeque<AnnounceRecord>,
     /// The most recent frame, for "what does the inspector see right now".
     latest: Option<alacer_core::inspect::FrameSummary>,
     /// The wire-shaped events awaiting the server's session drain (push, not
@@ -129,6 +135,14 @@ impl CausalRecorder {
         self.lock().edits.iter().copied().collect()
     }
 
+    /// The recorded announcement trail, oldest first (ADR-0039): every
+    /// speech act the pipeline answered — delivered acts, superseded
+    /// acts, the named refusals — bounded by [`ANNOUNCE_RING_CAP`].
+    #[must_use]
+    pub fn announces(&self) -> Vec<AnnounceRecord> {
+        self.lock().announces.iter().copied().collect()
+    }
+
     /// The most recent frame, when any frame was observed.
     #[must_use]
     pub fn latest_frame(&self) -> Option<alacer_core::inspect::FrameSummary> {
@@ -150,6 +164,7 @@ impl CausalRecorder {
             recording.inputs.clear();
             recording.focus.clear();
             recording.edits.clear();
+            recording.announces.clear();
         }
     }
 
@@ -218,6 +233,9 @@ impl InspectObserver for RecorderHandle {
             }
             InspectEvent::Edit(record) => {
                 push_bounded(&mut recording.edits, EDIT_RING_CAP, record);
+            }
+            InspectEvent::Announce(record) => {
+                push_bounded(&mut recording.announces, ANNOUNCE_RING_CAP, record);
             }
             InspectEvent::Frame(summary) => {
                 self.frames_seen.fetch_add(1, Ordering::Relaxed);
@@ -395,6 +413,51 @@ mod tests {
         assert_eq!(action, "undo");
         assert!(*refused);
         assert_eq!(*undo_depth, 0);
+    }
+
+    #[test]
+    fn announce_records_ring_in_order_and_are_bounded() {
+        use alacer_core::announce::Politeness;
+        use alacer_core::inspect::{AnnounceOutcome, AnnounceRefusal};
+        let recorder = CausalRecorder::new("announces");
+        let mut handle = recorder.clone_handle();
+        for _ in 0..(super::ANNOUNCE_RING_CAP + 10) {
+            handle.observe(InspectEvent::Announce(
+                alacer_core::inspect::AnnounceRecord {
+                    politeness: Politeness::Polite,
+                    outcome: AnnounceOutcome::Delivered,
+                },
+            ));
+        }
+        let trail = recorder.announces();
+        assert_eq!(trail.len(), super::ANNOUNCE_RING_CAP, "the ring is bounded");
+        assert_eq!(
+            trail[0].outcome,
+            AnnounceOutcome::Delivered,
+            "the survivors keep order"
+        );
+
+        // The refusal rides the same ring, the wire carrying its species
+        // beside the outcome.
+        handle.observe(InspectEvent::Announce(
+            alacer_core::inspect::AnnounceRecord {
+                politeness: Politeness::Assertive,
+                outcome: AnnounceOutcome::Refused(AnnounceRefusal::NoRoot),
+            },
+        ));
+        let drained = recorder.take_broadcast();
+        let last = drained.last().expect("the refusal broadcast");
+        let crate::wire::WireEvent::Announce {
+            politeness,
+            outcome,
+            refusal,
+        } = last
+        else {
+            panic!("the announce broadcast");
+        };
+        assert_eq!(politeness, "assertive");
+        assert_eq!(outcome, "refused");
+        assert_eq!(refusal.as_deref(), Some("no_root"));
     }
 
     #[test]

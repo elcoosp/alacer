@@ -81,6 +81,46 @@ impl BackendPreference {
             Self::Softbuffer => "softbuffer",
         }
     }
+
+    /// The env's own override: `ALACER_SOFTWARE=1` names the software
+    /// path. The env the docs promised is now the platform's own — every
+    /// consumer honors it, not only the examples' `choose_backend`
+    /// helpers: a `Wgpu` preference the env overrides becomes
+    /// `Softbuffer`, a `Softbuffer` preference is already the env's
+    /// answer, and an env set to anything else is refused honestly — a
+    /// `tracing::warn!` naming the value it saw and the one it accepts,
+    /// never a guess the value did not make (the M11 rule at the
+    /// platform seam).
+    ///
+    /// `env` is passed rather than read, so the parser stays pure —
+    /// tests drive it without mutating process state, and the caller
+    /// owns where the value comes from (`AlacerApp::new` reads
+    /// `ALACER_SOFTWARE` itself).
+    #[must_use]
+    pub fn software_env(self, env: Option<&std::ffi::OsStr>) -> Self {
+        match env {
+            None => self,
+            Some(value) if value == std::ffi::OsStr::new("1") => match self {
+                Self::Wgpu => {
+                    tracing::info!(
+                        target: "alacer::platform",
+                        backend = "softbuffer",
+                        "ALACER_SOFTWARE=1 names the present path"
+                    );
+                    Self::Softbuffer
+                }
+                Self::Softbuffer => Self::Softbuffer,
+            },
+            Some(value) => {
+                tracing::warn!(
+                    target: "alacer::platform",
+                    value = ?value,
+                    "ALACER_SOFTWARE accepts only `1` — the env is ignored and the preference stands"
+                );
+                self
+            }
+        }
+    }
 }
 
 /// Platform failures.
@@ -264,7 +304,11 @@ impl AlacerApp {
         alacer_core::clipboard::install(clipboard);
         Self {
             pipeline,
-            backend_preference: backend,
+            // The env's own override (the docs' `ALACER_SOFTWARE=1`, now
+            // the platform's own): the caller's preference stands unless
+            // the env names the software path.
+            backend_preference: backend
+                .software_env(std::env::var_os("ALACER_SOFTWARE").as_deref()),
             title: title.into(),
             start_size: size,
             window: None,
@@ -1306,5 +1350,46 @@ mod tests {
     fn preferences_name_themselves_for_the_refusal() {
         assert_eq!(super::BackendPreference::Wgpu.name(), "wgpu");
         assert_eq!(super::BackendPreference::Softbuffer.name(), "softbuffer");
+    }
+
+    // ------------------------------------------------------------------
+    // The env's own override: `ALACER_SOFTWARE=1` is the platform's —
+    // the parser is pure (the env is passed, never read), so the tests
+    // drive every shape without mutating process state.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn the_software_env_names_the_present_path() {
+        use std::ffi::OsStr;
+        // No env: the preference stands.
+        assert_eq!(
+            super::BackendPreference::Wgpu.software_env(None),
+            super::BackendPreference::Wgpu,
+            "an unset env overrides nothing"
+        );
+        // The env's answer: a wgpu preference becomes the software path.
+        assert_eq!(
+            super::BackendPreference::Wgpu.software_env(Some(OsStr::new("1"))),
+            super::BackendPreference::Softbuffer,
+            "ALACER_SOFTWARE=1 names the software path"
+        );
+        // Idempotent: a softbuffer preference is already the env's answer.
+        assert_eq!(
+            super::BackendPreference::Softbuffer.software_env(Some(OsStr::new("1"))),
+            super::BackendPreference::Softbuffer,
+            "the env never un-names the software path"
+        );
+    }
+
+    #[test]
+    fn a_junk_software_env_is_refused_and_the_preference_stands() {
+        use std::ffi::OsStr;
+        for junk in ["0", "yes", "true", "software", ""] {
+            assert_eq!(
+                super::BackendPreference::Wgpu.software_env(Some(OsStr::new(junk))),
+                super::BackendPreference::Wgpu,
+                "the value {junk:?} is nobody's answer — the preference stands, the warn names it"
+            );
+        }
     }
 }

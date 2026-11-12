@@ -82,6 +82,7 @@ impl TrailCollector {
                 InspectEvent::Announce(_) => "announce",
                 InspectEvent::Key(_) => "key",
                 InspectEvent::Clipboard(_) => "clipboard",
+                InspectEvent::Value(_) => "value",
                 InspectEvent::Frame(_) => "frame",
             })
             .collect()
@@ -458,7 +459,7 @@ fn m36_the_living_documents_re_agree() {
     let architecture = std::fs::read_to_string(root.join("docs/architecture.md"))
         .expect("the architecture document");
     assert!(
-        architecture.contains("46 decision records"),
+        architecture.contains("48 decision records"),
         "the architecture register re-agrees at 45 decision records"
     );
     assert!(
@@ -469,7 +470,7 @@ fn m36_the_living_documents_re_agree() {
     // The README's status block, count, and ADR line re-agree.
     let readme = std::fs::read_to_string(root.join("README.md")).expect("README");
     assert!(
-        readme.contains("M0 through M39") && readme.contains("forty-six decision records"),
+        readme.contains("M0 through M41") && readme.contains("forty-eight decision records"),
         "the README's status block and ADR count re-agree at M36"
     );
 

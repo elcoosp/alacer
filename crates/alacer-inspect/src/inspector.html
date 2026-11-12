@@ -97,7 +97,10 @@
     (keyboard / ring / consumer, ADR-0036); <code>key</code> = a keymap
     consult answered — the chord beside the species (fired, fell
     through, uninstalled — did a shortcut take the key, ADR-0042);
-    <code>frame</code> = the frame summary. "Who subscribes" is the edge table the flux publishes —
+    <code>clipboard</code> = a clipboard round trip answered — the copy,
+    cut, or paste beside its outcome (did the text move — or which
+    refusal named why not, ADR-0045); <code>frame</code> = the frame
+    summary. "Who subscribes" is the edge table the flux publishes —
     every <code>edge</code> line names its binding.</p>
   </section>
 </main>
@@ -293,6 +296,22 @@ function connect() {
             ? "no binding named it — the fallbacks' key"
             : "no keymap installed — the window has no shortcuts");
         addLog("key", "key " + chord, answer);
+        break;
+      }
+      case "clipboard": {
+        // The client renders the clipboard's echo (M39, ADR-0045): the
+        // clipboard trail lands in the log pane beside the focus, edit,
+        // announce, and key trails — the action and the outcome named,
+        // the refusal rendered the way the walk's refusals are, the
+        // payload's count beside the delivered answer, so a reader
+        // answers "did the text move — or why not" from the log alone.
+        // The count is all the payload the log carries: a clipboard can
+        // hold a secret, the length names the fact.
+        const span = event.chars ? " (" + event.chars + " chars)" : "";
+        const answer = event.outcome === "refused"
+          ? "refused: " + event.refusal
+          : "the payload moved" + span;
+        addLog("clipboard", "clipboard " + event.action, answer);
         break;
       }
       case "frame":

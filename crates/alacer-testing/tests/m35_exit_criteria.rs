@@ -308,7 +308,10 @@ fn m35_the_surface_rides_the_same_cut() {
     let passes = std::fs::read_to_string(root.join("crates/alacer-core/src/passes.rs"))
         .expect("passes.rs is in the tree");
     for fragment in [
-        "crate::keymap::dispatch_installed",
+        // Since M36 (ADR-0042) the funnel consults through the read as
+        // data — `dispatch_installed` is the consult's fired verdict at
+        // the keymap seam, the M35 contract byte-for-byte.
+        "crate::keymap::consult",
         "The app's shortcuts (M35, ADR-0041)",
     ] {
         assert!(
@@ -319,7 +322,9 @@ fn m35_the_surface_rides_the_same_cut() {
     let core = std::fs::read_to_string(root.join("crates/alacer-core/src/lib.rs"))
         .expect("lib.rs is in the tree");
     assert!(
-        core.contains("pub use keymap::{Chord, Keymap, KeymapSeam};"),
+        // Since M36 (ADR-0042) the vocabulary carries the consult's
+        // answer beside the seam: the re-export grew, the seam stays.
+        core.contains("pub use keymap::{Chord, Keymap, KeymapConsult, KeymapSeam};"),
         "the crate's public vocabulary carries the seam"
     );
 
@@ -339,14 +344,14 @@ fn m35_the_surface_rides_the_same_cut() {
     );
     let readme = std::fs::read_to_string(root.join("README.md")).expect("README");
     assert!(
-        readme.contains("M0 through M35") && readme.contains("forty-two decision records"),
+        readme.contains("M0 through M36") && readme.contains("forty-three decision records"),
         "the README's status block and ADR count re-agree at M35"
     );
     let architecture = std::fs::read_to_string(root.join("docs/architecture.md"))
         .expect("the architecture document");
     assert!(
-        architecture.contains("42 decision records"),
-        "the architecture register re-agrees at 42 decision records"
+        architecture.contains("43 decision records"),
+        "the architecture register re-agrees at 43 decision records"
     );
 
     // The corpus stands at 63: the keymap's mixed walk joins the

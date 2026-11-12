@@ -483,8 +483,11 @@ impl ClipboardOutcome {
 /// refused round trips included. The record carries the payload's
 /// UTF-8 scalar count beside the outcome — the length names the fact,
 /// never the payload itself: a clipboard can carry a secret, and the
-/// log is a devtools surface, not a shadow clipboard. The fields are
-/// the additive wire rule's shape (ADR-0010).
+/// log is a devtools surface, not a shadow clipboard. Since M41
+/// (ADR-0047, ADR-0045's own re-open rule) the record carries the
+/// engine's platform-side fact beside the write refusal — the log
+/// answering "which clipboard failed it". The fields are the additive
+/// wire rule's shape (ADR-0010).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ClipboardRecord {
     /// The round trip the field answered.
@@ -492,10 +495,144 @@ pub struct ClipboardRecord {
     /// What the field answered — the delivered payload or the named
     /// refusal.
     pub outcome: ClipboardOutcome,
+    /// The engine's platform-side fact when the write was refused —
+    /// `Some(species)` when the round trip's `write_refused` carried an
+    /// engine answer (`unnamed` when the engine answered only its
+    /// `bool`), `None` on a delivery and on every other refusal: a
+    /// paste reads, a no-selection copy never asked the engine. The
+    /// M41 additive field (ADR-0047) — the wire's documented `engine`
+    /// beside the refusal species.
+    pub engine: Option<crate::clipboard::ClipboardWriteRefusal>,
     /// The payload's UTF-8 scalar count when the round trip delivered —
     /// the span copied, the span cut, the text pasted. Zero on a
     /// refusal: a refusal moves nothing.
     pub chars: usize,
+}
+
+/// What the value tier just answered (§13.3, ADR-0046): the value
+/// trail's action vocabulary, one [`ValueRecord`] per AT write. The
+/// names are the wire's stable tags ([`ValueAction::name`], the
+/// protocol's `snake_case` rule).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ValueAction {
+    /// The AT's `SetValue`: a payload that parses, then rides the same
+    /// clamp-and-snap funnel every other write rides (M20, ADR-0026).
+    SetValue,
+    /// The AT's `Increment`: one step up the range, the funnel's own
+    /// arithmetic.
+    Increment,
+    /// The AT's `Decrement`: one step down the range, the funnel's own
+    /// arithmetic.
+    Decrement,
+}
+
+impl ValueAction {
+    /// The action's name, the wire vocabulary's `snake_case` tag (the
+    /// protocol's stable, documented field values —
+    /// [`ClipboardAction::name`] for clipboard round trips, this for
+    /// value-tier writes).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::SetValue => "set_value",
+            Self::Increment => "increment",
+            Self::Decrement => "decrement",
+        }
+    }
+}
+
+/// Why one value-tier write moved nothing (§13.3, ADR-0046): the honest
+/// refusals the value tier names (the M20/M21 refuse-don't-munge rules,
+/// now facts on the log — the widget's own `bool` collapsed these into
+/// one silence). The refusal streams too — the fact a trail reader
+/// wants is exactly the write that never landed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ValueRefusal {
+    /// The availability tier holds the control down (M22, ADR-0028) —
+    /// every door refuses before the request is even parsed, and the
+    /// tree keeps the value the app wrote.
+    Unavailable,
+    /// The AT's payload was not a number the funnel could parse — a
+    /// `SetValue` never invents a value from prose.
+    InvalidPayload,
+    /// The payload parsed but the funnel carries only finite scalars —
+    /// "inf" parses fine, and the funnel's wall is its own fact (the
+    /// m20 suite's two refusals, named apart at last).
+    NonFiniteValue,
+    /// The control has no write door for the action: a reporting
+    /// widget's read-only tier (M21, ADR-0027), every AT write refused,
+    /// never munged into a step or a press (the M11 rule).
+    NoWriteDoor,
+}
+
+impl ValueRefusal {
+    /// The refusal's name, the wire vocabulary's `snake_case` tag (the
+    /// protocol's stable, documented field values).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Unavailable => "unavailable",
+            Self::InvalidPayload => "invalid_payload",
+            Self::NonFiniteValue => "non_finite_value",
+            Self::NoWriteDoor => "no_write_door",
+        }
+    }
+}
+
+/// What the value tier answered one AT write (§13.3, ADR-0046): the
+/// record is the write's own outcome ([`ClipboardOutcome`]'s shape at
+/// the value tier) — the value landed, or the write was refused with
+/// its named species.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ValueOutcome {
+    /// The write landed: the control carries the value the request
+    /// asked for. A write that lands where the value already was is an
+    /// answered request, not a refusal (M20's own rule — the idle-frame
+    /// property the log now names).
+    Delivered,
+    /// The write moved nothing — [`ValueRefusal`] names the species.
+    Refused(ValueRefusal),
+}
+
+impl ValueOutcome {
+    /// The outcome's name, the wire vocabulary's `snake_case` tag (the
+    /// protocol's stable, documented field values).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Delivered => "delivered",
+            Self::Refused(_) => "refused",
+        }
+    }
+}
+
+/// One value-tier write's record (§13.3, ADR-0046): the causal log's
+/// answer to "did the AT's write land — where, or why not". The value
+/// tier's AT actions (M20, ADR-0026 — the `Slider`; M21, ADR-0027 — the
+/// read-only `Progress`) answered the widget's own `bool`, whose
+/// `false` collapsed four different facts — the control the
+/// availability tier holds down, the payload that parsed to nothing,
+/// the payload the funnel cannot carry, the control that never had a
+/// write door — and the ride the M31/M33/M36/M39 rhythm pre-registers
+/// prices the record: every value-tier action the AT asks streams one
+/// fact, the refused writes included. The record carries the value the
+/// control holds as the record resolves — the funnel's clamp-and-snap
+/// result on a delivery, the untouched current value on a refusal: a
+/// slider's value is the tree's own vocabulary the AT already reads,
+/// never a secret. The fields are the additive wire rule's shape
+/// (ADR-0010).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ValueRecord {
+    /// The value-tier action the AT asked.
+    pub action: ValueAction,
+    /// What the control answered — the landed value or the named
+    /// refusal.
+    pub outcome: ValueOutcome,
+    /// The value the control holds as the record resolves — the
+    /// funnel's clamp-and-snap result on a delivery, the untouched
+    /// current value on a refusal (the tree keeps the value the app
+    /// wrote).
+    pub value: f32,
 }
 
 /// One observation: what the pipeline and the flux surface to devtools.
@@ -535,6 +672,13 @@ pub enum InspectEvent {
     /// the edit trail's shape — the fact queues where the round trip
     /// resolves, one frame after the chord).
     Clipboard(ClipboardRecord),
+    /// A value-tier write answered — the value trail (ADR-0046): the
+    /// `SetValue`, `Increment`, or `Decrement` the AT asked, the landed
+    /// value beside the outcome, the refusals named. Streams with the
+    /// frame's own records (the tick's start drain, the clipboard
+    /// trail's shape — the fact queues where the write resolves, one
+    /// frame after the act).
+    Value(ValueRecord),
     /// A frame completed — the frame's causal summary.
     Frame(FrameSummary),
 }

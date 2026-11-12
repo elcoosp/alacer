@@ -792,6 +792,7 @@ impl PassPipeline {
         self.observer = Some(observer);
         crate::history::set_edit_trail_enabled(true);
         crate::announce::set_announce_trail_enabled(true);
+        crate::clipboard::set_clipboard_trail_enabled(true);
     }
 
     /// Enables per-pass wall timing and the overhead ledger (the M1 gate
@@ -1523,6 +1524,20 @@ impl PassPipeline {
         }
     }
 
+    /// Forwards one clipboard fact to the observer, when installed
+    /// (§13.3, ADR-0045): the clipboard trail — the round trip the
+    /// editing chords answered, the payload's count beside the outcome,
+    /// the refusals named. The record is the widget's own fact verbatim
+    /// ([`crate::inspect::ClipboardRecord`]), streamed at the tick's
+    /// start drain — one frame after the chord, the edit trail's
+    /// currency. One branch when no observer is installed: the A7 idle
+    /// contract is unchanged.
+    fn notify_clipboard(&mut self, record: crate::inspect::ClipboardRecord) {
+        if let Some(observer) = self.observer.as_mut() {
+            observer.observe(InspectEvent::Clipboard(record));
+        }
+    }
+
     /// Forwards one speech-act fact to the observer, when installed
     /// (§13.3, ADR-0039): the announcement trail — the record the
     /// pipeline answered the act with, the politeness beside it. The
@@ -1994,6 +2009,27 @@ impl PassPipeline {
         // collapsed — the journal's own history), and the drain empties
         // the queue whether an observer listens or not: a fact streams
         // once, an absent reader just never sees it.
+        // The clipboard-trail drain (§13.3, ADR-0045): the round-trip
+        // facts the editing chords queued on this thread ride the
+        // observer at the tick's start — the edit trail's shape, one
+        // frame after the chord, the drain running ahead of the edit
+        // drain so a cut's trail reads clipboard → edit (the causal
+        // order the round trip ran: what moved out, then the deletion
+        // it drove). Every fact streams (a bounded queue, never
+        // collapsed), and the drain empties the queue whether an
+        // observer listens or not: a fact streams once, an absent
+        // reader just never sees it.
+        for record in crate::clipboard::take_clipboard_trail() {
+            self.notify_clipboard(record);
+        }
+
+        // The edit-trail drain (§13.3, ADR-0037): the journal facts the
+        // edit funnels queued on this thread ride the observer at the
+        // tick's start — the announcement drain's shape, one frame after
+        // the chord. Every fact streams (a bounded queue, never
+        // collapsed — the journal's own history), and the drain empties
+        // the queue whether an observer listens or not: a fact streams
+        // once, an absent reader just never sees it.
         for record in crate::history::take_edit_trail() {
             self.notify_edit(record);
         }
@@ -2067,7 +2103,20 @@ impl PassPipeline {
         let layout_ran = first_frame || dirty.values().any(|m| m.forces_layout());
         let mut layout_work = 0_u64;
         if layout_ran {
-            let root = root.expect("root mounted for layout");
+            // The honest refusal (ADR-0023's error shape): a layout frame
+            // with no root mounted is a wiring bug — masks outlived their
+            // tree — and the tick's own contract answers `LayoutError`
+            // instead of panicking out of a `Result` door, the platform
+            // logging the refusal and skipping the frame it cannot lay
+            // out.
+            let Some(root) = root else {
+                return Err(LayoutError {
+                    message: "layout ran with no root mounted — masks outlived their tree; \
+                              mount a root before the first frame"
+                        .to_string(),
+                    node: None,
+                });
+            };
             let start = self.timings.then(std::time::Instant::now);
             self.layout
                 .sync_and_layout(&mut self.arena, root, &dirty, viewport)?;

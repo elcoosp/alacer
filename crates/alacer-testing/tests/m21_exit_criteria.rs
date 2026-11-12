@@ -308,8 +308,8 @@ fn m21_the_living_documents_re_agree() {
         "All 63 criterion cases",
         "Since M21 the value is reportable too",
         "version-0.17.0",
-        "M0 through M38",
-        "forty-five decision records",
+        "M0 through M39",
+        "forty-six decision records",
         "`Progress`",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
@@ -338,7 +338,7 @@ fn m21_the_living_documents_re_agree() {
     let architecture = read_workspace_file("docs/architecture.md");
     for fragment in [
         "ADR-0027",
-        "45 decision records",
+        "46 decision records",
         "the progress indicator joins the value tier",
     ] {
         assert!(

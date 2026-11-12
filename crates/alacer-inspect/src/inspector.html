@@ -99,7 +99,12 @@
     through, uninstalled — did a shortcut take the key, ADR-0042);
     <code>clipboard</code> = a clipboard round trip answered — the copy,
     cut, or paste beside its outcome (did the text move — or which
-    refusal named why not, ADR-0045); <code>frame</code> = the frame
+    refusal named why not, ADR-0045), the write refusals naming which
+    clipboard failed it (the engine's own species, ADR-0047);
+    <code>value</code> = a value-tier
+    write answered — the SetValue, Increment, or Decrement beside its
+    outcome (did the write land — where, or which refusal named why
+    not, ADR-0046); <code>frame</code> = the frame
     summary. "Who subscribes" is the edge table the flux publishes —
     every <code>edge</code> line names its binding.</p>
   </section>
@@ -308,10 +313,32 @@ function connect() {
         // The count is all the payload the log carries: a clipboard can
         // hold a secret, the length names the fact.
         const span = event.chars ? " (" + event.chars + " chars)" : "";
+        // The engine's species beside the write refusal (M41, ADR-0047):
+        // the log answers "which clipboard failed it", not only "it
+        // failed" — a read refusal carries no engine fact (null).
+        const engine = event.engine ? " (" + event.engine + ")" : "";
         const answer = event.outcome === "refused"
-          ? "refused: " + event.refusal
+          ? "refused: " + event.refusal + engine
           : "the payload moved" + span;
         addLog("clipboard", "clipboard " + event.action, answer);
+        break;
+      }
+      case "value": {
+        // The client renders the value tier's echo (M40, ADR-0046): the
+        // value trail lands in the log pane beside the focus, edit,
+        // announce, key, and clipboard trails — the action and the
+        // outcome named, the refusal rendered the way the walk's
+        // refusals are, the landed value beside the delivered answer,
+        // so a reader answers "did the write land — where, or why not"
+        // from the log alone. The value is the tree's own vocabulary
+        // the AT already reads, never a secret.
+        const span = event.outcome === "delivered"
+          ? " (the value " + event.value + ")"
+          : "";
+        const answer = event.outcome === "refused"
+          ? "refused: " + event.refusal
+          : "the value landed" + span;
+        addLog("value", "value " + event.action, answer);
         break;
       }
       case "frame":

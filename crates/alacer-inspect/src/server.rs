@@ -370,6 +370,7 @@ pub(crate) fn wire_event_of(event: &alacer_core::inspect::InspectEvent) -> WireE
         alacer_core::inspect::InspectEvent::Focus(record) => wire::wire_focus(record),
         alacer_core::inspect::InspectEvent::Edit(record) => wire::wire_edit(record),
         alacer_core::inspect::InspectEvent::Announce(record) => wire::wire_announce(record),
+        alacer_core::inspect::InspectEvent::Key(record) => wire::wire_key(record),
         alacer_core::inspect::InspectEvent::Frame(summary) => wire::wire_frame(summary),
     }
 }

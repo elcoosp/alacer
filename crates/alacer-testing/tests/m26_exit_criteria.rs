@@ -425,8 +425,8 @@ fn m26_the_living_documents_re_agree() {
     let readme = read_workspace_file("README.md");
     for fragment in [
         "version-0.17.0",
-        "M0 through M32",
-        "thirty-nine decision records",
+        "M0 through M34",
+        "forty-one decision records",
         "Since M26 the walk reads the window too",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
@@ -448,7 +448,7 @@ fn m26_the_living_documents_re_agree() {
     let architecture = read_workspace_file("docs/architecture.md");
     for fragment in [
         "ADR-0032",
-        "39 decision records",
+        "41 decision records",
         "the directional focus walk",
     ] {
         assert!(
@@ -486,7 +486,7 @@ fn m26_the_living_documents_re_agree() {
             "crates/alacer-testing/tests/{suite}_exit_criteria.rs"
         ));
         assert!(
-            source.contains("M0 through M32") && source.contains("39 decision records"),
+            source.contains("M0 through M34") && source.contains("41 decision records"),
             "the {suite} suite's README and register pins moved with the documents"
         );
     }
@@ -495,7 +495,7 @@ fn m26_the_living_documents_re_agree() {
             "crates/alacer-testing/tests/{suite}_exit_criteria.rs"
         ));
         assert!(
-            source.contains("thirty-nine decision records"),
+            source.contains("forty-one decision records"),
             "the {suite} suite's README ADR-count pin moved with the documents"
         );
     }

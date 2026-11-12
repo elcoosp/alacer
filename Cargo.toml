@@ -41,7 +41,7 @@ pedantic = { level = "warn", priority = -1 }
 
 [workspace.dependencies]
 # Internal crates — layering is a DAG, enforced by `scripts/check_dag.py` in CI (ADR-9).
-# The pins ride `[workspace.package]`'s version: the 0.12.0 family publishes
+# The pins ride `[workspace.package]`'s version: the 0.17.0 family publishes
 # (and resolves, see ADR-0022) as one cut, never pairing with an older core.
 alacer = { path = "crates/alacer", version = "0.17.0" }
 alacer-core = { path = "crates/alacer-core", version = "0.17.0" }

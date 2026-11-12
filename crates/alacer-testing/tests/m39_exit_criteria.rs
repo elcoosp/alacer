@@ -401,11 +401,11 @@ fn m39_the_living_documents_re_agree_at_m39() {
     // The status block and the ADR count re-agree at M39 (the m-suite
     // pins moving M38 → M39 and 45 → 46 across the chain).
     assert!(
-        readme.contains("M0 through M39") && readme.contains("forty-six decision records"),
+        readme.contains("M0 through M41") && readme.contains("forty-eight decision records"),
         "the README's status block and count re-agree at M39"
     );
     assert!(
-        architecture.contains("46 decision records"),
+        architecture.contains("48 decision records"),
         "the architecture register re-agrees at 46 decision records"
     );
     // The protocol document carries the clipboard event (the wire's

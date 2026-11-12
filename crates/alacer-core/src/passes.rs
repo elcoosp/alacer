@@ -793,6 +793,7 @@ impl PassPipeline {
         crate::history::set_edit_trail_enabled(true);
         crate::announce::set_announce_trail_enabled(true);
         crate::clipboard::set_clipboard_trail_enabled(true);
+        crate::value::set_value_trail_enabled(true);
     }
 
     /// Enables per-pass wall timing and the overhead ledger (the M1 gate
@@ -1538,6 +1539,20 @@ impl PassPipeline {
         }
     }
 
+    /// Forwards one value fact to the observer, when installed (§13.3,
+    /// ADR-0046): the value trail — the write the AT's value tier asked,
+    /// the landed value beside the outcome, the refusals named. The
+    /// record is the widget's own fact verbatim
+    /// ([`crate::inspect::ValueRecord`]), streamed at the tick's start
+    /// drain — one frame after the act, the clipboard trail's currency.
+    /// One branch when no observer is installed: the A7 idle contract
+    /// is unchanged.
+    fn notify_value(&mut self, record: crate::inspect::ValueRecord) {
+        if let Some(observer) = self.observer.as_mut() {
+            observer.observe(InspectEvent::Value(record));
+        }
+    }
+
     /// Forwards one speech-act fact to the observer, when installed
     /// (§13.3, ADR-0039): the announcement trail — the record the
     /// pipeline answered the act with, the politeness beside it. The
@@ -2032,6 +2047,18 @@ impl PassPipeline {
         // once, an absent reader just never sees it.
         for record in crate::history::take_edit_trail() {
             self.notify_edit(record);
+        }
+
+        // The value-trail drain (§13.3, ADR-0046): the value-tier facts
+        // the AT's writes queued on this thread ride the observer at
+        // the tick's start — the clipboard trail's shape, one frame
+        // after the act, the drain running after the edit drain (a
+        // value write explains itself; it deletes nothing). Every fact
+        // streams (a bounded queue, never collapsed), and the drain
+        // empties the queue whether an observer listens or not: a fact
+        // streams once, an absent reader just never sees it.
+        for record in crate::value::take_value_trail() {
+            self.notify_value(record);
         }
 
         let mut ledger: Vec<PassRun> = std::mem::take(&mut self.interframe);

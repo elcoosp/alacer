@@ -9,6 +9,90 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M38 — the primary chord (ADR-0044)**: the platform's primary
+  modifier as chord vocabulary — the re-open rule ADR-0043
+  pre-registered (ADR-0042's before it) cashed. A chord's shape is
+  *physical*, so an app's most common intent — "the platform's
+  primary accelerator" (`Ctrl+S` on Linux/Windows, `Cmd+S` on macOS)
+  — could not be named by the exact `Modifiers` shape: the app forked
+  its table per platform, or reached for a stringly-typed chord the
+  funnel cannot compare (the rule ADR-0041 refused). Now one
+  `Chord::primary()` builder resolves at build time the way
+  `Modifiers::primary` reads — Command on Apple platforms, Control
+  elsewhere — no new field, no logical flag, no match-time platform
+  context: the chord's shape *is* the event's physical shape, the
+  exact-shape match (the M35 invariant) untouched and the funnel's
+  compare the compare it always was. The resolution is the chord's
+  identity: off Apple platforms a `primary()` chord *is* a
+  `control()` chord — one binding per chord makes a rebind move in
+  place, never shadow — and on Apple platforms the two are different
+  chords, free for different actions. The aliasing never widens: a
+  `Cmd+S` event off Apple platforms is a different shape, the consult
+  falls through honestly, and the record carries the chord the funnel
+  *asked* about. The `Chord::control` doc-drift is fixed, not the
+  flag: the doc claimed "Control (Linux/Windows) or Command (macOS)" —
+  a claim the physical shape never kept — and named a `primary()`
+  builder that did not exist; it now pins the physical `control` flag
+  and points at `Chord::primary`. The wire is untouched (the `key`
+  event's `modifiers` field prints the resolved physical shape — the
+  truth the wire always carried), and `docs/inspector-protocol.md`
+  says so.
+  `examples/primary_chords.rs` is the consumer demonstration: the
+  real `dispatch_key` beats with the observer riding — the honest
+  uninstalled window, the fired record carrying its name under the
+  platform's own flag, the other platform's flag falling through
+  without aliasing, the physical shape binding over the primary one
+  *in place* — with tracing spans at `alacer::primary_chords`. The
+  corpus stands at 63: the resolution happens at bind time (a `cfg!`
+  branch, no match-time cost — the coordinated rule's no-growth arm).
+  The living documents re-agree at M38 and 0.17.0 (the README's
+  status block, count, quickstart, and table; the catalog; the
+  register; the roadmap; the m-suite pins moving M37 → M38 and 44 →
+  45 across the chain; the protocol document's `modifiers` sentence).
+
+- **M37 — the binding names itself in the record (ADR-0043)**: the
+  consult's prose name rides — the re-open rule ADR-0042 pre-registered
+  on its own kill-criteria list cashed. The M36 record carried the
+  chord beside the species (the chord the fired binding's identity,
+  one binding per chord), but a trail reader that wanted the
+  shortcut's *prose* name — a settings UI reading the log, an
+  inspector row a human labels — had to keep its own chord → name
+  table beside the log. Now the seam grows a *provided*
+  `KeymapSeam::fired_name` beside `dispatch`: the provided `Keymap`
+  table answers the binding its `dispatch` would run (the same match,
+  the same chord scan), a custom seam names its own answer, and one
+  that overrides nothing keeps the default `None` — the M35/M36
+  custom seams compiling and streaming unnamed, the record honest
+  about the absence. The answer is the record field's own
+  `Option<String>` (a wrapper seam delegates through its guard, where
+  a borrowed `&str` could not escape), one `consult_name` pure read
+  answers it beside `consult` — running no action, the consult's
+  dispatch staying the only door (never a second consult channel) —
+  and `PassPipeline::dispatch_key` captures it *before* the consult's
+  dispatch (the name the consult resolves to, never what a mid-flight
+  rebind leaves behind) and only under an observer (the A7 idle
+  contract: the unobserved funnel byte-for-byte). `KeyRecord` grows
+  `name` beside chord and outcome — `Some` only on a fired consult, `None`
+  on a miss or an uninstalled window or a nameless seam — trading its
+  M36 `Copy` for `Clone` (the name is a heap `String`; the chord keeps
+  the by-value ride). The wire grows the `key` event's `name` field
+  additively at version 1 (the rider field's rule, ADR-0010), the
+  embedded client renders the name beside the outcome, and
+  `docs/inspector-protocol.md` documents the field.
+  `examples/shortcut_names.rs` is the consumer demonstration: the real
+  `dispatch_key` beats with the observer riding — the provided table's
+  binding naming itself, the miss that names nothing, the custom
+  seam's own answer, the nameless seam's honest absence, the rebind
+  moving the name with the chord — with tracing spans at
+  `alacer::shortcut_names`. The corpus stands at 63: the name leg
+  costs the unobserved funnel nothing and rides the published keymap
+  route's consult (the coordinated rule's no-growth arm, the
+  M31/M33/M36 rule). The living documents re-agree at M37 and 0.17.0
+  (the README's status block, count, inspector bullet, quickstart,
+  and table; the catalog; the register; the roadmap; the §13.3
+  questions table; the m-suite pins moving M36 → M37 and 43 → 44
+  across the chain; the protocol document's `key` section).
+
 - **M36 — the keymap rides the causal log (ADR-0042)**: the consult's
   answer as data — the re-open rule ADR-0041 pre-registered on its own
   kill-criteria list cashed. The M35 funnel consult answered a bare

@@ -9,6 +9,42 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M36 — the keymap rides the causal log (ADR-0042)**: the consult's
+  answer as data — the re-open rule ADR-0041 pre-registered on its own
+  kill-criteria list cashed. The M35 funnel consult answered a bare
+  `bool` whose `false` collapsed three different facts; now one
+  `KeymapConsult` (`Uninstalled` / `FellThrough` / `Fired`, `fired()`
+  the verdict accessor, `name()` the wire's tag) and one `consult`
+  door answer the read as data with `dispatch_installed` staying the
+  fired verdict (the M35 contract byte-for-byte), and
+  `PassPipeline::dispatch_key` streams one `InspectEvent::Key`
+  (`KeyRecord`: the chord beside the species) per consult it runs —
+  the moment it resolves, before the fallbacks' focus records, so a
+  key event's trail reads keymap → focus → input → frame. The chord is
+  the fired binding's identity (one binding per chord), the focused
+  widget's precedence is visible as an absent record, and `Key`/
+  `Chord` gain the additive `Copy` the by-value record rides. The
+  trail is dev-mode and bounded: one branch per consult when no
+  observer is installed (the A7 idle contract,
+  `PassPipeline::set_observer` enables it), the recorder growing the
+  key ring beside its rings (`CausalRecorder::keys()`, 512). The wire
+  grows the `key` event additively at version 1 (the rider field's
+  rule, ADR-0010), the embedded client renders the echo beside the
+  focus and edit trails, and `docs/inspector-protocol.md` documents
+  the event.
+  `examples/keymap_trail.rs` is the consumer demonstration: the real
+  `dispatch_key` beats with the observer riding — the uninstalled
+  window's honest answer, the fired chord naming itself, the miss
+  that falls through, the rebind moving the record's chord with it —
+  with tracing spans at `alacer::keymap_trail`. The corpus stands at
+  63: the record rides the published keymap route's consult and
+  streams only under an observer (the coordinated rule's no-growth
+  arm, the M31/M33 rule). The living documents re-agree at M36 and
+  0.17.0 (the README's status block, count, inspector bullet,
+  quickstart, and table; the catalog; the register; the roadmap; the
+  §13.3 questions table; the m-suite pins moving M35 → M36 and 42 →
+  43 across the chain; the protocol document's `key` section).
+
 - **M31 — the journal rides the causal log (ADR-0037)**: every
   `EditHistory` action streams one `InspectEvent::Edit` — the hook the
   journal's own docs pre-registered ("the inspector may *someday*

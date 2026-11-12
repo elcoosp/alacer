@@ -494,14 +494,37 @@ impl TextInput {
     /// the exact UTF-16 range the edits consume, resolved through the same
     /// byte range the highlight paints. A degenerate selection copies
     /// nothing and returns `false` — a copy never invents content.
+    ///
+    /// Since M39 the round trip streams a
+    /// [`alacer_core::ClipboardRecord`] (ADR-0045): the delivered write
+    /// beside the payload's count, the no-selection and refused-write
+    /// species named — the facts a trail reader routes on, queued where
+    /// the round trip resolves.
     fn copy_selection(&self) -> bool {
         if !self.has_selection() {
+            alacer_core::clipboard::note_round_trip(alacer_core::ClipboardRecord {
+                action: alacer_core::ClipboardAction::Copy,
+                outcome: alacer_core::ClipboardOutcome::Refused(
+                    alacer_core::ClipboardRefusal::NoSelection,
+                ),
+                chars: 0,
+            });
             return false;
         }
         let (min, max) = self.selection_range();
         let range = utf16::byte_range(&self.text, min, max);
         let copied = &self.text[range];
-        alacer_core::clipboard::with_clipboard(|seam| seam.write_text(copied))
+        let accepted = alacer_core::clipboard::with_clipboard(|seam| seam.write_text(copied));
+        alacer_core::clipboard::note_round_trip(alacer_core::ClipboardRecord {
+            action: alacer_core::ClipboardAction::Copy,
+            outcome: if accepted {
+                alacer_core::ClipboardOutcome::Delivered
+            } else {
+                alacer_core::ClipboardOutcome::Refused(alacer_core::ClipboardRefusal::WriteRefused)
+            },
+            chars: if accepted { copied.chars().count() } else { 0 },
+        });
+        accepted
     }
 
     /// Moves the active selection to the clipboard seam, then deletes it
@@ -510,10 +533,43 @@ impl TextInput {
     /// refuse-don't-munge rule applied to a destructive edit. The
     /// deletion rides the funnel like every edit: its undo restores the
     /// moved-out span (ADR-0021).
+    ///
+    /// Since M39 the round trip streams its own fact (ADR-0045) before
+    /// the deletion it drives lands — the trail reads clipboard → edit,
+    /// the causal order the cut ran. The cut never rides the copy funnel:
+    /// a cut that streamed a copy fact and a cut fact would double the
+    /// round trip in the log.
     fn cut(&mut self) -> bool {
-        if !self.copy_selection() {
+        if !self.has_selection() {
+            alacer_core::clipboard::note_round_trip(alacer_core::ClipboardRecord {
+                action: alacer_core::ClipboardAction::Cut,
+                outcome: alacer_core::ClipboardOutcome::Refused(
+                    alacer_core::ClipboardRefusal::NoSelection,
+                ),
+                chars: 0,
+            });
             return false;
         }
+        let (min, max) = self.selection_range();
+        let range = utf16::byte_range(&self.text, min, max);
+        let moved = &self.text[range];
+        let accepted = alacer_core::clipboard::with_clipboard(|seam| seam.write_text(moved));
+        if !accepted {
+            alacer_core::clipboard::note_round_trip(alacer_core::ClipboardRecord {
+                action: alacer_core::ClipboardAction::Cut,
+                outcome: alacer_core::ClipboardOutcome::Refused(
+                    alacer_core::ClipboardRefusal::WriteRefused,
+                ),
+                chars: 0,
+            });
+            return false;
+        }
+        let chars = moved.chars().count();
+        alacer_core::clipboard::note_round_trip(alacer_core::ClipboardRecord {
+            action: alacer_core::ClipboardAction::Cut,
+            outcome: alacer_core::ClipboardOutcome::Delivered,
+            chars,
+        });
         let (from, to) = self.selection_span();
         self.edit(from, to, "");
         true
@@ -524,17 +580,41 @@ impl TextInput {
     /// spaces ([`alacer_core::clipboard::paste_text`]) — and consuming an
     /// active selection first, like every editor (the M11 edit rule). An
     /// empty or refused read inserts nothing and returns `false`.
+    ///
+    /// Since M39 the round trip streams its own fact (ADR-0045) beside
+    /// the insert it drives — the trail reads clipboard → edit, the
+    /// payload's count naming what landed.
     fn paste(&mut self) -> bool {
         let raw = alacer_core::clipboard::with_clipboard(
             alacer_core::clipboard::ClipboardSeam::read_text,
         );
         let Some(raw) = raw else {
+            alacer_core::clipboard::note_round_trip(alacer_core::ClipboardRecord {
+                action: alacer_core::ClipboardAction::Paste,
+                outcome: alacer_core::ClipboardOutcome::Refused(
+                    alacer_core::ClipboardRefusal::EmptyClipboard,
+                ),
+                chars: 0,
+            });
             return false;
         };
         let sanitized = alacer_core::clipboard::paste_text(&raw);
         if sanitized.is_empty() {
+            alacer_core::clipboard::note_round_trip(alacer_core::ClipboardRecord {
+                action: alacer_core::ClipboardAction::Paste,
+                outcome: alacer_core::ClipboardOutcome::Refused(
+                    alacer_core::ClipboardRefusal::EmptyClipboard,
+                ),
+                chars: 0,
+            });
             return false;
         }
+        let chars = sanitized.chars().count();
+        alacer_core::clipboard::note_round_trip(alacer_core::ClipboardRecord {
+            action: alacer_core::ClipboardAction::Paste,
+            outcome: alacer_core::ClipboardOutcome::Delivered,
+            chars,
+        });
         self.insert(&sanitized);
         true
     }

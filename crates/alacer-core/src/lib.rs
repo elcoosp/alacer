@@ -51,6 +51,7 @@ pub mod scene;
 pub mod style;
 pub mod text_seam;
 pub mod utf16;
+pub mod value;
 pub mod widget;
 
 pub use announce::{ANNOUNCEMENT_NODE_HASH, Announcement, Politeness};
@@ -69,7 +70,8 @@ pub use input::EventCoalescer;
 pub use inspect::{
     BindingId, ClipboardAction, ClipboardOutcome, ClipboardRecord, ClipboardRefusal, DirtyNode,
     EdgeActivation, FocusRecord, FocusRider, FrameSummary, InputKind, InputRecord, InspectEvent,
-    InspectObserver, KeyRecord, PassTiming, SignalKey, SignalWrite,
+    InspectObserver, KeyRecord, PassTiming, SignalKey, SignalWrite, ValueAction, ValueOutcome,
+    ValueRecord, ValueRefusal,
 };
 pub use keymap::{Chord, Keymap, KeymapConsult, KeymapSeam};
 pub use mask::Change;
@@ -103,7 +105,9 @@ pub mod prelude {
     };
     pub use crate::flux::{Flux, RenderBinding};
     pub use crate::geom::{Point, Rect, Size, Vector};
-    pub use crate::inspect::{ClipboardRecord, InspectEvent, InspectObserver, KeyRecord};
+    pub use crate::inspect::{
+        ClipboardRecord, InspectEvent, InspectObserver, KeyRecord, ValueRecord,
+    };
     pub use crate::keymap::{Chord, Keymap, KeymapConsult, KeymapSeam};
     pub use crate::mask::Change;
     pub use crate::passes::{PassKind, PassPipeline};

@@ -175,7 +175,10 @@ pub enum WireEvent {
     /// the copy, cut, or paste the editing chords answered, the
     /// payload's count beside the outcome, the refusals named. Additive
     /// at version 1 (the rider field's rule): clients that ignore
-    /// unknown kinds are unaffected.
+    /// unknown kinds are unaffected. Since M41 (ADR-0047) the event
+    /// carries the engine's platform-side fact beside the write
+    /// refusal — the additive field the versioning rule admits at
+    /// version 1 (clients that ignore unknown fields are unaffected).
     Clipboard {
         /// The round trip the field answered (`copy`, `cut`, `paste`).
         action: String,
@@ -184,12 +187,40 @@ pub enum WireEvent {
         /// The refusal species (`no_selection`, `empty_clipboard`,
         /// `write_refused`) on a refused round trip; `null` otherwise.
         refusal: Option<String>,
+        /// The engine's platform-side species (`unnamed`,
+        /// `unsupported`, `occupied`, `conversion`, `os_error`) when
+        /// the round trip's refusal was a refused write; `null` on a
+        /// delivery and on every other refusal — a paste reads, a
+        /// no-selection copy never asked the engine (M41, ADR-0047).
+        engine: Option<String>,
         /// The payload's UTF-8 scalar count when the round trip
         /// delivered — the span copied, the span cut, the text pasted.
         /// Zero on a refusal: a refusal moves nothing. The payload
         /// itself never rides the wire (a clipboard can carry a
         /// secret); the length names the fact.
         chars: usize,
+    },
+    /// A value-tier write answered — the value trail (ADR-0046): the
+    /// `SetValue`, `Increment`, or `Decrement` the AT asked, the landed
+    /// value beside the outcome, the refusals named. Additive at
+    /// version 1 (the rider field's rule): clients that ignore unknown
+    /// kinds are unaffected.
+    Value {
+        /// The value-tier action the AT asked (`set_value`,
+        /// `increment`, `decrement`).
+        action: String,
+        /// What the control answered (`delivered`, `refused`).
+        outcome: String,
+        /// The refusal species (`unavailable`, `invalid_payload`,
+        /// `non_finite_value`, `no_write_door`) on a refused write;
+        /// `null` otherwise.
+        refusal: Option<String>,
+        /// The value the control holds as the event resolves — the
+        /// funnel's clamp-and-snap result on a delivery, the untouched
+        /// current value on a refusal (the tree keeps the value the app
+        /// wrote). A slider's value is the tree's own vocabulary the AT
+        /// already reads, never a secret.
+        value: f32,
     },
     /// A completed frame — the ledger + the mask heatmap.
     Frame {
@@ -451,7 +482,38 @@ pub fn wire_clipboard(record: &ClipboardRecord) -> WireEvent {
             ClipboardOutcome::Refused(refusal) => Some(refusal.name().to_string()),
             ClipboardOutcome::Delivered => None,
         },
+        engine: record
+            .engine
+            .map(alacer_core::clipboard::ClipboardWriteRefusal::name)
+            .map(str::to_string),
         chars: record.chars,
+    }
+}
+
+/// The value action's wire name
+/// ([`alacer_core::inspect::ValueAction::name`], the protocol's
+/// `snake_case` tag vocabulary).
+#[must_use]
+pub const fn value_action_name(action: alacer_core::inspect::ValueAction) -> &'static str {
+    action.name()
+}
+
+/// Converts a core [`alacer_core::inspect::ValueRecord`] into the wire
+/// event: the value write's answer, flat on the wire (ADR-0046) — the
+/// clipboard event's flat rule, the refusal species carried beside the
+/// outcome and the landed value beside both.
+#[must_use]
+pub fn wire_value(record: &alacer_core::inspect::ValueRecord) -> WireEvent {
+    WireEvent::Value {
+        action: value_action_name(record.action).to_string(),
+        outcome: record.outcome.name().to_string(),
+        refusal: match record.outcome {
+            alacer_core::inspect::ValueOutcome::Refused(refusal) => {
+                Some(refusal.name().to_string())
+            }
+            alacer_core::inspect::ValueOutcome::Delivered => None,
+        },
+        value: record.value,
     }
 }
 
@@ -728,18 +790,20 @@ mod tests {
         let event = wire_clipboard(&ClipboardRecord {
             action: ClipboardAction::Copy,
             outcome: ClipboardOutcome::Delivered,
+            engine: None,
             chars: 11,
         });
         let json = serde_json::to_string(&event).expect("clipboard json");
         assert_eq!(
             json,
-            r#"{"kind":"clipboard","action":"copy","outcome":"delivered","refusal":null,"chars":11}"#,
+            r#"{"kind":"clipboard","action":"copy","outcome":"delivered","refusal":null,"engine":null,"chars":11}"#,
             "the documented clipboard shape (the announce event's flat rule)"
         );
         let WireEvent::Clipboard {
             action,
             outcome,
             refusal,
+            engine,
             chars,
         } = event
         else {
@@ -748,27 +812,114 @@ mod tests {
         assert_eq!(action, "copy");
         assert_eq!(outcome, "delivered");
         assert_eq!(refusal, None);
+        assert_eq!(engine, None, "an accepted write asked no refusal question");
         assert_eq!(chars, 11, "the record counts the span it moved");
     }
 
     #[test]
     fn a_refused_round_trip_carries_its_species() {
+        use alacer_core::clipboard::ClipboardWriteRefusal;
         use alacer_core::inspect::ClipboardRefusal;
         let event = wire_clipboard(&ClipboardRecord {
             action: ClipboardAction::Cut,
             outcome: ClipboardOutcome::Refused(ClipboardRefusal::WriteRefused),
+            engine: Some(ClipboardWriteRefusal::Unnamed),
             chars: 0,
         });
         let json = serde_json::to_string(&event).expect("refusal json");
         assert_eq!(
             json,
-            r#"{"kind":"clipboard","action":"cut","outcome":"refused","refusal":"write_refused","chars":0}"#,
+            r#"{"kind":"clipboard","action":"cut","outcome":"refused","refusal":"write_refused","engine":"unnamed","chars":0}"#,
             "the refusal species rides beside the outcome, the count honest at zero"
         );
         let WireEvent::Clipboard { refusal, .. } = event else {
             panic!("clipboard event");
         };
         assert_eq!(refusal.as_deref(), Some("write_refused"));
+    }
+
+    #[test]
+    fn value_events_carry_the_write_vocabulary() {
+        use alacer_core::inspect::ValueAction;
+        let event = wire_value(&alacer_core::inspect::ValueRecord {
+            action: ValueAction::SetValue,
+            outcome: alacer_core::inspect::ValueOutcome::Delivered,
+            value: 42.0,
+        });
+        let json = serde_json::to_string(&event).expect("value json");
+        assert_eq!(
+            json,
+            r#"{"kind":"value","action":"set_value","outcome":"delivered","refusal":null,"value":42.0}"#,
+            "the documented value shape (the clipboard event's flat rule)"
+        );
+        let WireEvent::Value {
+            action,
+            outcome,
+            refusal,
+            value,
+        } = event
+        else {
+            panic!("value event");
+        };
+        assert_eq!(action, "set_value");
+        assert_eq!(outcome, "delivered");
+        assert_eq!(refusal, None);
+        assert_eq!(value, 42.0, "the record carries the landed value");
+    }
+
+    #[test]
+    fn a_refused_value_write_carries_its_species() {
+        use alacer_core::inspect::{ValueAction, ValueRefusal};
+        let event = wire_value(&alacer_core::inspect::ValueRecord {
+            action: ValueAction::Increment,
+            outcome: alacer_core::inspect::ValueOutcome::Refused(ValueRefusal::NoWriteDoor),
+            value: 0.0,
+        });
+        let json = serde_json::to_string(&event).expect("refusal json");
+        assert_eq!(
+            json,
+            r#"{"kind":"value","action":"increment","outcome":"refused","refusal":"no_write_door","value":0.0}"#,
+            "the refusal species rides beside the outcome, the tree's value honest"
+        );
+        let WireEvent::Value { refusal, value, .. } = event else {
+            panic!("value event");
+        };
+        assert_eq!(refusal.as_deref(), Some("no_write_door"));
+        assert_eq!(value, 0.0, "the tree keeps the value the app wrote");
+    }
+
+    #[test]
+    fn the_engine_fact_rides_beside_the_write_refusal() {
+        use alacer_core::clipboard::ClipboardWriteRefusal;
+        use alacer_core::inspect::{ClipboardAction, ClipboardRefusal};
+        // The engine named its species: the kiosk's clipboard refusing
+        // with the fact the OS answered (M41, ADR-0047).
+        let event = wire_clipboard(&ClipboardRecord {
+            action: ClipboardAction::Copy,
+            outcome: ClipboardOutcome::Refused(ClipboardRefusal::WriteRefused),
+            engine: Some(ClipboardWriteRefusal::Unsupported),
+            chars: 0,
+        });
+        let json = serde_json::to_string(&event).expect("engine json");
+        assert_eq!(
+            json,
+            r#"{"kind":"clipboard","action":"copy","outcome":"refused","refusal":"write_refused","engine":"unsupported","chars":0}"#,
+            "the engine's species rides beside the round trip's verdict"
+        );
+        // A refusal that never asked the engine: the absence stays the
+        // absence (the additive field's null, the documented shape).
+        let event = wire_clipboard(&ClipboardRecord {
+            action: ClipboardAction::Paste,
+            outcome: ClipboardOutcome::Refused(ClipboardRefusal::EmptyClipboard),
+            engine: None,
+            chars: 0,
+        });
+        let json = serde_json::to_string(&event).expect("read refusal json");
+        assert_eq!(
+            json,
+            r#"{"kind":"clipboard","action":"paste","outcome":"refused","refusal":"empty_clipboard","engine":null,"chars":0}"#,
+            "a read asked no write question — the engine fact rides null"
+        );
     }
 
     #[test]

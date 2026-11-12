@@ -28,8 +28,9 @@ use crate::flux::Flux;
 use crate::geom::{Point, Rect, Size, Vector};
 use crate::inspect::{
     DIRTY_HEATMAP_CAP, DirtyNode, EditRecord, FocusRecord, FocusRider, FrameSummary, InputKind,
-    InputRecord, InspectEvent, InspectObserver, PassTiming,
+    InputRecord, InspectEvent, InspectObserver, KeyRecord, PassTiming,
 };
+use crate::keymap::{Chord, KeymapConsult};
 use crate::mask::Change;
 use crate::scene::{PaintCtx, Primitive, SceneSnapshot};
 use crate::style::Style;
@@ -1337,9 +1338,22 @@ impl PassPipeline {
         // after) take it. No seam installed answers `false` and the funnel
         // falls through honestly (the M11 rule at the dispatch seam — an
         // optional seam has no panic door).
-        if response == EventResponse::Ignored && crate::keymap::dispatch_installed(event) {
-            response = EventResponse::Handled;
-            run.ran = true;
+        //
+        // Since M36 (ADR-0042) the consult answers as data and streams:
+        // every consult the funnel runs — and only a consult; the
+        // focused widget's answer pre-empts the keymap entirely —
+        // forwards one [`KeyRecord`] the moment it resolves, before the
+        // fallbacks' focus records, so a key event's trail reads keymap
+        // → focus → input → frame. The behavior is the M35 funnel
+        // byte-for-byte: [`KeymapConsult::fired`] is the
+        // `dispatch_installed` verdict that always stood here.
+        if response == EventResponse::Ignored {
+            let consult = crate::keymap::consult(event);
+            self.notify_key(event, consult);
+            if consult.fired() {
+                response = EventResponse::Handled;
+                run.ran = true;
+            }
         }
 
         // Focus cycling: Tab walks the candidate list forward, Shift+Tab
@@ -1500,11 +1514,30 @@ impl PassPipeline {
     /// pipeline answered the act with, the politeness beside it. The
     /// direct door streams where the answer resolves, the push-side
     /// refusal rides the thread trail to the tick's start drain. One
-    /// branch when no observer is installed: the A7 idle contract is
-    /// unchanged.
+    /// branch when no observer is installed: the A7 idle
+    /// contract is unchanged.
     fn notify_announce(&mut self, record: crate::inspect::AnnounceRecord) {
         if let Some(observer) = self.observer.as_mut() {
             observer.observe(InspectEvent::Announce(record));
+        }
+    }
+
+    /// Forwards one keymap consult to the observer, when installed
+    /// (§13.3, ADR-0042): the shortcut trail — the chord the funnel
+    /// asked the app's shortcuts about beside the species the consult
+    /// answered ([`KeymapConsult`]), streamed the moment the consult
+    /// resolves. The consult is the funnel's own route: the focused
+    /// widget's answer pre-empts it entirely (the M35 precedence), so a
+    /// pre-empted key streams the input record and no key record — the
+    /// absent record *is* the precedence, visible in the trail. One
+    /// branch when no observer is installed: the A7 idle contract is
+    /// unchanged.
+    fn notify_key(&mut self, event: &KeyEvent, consult: KeymapConsult) {
+        if let Some(observer) = self.observer.as_mut() {
+            observer.observe(InspectEvent::Key(KeyRecord {
+                chord: Chord::with_modifiers(event.key, event.modifiers),
+                outcome: consult,
+            }));
         }
     }
 

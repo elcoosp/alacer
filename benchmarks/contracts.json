@@ -341,6 +341,11 @@
       "id": "input_route_100_observed_moves_1k",
       "baseline": "input/route_100_observed_moves_1k",
       "scope": "same-host"
+    },
+    {
+      "id": "keymap_dispatch_100_mixed_1k",
+      "baseline": "keymap/dispatch_100_mixed_1k",
+      "scope": "same-host"
     }
   ],
   "test_enforced_gates": [

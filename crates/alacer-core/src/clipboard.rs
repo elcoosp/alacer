@@ -36,6 +36,16 @@
 //! clipboard can carry a secret, and the log is a devtools surface, not
 //! a shadow clipboard.
 //!
+//! Since M41 the engine names its platform-side facts too (ADR-0047,
+//! ADR-0045's own re-open rule): the seam's engine contract grows
+//! beside [`ClipboardSeam`] — one *provided* [`ClipboardSeam::write_reported`]
+//! door answering [`ClipboardWriteFact`], the M37 provided-method
+//! discipline (the provided default maps the `bool` door and names its
+//! absence honestly, a real engine names its species). The round trip's
+//! record carries the engine's species beside the `write_refused`
+//! verdict — the log answers "which clipboard failed it", not only
+//! "it failed".
+//!
 //! [`crate::passes::PassPipeline::announce`]: crate::passes::PassPipeline::announce
 
 use std::cell::Cell;
@@ -70,6 +80,90 @@ pub trait ClipboardSeam: 'static {
     /// a cut whose write was refused does not delete — the selection
     /// survives a clipboard that failed it.
     fn write_text(&self, text: &str) -> bool;
+
+    /// The engine's reported write (M41, ADR-0047, ADR-0045's own
+    /// re-open rule): the platform-side fact the `bool` door cannot
+    /// carry — the write accepted, or refused with the species the
+    /// engine itself answered. *Provided*, so a custom engine that
+    /// overrides nothing keeps answering its `bool` door
+    /// ([`ClipboardWriteRefusal::Unnamed`] naming the absence honestly —
+    /// the M37 `Option::None` discipline, as a species), and a real
+    /// engine names its species. The `write_text` door stays the
+    /// contract of record (the M35 `dispatch_installed` rule): a write
+    /// through either door is the same write, and a refusal through
+    /// either deletes nothing (ADR-0020's rule stands).
+    fn write_reported(&self, text: &str) -> ClipboardWriteFact {
+        if self.write_text(text) {
+            ClipboardWriteFact::Accepted
+        } else {
+            ClipboardWriteFact::Refused(ClipboardWriteRefusal::Unnamed)
+        }
+    }
+}
+
+/// Why one engine write refused (M41, ADR-0047): the engine's own
+/// refusal species — the platform-side facts ADR-0045's re-open rule
+/// pre-registered, named by the engine that answered them, never a
+/// guess the OS did not (ADR-0020's rule stands). The species ride the
+/// round trip's record beside the `write_refused` verdict
+/// ([`crate::inspect::ClipboardRecord::engine`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ClipboardWriteRefusal {
+    /// The engine answered only its `bool` (the provided door's
+    /// default) — the write's platform-side fact is honest about its
+    /// absence, the M37 `Option::None` discipline as a species.
+    Unnamed,
+    /// The platform offers no clipboard subsystem at all: a headless
+    /// box, a sandboxed session, an unsupported selection.
+    Unsupported,
+    /// The native clipboard was held by another party while the write
+    /// ran.
+    Occupied,
+    /// The payload could not be converted to the platform's format.
+    Conversion,
+    /// The platform answered with an error the engine cannot classify —
+    /// its description traced engine-side, never guessed onto the wire.
+    OsError,
+}
+
+impl ClipboardWriteRefusal {
+    /// The refusal's name, the wire vocabulary's `snake_case` tag (the
+    /// protocol's stable, documented field values).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Unnamed => "unnamed",
+            Self::Unsupported => "unsupported",
+            Self::Occupied => "occupied",
+            Self::Conversion => "conversion",
+            Self::OsError => "os_error",
+        }
+    }
+}
+
+/// What the engine answered one write (M41, ADR-0047): the engine's own
+/// fact — the write accepted, or refused with its named species
+/// ([`ClipboardWriteRefusal`]). The engine-tier answer the round trip's
+/// record carries beside its own verdict: the round trip says *what*
+/// moved, the engine fact says *which platform answered*.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ClipboardWriteFact {
+    /// The write landed — the platform accepted the payload.
+    Accepted,
+    /// The write moved nothing — the engine names its species.
+    Refused(ClipboardWriteRefusal),
+}
+
+impl ClipboardWriteFact {
+    /// The fact's name, the wire vocabulary's `snake_case` tag (the
+    /// protocol's stable, documented field values).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Accepted => "accepted",
+            Self::Refused(_) => "refused",
+        }
+    }
 }
 
 /// The single-line paste rule the editing contract fixes (§10.3,
@@ -244,9 +338,42 @@ impl ClipboardSeam for MemoryClipboard {
 #[cfg(test)]
 mod tests {
     use super::{
-        ClipboardSeam, MemoryClipboard, install, is_installed, paste_text, with_clipboard,
+        ClipboardSeam, ClipboardWriteFact, ClipboardWriteRefusal, MemoryClipboard, install,
+        is_installed, paste_text, with_clipboard,
     };
     use std::rc::Rc;
+
+    /// A seam that refuses every write through the `bool` door alone:
+    /// the provided reported door's honest default (`unnamed`).
+    struct BoolRefuser;
+
+    impl ClipboardSeam for BoolRefuser {
+        fn read_text(&self) -> Option<String> {
+            None
+        }
+
+        fn write_text(&self, _text: &str) -> bool {
+            false
+        }
+    }
+
+    /// A seam whose engine names its own species: the kiosk's clipboard
+    /// — no subsystem at all, the write refused with the fact answered.
+    struct Kiosk;
+
+    impl ClipboardSeam for Kiosk {
+        fn read_text(&self) -> Option<String> {
+            None
+        }
+
+        fn write_text(&self, _text: &str) -> bool {
+            false
+        }
+
+        fn write_reported(&self, _text: &str) -> ClipboardWriteFact {
+            ClipboardWriteFact::Refused(ClipboardWriteRefusal::Unsupported)
+        }
+    }
 
     #[test]
     fn the_seam_routes_installed_implementations() {
@@ -296,5 +423,47 @@ mod tests {
     fn paste_text_walks_scalars_never_units() {
         assert_eq!(paste_text("a\u{1F600}\nb"), "a\u{1F600} b");
         assert_eq!(paste_text("にほ\nご"), "にほ ご");
+    }
+
+    /// The provided door maps the `bool` door honestly (M41, ADR-0047):
+    /// an accepted write names `accepted`, a refusal the bool cannot
+    /// name answers `unnamed` — and an engine that overrides the door
+    /// names its own species. The `write_text` contract of record is
+    /// untouched.
+    #[test]
+    fn the_reported_door_defaults_to_the_bool_door_and_names_its_absence() {
+        let memory = MemoryClipboard::default();
+        assert_eq!(
+            memory.write_reported("held"),
+            super::ClipboardWriteFact::Accepted,
+            "the memory engine accepts every write"
+        );
+        assert_eq!(
+            BoolRefuser.write_reported("held"),
+            super::ClipboardWriteFact::Refused(super::ClipboardWriteRefusal::Unnamed),
+            "the provided default names the absence honestly"
+        );
+        assert_eq!(
+            Kiosk.write_reported("held"),
+            super::ClipboardWriteFact::Refused(super::ClipboardWriteRefusal::Unsupported),
+            "an engine that names its species names it"
+        );
+    }
+
+    /// The species' wire names: the protocol's stable, documented
+    /// `snake_case` tags.
+    #[test]
+    fn the_engine_species_carry_their_wire_names() {
+        use super::ClipboardWriteRefusal;
+        assert_eq!(ClipboardWriteRefusal::Unnamed.name(), "unnamed");
+        assert_eq!(ClipboardWriteRefusal::Unsupported.name(), "unsupported");
+        assert_eq!(ClipboardWriteRefusal::Occupied.name(), "occupied");
+        assert_eq!(ClipboardWriteRefusal::Conversion.name(), "conversion");
+        assert_eq!(ClipboardWriteRefusal::OsError.name(), "os_error");
+        assert_eq!(super::ClipboardWriteFact::Accepted.name(), "accepted");
+        assert_eq!(
+            super::ClipboardWriteFact::Refused(ClipboardWriteRefusal::Occupied).name(),
+            "refused"
+        );
     }
 }

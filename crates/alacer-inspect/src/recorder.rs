@@ -7,8 +7,8 @@
 use crate::server::push_broadcast;
 use crate::wire::WireEvent;
 use alacer_core::inspect::{
-    AnnounceRecord, EdgeActivation, EditRecord, FocusRecord, InputKind, InspectEvent,
-    InspectObserver, KeyRecord, SignalWrite,
+    AnnounceRecord, ClipboardRecord, EdgeActivation, EditRecord, FocusRecord, InputKind,
+    InspectEvent, InspectObserver, KeyRecord, SignalWrite,
 };
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -40,6 +40,10 @@ pub const ANNOUNCE_RING_CAP: usize = 512;
 /// the keymap consults' facts at the recorder side, the same order the
 /// input, focus, edit, and announce rings ride.
 pub const KEY_RING_CAP: usize = 512;
+/// The clipboard-trail ring's cap (oldest dropped first, ADR-0045) —
+/// the round trips' facts at the recorder side, the same order the
+/// input, focus, edit, announce, and key rings ride.
+pub const CLIPBOARD_RING_CAP: usize = 512;
 
 /// One recorded frame (the wire conversion lives in [`crate::wire`]).
 #[derive(Debug, Clone)]
@@ -60,6 +64,7 @@ struct Recording {
     edits: VecDeque<EditRecord>,
     announces: VecDeque<AnnounceRecord>,
     keys: VecDeque<KeyRecord>,
+    clipboards: VecDeque<ClipboardRecord>,
     /// The most recent frame, for "what does the inspector see right now".
     latest: Option<alacer_core::inspect::FrameSummary>,
     /// The wire-shaped events awaiting the server's session drain (push, not
@@ -157,6 +162,15 @@ impl CausalRecorder {
         self.lock().keys.iter().cloned().collect()
     }
 
+    /// The recorded clipboard trail, oldest first (ADR-0045): every
+    /// round trip the editing chords answered — delivered copies, cuts,
+    /// pastes, and the named refusals — bounded by
+    /// [`CLIPBOARD_RING_CAP`].
+    #[must_use]
+    pub fn clipboards(&self) -> Vec<ClipboardRecord> {
+        self.lock().clipboards.iter().copied().collect()
+    }
+
     /// The most recent frame, when any frame was observed.
     #[must_use]
     pub fn latest_frame(&self) -> Option<alacer_core::inspect::FrameSummary> {
@@ -180,6 +194,7 @@ impl CausalRecorder {
             recording.edits.clear();
             recording.announces.clear();
             recording.keys.clear();
+            recording.clipboards.clear();
         }
     }
 
@@ -254,6 +269,9 @@ impl InspectObserver for RecorderHandle {
             }
             InspectEvent::Key(record) => {
                 push_bounded(&mut recording.keys, KEY_RING_CAP, record);
+            }
+            InspectEvent::Clipboard(record) => {
+                push_bounded(&mut recording.clipboards, CLIPBOARD_RING_CAP, record);
             }
             InspectEvent::Frame(summary) => {
                 self.frames_seen.fetch_add(1, Ordering::Relaxed);
@@ -553,6 +571,58 @@ mod tests {
             Some("increment"),
             "the fired binding's name rides the flat event"
         );
+    }
+
+    #[test]
+    fn clipboard_records_ring_in_order_and_are_bounded() {
+        use alacer_core::inspect::{ClipboardAction, ClipboardOutcome, ClipboardRefusal};
+        let recorder = CausalRecorder::new("clipboards");
+        let mut handle = recorder.clone_handle();
+        for _ in 0..(super::CLIPBOARD_RING_CAP + 10) {
+            handle.observe(InspectEvent::Clipboard(
+                alacer_core::inspect::ClipboardRecord {
+                    action: ClipboardAction::Copy,
+                    outcome: ClipboardOutcome::Delivered,
+                    chars: 11,
+                },
+            ));
+        }
+        let trail = recorder.clipboards();
+        assert_eq!(
+            trail.len(),
+            super::CLIPBOARD_RING_CAP,
+            "the ring is bounded"
+        );
+        assert_eq!(
+            trail[0].action,
+            ClipboardAction::Copy,
+            "the survivors keep order"
+        );
+
+        // The refusal rides the same ring, the wire carrying its species
+        // beside the outcome and the honest zero count.
+        handle.observe(InspectEvent::Clipboard(
+            alacer_core::inspect::ClipboardRecord {
+                action: ClipboardAction::Paste,
+                outcome: ClipboardOutcome::Refused(ClipboardRefusal::EmptyClipboard),
+                chars: 0,
+            },
+        ));
+        let drained = recorder.take_broadcast();
+        let last = drained.last().expect("the refusal broadcast");
+        let crate::wire::WireEvent::Clipboard {
+            action,
+            outcome,
+            refusal,
+            chars,
+        } = last
+        else {
+            panic!("the clipboard broadcast");
+        };
+        assert_eq!(action, "paste");
+        assert_eq!(outcome, "refused");
+        assert_eq!(refusal.as_deref(), Some("empty_clipboard"));
+        assert_eq!(*chars, 0, "a refusal moved nothing");
     }
 
     #[test]

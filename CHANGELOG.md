@@ -65,6 +65,57 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
   stands at 62: the elements ride the published view routes (the
   coordinated rule's no-growth arm).
 
+- **M33 — the announcement rides the causal log (ADR-0039)**: every
+  speech act the pipeline answers streams one `InspectEvent::Announce`
+  — the hook the M18 contract's own refusals pre-registered ("why did
+  the live region speak — or refuse") cashed. The record carries the
+  politeness the act asked for and the outcome it got
+  (`AnnounceOutcome::name` the wire's tag: `delivered`, `superseded` —
+  the last-write-wins rule visible as data, the batch draining whole —
+  or `refused` with the named species `AnnounceRefusal::{EmptyText,
+  NoRoot}`; the refusals stream too, the M28 honesty at the speech-act
+  tier). The facts stream where the answer resolves: the direct door's
+  answers at the door (`PassPipeline::announce`), the push-side empty
+  refusal on the thread's trail (the clipboard-seam shape, ADR-0020),
+  the drain's batch answers at the tick's start (the edit trail's
+  shape, ADR-0037). The trail is dev-mode and bounded: one branch per
+  act when no observer is installed (the A7 idle contract;
+  `PassPipeline::set_observer` enables it beside the edit trail's), a
+  256-fact queue with the §14.3 oldest-first eviction. The wire grows
+  the `announce` event additively at version 1 (the rider field's
+  rule, ADR-0010), the recorder grows the bounded announce ring beside
+  its rings (`CausalRecorder::announces()`, 512), and the embedded
+  client renders the echo beside the focus and edit trails.
+  `examples/announce_trail.rs` is the consumer demonstration: the M18
+  seam driven with the observer riding — the delivered act, the empty
+  refusal, the storm's superseded facts beside the survivor — with
+  tracing spans at `alacer::announce_trail`. The corpus stands at 62:
+  the speech acts ride the published announcement route (the
+  coordinated rule's no-growth arm; the route re-measured at this cut:
+  18.62 ms median against the published 18.81 ms, -1.0%).
+
+- **M34 — the backend features are true (ADR-0040)**: the capability
+  the feature names pre-registered (`backend-wgpu` /
+  `backend-softbuffer` forward to optional dependencies, promising
+  single-backend builds the tree never delivered — the platform's
+  backend modules, enum, and construction paths compiled
+  unconditionally, so `--no-default-features` failed with 151 errors
+  and every single-backend combination failed at `cargo check`)
+  cashed. Each present path compiles with its feature: the modules,
+  re-exports, `Backend` variants, and per-backend builders gate with
+  the feature that owns them — all four combinations compile
+  warning-free under `-D warnings` (both backends — the default, its
+  behavior unchanged — each alone, and none). A preference whose
+  backend the build compiled out refuses honestly at startup:
+  `PlatformError::BackendUnavailable { requested }` (the preference's
+  own name, `BackendPreference::name` the single source) — the display
+  naming the gate that answers it, the chain ending at the build fact
+  (the M16 boundary's leaf rule at the build tier; never a panic,
+  never a munged fallback). CI gains the features job exercising all
+  four combinations: the no-backend build compiling and running its
+  refusal tests, each backend alone, and the facade's software-only
+  and pipeline-only builds.
+
 - **M30 — the trail names the rider (ADR-0036)**: every `FocusRecord`
   the causal log streams grows a `rider` field beside its `movement` —
   a `FocusRider` naming who rode the walk: `Keyboard` (the keyboard's

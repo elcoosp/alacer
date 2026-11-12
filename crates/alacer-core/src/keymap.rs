@@ -51,6 +51,18 @@
 //! when nothing was installed and the funnel falls through honestly (the
 //! M11 rule at the dispatch seam); there is no panic door, unlike the
 //! clipboard's, whose absence *is* a wiring bug.
+//!
+//! # The consult as data
+//!
+//! The bare `bool` the funnel read left its own answer unrecorded: a
+//! fired shortcut, a table that named no binding, and a window that
+//! never installed one all answered the same way. [`consult`] is the
+//! read's full answer as data ([`KeymapConsult`] — `Uninstalled`,
+//! `FellThrough`, `Fired`), [`dispatch_installed`] stays the fired
+//! verdict, and the dispatch funnel streams one
+//! [`crate::inspect::KeyRecord`] (the chord beside the species) per
+//! consult the moment it resolves — ADR-0041's pre-registered re-open
+//! rule, the causal log's additive rule (never a second trail).
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -62,7 +74,13 @@ use crate::events::{Key, KeyEvent, KeyState, Modifiers};
 /// modifiers, so a chord matches only its own exact modifier shape —
 /// `Ctrl+S` does not answer `Ctrl+Shift+S` (that is a different chord,
 /// free for another action).
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// `Copy` since M36 (ADR-0042): the chord is the record vocabulary the
+/// funnel's consult streams beside its answer
+/// ([`crate::inspect::KeyRecord`]), and a chord is two small
+/// by-value fields — the causal log copies it the way the consult
+/// already carried it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Chord {
     key: Key,
     modifiers: Modifiers,
@@ -297,9 +315,81 @@ pub fn is_installed() -> bool {
 /// when none is — a window with no shortcuts is a legitimate
 /// application, never a wiring bug, so the read has no panic door (the
 /// clipboard's `with_clipboard` rule, inverted for an optional seam).
+///
+/// Since M36 this is [`consult`]'s fired verdict
+/// ([`KeymapConsult::fired`]) — the funnel's `bool` unchanged, the full
+/// answer now data ([`KeymapConsult`]) the funnel streams beside it
+/// (ADR-0042).
 #[must_use]
 pub fn dispatch_installed(event: &KeyEvent) -> bool {
-    KEYMAP.with_borrow(|seam| seam.as_ref().is_some_and(|seam| seam.dispatch(event)))
+    consult(event).fired()
+}
+
+/// The consult's answer as data (M36, ADR-0042): what the funnel's read
+/// resolved to — the three species the optional seam's total read
+/// carries. ADR-0041 shipped the consult as a bare `bool`, and its own
+/// kill criteria named the cost: a fired shortcut, a table that named
+/// no binding, and a window that never installed one all collapsed into
+/// the same `false` — the trail reader's "why didn't my shortcut fire?"
+/// was unanswerable from the answer. The species name themselves with
+/// [`KeymapConsult::name`] (the wire's `snake_case` tags, the
+/// protocol's stable, documented field values — the refusal species'
+/// rule at the keymap tier).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KeymapConsult {
+    /// No seam is installed — the window carries no shortcuts at all
+    /// (a legitimate application, never a wiring bug; the M35 rule the
+    /// record now names instead of guessing).
+    Uninstalled,
+    /// A seam answered and named no binding for this chord — the key
+    /// falls through to the framework's fallbacks (Tab cycling, the
+    /// directional ring) exactly as an ignored widget answer does.
+    FellThrough,
+    /// A binding fired: the action ran, the key is the keymap's now,
+    /// and the funnel answers `Handled` before the fallbacks run.
+    Fired,
+}
+
+impl KeymapConsult {
+    /// Whether a shortcut took the key — the M35 total read's verdict
+    /// ([`dispatch_installed`] is this accessor at the funnel).
+    #[must_use]
+    pub const fn fired(self) -> bool {
+        matches!(self, Self::Fired)
+    }
+
+    /// The answer's name, the wire vocabulary's `snake_case` tag
+    /// (the protocol's stable, documented field values).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Uninstalled => "uninstalled",
+            Self::FellThrough => "fell_through",
+            Self::Fired => "fired",
+        }
+    }
+}
+
+/// The consult as data (M36, ADR-0042): runs the installed seam's
+/// [`KeymapSeam::dispatch`] when one is installed and answers the
+/// [`KeymapConsult`] species the read resolved to — `Uninstalled` when
+/// no seam is on this thread, `Fired` when a binding ran, `FellThrough`
+/// when the seam named none. [`dispatch_installed`] is the fired
+/// verdict at the funnel, so the M35 contract is this function's
+/// `fired()` accessor and the consult is the read's full answer.
+///
+/// The seam handle leaves the thread-local before `dispatch` runs (the
+/// handle is an [`Rc`]): a fired action that re-installs or uninstalls
+/// mutates its own thread's table without re-entering the borrow — the
+/// total read stays re-entrancy-shaped.
+#[must_use]
+pub fn consult(event: &KeyEvent) -> KeymapConsult {
+    let seam = KEYMAP.with_borrow(std::clone::Clone::clone);
+    match seam.as_ref() {
+        Some(seam) if seam.dispatch(event) => KeymapConsult::Fired,
+        Some(_) => KeymapConsult::FellThrough,
+        None => KeymapConsult::Uninstalled,
+    }
 }
 
 thread_local! {
@@ -308,7 +398,10 @@ thread_local! {
 
 #[cfg(test)]
 mod tests {
-    use super::{Chord, Keymap, KeymapSeam, dispatch_installed, install, is_installed};
+    use super::{
+        Chord, Keymap, KeymapConsult, KeymapSeam, consult, dispatch_installed, install,
+        is_installed,
+    };
     use crate::events::{Key, KeyEvent, KeyState, Modifiers};
 
     /// A pressed event for `key` with `modifiers`.
@@ -323,7 +416,7 @@ mod tests {
 
     /// The event's own shape as a chord (what a binding would carry).
     fn chord_of(event: &KeyEvent) -> Chord {
-        Chord::with_modifiers(event.key.clone(), event.modifiers)
+        Chord::with_modifiers(event.key, event.modifiers)
     }
 
     #[test]
@@ -500,5 +593,89 @@ mod tests {
             !dispatch_installed(&pressed(Key::Enter, Modifiers::default())),
             "the custom seam's silence falls through"
         );
+    }
+
+    #[test]
+    fn the_consult_answers_the_three_species_and_the_total_read_agrees() {
+        // A fresh thread: the uninstalled consult names its species
+        // instead of collapsing into the same `false` (M36, ADR-0042)
+        // — and the M35 total read stays the fired verdict.
+        std::thread::spawn(|| {
+            let event = pressed(Key::Char('s'), Modifiers::default());
+            assert_eq!(consult(&event), KeymapConsult::Uninstalled);
+            assert!(!consult(&event).fired());
+            assert!(!dispatch_installed(&event));
+
+            let ran = std::rc::Rc::new(std::cell::Cell::new(0_u32));
+            let mut keymap = Keymap::new();
+            let counter = std::rc::Rc::clone(&ran);
+            keymap.bind(Chord::new(Key::Char('s')).control(), "save", move || {
+                counter.set(counter.get() + 1);
+            });
+            install(std::rc::Rc::new(keymap));
+
+            let ctrl_s = pressed(
+                Key::Char('s'),
+                Modifiers {
+                    control: true,
+                    ..Modifiers::default()
+                },
+            );
+            assert_eq!(consult(&ctrl_s), KeymapConsult::Fired);
+            assert_eq!(ran.get(), 1, "the consult ran the binding exactly once");
+            assert!(consult(&ctrl_s).fired());
+            assert!(
+                dispatch_installed(&ctrl_s),
+                "the M35 read rides the consult"
+            );
+
+            let miss = pressed(Key::Char('x'), Modifiers::default());
+            assert_eq!(consult(&miss), KeymapConsult::FellThrough);
+            assert!(!consult(&miss).fired());
+            assert!(!dispatch_installed(&miss));
+
+            // The species name themselves — the wire's snake_case tags.
+            assert_eq!(KeymapConsult::Fired.name(), "fired");
+            assert_eq!(KeymapConsult::FellThrough.name(), "fell_through");
+            assert_eq!(KeymapConsult::Uninstalled.name(), "uninstalled");
+        })
+        .join()
+        .expect("the thread-local story is thread-shaped");
+    }
+
+    #[test]
+    fn a_fired_action_may_reinstall_without_reentering_the_borrow() {
+        // The consult hands the seam handle out of the thread-local
+        // before dispatch runs: a fired action that installs a new
+        // table mutates its own thread's seam instead of panicking on
+        // the borrow (the re-entrancy shape the funnel's consult keeps).
+        std::thread::spawn(|| {
+            struct SelfReplacing(std::rc::Rc<std::cell::Cell<bool>>);
+            impl KeymapSeam for SelfReplacing {
+                fn dispatch(&self, _event: &KeyEvent) -> bool {
+                    if !self.0.get() {
+                        self.0.set(true);
+                        install(std::rc::Rc::new(Keymap::new()));
+                    }
+                    true
+                }
+            }
+            let replaced = std::rc::Rc::new(std::cell::Cell::new(false));
+            install(std::rc::Rc::new(SelfReplacing(std::rc::Rc::clone(
+                &replaced,
+            ))));
+            assert!(
+                consult(&pressed(Key::Char('r'), Modifiers::default())) == KeymapConsult::Fired,
+                "the first consult fires and swaps the table mid-flight"
+            );
+            assert!(replaced.get(), "the action ran");
+            assert_eq!(
+                consult(&pressed(Key::Char('r'), Modifiers::default())),
+                KeymapConsult::FellThrough,
+                "the replacement's silence is the answer now"
+            );
+        })
+        .join()
+        .expect("the thread-local story is thread-shaped");
     }
 }

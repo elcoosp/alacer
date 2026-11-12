@@ -779,14 +779,18 @@ impl PassPipeline {
     }
 
     /// Installs the devtools observer (§13.3): the pipeline forwards frame
-    /// summaries, routed-input records, focus-door answers, and the edit
-    /// trail (ADR-0037 — the journal's facts ride the tick's start drain).
+    /// summaries, routed-input records, focus-door answers, the edit
+    /// trail (ADR-0037 — the journal's facts ride the tick's start drain),
+    /// and the announcement trail (ADR-0039 — the speech acts' facts ride
+    /// the doors and the same drain).
     /// Replaces any previous observer. Installing one also enables the
-    /// edit trail: the journal notes its facts on this thread from here
-    /// on, and the disabled path stays one branch per action.
+    /// edit trail and the announcement trail: the journal and the push
+    /// route note their facts on this thread from here on, and the
+    /// disabled paths stay one branch per action.
     pub fn set_observer(&mut self, observer: Box<dyn InspectObserver>) {
         self.observer = Some(observer);
         crate::history::set_edit_trail_enabled(true);
+        crate::announce::set_announce_trail_enabled(true);
     }
 
     /// Enables per-pass wall timing and the overhead ledger (the M1 gate
@@ -950,6 +954,11 @@ impl PassPipeline {
     /// nothing, and before a root is mounted there is no tree to attach
     /// the region to. A refused announcement queues no masks (an idle
     /// frame) and returns `false`; an accepted one returns `true`.
+    ///
+    /// Since M33 every answer streams one `InspectEvent::Announce` to the
+    /// observer the moment it resolves (ADR-0039) — the focus doors'
+    /// shape at the speech-act tier: the acceptance and both refusals
+    /// are facts the causal log carries.
     pub fn announce(
         &mut self,
         text: impl Into<String>,
@@ -961,6 +970,12 @@ impl PassPipeline {
                 target: "alacer::announce",
                 "refused: an empty announcement speaks nothing"
             );
+            self.notify_announce(crate::inspect::AnnounceRecord {
+                politeness,
+                outcome: crate::inspect::AnnounceOutcome::Refused(
+                    crate::inspect::AnnounceRefusal::EmptyText,
+                ),
+            });
             return false;
         }
         if self.arena.root().is_none() {
@@ -968,6 +983,12 @@ impl PassPipeline {
                 target: "alacer::announce",
                 "refused: no root is mounted, the region has no tree to join"
             );
+            self.notify_announce(crate::inspect::AnnounceRecord {
+                politeness,
+                outcome: crate::inspect::AnnounceOutcome::Refused(
+                    crate::inspect::AnnounceRefusal::NoRoot,
+                ),
+            });
             return false;
         }
         let announcement = crate::announce::Announcement { text, politeness };
@@ -979,6 +1000,10 @@ impl PassPipeline {
         );
         self.announcement = Some(announcement);
         self.announcement_dirty = true;
+        self.notify_announce(crate::inspect::AnnounceRecord {
+            politeness,
+            outcome: crate::inspect::AnnounceOutcome::Delivered,
+        });
         true
     }
 
@@ -1455,6 +1480,19 @@ impl PassPipeline {
         }
     }
 
+    /// Forwards one speech-act fact to the observer, when installed
+    /// (§13.3, ADR-0039): the announcement trail — the record the
+    /// pipeline answered the act with, the politeness beside it. The
+    /// direct door streams where the answer resolves, the push-side
+    /// refusal rides the thread trail to the tick's start drain. One
+    /// branch when no observer is installed: the A7 idle contract is
+    /// unchanged.
+    fn notify_announce(&mut self, record: crate::inspect::AnnounceRecord) {
+        if let Some(observer) = self.observer.as_mut() {
+            observer.observe(InspectEvent::Announce(record));
+        }
+    }
+
     /// The one funnel, ridden with a name (M30, ADR-0036): the unscoped
     /// walk the doors and the dispatch fallbacks share, streaming the
     /// record under the rider the route declares — the app's doors name
@@ -1832,18 +1870,55 @@ impl PassPipeline {
         // The announcement drain (§11.6, ADR-0024): the speech acts event
         // handlers queued on this thread land in the reserved region at the
         // tick's start — the input queue's shape (push now, the tick
-        // routes, one frame). Last write wins across the batch; a region
-        // with no root is refused here, honestly, with nothing shipped.
-        if let Some(pending) = crate::announce::take_pending() {
+        // routes, one frame). The whole batch drains and last write wins:
+        // the replaced acts stream their `Superseded` facts (ADR-0039 —
+        // the replace rule visible as data, not a silent drop), and the
+        // survivor's answer streams too — a region with no root refuses
+        // here, honestly, with nothing shipped.
+        let batch = crate::announce::take_pending();
+        let survivor = batch.len().saturating_sub(1);
+        for (index, pending) in batch.into_iter().enumerate() {
+            if index < survivor {
+                tracing::trace!(
+                    target: "alacer::announce",
+                    politeness = pending.politeness.name(),
+                    "replaced at the drain: last write wins, the region speaks once"
+                );
+                self.notify_announce(crate::inspect::AnnounceRecord {
+                    politeness: pending.politeness,
+                    outcome: crate::inspect::AnnounceOutcome::Superseded,
+                });
+                continue;
+            }
             if self.arena.root().is_some() {
+                let politeness = pending.politeness;
                 self.announcement = Some(pending);
                 self.announcement_dirty = true;
+                self.notify_announce(crate::inspect::AnnounceRecord {
+                    politeness,
+                    outcome: crate::inspect::AnnounceOutcome::Delivered,
+                });
             } else {
                 tracing::trace!(
                     target: "alacer::announce",
                     "dropped at the drain: no root is mounted, the region has no tree"
                 );
+                self.notify_announce(crate::inspect::AnnounceRecord {
+                    politeness: pending.politeness,
+                    outcome: crate::inspect::AnnounceOutcome::Refused(
+                        crate::inspect::AnnounceRefusal::NoRoot,
+                    ),
+                });
             }
+        }
+
+        // The announcement trail's drain (§13.3, ADR-0039): the speech-act
+        // facts the push route queued on this thread (the empty refusal
+        // answered before anything queued) ride the observer at the tick's
+        // start — the edit trail's shape, and the drain empties the queue
+        // whether an observer listens or not: a fact streams once.
+        for record in crate::announce::take_announce_trail() {
+            self.notify_announce(record);
         }
 
         // The edit-trail drain (§13.3, ADR-0037): the journal facts the

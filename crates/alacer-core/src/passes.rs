@@ -1327,6 +1327,21 @@ impl PassPipeline {
             response = self.visit_key(focused, event);
         }
 
+        // The app's shortcuts (M35, ADR-0041): a chord the focused widget
+        // did not answer is the keymap's to name — the explicit beats the
+        // implicit, so an app that binds `Tab` in a modal means it — and
+        // the answer does not need a focused widget at all: window-level
+        // vocabulary answers wherever the focus sits. The installed seam
+        // runs the binding's action and the key is consumed before the
+        // framework's fallbacks (Tab cycling below, the directional ring
+        // after) take it. No seam installed answers `false` and the funnel
+        // falls through honestly (the M11 rule at the dispatch seam — an
+        // optional seam has no panic door).
+        if response == EventResponse::Ignored && crate::keymap::dispatch_installed(event) {
+            response = EventResponse::Handled;
+            run.ran = true;
+        }
+
         // Focus cycling: Tab walks the candidate list forward, Shift+Tab
         // backward (§10.3) — through the same [`Self::focus_move`] funnel
         // the consumer's door rides (ADR-0030: one walk, two doors; the

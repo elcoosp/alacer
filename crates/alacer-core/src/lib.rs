@@ -18,7 +18,9 @@
 //!   delta as every other a11y fact (§11.6, ADR-0024).
 //! - [`keymap`] — the keymap seam: the app's window-level shortcuts, named
 //!   by one installed [`KeymapSeam`] the dispatch funnel consults when the
-//!   focused widget did not answer (§10.3, ADR-0041).
+//!   focused widget did not answer, the consult as data
+//!   ([`keymap::KeymapConsult`]) and one [`inspect::KeyRecord`] streamed
+//!   per funnel consult (§10.3, ADR-0041, ADR-0042).
 //! - [`flux`] — the mask bridge over `reactive_graph`: effects never mutate widgets;
 //!   every effect drain ends by queuing `Change` masks (architecture §5.2).
 //! - [`passes`] — the pass contract: `event` → `update_focusable` →
@@ -65,9 +67,9 @@ pub use geom::{Point, Rect, Size, Vector};
 pub use input::EventCoalescer;
 pub use inspect::{
     BindingId, DirtyNode, EdgeActivation, FocusRecord, FocusRider, FrameSummary, InputKind,
-    InputRecord, InspectEvent, InspectObserver, PassTiming, SignalKey, SignalWrite,
+    InputRecord, InspectEvent, InspectObserver, KeyRecord, PassTiming, SignalKey, SignalWrite,
 };
-pub use keymap::{Chord, Keymap, KeymapSeam};
+pub use keymap::{Chord, Keymap, KeymapConsult, KeymapSeam};
 pub use mask::Change;
 pub use passes::{
     A11yDelta, A11ySink, FocusLanding, FocusMoveOutcome, FocusRefusal, FrameReport, ImePurpose,
@@ -99,8 +101,8 @@ pub mod prelude {
     };
     pub use crate::flux::{Flux, RenderBinding};
     pub use crate::geom::{Point, Rect, Size, Vector};
-    pub use crate::inspect::{InspectEvent, InspectObserver};
-    pub use crate::keymap::{Chord, Keymap, KeymapSeam};
+    pub use crate::inspect::{InspectEvent, InspectObserver, KeyRecord};
+    pub use crate::keymap::{Chord, Keymap, KeymapConsult, KeymapSeam};
     pub use crate::mask::Change;
     pub use crate::passes::{PassKind, PassPipeline};
     pub use crate::style::{CrossAxisAlignment, Display, MainAxisAlignment, Style};

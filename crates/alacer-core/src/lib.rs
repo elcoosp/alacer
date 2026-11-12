@@ -16,6 +16,9 @@
 //! - [`announce`] — the announcement seam: the app's reserved live-region
 //!   node, spoken by assistive technologies through the same snapshot and
 //!   delta as every other a11y fact (§11.6, ADR-0024).
+//! - [`keymap`] — the keymap seam: the app's window-level shortcuts, named
+//!   by one installed [`KeymapSeam`] the dispatch funnel consults when the
+//!   focused widget did not answer (§10.3, ADR-0041).
 //! - [`flux`] — the mask bridge over `reactive_graph`: effects never mutate widgets;
 //!   every effect drain ends by queuing `Change` masks (architecture §5.2).
 //! - [`passes`] — the pass contract: `event` → `update_focusable` →
@@ -37,6 +40,7 @@ pub mod history;
 pub mod identity;
 pub mod input;
 pub mod inspect;
+pub mod keymap;
 pub mod mask;
 pub mod num;
 pub mod passes;
@@ -63,6 +67,7 @@ pub use inspect::{
     BindingId, DirtyNode, EdgeActivation, FocusRecord, FocusRider, FrameSummary, InputKind,
     InputRecord, InspectEvent, InspectObserver, PassTiming, SignalKey, SignalWrite,
 };
+pub use keymap::{Chord, Keymap, KeymapSeam};
 pub use mask::Change;
 pub use passes::{
     A11yDelta, A11ySink, FocusLanding, FocusMoveOutcome, FocusRefusal, FrameReport, ImePurpose,
@@ -95,6 +100,7 @@ pub mod prelude {
     pub use crate::flux::{Flux, RenderBinding};
     pub use crate::geom::{Point, Rect, Size, Vector};
     pub use crate::inspect::{InspectEvent, InspectObserver};
+    pub use crate::keymap::{Chord, Keymap, KeymapSeam};
     pub use crate::mask::Change;
     pub use crate::passes::{PassKind, PassPipeline};
     pub use crate::style::{CrossAxisAlignment, Display, MainAxisAlignment, Style};

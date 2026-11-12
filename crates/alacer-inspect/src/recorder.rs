@@ -44,6 +44,10 @@ pub const KEY_RING_CAP: usize = 512;
 /// the round trips' facts at the recorder side, the same order the
 /// input, focus, edit, announce, and key rings ride.
 pub const CLIPBOARD_RING_CAP: usize = 512;
+/// The value-trail ring's cap (oldest dropped first, ADR-0046) — the
+/// value tier's facts at the recorder side, the same order the input,
+/// focus, edit, announce, key, and clipboard rings ride.
+pub const VALUE_RING_CAP: usize = 512;
 
 /// One recorded frame (the wire conversion lives in [`crate::wire`]).
 #[derive(Debug, Clone)]
@@ -65,6 +69,7 @@ struct Recording {
     announces: VecDeque<AnnounceRecord>,
     keys: VecDeque<KeyRecord>,
     clipboards: VecDeque<ClipboardRecord>,
+    values: VecDeque<alacer_core::inspect::ValueRecord>,
     /// The most recent frame, for "what does the inspector see right now".
     latest: Option<alacer_core::inspect::FrameSummary>,
     /// The wire-shaped events awaiting the server's session drain (push, not
@@ -171,6 +176,14 @@ impl CausalRecorder {
         self.lock().clipboards.iter().copied().collect()
     }
 
+    /// The recorded value trail, oldest first (ADR-0046): every
+    /// value-tier write the AT asked — delivered writes and the named
+    /// refusals — bounded by [`VALUE_RING_CAP`].
+    #[must_use]
+    pub fn values(&self) -> Vec<alacer_core::inspect::ValueRecord> {
+        self.lock().values.iter().copied().collect()
+    }
+
     /// The most recent frame, when any frame was observed.
     #[must_use]
     pub fn latest_frame(&self) -> Option<alacer_core::inspect::FrameSummary> {
@@ -195,6 +208,7 @@ impl CausalRecorder {
             recording.announces.clear();
             recording.keys.clear();
             recording.clipboards.clear();
+            recording.values.clear();
         }
     }
 
@@ -272,6 +286,9 @@ impl InspectObserver for RecorderHandle {
             }
             InspectEvent::Clipboard(record) => {
                 push_bounded(&mut recording.clipboards, CLIPBOARD_RING_CAP, record);
+            }
+            InspectEvent::Value(record) => {
+                push_bounded(&mut recording.values, VALUE_RING_CAP, record);
             }
             InspectEvent::Frame(summary) => {
                 self.frames_seen.fetch_add(1, Ordering::Relaxed);
@@ -583,6 +600,7 @@ mod tests {
                 alacer_core::inspect::ClipboardRecord {
                     action: ClipboardAction::Copy,
                     outcome: ClipboardOutcome::Delivered,
+                    engine: None,
                     chars: 11,
                 },
             ));
@@ -605,6 +623,7 @@ mod tests {
             alacer_core::inspect::ClipboardRecord {
                 action: ClipboardAction::Paste,
                 outcome: ClipboardOutcome::Refused(ClipboardRefusal::EmptyClipboard),
+                engine: None,
                 chars: 0,
             },
         ));
@@ -614,6 +633,7 @@ mod tests {
             action,
             outcome,
             refusal,
+            engine,
             chars,
         } = last
         else {
@@ -622,6 +642,11 @@ mod tests {
         assert_eq!(action, "paste");
         assert_eq!(outcome, "refused");
         assert_eq!(refusal.as_deref(), Some("empty_clipboard"));
+        assert_eq!(
+            engine.as_deref(),
+            None,
+            "a read asked no write question — the engine fact rides null"
+        );
         assert_eq!(*chars, 0, "a refusal moved nothing");
     }
 

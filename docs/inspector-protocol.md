@@ -173,6 +173,39 @@ delivered, replaced, and refused alike; the queue behind it is bounded
 (256 facts per thread, oldest-first eviction) and the recorder's
 `announce` ring holds 512.
 
+### `key` — a keymap consult answered ("did a shortcut take this key — or why not?")
+
+```json
+{"kind":"key","key":"char","character":"s","modifiers":"ctrl","outcome":"fired"}
+```
+
+- `key` — the logical key the chord carries (M36, ADR-0042): `char`,
+  `enter`, `backspace`, `delete`, `tab`, `space`, `escape`,
+  `arrow_left`, `arrow_right`, `arrow_up`, `arrow_down`, `home`,
+  `end`, `unknown`.
+- `character` — the character the chord carries when `key` is `char`
+  (the chord's own identity); `null` otherwise.
+- `modifiers` — the chord's exact modifier shape, canonical order
+  joined with `+` (`shift`, `ctrl`, `alt`, `meta` — the same joined
+  rule the `masks` field rides); the empty string when none held. The
+  shape is exact: `Ctrl+S` answers `ctrl`, never `ctrl+shift` (a
+  different chord, ADR-0041).
+- `outcome` — what the consult answered: `fired` (a binding ran; the
+  funnel answers `Handled` before the framework's fallbacks),
+  `fell_through` (a seam answered and named no binding — the key is
+  the fallbacks'), or `uninstalled` (no keymap on the window — a
+  legitimate application, named instead of guessed).
+
+The record streams the moment the funnel's consult resolves — before
+the fallbacks' focus records, so a key event's trail reads `key` →
+`focus` → `input` → `frame`. Only a consult streams: the focused
+widget's answer pre-empts the keymap entirely (the M35 precedence),
+so a pre-empted key carries its `input` record and no `key` record —
+the absent record *is* the precedence. The chord is the fired
+binding's identity (one binding per chord, ADR-0041), so the record
+needs no second naming channel. The queue behind it is dev-mode and
+the recorder's `key` ring holds 512.
+
 ### `frame` — a completed frame ("why is this frame slow?", "what did this mask touch?")
 
 ```json
@@ -236,7 +269,8 @@ malformed text frame is treated as `bye`.
   observer thread and the session is bounded at 4 096 events and drops the
   oldest (a slow client never back-pressures the app).
 - The recorder's rings are bounded (frames 256, edges 1 024, writes 1 024,
-  inputs 512, focus 512, edits 512, announces 512); `clear` empties them.
+  inputs 512, focus 512, edits 512, announces 512, keys 512); `clear`
+  empties them.
 - Recording is opt-in: the pipeline forwards only when an observer is
   installed, and the flux records activations and provenance only when
   `Flux::set_causal_capture(true)`. With both off, the framework's default

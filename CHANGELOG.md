@@ -9,6 +9,47 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M39 — the clipboard rides the causal log (ADR-0045)**: the ride
+  ADR-0010's additive rule and the M31/M33/M36/M37 rhythm
+  pre-register cashed. The editing contract's clipboard chords
+  (ADR-0020) answered the field's own `bool`, whose `false` collapsed
+  three different facts — the selection that was not there, the
+  clipboard that carried nothing, the platform that refused the write
+  — into one silence; a status line, an inspector trail, or a test
+  could not answer "did the text move — or why not" without
+  re-implementing the observation at the chord site. Now every
+  round trip the editing chords answer streams one
+  `InspectEvent::Clipboard` — the action beside the outcome and the
+  payload's UTF-8 scalar count, the refusals named (`no_selection`,
+  `empty_clipboard`, `write_refused`), the refused round trips
+  streaming too. The fact is noted where the round trip resolves
+  (`clipboard::note_round_trip`, the seam module owning the trail —
+  the journal's own rule), and the funnels were restructured so one
+  round trip streams one fact: a cut writes its own record and never
+  rides the copy funnel, the trail reading clipboard → edit (the
+  causal order the round trip ran — what moved out, then the deletion
+  it drove). The count names the fact; the payload never rides — a
+  clipboard can carry a secret, and the log is a devtools surface,
+  not a shadow clipboard. The trail is the edit trail's shape
+  (thread-local, 256-bounded, oldest-first eviction, the A7 gate —
+  one branch per chord while nobody listens), the tick's start drain
+  running ahead of the edit drain; the wire grows one `clipboard`
+  kind additively at version 1 (the announce event's flat rule —
+  `docs/inspector-protocol.md` documents it), the recorder's ring
+  holds 512 beside the other seams' rings, and the embedded client
+  renders the echo in the causal log pane.
+  `examples/clipboard_trail.rs` is the consumer demonstration: the
+  beats run the real chords before the window opens (the honest
+  `no_selection`, the counted copy, the cut that precedes the
+  journal's step, the paste that lands what the cut moved, the locked
+  door whose refused write never deletes) and the *trail* label
+  mirrors what the log streamed; live chords play the same round
+  trips in the window. The corpus stands at 63 (the no-growth arm —
+  the trail is dev-mode and bounded, no new hot loop), and the
+  living documents re-agree at M39 (the README's status block, count,
+  quickstart, and table; the catalog; the register; the roadmap; the
+  m-suite pins moving M38 → M39 and 45 → 46 across the chain; the
+  protocol document's `clipboard` section).
 - **M38 — the primary chord (ADR-0044)**: the platform's primary
   modifier as chord vocabulary — the re-open rule ADR-0043
   pre-registered (ADR-0042's before it) cashed. A chord's shape is

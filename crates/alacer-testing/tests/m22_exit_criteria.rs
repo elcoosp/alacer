@@ -450,8 +450,8 @@ fn m22_the_living_documents_re_agree() {
     for fragment in [
         "All 63 criterion cases",
         "Since M22 the availability tier is widget vocabulary",
-        "M0 through M36",
-        "forty-three decision records",
+        "M0 through M38",
+        "forty-five decision records",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
     }
@@ -479,7 +479,7 @@ fn m22_the_living_documents_re_agree() {
     let architecture = read_workspace_file("docs/architecture.md");
     for fragment in [
         "ADR-0028",
-        "43 decision records",
+        "45 decision records",
         "the availability tier joins the widget contract",
     ] {
         assert!(

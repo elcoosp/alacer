@@ -119,11 +119,17 @@ fn describe_chord(chord: Chord) -> String {
 }
 
 /// The fact as the trail's reader renders it: the chord beside the
-/// species the consult answered.
-fn describe(record: KeyRecord) -> String {
+/// species the consult answered, the fired binding's prose name beside
+/// it when the consult fired and the seam named one (M37, ADR-0043 —
+/// the record names the binding, the demo's renderer never keeps a
+/// chord → name table).
+fn describe(record: &KeyRecord) -> String {
     let chord = describe_chord(record.chord);
     let outcome = match record.outcome {
-        KeymapConsult::Fired => "a shortcut took the key".to_string(),
+        KeymapConsult::Fired => match record.name.as_deref() {
+            Some(name) => format!("a shortcut took the key — {name}"),
+            None => "a shortcut took the key".to_string(),
+        },
         KeymapConsult::FellThrough => "no binding named it — the fallbacks' key".to_string(),
         KeymapConsult::Uninstalled => {
             "no keymap installed — the window has no shortcuts".to_string()
@@ -159,7 +165,7 @@ impl Trail {
     /// The read half: every streamed fact so far, oldest first — the
     /// demo's log and its closing read-back.
     fn all(&self) -> Vec<KeyRecord> {
-        self.keys.borrow().iter().copied().collect()
+        self.keys.borrow().iter().cloned().collect()
     }
 }
 
@@ -174,6 +180,7 @@ impl InspectObserver for TrailWriter {
         let InspectEvent::Key(record) = event else {
             return;
         };
+        let line = describe(&record);
         {
             let mut ring = self.keys.borrow_mut();
             if ring.len() >= 64 {
@@ -181,7 +188,7 @@ impl InspectObserver for TrailWriter {
             }
             ring.push_back(record);
         }
-        self.trail_line.set(describe(record));
+        self.trail_line.set(line);
     }
 }
 

@@ -147,7 +147,10 @@ pub enum WireEvent {
     /// A keymap consult answered — the shortcut trail (ADR-0042): the
     /// chord the funnel asked the app's shortcuts about beside the
     /// species it got back. Additive at version 1 (the rider field's
-    /// rule): clients that ignore unknown kinds are unaffected.
+    /// rule): clients that ignore unknown kinds are unaffected. Since
+    /// M37 (ADR-0043) the event names the fired binding: the prose
+    /// name rides beside the outcome when the consult fired and the
+    /// seam names one.
     Key {
         /// The logical key the chord carries (`char`, `enter`, `tab`,
         /// `arrow_left`, … — [`key_name`]'s tags).
@@ -162,6 +165,11 @@ pub enum WireEvent {
         /// What the consult answered (`fired`, `fell_through`,
         /// `uninstalled`).
         outcome: String,
+        /// The fired binding's prose name (M37, ADR-0043) when the
+        /// consult fired and the seam names one — the provided table's
+        /// binding name or a custom seam's own answer; `null` on a
+        /// miss, an uninstalled window, or a seam that names none.
+        name: Option<String>,
     },
     /// A completed frame — the ledger + the mask heatmap.
     Frame {
@@ -449,7 +457,8 @@ fn modifiers_wire(modifiers: alacer_core::events::Modifiers) -> String {
 
 /// Converts a core [`KeyRecord`] into the wire event: the consult's
 /// answer, flat on the wire (ADR-0042) — the chord's key beside its
-/// modifier shape and the species the funnel got back.
+/// modifier shape and the species the funnel got back, the fired
+/// binding's prose name beside the outcome since M37 (ADR-0043).
 #[must_use]
 pub fn wire_key(record: &KeyRecord) -> WireEvent {
     WireEvent::Key {
@@ -460,6 +469,7 @@ pub fn wire_key(record: &KeyRecord) -> WireEvent {
         },
         modifiers: modifiers_wire(record.chord.modifiers()),
         outcome: record.outcome.name().to_string(),
+        name: record.name.clone(),
     }
 }
 
@@ -755,6 +765,22 @@ mod client_tests {
             assert!(
                 page.contains(fragment),
                 "the embedded client renders the announce event: {fragment}"
+            );
+        }
+    }
+
+    /// M37 (ADR-0043, this cut): the embedded standalone client names
+    /// the binding — the `name` field the key event now carries lands
+    /// in the answer when the consult fired, the log's row labeling
+    /// itself so a reader never keeps its own chord → name table. The
+    /// pin rides the file's own fragments (the M30 route).
+    #[test]
+    fn the_client_names_the_binding_beside_the_outcome() {
+        let page = include_str!("inspector.html");
+        for fragment in ["event.name", "The client names the binding (M37, ADR-0043)"] {
+            assert!(
+                page.contains(fragment),
+                "the embedded client renders the binding's name: {fragment}"
             );
         }
     }

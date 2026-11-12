@@ -302,13 +302,13 @@ fn m30_the_surface_rides_the_same_cut() {
     );
     let readme = std::fs::read_to_string(root.join("README.md")).expect("README");
     assert!(
-        readme.contains("M0 through M38") && readme.contains("forty-five decision records"),
+        readme.contains("M0 through M39") && readme.contains("forty-six decision records"),
         "the README's status block and ADR count re-agree at M30"
     );
     let architecture = std::fs::read_to_string(root.join("docs/architecture.md"))
         .expect("the architecture document");
     assert!(
-        architecture.contains("45 decision records"),
+        architecture.contains("46 decision records"),
         "the architecture register re-agrees at 45 decision records"
     );
 

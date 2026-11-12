@@ -371,8 +371,8 @@ fn m25_the_living_documents_re_agree() {
     let readme = read_workspace_file("README.md");
     for fragment in [
         "version-0.17.0",
-        "M0 through M39",
-        "forty-six decision records",
+        "M0 through M41",
+        "forty-eight decision records",
         "Since M25 the walk is bounded too",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
@@ -394,7 +394,7 @@ fn m25_the_living_documents_re_agree() {
     let architecture = read_workspace_file("docs/architecture.md");
     for fragment in [
         "ADR-0031",
-        "46 decision records",
+        "48 decision records",
         "the focus walk bounds to a subtree",
     ] {
         assert!(
@@ -432,11 +432,11 @@ fn m25_the_living_documents_re_agree() {
             "crates/alacer-testing/tests/{suite}_exit_criteria.rs"
         ));
         assert!(
-            source.contains("M0 through M39") && source.contains("forty-six decision records"),
+            source.contains("M0 through M41") && source.contains("forty-eight decision records"),
             "the {suite} suite's README pins moved with the documents"
         );
         assert!(
-            source.contains("46 decision records"),
+            source.contains("48 decision records"),
             "the {suite} suite's architecture pin moved with the register"
         );
     }
@@ -499,7 +499,7 @@ fn m25_the_surface_rides_the_same_cut() {
     // coherent tree — the drift the M25 sweep repairs.
     let m7 = read_workspace_file("crates/alacer-testing/tests/m7_exit_criteria.rs");
     assert!(
-        m7.contains("M0 through M39"),
+        m7.contains("M0 through M41"),
         "the m7 suite's milestone pin moved with the documents"
     );
 

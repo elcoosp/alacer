@@ -16,7 +16,9 @@
 //! | "Why did focus change — or why didn't it?" | [`InspectEvent::Focus`] — the walk's own answer, streamed as the doors resolve (ADR-0034) |
 //! | "Who rode the walk — the keyboard, the code, or the ring?" | [`FocusRider`] — the attribution every [`FocusRecord`] carries beside its movement (ADR-0036) |
 //! | "What did this field's journal do?" | [`InspectEvent::Edit`] — the edit trail: one record per journal action, streamed the moment the journal answers (ADR-0037) |
+//! | "Why did the live region speak — or refuse?" | [`InspectEvent::Announce`] — the announcement trail: one record per speech act, streamed the moment the pipeline answers it (ADR-0039) |
 
+use crate::announce::Politeness;
 use crate::arena::NodeId;
 use crate::damage::Damage;
 use crate::geom::Rect;
@@ -255,6 +257,91 @@ pub struct EditRecord {
     pub redo_depth: usize,
 }
 
+/// Why one speech act did not land on the reserved live region (§13.3,
+/// ADR-0039): the two honest refusals the announcement contract names —
+/// an empty or all-whitespace text speaks nothing, and before a root is
+/// mounted there is no tree to attach the region to. The refusal streams
+/// too (the M28 honesty at the speech-act tier): the fact a trail reader
+/// wants is exactly the act that never reached the AT.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AnnounceRefusal {
+    /// The text was empty or all whitespace — nothing honest to ship
+    /// (the push route and the direct door both refuse before anything
+    /// queues).
+    EmptyText,
+    /// No root is mounted — the region has no tree to join, so the act
+    /// is refused at the direct door or dropped at the tick's drain.
+    NoRoot,
+}
+
+impl AnnounceRefusal {
+    /// The refusal's name, the wire vocabulary's `snake_case` tag
+    /// (the protocol's stable, documented field values).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::EmptyText => "empty_text",
+            Self::NoRoot => "no_root",
+        }
+    }
+}
+
+/// What the pipeline answered one speech act (§13.3, ADR-0039): the
+/// record is the door's own outcome ([`crate::passes::FocusMoveOutcome`]
+/// 's shape at the announcement tier) — the act landed on the reserved
+/// region, the act was replaced before it could land (last write wins,
+/// visible as data instead of a silent drop), or the act was refused
+/// with its named species.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AnnounceOutcome {
+    /// The act landed on the reserved live region — its content and
+    /// politeness ride the frame's a11y delta (the M18 contract's
+    /// accepted route).
+    Delivered,
+    /// A later act in the same batch replaced this one before the tick
+    /// drained it — last write wins (ADR-0024), the replaced act's fact
+    /// streaming so a trail reader answers "why did the AT never say
+    /// this" from the log.
+    Superseded,
+    /// The act was refused — [`AnnounceRefusal`] names the species.
+    Refused(AnnounceRefusal),
+}
+
+impl AnnounceOutcome {
+    /// The outcome's name, the wire vocabulary's `snake_case` tag
+    /// (the protocol's stable, documented field values).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Delivered => "delivered",
+            Self::Superseded => "superseded",
+            Self::Refused(_) => "refused",
+        }
+    }
+}
+
+/// One speech act's record (§13.3, ADR-0039): the causal log's answer
+/// to "why did the live region speak — or refuse". The app's voice —
+/// state changes that own no widget — had no route on the causal log:
+/// an announcement landed on the reserved region and left no trace a
+/// trail reader could route on. Every act the pipeline answers streams
+/// one record the moment the answer resolves — the direct door's
+/// acceptance and both refusals at the door, the push-side empty
+/// refusal on the thread's trail, and the drain's batch answers with
+/// the last-write-wins rule visible — so a status line, an inspector
+/// trail, or a test reads the announcement seam without
+/// re-implementing the observation at the call site. The politeness is
+/// the act's own ([`Politeness`], the `aria-live` priority the region
+/// carries); the fields are the additive wire rule's shape (ADR-0010).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AnnounceRecord {
+    /// The `aria-live` priority the act asked for.
+    pub politeness: Politeness,
+    /// What the pipeline answered — the landing, the replacement, or
+    /// the named refusal.
+    pub outcome: AnnounceOutcome,
+}
+
 /// One observation: what the pipeline and the flux surface to devtools.
 #[derive(Debug, Clone)]
 pub enum InspectEvent {
@@ -273,6 +360,11 @@ pub enum InspectEvent {
     /// beside it. Streams with the frame's own records (the tick's
     /// start drain, the announcement drain's shape).
     Edit(EditRecord),
+    /// A speech act answered — the announcement trail (ADR-0039): the
+    /// delivered act, the superseded act, or the named refusal, the
+    /// politeness beside it. Streams where the answer resolves (the
+    /// direct door, the push trail, the tick's start drain).
+    Announce(AnnounceRecord),
     /// A frame completed — the frame's causal summary.
     Frame(FrameSummary),
 }

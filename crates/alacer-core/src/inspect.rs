@@ -17,6 +17,7 @@
 //! | "Who rode the walk — the keyboard, the code, or the ring?" | [`FocusRider`] — the attribution every [`FocusRecord`] carries beside its movement (ADR-0036) |
 //! | "What did this field's journal do?" | [`InspectEvent::Edit`] — the edit trail: one record per journal action, streamed the moment the journal answers (ADR-0037) |
 //! | "Why did the live region speak — or refuse?" | [`InspectEvent::Announce`] — the announcement trail: one record per speech act, streamed the moment the pipeline answers it (ADR-0039) |
+//! | "Did a shortcut take this key — or why not?" | [`InspectEvent::Key`] — the keymap consult's answer: one record per funnel consult (the chord beside the species), streamed the moment the consult resolves (ADR-0042) |
 
 use crate::announce::Politeness;
 use crate::arena::NodeId;
@@ -24,6 +25,7 @@ use crate::damage::Damage;
 use crate::geom::Rect;
 use crate::geom::Size;
 use crate::history::EditAction;
+use crate::keymap::{Chord, KeymapConsult};
 use crate::mask::Change;
 use crate::passes::{FocusMove, FocusMoveOutcome, PassKind};
 use crate::widget::Role;
@@ -342,6 +344,33 @@ pub struct AnnounceRecord {
     pub outcome: AnnounceOutcome,
 }
 
+/// One keymap consult's record (§13.3, ADR-0042): the causal log's
+/// answer to "did a shortcut take this key — or why not". ADR-0041's
+/// funnel consult answered a bare `bool` whose `false` collapsed three
+/// different facts — the firing, the table's silence, the absent
+/// window — and its own re-open rule priced the record: the funnel
+/// streams one consult the moment it resolves, before the fallbacks'
+/// focus records, so a key event's trail reads keymap → focus → input
+/// → frame. The chord is the event's own shape
+/// ([`Chord::with_modifiers`], the exact modifier flags the funnel
+/// asked about) — one binding per chord (the M35 invariant), so the
+/// chord *is* the fired binding's identity and the record needs no
+/// second naming channel. The outcome is the consult's own
+/// ([`KeymapConsult`]) — the firing, the table's fall-through, or the
+/// uninstalled window, each named; a consult the focused widget's
+/// answer pre-empted never ran and streams nothing (the M35
+/// precedence, visible as an absent record). The fields are the
+/// additive wire rule's shape (ADR-0010).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct KeyRecord {
+    /// The chord the funnel asked the app's shortcuts about — the
+    /// event's key plus its exact modifier shape.
+    pub chord: Chord,
+    /// What the consult answered — the fired binding, the table's
+    /// silence, or the uninstalled window.
+    pub outcome: KeymapConsult,
+}
+
 /// One observation: what the pipeline and the flux surface to devtools.
 #[derive(Debug, Clone)]
 pub enum InspectEvent {
@@ -365,6 +394,13 @@ pub enum InspectEvent {
     /// politeness beside it. Streams where the answer resolves (the
     /// direct door, the push trail, the tick's start drain).
     Announce(AnnounceRecord),
+    /// A keymap consult answered — the shortcut trail (ADR-0042): the
+    /// chord the funnel asked the app's shortcuts about beside the
+    /// species it got back (the firing, the fall-through, the
+    /// uninstalled window). Streams the moment the consult resolves —
+    /// before the fallbacks' focus records, so a key event's trail
+    /// reads keymap → focus → input → frame.
+    Key(KeyRecord),
     /// A frame completed — the frame's causal summary.
     Frame(FrameSummary),
 }

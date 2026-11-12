@@ -94,8 +94,10 @@
     <code>input</code> = a routed input; <code>focus</code> = a focus-move
     door answered — the walk's landing or its named refusal (why focus
     changed, or why it didn't, ADR-0034), with the rider naming who rode
-    (keyboard / ring / consumer, ADR-0036); <code>frame</code> = the frame
-    summary. "Who subscribes" is the edge table the flux publishes —
+    (keyboard / ring / consumer, ADR-0036); <code>key</code> = a keymap
+    consult answered — the chord beside the species (fired, fell
+    through, uninstalled — did a shortcut take the key, ADR-0042);
+    <code>frame</code> = the frame summary. "Who subscribes" is the edge table the flux publishes —
     every <code>edge</code> line names its binding.</p>
   </section>
 </main>
@@ -268,6 +270,22 @@ function connect() {
             ? "replaced: last write wins"
             : "the region carries it now");
         addLog("announce", "announce" + priority, answer);
+        break;
+      }
+      case "key": {
+        // The client renders the shortcuts' echo (M36, ADR-0042): the
+        // key trail lands in the log pane beside the focus and edit
+        // trails — the chord and the consult's species named, so a
+        // reader answers "did a shortcut take this key — or why not"
+        // from the log alone.
+        const chord = (event.modifiers ? event.modifiers + "+" : "") +
+          (event.key === "char" ? "'" + event.character + "'" : event.key);
+        const answer = event.outcome === "fired"
+          ? "a shortcut took the key"
+          : (event.outcome === "fell_through"
+            ? "no binding named it — the fallbacks' key"
+            : "no keymap installed — the window has no shortcuts");
+        addLog("key", "key " + chord, answer);
         break;
       }
       case "frame":

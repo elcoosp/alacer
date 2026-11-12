@@ -398,18 +398,55 @@ impl Widget for Slider {
     /// The value tier (M20, ADR-0026): `SetValue` parses then rides the
     /// one funnel, `Increment`/`Decrement` step by the step — the same
     /// masks as a drag. `DefaultPress` is not a value control's contract —
-    /// refused, never munged into a write (the M11 rule).
+    /// refused, never munged into a write (the M11 rule). Since M40
+    /// (ADR-0046) every value-tier action the AT asks streams one
+    /// [`alacer_core::inspect::ValueRecord`] — the answer's own species
+    /// where the `bool` collapsed four facts into one silence, the
+    /// refusal streaming too (the clipboard trail's shape, ADR-0045).
     fn on_a11y_action(&mut self, action: A11yAction) -> bool {
-        // The availability tier (M22, ADR-0028): an unavailable slider has
-        // no write door — every action is refused honestly, never munged.
+        // The record's action vocabulary is the AT's value tier: a
+        // question outside it (a press, a scroll, a text edit) is not a
+        // value fact — refused silently, never munged (the M11 rule),
+        // exactly the scope the clipboard trail drew over its chords.
+        let tier = match action {
+            A11yAction::SetValue(_) => alacer_core::ValueAction::SetValue,
+            A11yAction::Increment => alacer_core::ValueAction::Increment,
+            A11yAction::Decrement => alacer_core::ValueAction::Decrement,
+            A11yAction::DefaultPress
+            | A11yAction::ScrollUp(_)
+            | A11yAction::ScrollDown(_)
+            | A11yAction::ReplaceSelectedText(_)
+            | A11yAction::SetTextSelection(_) => return false,
+        };
+        // The availability tier (M22, ADR-0028): an unavailable slider
+        // has no write door — every action is refused honestly, never
+        // munged, and the refusal streams (the tree keeps the value the
+        // app wrote).
         if !self.enabled {
+            alacer_core::value::note_write(alacer_core::ValueRecord {
+                action: tier,
+                outcome: alacer_core::ValueOutcome::Refused(alacer_core::ValueRefusal::Unavailable),
+                value: self.value,
+            });
             return false;
         }
-        match action {
-            A11yAction::SetValue(value) => match value.trim().parse::<f32>() {
-                Ok(parsed) => self.commit(parsed, None),
-                Err(_) => false,
-            },
+        let answered = match action {
+            A11yAction::SetValue(value) => {
+                // The parse is an if/else, not a match: the refusal is a
+                // fact the tier records, not a silent arm.
+                if let Ok(parsed) = value.trim().parse::<f32>() {
+                    self.commit(parsed, None)
+                } else {
+                    alacer_core::value::note_write(alacer_core::ValueRecord {
+                        action: tier,
+                        outcome: alacer_core::ValueOutcome::Refused(
+                            alacer_core::ValueRefusal::InvalidPayload,
+                        ),
+                        value: self.value,
+                    });
+                    return false;
+                }
+            }
             A11yAction::Increment | A11yAction::Decrement => {
                 let direction = if action == A11yAction::Increment {
                     1.0
@@ -418,12 +455,28 @@ impl Widget for Slider {
                 };
                 self.commit(self.value + direction * self.step, None)
             }
-            A11yAction::DefaultPress
-            | A11yAction::ScrollUp(_)
-            | A11yAction::ScrollDown(_)
-            | A11yAction::ReplaceSelectedText(_)
-            | A11yAction::SetTextSelection(_) => false,
+            // The tier match above routed the rest; unreachable here.
+            _ => false,
+        };
+        // The funnel's own wall: the payload parsed but the funnel
+        // carries only finite scalars — "inf" parses fine, and the wall
+        // is its own fact (a different species than the parse's).
+        if answered {
+            alacer_core::value::note_write(alacer_core::ValueRecord {
+                action: tier,
+                outcome: alacer_core::ValueOutcome::Delivered,
+                value: self.value,
+            });
+        } else {
+            alacer_core::value::note_write(alacer_core::ValueRecord {
+                action: tier,
+                outcome: alacer_core::ValueOutcome::Refused(
+                    alacer_core::ValueRefusal::NonFiniteValue,
+                ),
+                value: self.value,
+            });
         }
+        answered
     }
 
     fn on_pointer_event(&mut self, ctx: &mut EventCtx, event: &PointerEvent) -> EventResponse {

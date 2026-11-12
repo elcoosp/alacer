@@ -99,6 +99,29 @@ jobs:
       - name: The hot-reload demo compiles under the feature
         run: cargo build -p alacer --features hot-reload --examples
 
+  features:
+    name: backend feature matrix (M34, ADR-0040)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install Rust (rust-toolchain.toml)
+        run: rustup show active-toolchain
+      - uses: Swatinem/rust-cache@v2
+      - name: No backend compiles — the refusal is typed, the pipeline builds
+        run: |
+          cargo check -p alacer-platform --no-default-features
+          cargo test -p alacer-platform --no-default-features
+      - name: The wgpu path alone compiles
+        run: cargo check -p alacer-platform --no-default-features --features backend-wgpu
+      - name: The software path alone compiles
+        run: cargo check -p alacer-platform --no-default-features --features backend-softbuffer
+      - name: The facade's software-only build compiles
+        run: cargo check -p alacer --no-default-features --features backend-softbuffer
+      - name: The facade's pipeline-only build compiles
+        run: cargo check -p alacer --no-default-features
+
   deny:
     name: cargo-deny (licenses/bans)
     runs-on: ubuntu-latest

@@ -176,7 +176,7 @@ delivered, replaced, and refused alike; the queue behind it is bounded
 ### `key` — a keymap consult answered ("did a shortcut take this key — or why not?")
 
 ```json
-{"kind":"key","key":"char","character":"s","modifiers":"ctrl","outcome":"fired"}
+{"kind":"key","key":"char","character":"s","modifiers":"ctrl","outcome":"fired","name":"save"}
 ```
 
 - `key` — the logical key the chord carries (M36, ADR-0042): `char`,
@@ -189,12 +189,23 @@ delivered, replaced, and refused alike; the queue behind it is bounded
   joined with `+` (`shift`, `ctrl`, `alt`, `meta` — the same joined
   rule the `masks` field rides); the empty string when none held. The
   shape is exact: `Ctrl+S` answers `ctrl`, never `ctrl+shift` (a
-  different chord, ADR-0041).
+  different chord, ADR-0041). A primary chord (`Chord::primary`, M38,
+  ADR-0044) prints the resolved physical shape the funnel matched —
+  Command on Apple platforms, Control elsewhere — never a logical
+  label the client would have to interpret.
 - `outcome` — what the consult answered: `fired` (a binding ran; the
   funnel answers `Handled` before the framework's fallbacks),
   `fell_through` (a seam answered and named no binding — the key is
   the fallbacks'), or `uninstalled` (no keymap on the window — a
   legitimate application, named instead of guessed).
+- `name` — the fired binding's prose name (M37, ADR-0043): what the
+  seam's provided `fired_name` answered beside `dispatch` when the
+  consult fired — the provided table's binding name or a custom
+  seam's own answer; `null` on a miss, an uninstalled window, or a
+  seam that names none (the provided method's default — the record
+  stays honest about the absence, never guesses). Additive at
+  version 1 (the rider field's rule): clients that ignore it are
+  unaffected.
 
 The record streams the moment the funnel's consult resolves — before
 the fallbacks' focus records, so a key event's trail reads `key` →
@@ -202,8 +213,10 @@ the fallbacks' focus records, so a key event's trail reads `key` →
 widget's answer pre-empts the keymap entirely (the M35 precedence),
 so a pre-empted key carries its `input` record and no `key` record —
 the absent record *is* the precedence. The chord is the fired
-binding's identity (one binding per chord, ADR-0041), so the record
-needs no second naming channel. The queue behind it is dev-mode and
+binding's identity (one binding per chord, ADR-0041), and since M37
+the binding's prose name rides beside it — the funnel capturing the
+name before the consult's dispatch, one consult channel still (the
+name leg runs no action). The queue behind it is dev-mode and
 the recorder's `key` ring holds 512.
 
 ### `frame` — a completed frame ("why is this frame slow?", "what did this mask touch?")

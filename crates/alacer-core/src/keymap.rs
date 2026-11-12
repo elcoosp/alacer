@@ -63,6 +63,30 @@
 //! [`crate::inspect::KeyRecord`] (the chord beside the species) per
 //! consult the moment it resolves — ADR-0041's pre-registered re-open
 //! rule, the causal log's additive rule (never a second trail).
+//!
+//! # The binding's name in the record
+//!
+//! Since M37 (ADR-0043) the record names the binding too: the seam
+//! grows a *provided* [`KeymapSeam::fired_name`] beside
+//! [`KeymapSeam::dispatch`] — the provided [`Keymap`] table answers it,
+//! custom implementations default to `None` — and the dispatch funnel
+//! captures the name *before* the consult's dispatch (the name the
+//! consult resolves to, never what a mid-flight rebind leaves behind),
+//! only when an observer rides (the A7 idle contract: the unobserved
+//! funnel is byte-for-byte). One consult channel still: the name leg
+//! ([`consult_name`]) is a pure read that runs no action — the
+//! consult's dispatch stays the only door.
+//!
+//! # The platform's primary chord
+//!
+//! Since M38 (ADR-0044) the vocabulary names the platform's primary
+//! accelerator: [`Chord::primary`] resolves at build time the way
+//! [`Modifiers::primary`] reads — Command on Apple platforms, Control
+//! elsewhere — so one chord means "primary+S" everywhere, the
+//! exact-shape match (the M35 invariant) untouched and the other
+//! platform's flag never aliased. [`Chord::control`]'s own doc no
+//! longer claims the cross-platform primary: it pins the physical
+//! `control` flag, and says so.
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -107,17 +131,46 @@ impl Chord {
         Self { key, modifiers }
     }
 
-    /// Requires Control (Linux/Windows) or Command (macOS) — the
-    /// platform's primary accelerator modifier (`Modifiers::primary`,
-    /// the input's command-chord convention).
-    ///
-    /// The chord stores the *event's* modifier shape it will match, and
-    /// events carry the physical flags, so `primary()` records Control
-    /// here; an app that must distinguish Command from Control across
-    /// platforms builds the chord with [`Chord::with_modifiers`] instead.
+    /// Requires Control — the physical `control` flag, on every
+    /// platform. An Apple-platform Command event carries `meta`, not
+    /// `control`, so this builder pins Control itself: a `Cmd+S` event
+    /// never matches a `control()` chord. The *platform's* primary
+    /// accelerator modifier — Command on Apple platforms, Control
+    /// elsewhere — is [`Chord::primary`] (M38), the same resolution
+    /// [`Modifiers::primary`] reads; an app that must pin the physical
+    /// Control flag uses this builder.
     #[must_use]
     pub fn control(mut self) -> Self {
         self.modifiers.control = true;
+        self
+    }
+
+    /// Requires the platform's primary accelerator modifier — Command
+    /// on Apple platforms, Control elsewhere ([`Modifiers::primary`],
+    /// the input's command-chord convention): one chord that names
+    /// "primary+S" everywhere, resolving at build time the way the
+    /// modifier's own accessor reads (M38, ADR-0044).
+    ///
+    /// The chord stores the *event's* modifier shape it will match —
+    /// exact-shape matching is the M35 invariant — so `primary()`
+    /// records the physical flag the platform's primary modifier
+    /// carries on this build: an event that holds it matches, the
+    /// other platform's flag is a different chord (a `Cmd+S` event
+    /// never aliases the chord off Apple platforms), and the causal
+    /// record's chord prints the resolved shape (the physical truth).
+    /// The resolution is the chord's identity: off Apple platforms a
+    /// `primary()` chord *is* a [`Chord::control`] chord — one binding
+    /// per chord (the M35 invariant) makes a rebind move in place,
+    /// never shadow. An app that must distinguish Command from Control
+    /// across platforms builds the chord with
+    /// [`Chord::with_modifiers`] instead.
+    #[must_use]
+    pub fn primary(mut self) -> Self {
+        if cfg!(target_os = "macos") {
+            self.modifiers.meta = true;
+        } else {
+            self.modifiers.control = true;
+        }
         self
     }
 
@@ -181,6 +234,29 @@ pub trait KeymapSeam: 'static {
     /// fallbacks (Tab cycling, the directional ring), exactly as an
     /// ignored widget answer does (the M11 rule at the dispatch seam).
     fn dispatch(&self, event: &KeyEvent) -> bool;
+
+    /// The prose name of the binding `event` would fire, when the seam
+    /// names one (M37, ADR-0043) — the consult's name leg, the answer a
+    /// trail reader wants beside the record's chord and species (a
+    /// settings UI reading the log, an inspector row a human labels).
+    ///
+    /// A *provided* method: the provided [`Keymap`] table answers the
+    /// binding its [`KeymapSeam::dispatch`] would run (the same match,
+    /// the same chord scan); an implementation whose shortcuts come
+    /// from somewhere else — a settings file re-read on change, a menu
+    /// bar's accelerator table — names its own answer; one that names
+    /// none keeps the default, and the record stays honest about it.
+    /// The answer is the record field's own `Option<String>`: an owned
+    /// name hands the record its field directly, and a wrapper seam
+    /// delegates through its guard, where a borrowed answer could not
+    /// escape. A pure read beside `dispatch`: it runs no action (the
+    /// consult's dispatch is the only door), and the funnel asks it
+    /// *before* dispatch so the name is the binding the consult
+    /// resolves to, never what a mid-flight rebind leaves behind.
+    fn fired_name(&self, event: &KeyEvent) -> Option<String> {
+        let _ = event;
+        None
+    }
 }
 
 /// One binding in the owned table: the chord that names it, the action
@@ -295,6 +371,13 @@ impl KeymapSeam for Keymap {
         }
         false
     }
+
+    fn fired_name(&self, event: &KeyEvent) -> Option<String> {
+        self.bindings
+            .iter()
+            .find(|binding| binding.chord.matches(event))
+            .map(|binding| binding.name.clone())
+    }
 }
 
 /// Installs the thread's keymap seam. Re-installing replaces the
@@ -392,6 +475,24 @@ pub fn consult(event: &KeyEvent) -> KeymapConsult {
     }
 }
 
+/// The consult's name leg (M37, ADR-0043): the prose name of the
+/// binding `event` would fire, answered by the installed seam's
+/// [`KeymapSeam::fired_name`] — `None` when no seam is installed or the
+/// seam names none. A pure read beside [`consult`]: it runs no action
+/// (the consult's dispatch is the only door), and the dispatch funnel
+/// asks it *before* the consult so the record carries the name the
+/// consult resolves to — never what a mid-flight rebind leaves behind.
+/// ADR-0042's pre-registered re-open rule ("a consumer needs the fired
+/// binding's prose name in the record → grow the seam beside `dispatch`
+/// with a provided method the provided table answers and custom
+/// implementations default — never a second consult channel"), priced
+/// by the reader the record now serves.
+#[must_use]
+pub fn consult_name(event: &KeyEvent) -> Option<String> {
+    let seam = KEYMAP.with_borrow(std::clone::Clone::clone);
+    seam.and_then(|seam| seam.fired_name(event))
+}
+
 thread_local! {
     static KEYMAP: RefCell<Option<Rc<dyn KeymapSeam>>> = const { RefCell::new(None) };
 }
@@ -399,8 +500,8 @@ thread_local! {
 #[cfg(test)]
 mod tests {
     use super::{
-        Chord, Keymap, KeymapConsult, KeymapSeam, consult, dispatch_installed, install,
-        is_installed,
+        Chord, Keymap, KeymapConsult, KeymapSeam, consult, consult_name, dispatch_installed,
+        install, is_installed,
     };
     use crate::events::{Key, KeyEvent, KeyState, Modifiers};
 
@@ -677,5 +778,157 @@ mod tests {
         })
         .join()
         .expect("the thread-local story is thread-shaped");
+    }
+
+    #[test]
+    fn the_seam_names_the_binding_the_consult_resolves_to() {
+        // The name leg (M37): the provided table answers the chord's
+        // prose name — the same match `dispatch` runs — and a custom
+        // implementation that overrides nothing answers `None` (the
+        // default, the M35 custom seam's silence).
+        let mut keymap = Keymap::new();
+        assert_eq!(
+            keymap.fired_name(&pressed(Key::Char('s'), Modifiers::default())),
+            None,
+            "an empty table names nothing"
+        );
+        keymap.bind(Chord::new(Key::Char('s')).control(), "save", || {});
+        let ctrl_s = pressed(
+            Key::Char('s'),
+            Modifiers {
+                control: true,
+                ..Modifiers::default()
+            },
+        );
+        assert_eq!(
+            keymap.fired_name(&ctrl_s),
+            Some("save".to_string()),
+            "the table answers the binding it would fire"
+        );
+
+        // A miss names nothing: the same chord the walk would refuse.
+        let miss = pressed(Key::Char('x'), Modifiers::default());
+        assert_eq!(keymap.fired_name(&miss), None, "the miss names nothing");
+    }
+
+    #[test]
+    fn the_consult_name_leg_answers_without_running_the_action() {
+        // `consult_name` is a pure read beside the consult: it never
+        // dispatches — a table asked for its name fires nothing.
+        std::thread::spawn(|| {
+            assert!(
+                !is_installed(),
+                "a fresh thread carries no keymap: the name leg is None"
+            );
+            let event = pressed(
+                Key::Char('s'),
+                Modifiers {
+                    control: true,
+                    ..Modifiers::default()
+                },
+            );
+            assert_eq!(consult_name(&event), None, "no seam, no name");
+
+            let ran = std::rc::Rc::new(std::cell::Cell::new(0_u32));
+            let mut keymap = Keymap::new();
+            let counter = std::rc::Rc::clone(&ran);
+            keymap.bind(Chord::new(Key::Char('s')).control(), "save", move || {
+                counter.set(counter.get() + 1);
+            });
+            install(std::rc::Rc::new(keymap));
+
+            assert_eq!(
+                consult_name(&event),
+                Some("save".to_string()),
+                "the installed table names the chord's binding"
+            );
+            assert_eq!(
+                ran.get(),
+                0,
+                "the name leg ran no action — the consult's dispatch is the only door"
+            );
+
+            let miss = pressed(Key::Char('x'), Modifiers::default());
+            assert_eq!(consult_name(&miss), None, "the miss names nothing");
+        })
+        .join()
+        .expect("the thread-local story is thread-shaped");
+    }
+
+    #[test]
+    fn the_primary_chord_resolves_the_platform_s_primary_modifier() {
+        // The vocabulary beside `Chord` (M38): one builder that names
+        // "the platform's primary accelerator modifier" — Command on
+        // Apple platforms, Control elsewhere — resolving at build time
+        // the way `Modifiers::primary` reads. The resolved shape is the
+        // event's own physical shape (exact-shape matching is the M35
+        // invariant), so the chord matches the event the platform
+        // actually sends.
+        let primary_s = Chord::new(Key::Char('s')).primary();
+        assert!(
+            primary_s.modifiers().primary(),
+            "the primary chord's shape IS the platform's primary modifier"
+        );
+
+        #[cfg(target_os = "macos")]
+        assert!(
+            primary_s.modifiers().meta && !primary_s.modifiers().control,
+            "Command is the primary modifier on Apple platforms"
+        );
+        #[cfg(not(target_os = "macos"))]
+        assert!(
+            primary_s.modifiers().control && !primary_s.modifiers().meta,
+            "Control is the primary modifier off Apple platforms"
+        );
+
+        // The chord answers the event that carries the resolved flag —
+        // and never the *other* flag: the aliasing must not silently
+        // widen (the exact shape, the M35 rule).
+        #[cfg(not(target_os = "macos"))]
+        {
+            let ctrl_s = pressed(
+                Key::Char('s'),
+                Modifiers {
+                    control: true,
+                    ..Modifiers::default()
+                },
+            );
+            assert!(
+                primary_s.matches(&ctrl_s),
+                "the primary chord answers its platform's own shape"
+            );
+            let cmd_s = pressed(
+                Key::Char('s'),
+                Modifiers {
+                    meta: true,
+                    ..Modifiers::default()
+                },
+            );
+            assert!(
+                !primary_s.matches(&cmd_s),
+                "off Apple platforms a Command event is a different shape — the primary chord never aliases it"
+            );
+        }
+    }
+
+    #[test]
+    fn the_primary_chord_s_resolution_is_its_identity_in_the_table() {
+        // One binding per chord: the resolved shape IS the chord's
+        // identity, so off Apple platforms a `primary()` chord and a
+        // `control()` chord are the same chord — a rebind moves in
+        // place, never shadows (the M35 invariant, visible at the
+        // vocabulary's own resolution).
+        #[cfg(not(target_os = "macos"))]
+        assert_eq!(
+            Chord::new(Key::Char('s')).primary(),
+            Chord::new(Key::Char('s')).control(),
+            "off Apple platforms the platform's primary modifier IS Control"
+        );
+        #[cfg(target_os = "macos")]
+        assert_ne!(
+            Chord::new(Key::Char('s')).primary(),
+            Chord::new(Key::Char('s')).control(),
+            "on Apple platforms the platform's primary modifier is Command, not Control"
+        );
     }
 }

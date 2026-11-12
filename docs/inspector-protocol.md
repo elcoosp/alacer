@@ -219,7 +219,44 @@ name before the consult's dispatch, one consult channel still (the
 name leg runs no action). The queue behind it is dev-mode and
 the recorder's `key` ring holds 512.
 
-### `frame` — a completed frame ("why is this frame slow?", "what did this mask touch?")
+### `frame` — a completed frame### `clipboard` — a clipboard round trip answered ("did the text move — or why not?")
+
+```json
+{"kind":"clipboard","action":"copy","outcome":"delivered","refusal":null,"chars":11}
+```
+
+- `action` — the round trip the field answered (M39, ADR-0045):
+  `copy` (the selection's span written out), `cut` (the span written
+  out, then deleted — the deletion only ever followed an accepted
+  write), or `paste` (the clipboard's text sanitized through the
+  single-line rule and inserted at the caret).
+- `outcome` — what the field answered: `delivered` (the payload
+  moved) or `refused` (the round trip moved nothing — the M28 honesty
+  at the clipboard tier: the fact a trail reader wants is exactly the
+  round trip that never landed).
+- `refusal` — the species on a refused round trip: `no_selection` (a
+  copy or a cut never invents content), `empty_clipboard` (the read
+  answered `None` — an empty clipboard, a non-text payload, a
+  clipboard this process cannot open — or the payload sanitized to
+  nothing), or `write_refused` (the platform refused the write — a cut
+  whose write was refused did not delete, the selection surviving a
+  clipboard that failed it, ADR-0020's refuse-don't-munge rule);
+  `null` on a delivery.
+- `chars` — the payload's UTF-8 scalar count when the round trip
+  delivered (the span copied, the span cut, the text pasted); zero on
+  a refusal. The payload itself never rides the log: a clipboard can
+  carry a secret, and the count names the fact, not the content.
+
+The record streams at the tick's start drain — one frame after the
+chord, the edit trail's currency (the widget notes the fact where the
+round trip resolves, the dispatching pipeline drains it), the drain
+running ahead of the edit drain so a cut's trail reads `clipboard` →
+`edit` — the causal order the round trip ran: what moved out, then the
+deletion it drove. Every round trip streams, delivered and refused
+alike; the queue behind it is bounded (256 facts per thread,
+oldest-first eviction) and the recorder's `clipboard` ring holds 512.
+
+ ("why is this frame slow?", "what did this mask touch?")
 
 ```json
 {
@@ -282,8 +319,8 @@ malformed text frame is treated as `bye`.
   observer thread and the session is bounded at 4 096 events and drops the
   oldest (a slow client never back-pressures the app).
 - The recorder's rings are bounded (frames 256, edges 1 024, writes 1 024,
-  inputs 512, focus 512, edits 512, announces 512, keys 512); `clear`
-  empties them.
+  inputs 512, focus 512, edits 512, announces 512, keys 512,
+  clipboards 512); `clear` empties them.
 - Recording is opt-in: the pipeline forwards only when an observer is
   installed, and the flux records activations and provenance only when
   `Flux::set_causal_capture(true)`. With both off, the framework's default

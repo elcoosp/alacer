@@ -116,6 +116,47 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
   refusal tests, each backend alone, and the facade's software-only
   and pipeline-only builds.
 
+- **M35 — the keymap seam: the app's shortcuts ride the dispatch
+  contract (ADR-0041)**: the keyboard's window-level half ships — the
+  actions an application names (save, find, export) answer wherever
+  the focus sits, through one [`KeymapSeam`] the assembly site
+  installs (the clipboard seam's thread-local discipline, ADR-0020:
+  `Chord` names one logical `Key` plus the exact `Modifiers` shape it
+  answers — `Ctrl+S` never answers `Ctrl+Shift+S`, that is a
+  different chord free for another action; `Keymap` is the provided
+  table, one binding per chord, `bind` replacing in place so the
+  settings story is a move and never a shadow, `unbind` returning the
+  chord to the framework's fallbacks, `names` the introspection a
+  settings read-back walks; the install trio `install` /
+  `is_installed` / `dispatch_installed`). `PassPipeline::dispatch_key`
+  consults the seam when the focused widget did not answer and before
+  the framework's own fallbacks — the precedence made three-tier and
+  pinned by the m35 exit suite: the focused widget's vocabulary (a
+  focused input's Space types, never fires), the app's shortcuts (the
+  explicit beats the implicit: a bound plain `Tab` holds focus while
+  the unbound `Shift+Tab` — a different chord — still walks
+  backward), and the framework's Tab cycling (M24) and directional
+  ring (M29) standing exactly where the app stayed silent. The
+  consult needs no focused widget at all: window-level vocabulary
+  answers wherever the focus sits, and a shortcut is focus-neutral —
+  the fired action queues no masks of its own (the M21 idle-frame
+  property at the app seam). The press-only match carries the GTK
+  activation rule to the window tier (a release is never a second
+  firing, an auto-repeat one run per physical press), the fired
+  binding names itself on the `alacer::keymap` target (the house
+  tracing idiom), and the seam is optional so the read is total — no
+  panic door, the clipboard's rule inverted for an optional seam; a
+  window with no shortcuts answers byte-for-byte today's behavior
+  (the M11 rule at the dispatch seam, the A7 idle contract
+  unchanged). `examples/shortcut_map.rs` is the consumer
+  demonstration (tracing at `alacer::shortcut_map`). The corpus
+  grows 62 → 63 by the coordinated rule: the keymap's mixed route
+  (`keymap/dispatch_100_mixed_1k` — one thousand events alternating
+  a miss and a mid-table hit against one hundred bindings, through
+  the funnel's own read) joins the published routes with its gate
+  and its baseline in the same cut (the m5–m30 chain's pins moving
+  together).
+
 - **M30 — the trail names the rider (ADR-0036)**: every `FocusRecord`
   the causal log streams grows a `rider` field beside its `movement` —
   a `FocusRider` naming who rode the walk: `Keyboard` (the keyboard's
@@ -826,6 +867,22 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
   ADR-0012…0015 register rows; §4.2's phantom `alacer-hot`/`alacer-devtools`
   rows become the real `alacer-macro`/`alacer-inspect` and the facade row
   names the hot-reload runtime it actually hosts
+
+### Fixed
+
+- **`ALACER_SOFTWARE=1` is the platform's own**: the env the README's
+  prerequisites, quickstart, and tip promised honored itself at startup —
+  `AlacerApp::new` runs the caller's preference through the pure
+  `BackendPreference::software_env` parser (the env is passed, never read,
+  so tests drive every shape without mutating process state), a `Wgpu`
+  preference the env overrides presents through softbuffer, a
+  `Softbuffer` preference is already the env's answer, and a value other
+  than `1` is refused honestly — a `tracing::warn!` on
+  `alacer::platform` naming the value it saw and the one it accepts,
+  never a guess (the M11 rule at the platform seam). Until now only the
+  examples' per-example `choose_backend` helpers read the env, so a
+  consumer app had to re-implement the switch the docs described as the
+  platform's.
 
 ## [0.17.0] — 2026-11-10
 

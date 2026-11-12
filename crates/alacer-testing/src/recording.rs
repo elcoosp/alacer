@@ -403,7 +403,7 @@ mod tests {
         ] {
             assert_eq!(
                 key_from_name(&key_name(&key)),
-                Some(key.clone()),
+                Some(key),
                 "{key:?} round-trips"
             );
         }

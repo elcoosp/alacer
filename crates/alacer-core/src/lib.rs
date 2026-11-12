@@ -20,7 +20,8 @@
 //!   by one installed [`KeymapSeam`] the dispatch funnel consults when the
 //!   focused widget did not answer, the consult as data
 //!   ([`keymap::KeymapConsult`]) and one [`inspect::KeyRecord`] streamed
-//!   per funnel consult (§10.3, ADR-0041, ADR-0042).
+//!   per funnel consult — the fired binding's prose name riding the
+//!   record since M37 (§10.3, ADR-0041, ADR-0042, ADR-0043).
 //! - [`flux`] — the mask bridge over `reactive_graph`: effects never mutate widgets;
 //!   every effect drain ends by queuing `Change` masks (architecture §5.2).
 //! - [`passes`] — the pass contract: `event` → `update_focusable` →

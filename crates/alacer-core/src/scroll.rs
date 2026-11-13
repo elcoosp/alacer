@@ -27,7 +27,7 @@
 //! (`SCROLL_TARGET`, held by the route for the length of one routed
 //! ask) and [`note_scroll`] stamps the facts queued beneath a routed
 //! ask with it, never a node id guessed at the note site. The app's
-//! own door ([`alacer_widgets::ListHandle::scroll_to`]) rides no route
+//! own door (`alacer_widgets::ListHandle::scroll_to`) rides no route
 //! — its facts carry the honest absence.
 //!
 //! ```text
@@ -148,6 +148,8 @@ pub fn note_scroll(record: crate::inspect::ScrollRecord) {
             action = record.action.name(),
             outcome = record.outcome.name(),
             offset = record.offset,
+            unit = record.unit.map(crate::widget::ScrollUnit::name),
+            lines = record.lines,
             "scroll fact queued for the next tick"
         );
         TRAIL.with(|slot| {
@@ -185,6 +187,7 @@ mod tests {
             target: None,
             pinned: None,
             unit: None,
+            lines: None,
         });
         assert!(
             take_scroll_trail().is_empty(),
@@ -207,6 +210,7 @@ mod tests {
                 target: None,
                 pinned: None,
                 unit: None,
+                lines: None,
             });
         }
         let drained = take_scroll_trail();
@@ -240,6 +244,7 @@ mod tests {
             target: None,
             pinned: Some(RangeBound::Max),
             unit: None,
+            lines: None,
         });
         drop(guard);
         let drained = take_scroll_trail();
@@ -268,6 +273,7 @@ mod tests {
             target: None,
             pinned: None,
             unit: None,
+            lines: None,
         });
         // The caller's own answer is never overwritten.
         note_scroll(ScrollRecord {
@@ -278,6 +284,7 @@ mod tests {
             target: Some(1),
             pinned: None,
             unit: None,
+            lines: None,
         });
         let drained = take_scroll_trail();
         assert_eq!(
@@ -300,6 +307,7 @@ mod tests {
             target: None,
             pinned: None,
             unit: None,
+            lines: None,
         });
         let drained = take_scroll_trail();
         assert_eq!(

@@ -396,6 +396,38 @@ function connect() {
         addLog("gesture", "gesture " + event.phase, answer);
         break;
       }
+      case "scroll": {
+        // The client renders the scroll's echo (M50, ADR-0056): the
+        // scroll trail lands in the log pane beside the focus, edit,
+        // announce, key, clipboard, value, and gesture trails — the
+        // action and the outcome named, the refusal rendered the way
+        // the walk's refusals are, the landed offset beside the
+        // delivered answer, so a reader answers "did the list scroll —
+        // where, or why not" from the log alone. The offset is the
+        // tree's own vocabulary the AT already reads, never a secret.
+        // The ask beside the landing (the M44 rule at the scroll tier):
+        // a clamp the trail could not show is one record's story now —
+        // "asked 450, landed 400" renders as data. Since M50 the ask
+        // names the wall it was turned back by too (ADR-0055's second
+        // kill rule): a past ask rendered beside the pin — "asked 450,
+        // landed 400, pinned at the max"; an ask the wall never moved
+        // renders the wall's absence, never a guessed edge. The
+        // control's identity beside the record (the routes' stamp): the
+        // app's own door rides no route and carries no target (null).
+        const target = event.target != null ? " (control " + event.target + ")" : "";
+        const wall = event.pinned != null ? ", pinned at the " + event.pinned : "";
+        const clamp = event.requested != null && event.requested !== event.offset;
+        const span = event.outcome === "delivered"
+          ? (clamp
+            ? " (asked " + event.requested + ", landed " + event.offset + ")"
+            : " (the offset " + event.offset + ")")
+          : "";
+        const answer = event.outcome === "refused"
+          ? "refused: " + event.refusal + target
+          : "the scroll landed" + span + wall + target;
+        addLog("scroll", "scroll " + event.action, answer);
+        break;
+      }
       case "frame":
         renderFrame(event);
         addLog("frame", "frame " + event.number,

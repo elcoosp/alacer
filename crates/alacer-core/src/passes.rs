@@ -1706,7 +1706,20 @@ impl PassPipeline {
     }
 
     /// One focus-routed key visit: route with the phase set, merge masks.
+    /// Since M45 (ADR-0051, ADR-0049's first kill rule cashed) the visit
+    /// holds the value trail's stamp: a value-tier widget's key door
+    /// notes its ride on the log, and the funnel knows the control the
+    /// key rode — the focused node's AccessKit-stable id, the same
+    /// vocabulary the action route stamps (ADR-0049).
     fn visit_key(&mut self, node: NodeId, event: &KeyEvent) -> EventResponse {
+        // The idle contract holds: while nobody listens the stamp is
+        // one `Cell` read and no id-path walk (the trail is off, no
+        // fact can queue); under an observer the guard lives for the
+        // length of the focused widget's key call and dies with it — a
+        // panicking widget leaves no stale identity on the thread (the
+        // action route's own discipline, ADR-0049).
+        let _stamp = crate::value::value_trail_enabled()
+            .then(|| crate::value::ActionTargetGuard::for_target(Some(self.id_hash(node))));
         let (response, requested) = {
             let mut guard = self.arena.mutate(node);
             let mut ctx = crate::events::EventCtx::with_phase(EventPhase::Bubble);

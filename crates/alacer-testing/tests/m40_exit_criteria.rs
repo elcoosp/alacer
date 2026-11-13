@@ -439,13 +439,14 @@ fn m40_the_living_documents_re_agree_at_m40() {
     let changelog = std::fs::read_to_string(root.join("CHANGELOG.md")).expect("changelog");
 
     // The status block and the ADR count re-agree at M40 (the m-suite
-    // pins moving M39 → M40 and 46 → 47 across the chain).
+    // pins moving M41 → M43 and 48 → 50 across the chain — M42 and
+    // M43 landing in one cut).
     assert!(
-        readme.contains("M0 through M41") && readme.contains("forty-eight decision records"),
+        readme.contains("M0 through M43") && readme.contains("fifty decision records"),
         "the README's status block and count re-agree at M40"
     );
     assert!(
-        architecture.contains("48 decision records"),
+        architecture.contains("50 decision records"),
         "the architecture register re-agrees at 47 decision records"
     );
     // The protocol document carries the value event (the wire's

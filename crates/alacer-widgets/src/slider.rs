@@ -34,7 +34,17 @@
 //! stream the bound's own named species (`jump_to_min`/`jump_to_max`)
 //! through the same key route — never a munged `SetValue` (the M11
 //! rule's own words), the bound the ask the record carries, the stamp
-//! the M45 route already holds.
+//! the M45 route already holds. And since M48 (ADR-0054, ADR-0053's
+//! first kill rule) the drag names the wall a landing pinned: a drag
+//! that slams an edge is the pointer's own bound jump, and its `Ended`
+//! record carries the bound beside the landing — the gesture
+//! vocabulary's own growth, the drag staying off the *value* log (the
+//! flood rule). Since M49 (ADR-0055, ADR-0053's second kill rule) the
+//! funnel's writes name their wall too: a delivered write the range
+//! turned back at its edge — the clamp, the snap, the wall that held a
+//! no-op against a past ask — carries the pinned bound beside the
+//! species, the ask that wanted the wall exactly (the jumps) riding
+//! the honest absence.
 
 use std::cmp::Ordering;
 
@@ -314,6 +324,10 @@ impl Slider {
                 value: self.value,
                 requested: ask.is_finite().then_some(ask),
                 target: None,
+                // The step's own wall (M49, ADR-0055): an ask the range
+                // turned back at its edge names the bound it pinned —
+                // the arrow held at the wall, on the log.
+                pinned: self.pinned_bound(ask),
             });
         }
         answered
@@ -343,9 +357,53 @@ impl Slider {
                 value: self.value,
                 requested: bound.is_finite().then_some(bound),
                 target: None,
+                // The jump's ask wanted the wall exactly (M49, ADR-0055):
+                // the funnel never moved it, so the pin rides the honest
+                // absence — the species already names the bound it asked
+                // for. The helper answers `None` for the ask == landing
+                // case by its own arithmetic; carrying the computed
+                // answer keeps the door honest by construction.
+                pinned: self.pinned_bound(bound),
             });
         }
         answered
+    }
+
+    /// The bound the current value pins (M48, ADR-0054, ADR-0053's
+    /// first kill rule): `Some(species)` when the value sits at the
+    /// range's own edge — the wall a drag's landing can pin — `None`
+    /// mid-range. The one float equality the widget owns
+    /// ([`Self::same_value`]) answers every edge: the wall is a
+    /// computed fact at the door that knows the range, never guessed
+    /// from the landing by the trail's readers.
+    fn landed_bound(&self) -> Option<alacer_core::RangeBound> {
+        if Self::same_value(self.value, self.max) {
+            Some(alacer_core::RangeBound::Max)
+        } else if Self::same_value(self.value, self.min) {
+            Some(alacer_core::RangeBound::Min)
+        } else {
+            None
+        }
+    }
+
+    /// The bound the funnel pinned a delivered write at (M49, ADR-0055,
+    /// ADR-0053's second kill rule): `Some(species)` when the *ask* was
+    /// turned back at the range's own edge — the landing at the wall,
+    /// the ask somewhere else (the clamp, the snap, the wall that held
+    /// a no-op against a past ask) — `None` when the ask wanted the
+    /// wall exactly (the M47 jumps: the species already names the bound
+    /// it asked for) and on every landing mid-range. The value tier's
+    /// counterpart to [`Self::landed_bound`]: the drag's landing names
+    /// its wall on the gesture log (M48), the funnel's write names its
+    /// wall here — the ask's own story, never a second action species.
+    fn pinned_bound(&self, ask: f32) -> Option<alacer_core::RangeBound> {
+        if Self::same_value(self.value, self.max) && !Self::same_value(ask, self.max) {
+            Some(alacer_core::RangeBound::Max)
+        } else if Self::same_value(self.value, self.min) && !Self::same_value(ask, self.min) {
+            Some(alacer_core::RangeBound::Min)
+        } else {
+            None
+        }
     }
 
     /// Intrinsic size: the thumb's row (the track rides inside it), the
@@ -528,6 +586,7 @@ impl Widget for Slider {
                 value: self.value,
                 requested: None,
                 target: None,
+                pinned: None,
             });
             return false;
         }
@@ -553,6 +612,7 @@ impl Widget for Slider {
                         value: self.value,
                         requested: None,
                         target: None,
+                        pinned: None,
                     });
                     return false;
                 }
@@ -582,6 +642,12 @@ impl Widget for Slider {
                 value: self.value,
                 requested: asked,
                 target: None,
+                // The ask's own wall (M49, ADR-0055): a delivered write
+                // the range turned back at its edge — the clamp, the
+                // snap, the wall that held a no-op — names the bound it
+                // pinned; an ask the landing answers exactly rides the
+                // honest absence.
+                pinned: asked.and_then(|ask| self.pinned_bound(ask)),
             });
         } else {
             alacer_core::value::note_write(alacer_core::ValueRecord {
@@ -592,6 +658,7 @@ impl Widget for Slider {
                 value: self.value,
                 requested: None,
                 target: None,
+                pinned: None,
             });
         }
         answered
@@ -615,12 +682,16 @@ impl Widget for Slider {
                 // (the deepest hit that captured, the M43 discipline at
                 // the pointer tier). The moves that follow note nothing:
                 // the flood rule prices the gesture, never the moves.
+                // Since M48 (ADR-0054) the beginning carries no bound —
+                // the landing, and so the wall, is the gesture's answer,
+                // never its beginning's fact.
                 self.drag_from = self.value;
                 alacer_core::gesture::note_gesture(alacer_core::GestureRecord {
                     phase: alacer_core::inspect::GesturePhase::Started,
                     from: self.drag_from,
                     to: None,
                     target: None,
+                    bound: None,
                 });
                 self.dragging = true;
                 ctx.request(alacer_core::Change::PAINT.union(alacer_core::Change::FOCUS));
@@ -647,13 +718,17 @@ impl Widget for Slider {
                 // value it left the control holding, the beginning
                 // remembered beside it (each record self-contained). A
                 // release with no armed drag is not a gesture: it streams
-                // nothing (the honest absence).
+                // nothing (the honest absence). Since M48 (ADR-0054,
+                // ADR-0053's first kill rule) a landing at the range's
+                // edge names the wall it pinned — the bound jump the
+                // *pointer* asked for, on the drag's own record.
                 if self.dragging {
                     alacer_core::gesture::note_gesture(alacer_core::GestureRecord {
                         phase: alacer_core::inspect::GesturePhase::Ended,
                         from: self.drag_from,
                         to: Some(self.value),
                         target: None,
+                        bound: self.landed_bound(),
                     });
                 }
                 self.dragging = false;
@@ -662,7 +737,9 @@ impl Widget for Slider {
             // The leave ends the drag honestly (the capture released): the
             // gesture's answer streams like a release's — the landing is
             // the last value the funnel committed — and the wheel is not a
-            // value gesture (M46, ADR-0052).
+            // value gesture (M46, ADR-0052). Since M48 (ADR-0054) the
+            // leave's landing names the wall it pinned exactly the
+            // release's answer does: one gesture vocabulary, both doors.
             PointerEvent::Leave => {
                 if self.dragging {
                     alacer_core::gesture::note_gesture(alacer_core::GestureRecord {
@@ -670,6 +747,7 @@ impl Widget for Slider {
                         from: self.drag_from,
                         to: Some(self.value),
                         target: None,
+                        bound: self.landed_bound(),
                     });
                 }
                 self.dragging = false;

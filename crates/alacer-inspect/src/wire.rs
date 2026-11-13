@@ -248,6 +248,14 @@ pub enum WireEvent {
         /// the key route stamps the focused control like the action
         /// route does.
         target: Option<u64>,
+        /// The bound the funnel pinned the landing at (M49, ADR-0055) —
+        /// the range's own edge (`min`, `max`) a past ask was turned
+        /// back by (the clamp, the snap, the wall that held a no-op);
+        /// `null` when the ask wanted the wall exactly (the jumps — the
+        /// species already names it), on every landing mid-range, and
+        /// on every refusal (a write that moved nothing pinned
+        /// nothing).
+        pinned: Option<String>,
     },
     /// A drag gesture answered — the gesture trail (ADR-0052): the
     /// press that armed the value tier's drag beside the value it
@@ -255,6 +263,11 @@ pub enum WireEvent {
     /// landed, one event per phase, never per move (the flood rule the
     /// kill criteria pre-registered). Additive at version 1 (the rider
     /// field's rule): clients that ignore unknown kinds are unaffected.
+    /// Since M48 (ADR-0054, ADR-0053's first kill rule) the event
+    /// carries the bound a landing pinned beside the landing — the
+    /// additive field the versioning rule admits at version 1 (clients
+    /// that ignore unknown fields are unaffected): the bound jump the
+    /// *pointer* asked for, named on the drag's own record.
     Gesture {
         /// The gesture's phase (`started` — the press armed the drag;
         /// `ended` — the release or the leave answered it).
@@ -271,6 +284,12 @@ pub enum WireEvent {
         /// resolved (the deepest hit that captured); `null` when the
         /// fact queued outside a routed pointer event.
         target: Option<u64>,
+        /// The bound the landing pinned (M48, ADR-0054) — the range's
+        /// own edge (`min`, `max`) the drag's landing sat at, the wall
+        /// the pointer's ask was turned back by; `null` on a mid-track
+        /// landing and on every `started` record (the beginning is not
+        /// the wall's fact).
+        bound: Option<String>,
     },
     /// A completed frame — the ledger + the mask heatmap.
     Frame {
@@ -556,7 +575,9 @@ pub const fn value_action_name(action: alacer_core::inspect::ValueAction) -> &'s
 /// event: the value write's answer, flat on the wire (ADR-0046) — the
 /// clipboard event's flat rule, the refusal species carried beside the
 /// outcome and the landed value beside both, the ask beside the landing
-/// (M44, ADR-0050).
+/// (M44, ADR-0050). Since M49 (ADR-0055) the wall the funnel pinned the
+/// landing at rides beside them — the ask's own wall, named the way the
+/// refusal species are.
 #[must_use]
 pub fn wire_value(record: &alacer_core::inspect::ValueRecord) -> WireEvent {
     WireEvent::Value {
@@ -571,6 +592,10 @@ pub fn wire_value(record: &alacer_core::inspect::ValueRecord) -> WireEvent {
         value: record.value,
         requested: record.requested,
         target: record.target,
+        pinned: record
+            .pinned
+            .map(alacer_core::inspect::RangeBound::name)
+            .map(str::to_string),
     }
 }
 
@@ -579,7 +604,9 @@ pub fn wire_value(record: &alacer_core::inspect::ValueRecord) -> WireEvent {
 /// phase beside the value it found and the value it landed, the control
 /// the pointer route stamped beside them. One event per gesture phase,
 /// never per move: the flood rule the kill criteria pre-registered
-/// holds on the wire by construction.
+/// holds on the wire by construction. Since M48 (ADR-0054) the bound a
+/// landing pinned rides beside the landing — the wall named the way the
+/// refusal species are.
 #[must_use]
 pub fn wire_gesture(record: &alacer_core::inspect::GestureRecord) -> WireEvent {
     WireEvent::Gesture {
@@ -587,6 +614,10 @@ pub fn wire_gesture(record: &alacer_core::inspect::GestureRecord) -> WireEvent {
         from: record.from,
         to: record.to,
         target: record.target,
+        bound: record
+            .bound
+            .map(alacer_core::inspect::RangeBound::name)
+            .map(str::to_string),
     }
 }
 
@@ -970,11 +1001,12 @@ mod tests {
             value: 42.0,
             requested: Some(150.0),
             target: Some(0xAB_CD),
+            pinned: None,
         });
         let json = serde_json::to_string(&event).expect("value json");
         assert_eq!(
             json,
-            r#"{"kind":"value","action":"set_value","outcome":"delivered","refusal":null,"value":42.0,"requested":150.0,"target":43981}"#,
+            r#"{"kind":"value","action":"set_value","outcome":"delivered","refusal":null,"value":42.0,"requested":150.0,"target":43981,"pinned":null}"#,
             "the documented value shape (the clipboard event's flat rule)"
         );
         let WireEvent::Value {
@@ -984,6 +1016,7 @@ mod tests {
             value,
             requested,
             target,
+            ..
         } = event
         else {
             panic!("value event");
@@ -1005,6 +1038,37 @@ mod tests {
     }
 
     #[test]
+    fn the_pinned_wall_rides_the_value_event() {
+        use alacer_core::inspect::{RangeBound, ValueAction};
+        // The wall the funnel pinned the landing at rides beside the
+        // species (M49, ADR-0055, ADR-0053's second kill rule): the ask
+        // turned back at the range's edge, named on the write's own
+        // record — never a second action species.
+        let event = wire_value(&alacer_core::inspect::ValueRecord {
+            action: ValueAction::SetValue,
+            outcome: alacer_core::inspect::ValueOutcome::Delivered,
+            value: 100.0,
+            requested: Some(150.0),
+            target: Some(0xAB_CD),
+            pinned: Some(RangeBound::Max),
+        });
+        let json = serde_json::to_string(&event).expect("pinned json");
+        assert_eq!(
+            json,
+            r#"{"kind":"value","action":"set_value","outcome":"delivered","refusal":null,"value":100.0,"requested":150.0,"target":43981,"pinned":"max"}"#,
+            "the ask's own wall rides beside the landing and the ask"
+        );
+        let WireEvent::Value { pinned, .. } = event else {
+            panic!("value event");
+        };
+        assert_eq!(
+            pinned.as_deref(),
+            Some("max"),
+            "the bound's snake_case tag rides the wire (the protocol's rule)"
+        );
+    }
+
+    #[test]
     fn a_refused_value_write_carries_its_species() {
         use alacer_core::inspect::{ValueAction, ValueRefusal};
         let event = wire_value(&alacer_core::inspect::ValueRecord {
@@ -1013,11 +1077,12 @@ mod tests {
             value: 0.0,
             requested: None,
             target: None,
+            pinned: None,
         });
         let json = serde_json::to_string(&event).expect("refusal json");
         assert_eq!(
             json,
-            r#"{"kind":"value","action":"increment","outcome":"refused","refusal":"no_write_door","value":0.0,"requested":null,"target":null}"#,
+            r#"{"kind":"value","action":"increment","outcome":"refused","refusal":"no_write_door","value":0.0,"requested":null,"target":null,"pinned":null}"#,
             "the refusal species rides beside the outcome, the tree's value honest"
         );
         let WireEvent::Value { refusal, value, .. } = event else {
@@ -1073,11 +1138,13 @@ mod tests {
             from: 20.0,
             to: None,
             target: None,
+            bound: None,
         });
         let json = serde_json::to_string(&event).expect("gesture json");
         assert_eq!(
-            json, r#"{"kind":"gesture","phase":"started","from":20.0,"to":null,"target":null}"#,
-            "the documented gesture shape (the value event's flat rule)"
+            json,
+            r#"{"kind":"gesture","phase":"started","from":20.0,"to":null,"target":null,"bound":null}"#,
+            "the documented gesture shape (the value event's flat rule, the bound's null)"
         );
         let WireEvent::Gesture {
             phase, from, to, ..
@@ -1090,17 +1157,51 @@ mod tests {
         assert_eq!(to, None, "the landing is not the beginning's fact");
 
         // The answer: the value it left the control holding, the stamp
-        // beside it — one event per phase, never per move.
+        // beside it — one event per phase, never per move. Since M48
+        // (ADR-0054) a mid-track landing's bound rides null (the
+        // absence honest, the additive field's rule).
         let event = wire_gesture(&alacer_core::inspect::GestureRecord {
             phase: GesturePhase::Ended,
             from: 20.0,
             to: Some(42.0),
             target: Some(43981),
+            bound: None,
         });
         let json = serde_json::to_string(&event).expect("gesture end json");
         assert_eq!(
-            json, r#"{"kind":"gesture","phase":"ended","from":20.0,"to":42.0,"target":43981}"#,
+            json,
+            r#"{"kind":"gesture","phase":"ended","from":20.0,"to":42.0,"target":43981,"bound":null}"#,
             "the landing and the stamp ride the end's own event"
+        );
+    }
+
+    #[test]
+    fn the_slammed_wall_rides_the_gesture_event() {
+        use alacer_core::inspect::{GesturePhase, RangeBound};
+        // The wall a landing pinned rides beside it (M48, ADR-0054,
+        // ADR-0053's first kill rule): the bound jump the *pointer*
+        // asked for, named on the drag's own record — the gesture
+        // vocabulary's own growth, never the AT tier's species.
+        let event = wire_gesture(&alacer_core::inspect::GestureRecord {
+            phase: GesturePhase::Ended,
+            from: 20.0,
+            to: Some(100.0),
+            target: Some(43981),
+            bound: Some(RangeBound::Max),
+        });
+        let json = serde_json::to_string(&event).expect("bound json");
+        assert_eq!(
+            json,
+            r#"{"kind":"gesture","phase":"ended","from":20.0,"to":100.0,"target":43981,"bound":"max"}"#,
+            "the pinned wall rides the end's own event as data"
+        );
+        let WireEvent::Gesture { bound, .. } = event else {
+            panic!("gesture event");
+        };
+        assert_eq!(
+            bound.as_deref(),
+            Some("max"),
+            "the bound's snake_case tag rides the wire (the protocol's rule)"
         );
     }
 
@@ -1244,10 +1345,34 @@ mod client_tests {
         for fragment in [
             "event.phase",
             "The client renders the drag's echo (M46, ADR-0052)",
+            // The wall a landing pinned renders beside it (M48, ADR-0054):
+            // the bound jump the pointer asked for, readable as data.
+            "event.bound",
+            "pinned at the ",
         ] {
             assert!(
                 page.contains(fragment),
                 "the embedded client renders the gesture event: {fragment}"
+            );
+        }
+    }
+
+    /// M49 (ADR-0055, this cut): the embedded standalone client renders
+    /// the funnel's wall — the value event's additive `pinned` field
+    /// lands in the log pane beside the clamp span, the ask's own wall
+    /// named where a past ask was turned back, the honest absence
+    /// rendered exactly as before. The pin rides the file's own
+    /// fragments (the M46 route).
+    #[test]
+    fn the_client_renders_the_walls_echo() {
+        let page = include_str!("inspector.html");
+        for fragment in [
+            "event.pinned",
+            "The client renders the value tier's echo (M40, ADR-0046)",
+        ] {
+            assert!(
+                page.contains(fragment),
+                "the embedded client renders the pinned wall: {fragment}"
             );
         }
     }

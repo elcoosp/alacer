@@ -75,8 +75,8 @@ pub use input::EventCoalescer;
 pub use inspect::{
     BindingId, ClipboardAction, ClipboardOutcome, ClipboardRecord, ClipboardRefusal, DirtyNode,
     EdgeActivation, FocusRecord, FocusRider, FrameSummary, GesturePhase, GestureRecord, InputKind,
-    InputRecord, InspectEvent, InspectObserver, KeyRecord, PassTiming, SignalKey, SignalWrite,
-    ValueAction, ValueOutcome, ValueRecord, ValueRefusal,
+    InputRecord, InspectEvent, InspectObserver, KeyRecord, PassTiming, RangeBound, SignalKey,
+    SignalWrite, ValueAction, ValueOutcome, ValueRecord, ValueRefusal,
 };
 pub use keymap::{Chord, Keymap, KeymapConsult, KeymapSeam};
 pub use mask::Change;

@@ -9,6 +9,47 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M54 — the value step's page joins the scroll record (ADR-0060)**:
+  ADR-0058's first kill rule cashed — a consumer needs the step's
+  unit named — the value step's page is a unit-like distance a
+  reader may want attributed the same way — so the AT action door
+  fills the unit beside the step species too: `Some(ScrollUnit::Page)`
+  beside the `Increment`/`Decrement` actions (the step steps a page,
+  always, by the action vocabulary's own contract, M10/ADR-0016), the
+  same field the unit scrolls answer by — no new field, no version
+  bump, the field's contract grown beside its shape (the additive
+  rule ADR-0010 names; clients that render the M52 null as absence
+  render "by one page" unchanged). The honest absence keeps its
+  other stories: the wheel's coalesced run (a run is not an ask —
+  M53 priced it its own magnitude beside the unit's seat), the app's
+  own door, and the content's own clamp (ADR-0057). The embedded
+  client renders the step's page beside the landings, and
+  `examples/step_pages.rs` is the consumer demonstration. No new
+  corpus case — the field rides the route the step already rides;
+  the corpus stands at 64, the living documents re-agree at the cut
+  (M54, sixty-one decision records).
+- **M53 — the wheel's line count joins the scroll record (ADR-0059)**:
+  ADR-0058's second kill rule cashed — a consumer needs the wheel's
+  line count named — the coalesced run's notional lines — so
+  `ScrollRecord` grows the additive `lines: Option<f32>` beside the
+  `Wheel` action, the run priced by the platform's own convention
+  (one line = 40 px, §10.2 — the rule the platform's wheel conversion
+  prices `LineDelta` with, so a notch answers 1.0 and the trackpad's
+  pixel runs their honest fraction), computed at the door before the
+  clamp arithmetic — a pinned run still names the run it was. The
+  honest absence rides every story with no wheel run behind it: the
+  AT's unit scrolls (their unit is the distance, M52), the value
+  steps (the step is the distance), the app's own door, and the
+  content's own clamp (ADR-0057); the non-finite run prices no count
+  (the refusal names the wall, a count of a run that never was riding
+  no wire). The wheel door prices the run where the delta is decoded;
+  the wire's `scroll` event carries the additive `lines` field at
+  version 1 (clients that ignore unknown fields unaffected), the
+  embedded client rendering "the run priced 1 line" beside the
+  landings, and `examples/wheel_lines.rs` is the consumer
+  demonstration. No new corpus case — the field rides the route the
+  wheel already rides; the corpus stands at 64, the living documents
+  re-agree at the cut (M53, sixty decision records).
 - **M52 — the asker's unit joins the scroll record (ADR-0058)**:
   ADR-0056's first kill rule cashed — a consumer needs the asker's
   unit named — one item or one page — on the AT's unit scrolls, the

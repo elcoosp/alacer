@@ -9,6 +9,53 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M52 — the asker's unit joins the scroll record (ADR-0058)**:
+  ADR-0056's first kill rule cashed — a consumer needs the asker's
+  unit named — one item or one page — on the AT's unit scrolls, the
+  distance the ask is priced against — so `ScrollRecord` grows the
+  additive `unit: Option<ScrollUnit>` beside the `ScrollUp`/
+  `ScrollDown` actions, and `ScrollUnit` grows its `name()`
+  (`item`/`page`, the protocol's `snake_case` rule). The honest
+  absence rides every story with no unit: the wheel's coalesced
+  run, the value step's page (a step, not a unit scroll), the app's
+  own door, and the content's own clamp (ADR-0057) — never a
+  guessed unit reconstructed from the distance. The AT action door
+  fills the unit where the ask is decoded; the wire's `scroll`
+  event carries the additive `unit` field at version 1 (clients
+  that ignore unknown fields unaffected), the embedded client
+  rendering "the scroll landed (the offset 140) by one page"
+  beside the landings, and `examples/scroll_units.rs` is the
+  consumer demonstration. No new corpus case — the field rides the
+  routes the asks already ride; the corpus stands at 64, the
+  living documents re-agree at the cut (M52, fifty-nine decision
+  records).
+- **M51 — the content-side clamp joins the causal log (ADR-0057)**:
+  ADR-0056's third kill rule cashed — a consumer needs the content-side
+  clamp named (`set_content_height` silently re-clamping the offset when
+  the content shrank), so the content's own door grows its own fact:
+  `ScrollAction::ContentClamp` (the door with no ask — the clamp is the
+  content's story, not the ask's) beside the ask vocabulary, and
+  `ScrollRefusal::NonFiniteContent` (the ask tier's `non_finite_ask`
+  wall, at the content's door) beside the refusals. The delivered record
+  carries the landing beside the wall it pinned (`pinned:
+  Option<RangeBound>` — ADR-0054's one named-edges concept spoken
+  identically wherever a landing names it, never a second action
+  species), no ask beside it (a resize is not an ask) and no route
+  behind it (the stamp's honest absence), computed through the same
+  `pinned_offset_bound` arithmetic the ask doors answer by; a resize
+  the offset never felt queues nothing (the M20 idle-frame property at
+  the content's own door). The micro-debt the record's design priced is
+  cashed with it: the non-finite content height that rode the clamp
+  arithmetic and spread `NaN` into the offset and the stored span alike
+  now refuses before the arithmetic, the state keeping the height and
+  offset it held, the refusal a named fact on the log. The wire's
+  `scroll` event carries the additive tags at version 1 (clients that
+  ignore unknown strings unaffected), the embedded client rendering
+  "the content clamp landed the offset 200, pinned at the max" beside
+  the refusals, and `examples/content_clamp.rs` is the consumer
+  demonstration. No new corpus case — the door rides no route and runs
+  outside the frame's hot paths; the corpus stands at 64, the living
+  documents re-agree at the cut (M51, fifty-eight decision records).
 - **M50 — the scroll's story joins the causal log (ADR-0056)**:
   ADR-0055's second kill rule cashed — a consumer needs the wall named
   on a tier whose funnel knows no range (the list's scroll clamp), so

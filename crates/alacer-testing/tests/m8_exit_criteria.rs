@@ -281,14 +281,16 @@ fn m8_the_corpus_pin_agrees_with_the_published_data() {
         .as_array()
         .expect("regressions array");
     let benches = baselines["benches"].as_object().expect("benches object");
+    // The M46 cut joined the drag route (ADR-0052) and the corpus and
+    // its gates grew 63 → 64 with it — these pins re-agree at the cut.
     assert_eq!(
         benches.len(),
-        63,
-        "the corpus is 63: the M35 keymap route joins the M18 route, the M20 capture case, the M21 value-write route, the M22 refused route, and the M24/M25/M26/M27 focus routes ride it together"
+        64,
+        "the corpus is 64: the M46 drag route joins the M35 keymap route, the M18 route, the M20 capture case, the M21 value-write route, the M22 refused route, and the M24/M25/M26/M27 focus routes riding together"
     );
     assert_eq!(
         regressions.len(),
-        63,
+        64,
         "every bench carries a regression gate"
     );
     for id in ["input/storm_50_moves_queued", "input/storm_50_moves_direct"] {

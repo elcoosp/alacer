@@ -253,6 +253,11 @@ impl Flux {
 
     /// The binding table: every registered signal→node edge as
     /// `(binding, signal, node)` — the "who subscribes" answer (§13.3).
+    ///
+    /// # Panics
+    ///
+    /// If the capture lock is poisoned — a panicked writer means the
+    /// frame is corrupt either way (the render binding's own policy).
     #[must_use]
     pub fn edge_table(&self) -> Vec<(BindingId, SignalKey, NodeId)> {
         self.capture
@@ -266,27 +271,37 @@ impl Flux {
                 edges.sort_unstable_by_key(|(binding, _, _)| *binding);
                 edges
             })
-            .unwrap_or_default()
+            .expect("flux capture lock")
     }
 
     /// Drains the pending provenance-tagged writes (the pipeline's frame
     /// summary source).
+    ///
+    /// # Panics
+    ///
+    /// If the capture lock is poisoned — a panicked writer means the
+    /// frame is corrupt either way (the render binding's own policy).
     #[must_use]
     pub fn take_signal_writes(&self) -> Vec<SignalWrite> {
         self.capture
             .lock()
             .map(|mut capture| drain_ring(&mut capture.writes))
-            .unwrap_or_default()
+            .expect("flux capture lock")
     }
 
     /// Drains the pending edge activations (the pipeline's frame summary
     /// source).
+    ///
+    /// # Panics
+    ///
+    /// If the capture lock is poisoned — a panicked writer means the
+    /// frame is corrupt either way (the render binding's own policy).
     #[must_use]
     pub fn take_edge_activations(&self) -> Vec<EdgeActivation> {
         self.capture
             .lock()
             .map(|mut capture| drain_ring(&mut capture.activations))
-            .unwrap_or_default()
+            .expect("flux capture lock")
     }
 
     /// Creates a signal.
@@ -386,9 +401,20 @@ impl Flux {
     }
 
     /// Drains the pending mask queue (pass 4's flux side).
+    ///
+    /// # Panics
+    ///
+    /// If the mask queue's lock is poisoned — a panicked writer means
+    /// the frame is corrupt either way, and a drain that silently
+    /// answered empty would drop every pending mask: the UI freezes
+    /// without a word (the render binding's own policy, applied where
+    /// the frame's correctness rides the drain).
     #[must_use]
     pub fn take_pending_masks(&self) -> FxHashMap<NodeId, Change> {
-        self.queue.lock().map(|mut q| q.take()).unwrap_or_default()
+        self.queue
+            .lock()
+            .map(|mut q| q.take())
+            .expect("flux mask queue lock")
     }
 
     /// The counters behind the scheduling-contract tests.

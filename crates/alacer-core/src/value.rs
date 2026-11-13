@@ -16,6 +16,13 @@
 //! start into [`crate::inspect::InspectEvent::Value`], dev-mode and
 //! bounded, silent while nobody listens.
 //!
+//! Since M43 the record names its control too (ADR-0049, ADR-0046's
+//! first re-open rule): the dispatch funnel knows the id the action
+//! arrived under, the widget does not — so the stamp side lives here
+//! (`ACTION_TARGET`, held by the funnel's route for the length of
+//! one action) and [`note_write`] stamps the facts queued beneath a
+//! routed action with it, never a node id guessed at the note site.
+//!
 //! ```text
 //! // Widgets (core-only dependencies):
 //! use alacer_core::value::note_write;
@@ -40,10 +47,15 @@ thread_local! {
     static TRAIL_ENABLED: Cell<bool> = const { Cell::new(false) };
     /// The facts queued since the last tick drain — the handler side of
     /// the trail, bounded by [`VALUE_TRAIL_CAP`] with oldest-first
-    /// eviction, so a fact queued where no pipeline will ever drain
-    /// still terminates.
+    /// eviction, so a fact queued where no pipeline will ever
+    /// drain still terminates.
     static TRAIL: RefCell<VecDeque<crate::inspect::ValueRecord>> =
         const { RefCell::new(VecDeque::new()) };
+    /// The action the dispatch funnel is currently routing (M43,
+    /// ADR-0049): `Some(id)` while the AT action route holds its guard,
+    /// `None` otherwise — the facts queued beneath the action carry the
+    /// id, the facts queued outside one ride their absence.
+    static ACTION_TARGET: Cell<Option<u64>> = const { Cell::new(None) };
 }
 
 /// Enables or disables the value trail (the pipeline's side of the
@@ -54,17 +66,60 @@ pub(crate) fn set_value_trail_enabled(enabled: bool) {
     TRAIL_ENABLED.with(|slot| slot.set(enabled));
 }
 
+/// The funnel's stamp guard (M43, ADR-0049): the AT action route holds
+/// one for the length of one widget call, the facts queued beneath the
+/// action carrying the id the action arrived under — the widget never
+/// guesses it (the rule's own words: the dispatch funnel knows the
+/// target node, the widget does not). Dropping clears the stamp — a
+/// panicking widget leaves no stale identity on the thread.
+pub(crate) struct ActionTargetGuard {
+    previous: Option<u64>,
+}
+
+impl ActionTargetGuard {
+    /// Stamps `target` as the action the thread is routing, restoring
+    /// the previous stamp on drop (the funnel nests never — one guard
+    /// per routed action — but a nested route would still answer
+    /// honestly).
+    pub(crate) fn for_target(target: Option<u64>) -> Self {
+        let previous = ACTION_TARGET.with(|slot| {
+            let previous = slot.get();
+            slot.set(target);
+            previous
+        });
+        Self { previous }
+    }
+}
+
+impl Drop for ActionTargetGuard {
+    fn drop(&mut self) {
+        ACTION_TARGET.with(|slot| slot.set(self.previous));
+    }
+}
+
 /// Notes one value fact on this thread's trail (the value tier's side
 /// of the trail, ADR-0046): a no-op while the trail is disabled, an
 /// oldest-evicting push while it rides. The value-tier widgets call
 /// this at the exact place the answer resolves — the widget knows the
 /// action and the value it holds, the trail knows the drain — so a
 /// status line, an inspector trail, or a test reads the value tier
-/// without re-implementing the observation at the action site.
+/// without re-implementing the observation at the action site. Since
+/// M43 (ADR-0049) a record whose `target` the widget left `None` is
+/// stamped with the id the routing funnel held — the control's
+/// identity riding beside the action's routing, never guessed at the
+/// note site.
 pub fn note_write(record: crate::inspect::ValueRecord) {
     TRAIL_ENABLED.with(|enabled| {
         if !enabled.get() {
             return;
+        }
+        // The stamp side (M43, ADR-0049): the funnel's guard answers
+        // the *who* the widget cannot know — the widget's own `None`
+        // stays `None` when no route holds a guard (the widget doors'
+        // honest absence).
+        let mut record = record;
+        if record.target.is_none() {
+            record.target = ACTION_TARGET.with(Cell::get);
         }
         tracing::trace!(
             target: "alacer::value",
@@ -104,6 +159,7 @@ mod tests {
             action: ValueAction::SetValue,
             outcome: ValueOutcome::Delivered,
             value: 42.0,
+            target: None,
         });
         assert!(
             take_value_trail().is_empty(),
@@ -122,6 +178,7 @@ mod tests {
                 action: ValueAction::Increment,
                 outcome: ValueOutcome::Refused(ValueRefusal::NoWriteDoor),
                 value,
+                target: None,
             });
         }
         let drained = take_value_trail();
@@ -130,6 +187,73 @@ mod tests {
         assert!(
             take_value_trail().is_empty(),
             "the drain clears whole — a fact streams once"
+        );
+        crate::value::set_value_trail_enabled(false);
+    }
+
+    /// The stamp side (M43, ADR-0049): a record the widget queued with
+    /// a `None` target is stamped with the id the funnel's guard held —
+    /// the control's identity riding beside the action's routing, never
+    /// guessed at the note site. A record the caller named itself keeps
+    /// its own answer, and a fact queued outside a guard rides its
+    /// honest absence.
+    #[test]
+    fn the_funnel_stamp_names_the_control_and_the_absence_holds() {
+        crate::value::set_value_trail_enabled(true);
+
+        // Beneath a guard: the widget's `None` becomes the routed id.
+        let guard = crate::value::ActionTargetGuard::for_target(Some(0xAB_CDEF));
+        note_write(ValueRecord {
+            action: ValueAction::SetValue,
+            outcome: ValueOutcome::Delivered,
+            value: 42.0,
+            target: None,
+        });
+        drop(guard);
+        let drained = take_value_trail();
+        assert_eq!(
+            drained[0].target,
+            Some(0xAB_CDEF),
+            "the fact queued beneath the route names the control the action arrived under"
+        );
+
+        // Outside a guard: the absence honest — the widget doors' rides.
+        note_write(ValueRecord {
+            action: ValueAction::Increment,
+            outcome: ValueOutcome::Delivered,
+            value: 43.0,
+            target: None,
+        });
+        // The caller's own answer is never overwritten.
+        note_write(ValueRecord {
+            action: ValueAction::Decrement,
+            outcome: ValueOutcome::Delivered,
+            value: 41.0,
+            target: Some(1),
+        });
+        let drained = take_value_trail();
+        assert_eq!(
+            drained[0].target, None,
+            "a ride no funnel routed carries no target"
+        );
+        assert_eq!(
+            drained[1].target,
+            Some(1),
+            "a record the caller named keeps its own answer"
+        );
+
+        // A dropped guard leaves no stale identity: the next fact is
+        // unstamped.
+        note_write(ValueRecord {
+            action: ValueAction::Increment,
+            outcome: ValueOutcome::Refused(ValueRefusal::NoWriteDoor),
+            value: 41.0,
+            target: None,
+        });
+        let drained = take_value_trail();
+        assert_eq!(
+            drained[0].target, None,
+            "the guard's drop cleared the stamp"
         );
         crate::value::set_value_trail_enabled(false);
     }

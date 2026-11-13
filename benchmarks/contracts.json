@@ -318,6 +318,11 @@
       "scope": "same-host"
     },
     {
+      "id": "gestures_route_100_drag_moves_1k",
+      "baseline": "gestures/route_100_drag_moves_1k",
+      "scope": "same-host"
+    },
+    {
       "id": "input_route_100_focus_moves_1k",
       "baseline": "input/route_100_focus_moves_1k",
       "scope": "same-host"

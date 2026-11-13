@@ -352,12 +352,12 @@ fn m49_the_living_documents_re_agree_at_the_cut() {
     // m-suite pins move across the chain together — the workspace's
     // one-milestone-per-minor rule counting the cut's entries).
     assert!(
-        readme.contains("M0 through M50") && readme.contains("fifty-seven decision records"),
+        readme.contains("M0 through M52") && readme.contains("fifty-nine decision records"),
         "the README's status block and count re-agree at the cut"
     );
     assert!(
-        architecture.contains("57 decision records"),
-        "the architecture register re-agrees at 57 decision records"
+        architecture.contains("59 decision records"),
+        "the architecture register re-agrees at 59 decision records"
     );
     // The protocol document carries the pinned vocabulary (the wire's
     // documented field).

@@ -104,7 +104,11 @@
     <code>value</code> = a value-tier
     write answered — the SetValue, Increment, or Decrement beside its
     outcome (did the write land — where, or which refusal named why
-    not, ADR-0046); <code>frame</code> = the frame
+    not, ADR-0046); <code>gesture</code> = a drag gesture answered —
+    the press that armed it beside the value it found, the release or
+    leave that resolved it beside the value it landed, one record per
+    phase, never per move (the drag's own story, ADR-0052);
+    <code>frame</code> = the frame
     summary. "Who subscribes" is the edge table the flux publishes —
     every <code>edge</code> line names its binding.</p>
   </section>
@@ -359,6 +363,26 @@ function connect() {
           ? "refused: " + event.refusal + target
           : "the value landed" + span + target;
         addLog("value", "value " + event.action, answer);
+        break;
+      }
+      case "gesture": {
+        // The client renders the drag's echo (M46, ADR-0052): the
+        // gesture trail lands in the log pane beside the focus, edit,
+        // announce, key, clipboard, and value trails — the phase named,
+        // the value the drag found beside a `started` record, the value
+        // it landed beside an `ended` one, so a reader answers "why did
+        // the slider's value move while the hand dragged it — where did
+        // it start, where did it land" from the log alone. One event
+        // per gesture phase, never per move: the flood rule the kill
+        // criteria pre-registered holds on the wire by construction.
+        // The control's identity beside the record (the funnel's
+        // pointer-route stamp): a ride no funnel routed carries no
+        // target (null).
+        const target = event.target != null ? " (control " + event.target + ")" : "";
+        const answer = event.phase === "started"
+          ? "the drag found the value " + event.from + target
+          : "the drag landed the value " + event.to + " (from " + event.from + ")" + target;
+        addLog("gesture", "gesture " + event.phase, answer);
         break;
       }
       case "frame":

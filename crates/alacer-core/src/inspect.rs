@@ -18,6 +18,7 @@
 //! | "What did this field's journal do?" | [`InspectEvent::Edit`] — the edit trail: one record per journal action, streamed the moment the journal answers (ADR-0037) |
 //! | "Why did the live region speak — or refuse?" | [`InspectEvent::Announce`] — the announcement trail: one record per speech act, streamed the moment the pipeline answers it (ADR-0039) |
 //! | "Did a shortcut take this key — or why not?" | [`InspectEvent::Key`] — the keymap consult's answer: one record per funnel consult (the chord beside the species), streamed the moment the consult resolves (ADR-0042) |
+//! | "Why did the drag move the value — where did it start, where did it land?" | [`InspectEvent::Gesture`] — the drag's own story: one per-gesture record per phase (the beginning, the end), streamed the moment the gesture's door resolves (ADR-0052) |
 
 use crate::announce::Politeness;
 use crate::arena::NodeId;
@@ -528,7 +529,11 @@ pub struct ClipboardRecord {
 /// What the value tier just answered (§13.3, ADR-0046): the value
 /// trail's action vocabulary, one [`ValueRecord`] per AT write. The
 /// names are the wire's stable tags ([`ValueAction::name`], the
-/// protocol's `snake_case` rule).
+/// protocol's `snake_case` rule). Since M47 (ADR-0053, ADR-0051's kill
+/// arm) the vocabulary names the bounds' jumps too — the keyboard's
+/// Home/End, never munged into a `SetValue` (the M11 rule's own
+/// munging) — the named species the kill rule pre-registered, the
+/// record riding the key route's stamp (M45) like every other ride.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ValueAction {
     /// The AT's `SetValue`: a payload that parses, then rides the same
@@ -540,6 +545,14 @@ pub enum ValueAction {
     /// The AT's `Decrement`: one step down the range, the funnel's own
     /// arithmetic.
     Decrement,
+    /// The keyboard's Home: a jump to the range's minimum, the funnel's
+    /// own arithmetic (M47, ADR-0053) — the named species, never a
+    /// munged `SetValue` (the M11 rule).
+    JumpToMin,
+    /// The keyboard's End: a jump to the range's maximum, the funnel's
+    /// own arithmetic (M47, ADR-0053) — the named species, never a
+    /// munged `SetValue` (the M11 rule).
+    JumpToMax,
 }
 
 impl ValueAction {
@@ -553,6 +566,8 @@ impl ValueAction {
             Self::SetValue => "set_value",
             Self::Increment => "increment",
             Self::Decrement => "decrement",
+            Self::JumpToMin => "jump_to_min",
+            Self::JumpToMax => "jump_to_max",
         }
     }
 }
@@ -682,6 +697,76 @@ pub struct ValueRecord {
     pub target: Option<u64>,
 }
 
+/// One drag gesture's record (§13.3, ADR-0052): the causal log's answer
+/// to "why did the slider's value move while the hand dragged it — where
+/// did the drag start, where did it land". ADR-0046 priced the value
+/// tier's AT writes and ADR-0051 priced the keyboard's steps, but the
+/// drag stayed off the log — the per-pointer-move flood the second kill
+/// rule refused — so a trail reader could not answer the drag's story
+/// without re-implementing the observation at the gesture site. The
+/// price the kill rule names is the record: one per *gesture* phase,
+/// never per move — a [`GesturePhase::Started`] the moment the press
+/// arms the drag (the value it found), a [`GesturePhase::Ended`] the
+/// moment the release or the leave resolves it (the value it left the
+/// control holding, the beginning remembered beside it — each record
+/// self-contained). One hundred moves inside one gesture stream exactly
+/// two records; the flood rule holds by construction. The `from`/`to`
+/// pair is the value tier's own vocabulary (the same scalars the AT
+/// reads through [`crate::widget::Widget::value`]), and the control is
+/// the funnel's own stamp — the pointer route knows the deepest hit
+/// that captured (ADR-0025), the same discipline the action and key
+/// routes ride (ADR-0049, ADR-0051). The fields are the additive wire
+/// rule's shape (ADR-0010).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GestureRecord {
+    /// The gesture's phase — the moment the record resolves: the press
+    /// that armed the drag, or the release/leave that answered it.
+    pub phase: GesturePhase,
+    /// The value the gesture found — the control's own scalar as the
+    /// press landed (the value the drag started *from*).
+    pub from: f32,
+    /// The value the gesture left the control holding — the drag's
+    /// landing. `None` on [`GesturePhase::Started`]: the landing is the
+    /// gesture's answer, not its beginning's fact.
+    pub to: Option<f32>,
+    /// The control the gesture rides (the funnel's stamp, ADR-0052):
+    /// the AccessKit-stable id hash of the node the pointer route
+    /// resolved — the deepest hit that captured. `None` when the fact
+    /// queued outside a routed pointer event (the honest absence, the
+    /// action stamp's own rule).
+    pub target: Option<u64>,
+}
+
+/// The drag's phase ([`GestureRecord::phase`], ADR-0052): the two
+/// moments a gesture answers, named apart so a trail reader never
+/// guesses which edge a record carries. The names are the wire's
+/// stable tags ([`GesturePhase::name`], the protocol's `snake_case`
+/// rule).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GesturePhase {
+    /// The press armed the drag — the record carries the value the
+    /// gesture found ([`GestureRecord::from`]), the landing absent.
+    Started,
+    /// The release or the leave answered the drag — the record carries
+    /// the value the gesture left the control holding
+    /// ([`GestureRecord::to`]), the beginning remembered beside it.
+    Ended,
+}
+
+impl GesturePhase {
+    /// The phase's name, the wire vocabulary's `snake_case` tag (the
+    /// protocol's stable, documented field values —
+    /// [`ValueAction::name`] for value-tier writes, this for gesture
+    /// phases).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Started => "started",
+            Self::Ended => "ended",
+        }
+    }
+}
+
 /// One observation: what the pipeline and the flux surface to devtools.
 #[derive(Debug, Clone)]
 pub enum InspectEvent {
@@ -726,6 +811,14 @@ pub enum InspectEvent {
     /// trail's shape — the fact queues where the write resolves, one
     /// frame after the act).
     Value(ValueRecord),
+    /// A drag gesture answered — the gesture trail (ADR-0052): the
+    /// press that armed the drag beside the value it found, or the
+    /// release/leave that resolved it beside the value it landed, one
+    /// record per phase, never per move (the flood rule). Streams with
+    /// the frame's own records (the tick's start drain, the value
+    /// drain's shape — the fact queues where the gesture's door
+    /// resolves, one frame after the phase).
+    Gesture(GestureRecord),
     /// A frame completed — the frame's causal summary.
     Frame(FrameSummary),
 }

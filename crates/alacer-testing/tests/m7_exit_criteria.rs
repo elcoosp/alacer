@@ -336,7 +336,7 @@ fn the_m5_and_m6_corpus_pins_do_not_move() {
     for suite in ["m5_exit_criteria.rs", "m6_exit_criteria.rs"] {
         let source = read_workspace_file(&format!("crates/alacer-testing/tests/{suite}"));
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 63;"),
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 64;"),
             "{suite} must keep the 60-case corpus pin"
         );
     }
@@ -393,7 +393,7 @@ fn the_release_state_is_coherent() {
 
     let readme = read_workspace_file("README.md");
     assert!(
-        readme.contains("M0 through M45"),
+        readme.contains("M0 through M47"),
         "the README status reflects the living cut (the M22-era literal missed the \
          M23/M24 pin sweeps and went red against a coherent tree — the M25 sweep \
          re-joins the chain, ADR-0031)"

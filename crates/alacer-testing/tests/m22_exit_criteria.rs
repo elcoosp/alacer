@@ -376,7 +376,7 @@ fn m22_the_refused_route_joins_the_corpus_by_the_coordinated_rule() {
 
     assert_eq!(
         baselines["bench_count"],
-        serde_json::json!(63),
+        serde_json::json!(64),
         "the corpus grows 56 → 57 at M22's measurement run"
     );
     let benches = baselines["benches"].as_object().expect("benches object");
@@ -420,23 +420,23 @@ fn m22_the_refused_route_joins_the_corpus_by_the_coordinated_rule() {
     ] {
         let source = read_workspace_file(&format!("crates/alacer-testing/tests/{suite}"));
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 63;"),
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 64;"),
             "{suite} must pin the 60-case corpus"
         );
     }
     let m19 = read_workspace_file("crates/alacer-testing/tests/m19_exit_criteria.rs");
     assert!(
-        m19.contains("All 63 criterion cases") && m19.contains("serde_json::json!(63)"),
+        m19.contains("All 64 criterion cases") && m19.contains("serde_json::json!(64)"),
         "the m19 suite's pins moved with the corpus"
     );
     let m20 = read_workspace_file("crates/alacer-testing/tests/m20_exit_criteria.rs");
     let m21 = read_workspace_file("crates/alacer-testing/tests/m21_exit_criteria.rs");
     assert!(
-        m20.contains("serde_json::json!(63)") && m20.contains("usize = 63;"),
+        m20.contains("serde_json::json!(64)") && m20.contains("usize = 64;"),
         "the m20 suite's own pins moved"
     );
     assert!(
-        m21.contains("serde_json::json!(63)") && m21.contains("usize = 63;"),
+        m21.contains("serde_json::json!(64)") && m21.contains("usize = 64;"),
         "the m21 suite's own pins moved"
     );
 }
@@ -448,10 +448,10 @@ fn m22_the_living_documents_re_agree() {
     // block and the register count move with the corpus.
     let readme = read_workspace_file("README.md");
     for fragment in [
-        "All 63 criterion cases",
+        "All 64 criterion cases",
         "Since M22 the availability tier is widget vocabulary",
-        "M0 through M45",
-        "fifty-two decision records",
+        "M0 through M47",
+        "fifty-four decision records",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
     }
@@ -479,7 +479,7 @@ fn m22_the_living_documents_re_agree() {
     let architecture = read_workspace_file("docs/architecture.md");
     for fragment in [
         "ADR-0028",
-        "52 decision records",
+        "54 decision records",
         "the availability tier joins the widget contract",
     ] {
         assert!(

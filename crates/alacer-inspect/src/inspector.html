@@ -414,17 +414,33 @@ function connect() {
         // renders the wall's absence, never a guessed edge. The
         // control's identity beside the record (the routes' stamp): the
         // app's own door rides no route and carries no target (null).
+        // Since M51 the content's own story renders too (ADR-0057,
+        // ADR-0056's third kill rule): a `content_clamp` record reads
+        // "the content clamp landed the offset 200, pinned at the max"
+        // — the wall the clamp answered when the content shrank under
+        // the offset, a story with no ask (the `requested` null the
+        // wire honestly carries) and no control (the app door's
+        // unrouted absence); the `non_finite_content` refusal names
+        // the wall that held the resize before it corrupted. Since
+        // M52 the AT's unit scrolls name their unit too (ADR-0058,
+        // ADR-0056's first kill rule): the asker's unit renders beside
+        // the landing — "the scroll landed (the offset 140) by one
+        // page" — the ask the distance is priced against, the stories
+        // with no unit riding the null the wire honestly carries.
         const target = event.target != null ? " (control " + event.target + ")" : "";
         const wall = event.pinned != null ? ", pinned at the " + event.pinned : "";
         const clamp = event.requested != null && event.requested !== event.offset;
+        const unit = event.unit != null ? " by one " + event.unit : "";
         const span = event.outcome === "delivered"
           ? (clamp
-            ? " (asked " + event.requested + ", landed " + event.offset + ")"
-            : " (the offset " + event.offset + ")")
+            ? " (asked " + event.requested + ", landed " + event.offset + ")" + unit
+            : " (the offset " + event.offset + ")" + unit)
           : "";
         const answer = event.outcome === "refused"
           ? "refused: " + event.refusal + target
-          : "the scroll landed" + span + wall + target;
+          : event.action === "content_clamp"
+            ? "the content clamp landed the offset " + event.offset + wall + target
+            : "the scroll landed" + span + wall + target;
         addLog("scroll", "scroll " + event.action, answer);
         break;
       }

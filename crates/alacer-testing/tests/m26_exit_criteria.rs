@@ -425,8 +425,8 @@ fn m26_the_living_documents_re_agree() {
     let readme = read_workspace_file("README.md");
     for fragment in [
         "version-0.17.0",
-        "M0 through M47",
-        "fifty-four decision records",
+        "M0 through M49",
+        "fifty-six decision records",
         "Since M26 the walk reads the window too",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
@@ -448,7 +448,7 @@ fn m26_the_living_documents_re_agree() {
     let architecture = read_workspace_file("docs/architecture.md");
     for fragment in [
         "ADR-0032",
-        "54 decision records",
+        "56 decision records",
         "the directional focus walk",
     ] {
         assert!(
@@ -486,7 +486,7 @@ fn m26_the_living_documents_re_agree() {
             "crates/alacer-testing/tests/{suite}_exit_criteria.rs"
         ));
         assert!(
-            source.contains("M0 through M47") && source.contains("54 decision records"),
+            source.contains("M0 through M49") && source.contains("56 decision records"),
             "the {suite} suite's README and register pins moved with the documents"
         );
     }
@@ -495,7 +495,7 @@ fn m26_the_living_documents_re_agree() {
             "crates/alacer-testing/tests/{suite}_exit_criteria.rs"
         ));
         assert!(
-            source.contains("fifty-four decision records"),
+            source.contains("fifty-six decision records"),
             "the {suite} suite's README ADR-count pin moved with the documents"
         );
     }
@@ -612,12 +612,12 @@ fn m26_the_corpus_pins_moved_with_the_routes() {
     }
     let m7 = read_workspace_file("crates/alacer-testing/tests/m7_exit_criteria.rs");
     assert!(
-        m7.contains("bench_count, 63,"),
+        m7.contains("bench_count, 64,"),
         "the m7 suite's corpus pin moved with the routes"
     );
     let m8 = read_workspace_file("crates/alacer-testing/tests/m8_exit_criteria.rs");
     assert!(
-        m8.contains("the corpus is 63:"),
+        m8.contains("the corpus is 64:"),
         "the m8 suite's corpus pin moved with the routes"
     );
     for path in std::fs::read_dir(workspace_root().join("crates/alacer-testing/tests"))
@@ -649,9 +649,12 @@ fn m26_the_corpus_pins_moved_with_the_routes() {
         .iter()
         .filter_map(|gate| gate["baseline"].as_str().map(str::to_owned))
         .collect();
+    // The M46 cut joined the drag route's gate (ADR-0052) and the raw
+    // regression set grew 63 → 64 with it — this pin re-agrees at the
+    // cut (the coordinated rule: bench, gates, baseline, pins together).
     assert_eq!(
         gates.len(),
-        63,
+        64,
         "the contract set carries the corpus the pins promise"
     );
     for route in [

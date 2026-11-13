@@ -302,7 +302,10 @@ impl Widget for Progress {
     /// species the `bool` collapsed into one silence, the read-only
     /// tier's honesty visible on the log (the clipboard trail's shape,
     /// ADR-0045); a question outside the value tier (a press, a scroll,
-    /// a text edit) is not a value fact and stays silent.
+    /// a text edit) is not a value fact and stays silent. Since M44
+    /// (ADR-0050) the refusal carries the ask's honest absence: no ask
+    /// ever entered a door the widget does not have — the field's
+    /// `None` is the fact (the door-less control never computed one).
     fn on_a11y_action(&mut self, action: A11yAction) -> bool {
         let tier = match action {
             A11yAction::SetValue(_) => alacer_core::ValueAction::SetValue,
@@ -318,6 +321,7 @@ impl Widget for Progress {
             action: tier,
             outcome: alacer_core::ValueOutcome::Refused(alacer_core::ValueRefusal::NoWriteDoor),
             value: self.reported(),
+            requested: None,
             target: None,
         });
         false

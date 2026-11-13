@@ -384,6 +384,7 @@ pub(crate) fn wire_event_of(event: &alacer_core::inspect::InspectEvent) -> WireE
         alacer_core::inspect::InspectEvent::Clipboard(record) => wire::wire_clipboard(record),
         alacer_core::inspect::InspectEvent::Value(record) => wire::wire_value(record),
         alacer_core::inspect::InspectEvent::Gesture(record) => wire::wire_gesture(record),
+        alacer_core::inspect::InspectEvent::Scroll(record) => wire::wire_scroll(record),
         alacer_core::inspect::InspectEvent::Frame(summary) => wire::wire_frame(summary),
     }
 }

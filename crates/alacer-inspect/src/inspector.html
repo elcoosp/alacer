@@ -317,8 +317,13 @@ function connect() {
         // the log answers "which clipboard failed it", not only "it
         // failed" — a read refusal carries no engine fact (null).
         const engine = event.engine ? " (" + event.engine + ")" : "";
+        // The read's species beside the paste refusal (M42, ADR-0048):
+        // the log answers "did the paste refuse for the read, or for
+        // the field" — a copy, a cut, and the field's own refusal carry
+        // the read's absence (null).
+        const read = event.read ? " (read: " + event.read + ")" : "";
         const answer = event.outcome === "refused"
-          ? "refused: " + event.refusal + engine
+          ? "refused: " + event.refusal + engine + read
           : "the payload moved" + span;
         addLog("clipboard", "clipboard " + event.action, answer);
         break;
@@ -335,9 +340,14 @@ function connect() {
         const span = event.outcome === "delivered"
           ? " (the value " + event.value + ")"
           : "";
+        // The control's identity beside the record (M43, ADR-0049): the
+        // log answers "which control answered" — the id the dispatch
+        // funnel routed, the vocabulary the AT's client already speaks;
+        // a ride no funnel routed carries no target (null).
+        const target = event.target != null ? " (control " + event.target + ")" : "";
         const answer = event.outcome === "refused"
-          ? "refused: " + event.refusal
-          : "the value landed" + span;
+          ? "refused: " + event.refusal + target
+          : "the value landed" + span + target;
         addLog("value", "value " + event.action, answer);
         break;
       }

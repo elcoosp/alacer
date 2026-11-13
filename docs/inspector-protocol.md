@@ -222,7 +222,7 @@ the recorder's `key` ring holds 512.
 ### `clipboard` — a clipboard round trip answered ("did the text move — or why not?")
 
 ```json
-{"kind":"clipboard","action":"copy","outcome":"delivered","refusal":null,"engine":null,"chars":11}
+{"kind":"clipboard","action":"paste","outcome":"refused","refusal":"empty_clipboard","engine":null,"read":"non_text","chars":0}
 ```
 
 - `action` — the round trip the field answered (M39, ADR-0045):
@@ -254,6 +254,20 @@ the recorder's `key` ring holds 512.
   on a delivery and on every other refusal — a paste reads, a
   no-selection copy never asked the engine. The log answers "which
   clipboard failed it", not only "it failed".
+- `read` — the engine's read-side species when the paste refused for
+  the read (M42, ADR-0048, ADR-0047's third re-open rule):
+  `unnamed` (the engine answered only its `Option` — the fact honest
+  about its absence), `unsupported` (no clipboard subsystem at all, or
+  the clipboard cannot open), `empty` (the clipboard carries nothing
+  the OS counts as content), `non_text` (the clipboard carries
+  content, but not text — an image, a custom format), or `os_error`
+  (the platform answered with an error the engine cannot classify);
+  `null` on a delivery, on the field's own refusal (a payload that
+  sanitized to nothing — the read delivered), and on every write-side
+  round trip — a copy never asked a read question. The M39
+  `empty_clipboard` collapse splits at last: one verdict, the read
+  fact beside it answering "did the paste refuse for the read, or for
+  the field".
 - `chars` — the payload's UTF-8 scalar count when the round trip
   delivered (the span copied, the span cut, the text pasted); zero on
   a refusal. The payload itself never rides the log: a clipboard can
@@ -271,7 +285,7 @@ oldest-first eviction) and the recorder's `clipboard` ring holds 512.
 ### `value` — a value-tier write answered ("did the write land — where, or why not?")
 
 ```json
-{"kind":"value","action":"set_value","outcome":"delivered","refusal":null,"value":42.0}
+{"kind":"value","action":"set_value","outcome":"delivered","refusal":null,"value":42.0,"target":43981}
 ```
 
 - `action` — the value-tier action the AT asked (M40, ADR-0046):
@@ -298,6 +312,20 @@ oldest-first eviction) and the recorder's `clipboard` ring holds 512.
   value on a refusal (the tree keeps the value the app wrote). A
   slider's value is the tree's own vocabulary the AT already reads,
   never a secret.
+- `target` — the control the action arrived under (M43, ADR-0049,
+  ADR-0046's first re-open rule): the AccessKit-stable id the dispatch
+  funnel routed — the identity a screen reader's client, an inspector
+  pane, or a test correlates, so a multi-control form's trail is
+  attributable — the log answering "which control answered" beside
+  "did the write land — where, or why not" (two sliders on one page,
+  the facts tellable apart).
+  The stamp side lives on the funnel: the facts queued beneath a
+  routed action carry the id the action arrived under, the widget
+  never guessing its own identity. `null` when the write rode no
+  routed action — the widget's own doors (the keyboard's step, the
+  drag) stream no value fact at all (the input tier's records carry
+  those rides until a consumer prices them, ADR-0046's second kill
+  rule), so the attribution stays exclusive to the AT tier.
 
 The record streams at the tick's start drain — one frame after the
 act, the clipboard trail's currency (the widget notes the fact where

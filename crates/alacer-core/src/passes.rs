@@ -2707,7 +2707,14 @@ impl PassPipeline {
             return false;
         };
         let mut guard = self.arena.mutate(node);
+        // The stamp side (M43, ADR-0049, ADR-0046's first re-open rule):
+        // the facts the widget queues while answering carry the id the
+        // action arrived under — the funnel knows it, the widget does
+        // not, so the guard lives here and dies here (a panicking
+        // widget leaves no stale identity on the thread).
+        let stamp = crate::value::ActionTargetGuard::for_target(Some(target));
         let consumed = guard.widget_mut().on_a11y_action(action);
+        drop(stamp);
         if consumed {
             guard.request(Change::PAINT.union(Change::A11Y));
         }

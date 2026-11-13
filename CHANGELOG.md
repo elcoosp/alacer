@@ -9,6 +9,31 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M50 — the scroll's story joins the causal log (ADR-0056)**:
+  ADR-0055's second kill rule cashed — a consumer needs the wall named
+  on a tier whose funnel knows no range (the list's scroll clamp), so
+  the scroll tier grows its own record beside its species:
+  `ScrollRecord` carries the action (`ScrollAction` — the wheel, the
+  AT's unit scrolls and value steps, the app's own door), the landed
+  offset beside the finite ask, the wall the clamp pinned
+  (`pinned: Option<RangeBound>` — ADR-0054's one named-edges concept
+  spoken identically wherever a landing names it), and the honest
+  refusals named (`no_scrollable_content`, `non_finite_ask`). The trail
+  is the value trail's shape (ADR-0046): the thread trail bounded at
+  256, the doors noting where the answer resolves, the pipeline
+  draining at the tick's start into `InspectEvent::Scroll`, the stamp
+  riding the wheel and action routes (the M43/M45/M46 discipline at the
+  scroll tier). The micro-debt the trail's design exposed is cashed
+  with it: the non-finite wheel delta that rode the clamp arithmetic
+  and spread NaN into the scroll state now refuses before the
+  arithmetic, the refusal a named fact on the log. The wire's `scroll`
+  event carries the additive fields at version 1 (clients that ignore
+  unknown fields unaffected), the embedded client rendering "asked 450,
+  landed 400, pinned at the max" beside the refusals, and
+  `examples/scroll_trail.rs` is the consumer demonstration. No new
+  corpus case — the routes the ask rides are already measured; the
+  corpus stands at 64, the living documents re-agree at the cut (M50,
+  fifty-seven decision records).
 - **M49 — the funnel's wall is a named fact (ADR-0055)**: ADR-0053's
   second kill rule cashed — a consumer needs *which* bound the value
   pinned when a write was turned back at the range's edge, so the

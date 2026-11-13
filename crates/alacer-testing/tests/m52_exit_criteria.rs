@@ -196,9 +196,10 @@ fn m52_the_stories_without_a_unit_ride_the_absence() {
     let (mut harness, handle, node) = mount_scrollable_list(&observer);
 
     // The value step (M10: the scrollbar's value *is* the offset): a
-    // page-wide step, but a *step*, not a unit scroll — the unit rides
-    // its honest absence (the kill rule named the AT's unit scrolls
-    // alone).
+    // page-wide step. M52's cut rode the absence — the kill rule's
+    // own words holding the door open — and M54 (ADR-0060) cashed it:
+    // the step's page is a unit-like distance, attributed the same
+    // way, riding beside the species now.
     clear_trail(&observer);
     assert!(at_ask(&mut harness, A11yAction::Increment));
     harness.settle();
@@ -206,8 +207,9 @@ fn m52_the_stories_without_a_unit_ride_the_absence() {
     assert_eq!(records.len(), 1, "the step answered");
     assert_eq!(records[0].action, ScrollAction::Increment);
     assert_eq!(
-        records[0].unit, None,
-        "the step is not a unit scroll — the honest absence"
+        records[0].unit,
+        Some(ScrollUnit::Page),
+        "the step's page rides beside the species (M54, ADR-0060 — the kill rule cashed)"
     );
 
     // The wheel: a coalesced run the pointer asked, never a unit ask —
@@ -284,8 +286,8 @@ fn m52_the_living_documents_re_agree() {
     // the demonstration.
     let readme = read_workspace_file("README.md");
     for fragment in [
-        "M0 through M52",
-        "fifty-nine decision records",
+        "M0 through M54",
+        "sixty-one decision records",
         "Since M52 the AT's unit scrolls name their unit too",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
@@ -307,7 +309,7 @@ fn m52_the_living_documents_re_agree() {
     let architecture = read_workspace_file("docs/architecture.md");
     for fragment in [
         "ADR-0058",
-        "59 decision records",
+        "61 decision records",
         "the asker's unit joins the scroll record",
     ] {
         assert!(
@@ -337,7 +339,7 @@ fn m52_the_living_documents_re_agree() {
             "crates/alacer-testing/tests/{suite}_exit_criteria.rs"
         ));
         assert!(
-            source.contains("M0 through M52"),
+            source.contains("M0 through M54"),
             "the {suite} suite's README pin moved with the documents"
         );
     }
@@ -346,7 +348,7 @@ fn m52_the_living_documents_re_agree() {
             "crates/alacer-testing/tests/{suite}_exit_criteria.rs"
         ));
         assert!(
-            source.contains("59 decision records"),
+            source.contains("61 decision records"),
             "the {suite} suite's architecture pin moved with the register"
         );
     }
@@ -355,7 +357,7 @@ fn m52_the_living_documents_re_agree() {
             "crates/alacer-testing/tests/{suite}_exit_criteria.rs"
         ));
         assert!(
-            source.contains("fifty-nine decision records"),
+            source.contains("sixty-one decision records"),
             "the {suite} suite's README status pin moved with the documents"
         );
     }

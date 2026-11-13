@@ -193,7 +193,9 @@ impl Widget for List {
             drop(state);
             // The door's fact (M50, ADR-0056): the landed offset beside
             // the ask, the wall the clamp pinned, the refusals named —
-            // the wheel route's stamp rides from the funnel.
+            // the wheel route's stamp rides from the funnel. The wheel
+            // is a coalesced run, not a unit ask — the unit rides its
+            // honest absence (M52, ADR-0058).
             alacer_core::scroll::note_scroll(ScrollRecord {
                 action: ScrollAction::Wheel,
                 outcome,
@@ -201,6 +203,7 @@ impl Widget for List {
                 requested: ask.is_finite().then_some(ask),
                 target: None,
                 pinned,
+                unit: None,
             });
             // Translation-only: compose moves children, never layout.
             ctx.request(alacer_core::Change::PAINT.union(alacer_core::Change::A11Y));
@@ -255,6 +258,9 @@ impl Widget for List {
         };
         let (outcome, landed, pinned) = answer_scroll_ask(&mut state, ask);
         drop(state);
+        // The door's fact (M50, ADR-0056), the asker's unit beside the
+        // unit-scroll species (M52, ADR-0058 — the ask the distance is
+        // priced against; the value steps ride the honest absence).
         alacer_core::scroll::note_scroll(ScrollRecord {
             action: action_species,
             outcome,
@@ -262,6 +268,14 @@ impl Widget for List {
             requested: ask.is_finite().then_some(ask),
             target: None,
             pinned,
+            unit: if matches!(
+                action_species,
+                ScrollAction::ScrollUp | ScrollAction::ScrollDown
+            ) {
+                Some(unit)
+            } else {
+                None
+            },
         });
         true
     }
@@ -276,16 +290,70 @@ pub struct ListHandle {
 impl ListHandle {
     /// Updates the content height (call after structural changes).
     ///
+    /// Since M51 (ADR-0057) the door names its facts on the scroll log
+    /// too — ADR-0056's third kill rule cashed ("the clamp is the
+    /// content's story, not the ask's; today it rides outside the
+    /// log"): a resize the clamp answers — the content shrank under the
+    /// offset — streams one `ScrollAction::ContentClamp` record, the
+    /// landing beside the wall it pinned (the same
+    /// [`pinned_offset_bound`] arithmetic the ask doors answer by,
+    /// spoken identically — never a second action species), no ask
+    /// beside it (a resize is not an ask) and no route behind it (the
+    /// stamp's honest absence, the app door's rule). A resize the
+    /// offset never felt — growth, a shrink the span still covers —
+    /// queues nothing (the M20 idle-frame property at the content's
+    /// own door). A non-finite height refuses before the arithmetic
+    /// (`ScrollRefusal::NonFiniteContent`): the debt the M50 trail's
+    /// design exposed at the wheel door, still open here — a non-finite
+    /// height rode the clamp and spread `NaN` into the offset *and*
+    /// the stored span alike. The state keeps the height and offset it
+    /// held; the refusal is a named fact on the log.
+    ///
     /// # Panics
     ///
     /// If the shared scroll state's lock is poisoned — a panicked writer
     /// means the frame is corrupt either way.
     pub fn set_content_height(&self, height: f32) {
         let mut state = self.state.lock().expect("scroll state");
+        // The non-finite wall (M51, ADR-0057): the same refusal the ask
+        // tier names, at the content's own door — refused before the
+        // arithmetic, the state keeping what it held.
+        if !height.is_finite() {
+            let held = state.offset;
+            drop(state);
+            alacer_core::scroll::note_scroll(ScrollRecord {
+                action: ScrollAction::ContentClamp,
+                outcome: ScrollOutcome::Refused(ScrollRefusal::NonFiniteContent),
+                offset: held,
+                requested: None,
+                target: None,
+                pinned: None,
+                unit: None,
+            });
+            return;
+        }
         state.content_height = height;
-        state.offset = state
-            .offset
-            .clamp(0.0, (height - state.viewport_height).max(0.0));
+        let span = (height - state.viewport_height).max(0.0);
+        let clamped = state.offset.clamp(0.0, span);
+        let pinned = pinned_offset_bound(clamped, state.offset, span);
+        let moved = !same_offset(clamped, state.offset);
+        state.offset = clamped;
+        drop(state);
+        if moved {
+            // The content clamp's fact (M51, ADR-0057): the landing
+            // beside the wall it pinned, no ask beside it, no route
+            // behind it. A resize the offset never felt queues
+            // nothing.
+            alacer_core::scroll::note_scroll(ScrollRecord {
+                action: ScrollAction::ContentClamp,
+                outcome: ScrollOutcome::Delivered,
+                offset: clamped,
+                requested: None,
+                target: None,
+                pinned,
+                unit: None,
+            });
+        }
     }
 
     /// Programmatic scroll (tests, a11y actions).
@@ -312,6 +380,7 @@ impl ListHandle {
             requested: offset.is_finite().then_some(offset),
             target: None,
             pinned,
+            unit: None,
         });
     }
 
@@ -335,7 +404,7 @@ impl ListHandle {
 
 #[cfg(test)]
 mod tests {
-    use super::{List, ScrollState};
+    use super::List;
     use alacer_core::events::{EventCtx, PointerEvent};
     use alacer_core::geom::{Point, Vector};
     use alacer_core::widget::{A11yAction, EventResponse, Role, ScrollUnit, Widget};
@@ -389,14 +458,13 @@ mod tests {
 
     #[test]
     fn scroll_to_respects_bounds() {
-        let mut list = List::new(100.0);
+        let list = List::new(100.0);
         let handle = list.handle();
         handle.set_content_height(300.0);
         handle.scroll_to(250.0);
         assert_eq!(handle.offset(), 200.0);
         handle.scroll_to(-50.0);
         assert_eq!(handle.offset(), 0.0);
-        let _ = &mut list; // list stays mutable-usable
     }
 
     #[test]
@@ -420,7 +488,6 @@ mod tests {
             12.0,
             "handle and widget share state"
         );
-        let _ = std::any::TypeId::of::<ScrollState>();
     }
 
     #[test]

@@ -970,8 +970,11 @@ impl ScrollOutcome {
 /// Since M51 (ADR-0057) the content's own door rides the record too —
 /// the clamp `set_content_height` answers when the content shrank under
 /// the offset, the ask-side doors' wall spoken identically (ADR-0056's
-/// third kill rule). The fields are the additive wire rule's shape
-/// (ADR-0010).
+/// third kill rule). Since M53 (ADR-0059) the wheel's coalesced run
+/// names its magnitude too — the notional line count beside the
+/// [`ScrollAction::Wheel`] action, the run's own story the distance
+/// cannot reconstruct through a clamp. The fields are the additive
+/// wire rule's shape (ADR-0010).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ScrollRecord {
     /// The scroll-tier action the ask rode.
@@ -1013,15 +1016,40 @@ pub struct ScrollRecord {
     /// beside the species — never a second action species (the kill
     /// rule's own words).
     pub pinned: Option<RangeBound>,
-    /// The asker's unit on the AT's unit scrolls (M52, ADR-0058 —
-    /// ADR-0056's first kill rule cashed): one item or one page beside
-    /// the [`ScrollAction::ScrollUp`] and [`ScrollAction::ScrollDown`]
-    /// actions, the ask the distance is priced against. The honest
-    /// absence on every other action: the wheel's notch is a coalesced
-    /// run, not a unit ask; the value step's page is the step, not a
-    /// unit scroll; the app's own door and the content's own clamp are
-    /// stories with no unit at all.
+    /// The asker's unit on the AT's unit scrolls and value steps
+    /// (M52, ADR-0058 — ADR-0056's first kill rule cashed; M54
+    /// (ADR-0060) — ADR-0058's first kill rule cashed): one item or
+    /// one page beside the [`ScrollAction::ScrollUp`] and
+    /// [`ScrollAction::ScrollDown`] actions, the ask the distance is
+    /// priced against, and the step's page beside the
+    /// [`ScrollAction::Increment`] and [`ScrollAction::Decrement`]
+    /// species — the value step's page is a unit-like distance,
+    /// attributed the same way (the step steps a page, always, by the
+    /// action vocabulary's own contract). The honest absence on the
+    /// stories with no unit: the wheel's notch is a coalesced run,
+    /// not a unit ask (M53 priced it its own magnitude instead); the
+    /// app's own door and the content's own clamp are stories with no
+    /// unit at all.
     pub unit: Option<crate::widget::ScrollUnit>,
+    /// The wheel run's notional line count (M53, ADR-0059 — ADR-0058's
+    /// second kill rule cashed): the coalesced run's magnitude priced
+    /// by the platform's own convention — one line = 40 px (§10.2),
+    /// the exact rule the platform's wheel conversion prices
+    /// `LineDelta` with, so a notch answers 1.0 and the trackpad's
+    /// pixel runs answer their honest fraction — beside the
+    /// [`ScrollAction::Wheel`] action only, computed at the door that
+    /// already holds the delta, before the clamp arithmetic (a pinned
+    /// run still names the run it was: the count is the ask's story,
+    /// never the landing's). The honest absence on every other action:
+    /// the AT's unit scrolls ask by their unit (M52 — a second
+    /// magnitude would be the same story told twice), the value steps
+    /// by the page (the step is the distance), the app's own door and
+    /// the content's own clamp are stories with no wheel run behind
+    /// them. The non-finite run rides the absence too: the ask never
+    /// became a finite scalar, the refusal (`non_finite_ask`) names
+    /// the wall, and a count of a run that never was would be the lie
+    /// the M44 rule forbids.
+    pub lines: Option<f32>,
 }
 
 /// One observation: what the pipeline and the flux surface to devtools.

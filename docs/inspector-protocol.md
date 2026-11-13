@@ -285,7 +285,7 @@ oldest-first eviction) and the recorder's `clipboard` ring holds 512.
 ### `value` — a value-tier write answered ("did the write land — where, or why not?")
 
 ```json
-{"kind":"value","action":"set_value","outcome":"delivered","refusal":null,"value":42.0,"requested":150.0,"target":43981}
+{"kind":"value","action":"set_value","outcome":"delivered","refusal":null,"value":100.0,"requested":150.0,"target":43981,"pinned":"max"}
 ```
 
 - `action` — the value-tier action the AT asked (M40, ADR-0046):
@@ -338,6 +338,16 @@ oldest-first eviction) and the recorder's `clipboard` ring holds 512.
   the drag stays off the value log (the flood rule, ADR-0046's second
   kill rule) — the drag's own story rides the `gesture` event instead
   (M46, ADR-0052).
+- `pinned` — the bound the funnel pinned the landing at (M49,
+  ADR-0055, ADR-0053's second kill rule): the range's own edge
+  (`min`, `max`) a past ask was turned back by — the clamp, the snap,
+  the wall that held a no-op against a past ask — the ask's own wall
+  beside the species, never a second action species; `null` when the
+  ask wanted the wall exactly (the M47 jumps — the species already
+  names the bound it asked for), on every landing mid-range, and on
+  every refusal (a write that moved nothing pinned nothing). The
+  additive field the versioning rule admits at version 1 — clients
+  that ignore unknown fields are unaffected.
 
 The record streams at the tick's start drain — one frame after the
 act, the clipboard trail's currency (the widget notes the fact where
@@ -353,8 +363,8 @@ recorder's `value` ring holds 512.
 ### `gesture` — a drag gesture answered ("where did the drag start, where did it land?")
 
 ```json
-{"kind":"gesture","phase":"started","from":20.0,"to":null,"target":43981}
-{"kind":"gesture","phase":"ended","from":20.0,"to":42.0,"target":43981}
+{"kind":"gesture","phase":"started","from":20.0,"to":null,"target":43981,"bound":null}
+{"kind":"gesture","phase":"ended","from":20.0,"to":100.0,"target":43981,"bound":"max"}
 ```
 
 The drag's own story (M46, ADR-0052, the price ADR-0046's second kill
@@ -387,6 +397,14 @@ events, the flood rule holding by construction.
   routed pointer event (the honest absence). A gesture the
   availability tier's wall never armed (M22, ADR-0028) streams
   nothing at all — the honest absence is the wall's own answer.
+- `bound` — the bound the landing pinned (M48, ADR-0054, ADR-0053's
+  first kill rule): the range's own edge (`min`, `max`) the drag's
+  landing sat at — the bound jump the *pointer* asked for, named on
+  the drag's own record; `null` on a mid-track landing and on every
+  `started` event (the beginning is not the wall's fact: the landing,
+  and so the bound, is the gesture's answer). The additive field the
+  versioning rule admits at version 1 — clients that ignore unknown
+  fields are unaffected.
 
 The record streams at the tick's start drain — one frame after the
 phase, the value trail's currency, the drain running after the value

@@ -601,6 +601,7 @@ mod tests {
                     action: ClipboardAction::Copy,
                     outcome: ClipboardOutcome::Delivered,
                     engine: None,
+                    read: None,
                     chars: 11,
                 },
             ));
@@ -624,6 +625,7 @@ mod tests {
                 action: ClipboardAction::Paste,
                 outcome: ClipboardOutcome::Refused(ClipboardRefusal::EmptyClipboard),
                 engine: None,
+                read: None,
                 chars: 0,
             },
         ));
@@ -634,6 +636,7 @@ mod tests {
             outcome,
             refusal,
             engine,
+            read,
             chars,
         } = last
         else {
@@ -646,6 +649,11 @@ mod tests {
             engine.as_deref(),
             None,
             "a read asked no write question — the engine fact rides null"
+        );
+        assert_eq!(
+            read.as_deref(),
+            None,
+            "a paste with no observer-driven refusal rode the plain verdict"
         );
         assert_eq!(*chars, 0, "a refusal moved nothing");
     }

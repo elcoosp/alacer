@@ -388,9 +388,12 @@ fn m22_the_refused_route_joins_the_corpus_by_the_coordinated_rule() {
         "{id} carries a real measurement (100 samples)"
     );
     let gates = contracts["regressions"].as_array().expect("regressions");
+    // The M46 cut joined the drag route's gate (ADR-0052) and the raw
+    // regression set grew 63 → 64 with it — this pin re-agrees at the
+    // cut (the coordinated rule: bench, gates, baseline, pins together).
     assert_eq!(
         gates.len(),
-        63,
+        64,
         "every case carries exactly one regression gate"
     );
     assert!(
@@ -450,8 +453,8 @@ fn m22_the_living_documents_re_agree() {
     for fragment in [
         "All 64 criterion cases",
         "Since M22 the availability tier is widget vocabulary",
-        "M0 through M47",
-        "fifty-four decision records",
+        "M0 through M49",
+        "fifty-six decision records",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
     }
@@ -479,7 +482,7 @@ fn m22_the_living_documents_re_agree() {
     let architecture = read_workspace_file("docs/architecture.md");
     for fragment in [
         "ADR-0028",
-        "54 decision records",
+        "56 decision records",
         "the availability tier joins the widget contract",
     ] {
         assert!(

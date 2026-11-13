@@ -195,28 +195,38 @@ fn accept_websocket(stream: &mut TcpStream, key: &str) -> std::io::Result<()> {
 }
 
 /// One session: hello, then broadcast drain + client controls, until close.
+///
+/// The payloads the session serializes are infallible types (strings,
+/// floats, and integers all the way down), but the serialization is
+/// still a `Result` — and a session runs inside
+/// [`std::io::Result`]-land, so a serialize failure reports through the
+/// session's own error channel (the M23 discipline: the loop reports
+/// what it cannot carry, it never panics under a live client) instead
+/// of panicking past it.
 fn run_session(
     stream: &mut TcpStream,
     reader: &mut BufReader<TcpStream>,
     recorder: &CausalRecorder,
     app: &str,
 ) -> std::io::Result<()> {
+    let serialize = |what: &str, error: serde_json::Error| -> std::io::Error {
+        std::io::Error::other(format!("the {what} payload refused to serialize: {error}"))
+    };
     let hello = Hello {
         kind: "hello",
         version: PROTOCOL_VERSION,
         app: app.to_string(),
     };
-    send_text(
-        stream,
-        &serde_json::to_string(&hello).expect("hello serializes"),
-    )?;
+    let hello_json = serde_json::to_string(&hello).map_err(|error| serialize("hello", error))?;
+    send_text(stream, &hello_json)?;
 
     loop {
         // Push everything recorded since the last drain (oldest first).
         let events = recorder.take_broadcast();
         let mut had_work = !events.is_empty();
         for event in events {
-            let payload = serde_json::to_string(&event).expect("wire events serialize");
+            let payload =
+                serde_json::to_string(&event).map_err(|error| serialize("wire event", error))?;
             send_text(stream, &payload)?;
         }
         // Non-blocking read of whatever the client sent (controls, pings).

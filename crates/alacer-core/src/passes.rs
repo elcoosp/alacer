@@ -795,6 +795,7 @@ impl PassPipeline {
         crate::clipboard::set_clipboard_trail_enabled(true);
         crate::value::set_value_trail_enabled(true);
         crate::gesture::set_gesture_trail_enabled(true);
+        crate::scroll::set_scroll_trail_enabled(true);
     }
 
     /// Enables per-pass wall timing and the overhead ledger (the M1 gate
@@ -1213,6 +1214,25 @@ impl PassPipeline {
             )
         });
 
+        // The scroll trail's stamp (M50, ADR-0056): the route knows the
+        // control it is resolving — the deepest hit under the hover —
+        // the facts a scroll door queues beneath a routed *wheel*
+        // carrying it (the M46 discipline at the scroll tier; the wheel
+        // is the only pointer ask the scroll tier answers, so the stamp
+        // rides the wheel asks alone). The idle contract holds: while
+        // nobody listens the stamp is one `Cell` read and no id-path
+        // walk (the trail is off, no fact can queue); under an observer
+        // the guard lives for the length of this event's walks and dies
+        // with them — a panicking widget leaves no stale identity on
+        // the thread.
+        let _scroll_stamp = (matches!(event, PointerEvent::Wheel { .. })
+            && crate::scroll::scroll_trail_enabled())
+        .then(|| {
+            crate::scroll::ScrollTargetGuard::for_target(
+                chain.last().copied().map(|id| self.id_hash(id)),
+            )
+        });
+
         // Capture: root → target (§10.1). First `Handled` stops the phase.
         for node in &chain {
             let response = self.visit_with_phase(*node, EventPhase::Capture, event);
@@ -1591,6 +1611,20 @@ impl PassPipeline {
     fn notify_gesture(&mut self, record: crate::inspect::GestureRecord) {
         if let Some(observer) = self.observer.as_mut() {
             observer.observe(InspectEvent::Gesture(record));
+        }
+    }
+
+    /// Forwards one scroll fact to the observer, when installed (§13.3,
+    /// ADR-0056): the scroll trail — the ask the scroll doors answered,
+    /// the landed offset beside the ask, the refusals named. The
+    /// record is the widget's own fact verbatim
+    /// ([`crate::inspect::ScrollRecord`]), streamed at the tick's
+    /// start drain — one frame after the ask, the gesture trail's
+    /// currency. One branch when no observer is installed: the A7 idle
+    /// contract is unchanged.
+    fn notify_scroll(&mut self, record: crate::inspect::ScrollRecord) {
+        if let Some(observer) = self.observer.as_mut() {
+            observer.observe(InspectEvent::Scroll(record));
         }
     }
 
@@ -2119,6 +2153,19 @@ impl PassPipeline {
         // once, an absent reader just never sees it.
         for record in crate::gesture::take_gesture_trail() {
             self.notify_gesture(record);
+        }
+
+        // The scroll-trail drain (§13.3, ADR-0056): the scroll facts
+        // the scroll doors queued on this thread ride the observer at
+        // the tick's start — the gesture trail's shape, one frame
+        // after the ask, the drain running after the gesture drain (a
+        // scroll explains the viewport the wheel moved; it streams
+        // beside the gestures). Every fact streams (a bounded queue,
+        // never collapsed), and the drain empties the queue whether an
+        // observer listens or not: a fact streams once, an absent
+        // reader just never sees it.
+        for record in crate::scroll::take_scroll_trail() {
+            self.notify_scroll(record);
         }
 
         let mut ledger: Vec<PassRun> = std::mem::take(&mut self.interframe);
@@ -2773,8 +2820,15 @@ impl PassPipeline {
         // not, so the guard lives here and dies here (a panicking
         // widget leaves no stale identity on the thread).
         let stamp = crate::value::ActionTargetGuard::for_target(Some(target));
+        // The scroll trail's stamp (M50, ADR-0056): the same rule at the
+        // scroll tier — the AT's scroll asks (the unit scrolls, the
+        // value steps) queue their facts beneath the id the action
+        // arrived under, the wheel's stamp discipline beside the
+        // action route's own.
+        let scroll_stamp = crate::scroll::ScrollTargetGuard::for_target(Some(target));
         let consumed = guard.widget_mut().on_a11y_action(action);
         drop(stamp);
+        drop(scroll_stamp);
         if consumed {
             guard.request(Change::PAINT.union(Change::A11Y));
         }

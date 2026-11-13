@@ -16,6 +16,10 @@
 //! - [`announce`] — the announcement seam: the app's reserved live-region
 //!   node, spoken by assistive technologies through the same snapshot and
 //!   delta as every other a11y fact (§11.6, ADR-0024).
+//! - [`gesture`] — the gesture trail: the value tier's drag reaches the
+//!   causal log as one per-gesture record per phase — the beginning, the
+//!   end — never per move (ADR-0052, the flood rule the kill criteria
+//!   pre-registered).
 //! - [`keymap`] — the keymap seam: the app's window-level shortcuts, named
 //!   by one installed [`KeymapSeam`] the dispatch funnel consults when the
 //!   focused widget did not answer, the consult as data
@@ -39,6 +43,7 @@ pub mod damage;
 pub mod events;
 pub mod flux;
 pub mod geom;
+pub mod gesture;
 pub mod history;
 pub mod identity;
 pub mod input;
@@ -69,9 +74,9 @@ pub use geom::{Point, Rect, Size, Vector};
 pub use input::EventCoalescer;
 pub use inspect::{
     BindingId, ClipboardAction, ClipboardOutcome, ClipboardRecord, ClipboardRefusal, DirtyNode,
-    EdgeActivation, FocusRecord, FocusRider, FrameSummary, InputKind, InputRecord, InspectEvent,
-    InspectObserver, KeyRecord, PassTiming, SignalKey, SignalWrite, ValueAction, ValueOutcome,
-    ValueRecord, ValueRefusal,
+    EdgeActivation, FocusRecord, FocusRider, FrameSummary, GesturePhase, GestureRecord, InputKind,
+    InputRecord, InspectEvent, InspectObserver, KeyRecord, PassTiming, SignalKey, SignalWrite,
+    ValueAction, ValueOutcome, ValueRecord, ValueRefusal,
 };
 pub use keymap::{Chord, Keymap, KeymapConsult, KeymapSeam};
 pub use mask::Change;
@@ -106,7 +111,7 @@ pub mod prelude {
     pub use crate::flux::{Flux, RenderBinding};
     pub use crate::geom::{Point, Rect, Size, Vector};
     pub use crate::inspect::{
-        ClipboardRecord, InspectEvent, InspectObserver, KeyRecord, ValueRecord,
+        ClipboardRecord, GestureRecord, InspectEvent, InspectObserver, KeyRecord, ValueRecord,
     };
     pub use crate::keymap::{Chord, Keymap, KeymapConsult, KeymapSeam};
     pub use crate::mask::Change;

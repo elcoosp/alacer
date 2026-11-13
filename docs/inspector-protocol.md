@@ -412,6 +412,72 @@ drain (a gesture explains the value the pointer moved; it streams
 beside it). The queue behind it is bounded (256 facts per thread,
 oldest-first eviction) and the recorder's `gesture` ring holds 512.
 
+### `scroll` — a scroll ask answered ("did the list scroll — where, or why not?")
+
+```json
+{"kind":"scroll","action":"wheel","outcome":"delivered","refusal":null,"offset":400.0,"requested":450.0,"target":43981,"pinned":"max"}
+{"kind":"scroll","action":"scroll_down","outcome":"refused","refusal":"no_scrollable_content","offset":0.0,"requested":40.0,"target":43981,"pinned":null}
+```
+
+The scroll tier's own story (M50, ADR-0056, the price ADR-0055's
+second kill rule pre-registered): a consumer needs the wall named on a
+tier whose funnel knows no range — the list's scroll clamp — so the
+tier grows its own record beside its species, never the value record's
+(the wall is the asker's story — ADR-0054's rule at the next tier).
+The scroll doors — the wheel, the AT's unit scrolls and value steps
+(ADR-0016: the scrollbar's value *is* the offset), the app's own
+programmatic scroll — answered in silence: a wheel past the content's
+end clamped without a word, a wheel over a list whose content fits the
+viewport moved nothing unexplained. The record prices every answer:
+the landed offset beside the ask, the wall the clamp pinned, the
+refusals named.
+
+- `action` — the scroll-tier action the ask rode (M50, ADR-0056):
+  `wheel` (a notch the coalescer accumulated upstream, §10.2),
+  `scroll_up`/`scroll_down` (the AT's scroll command, traveling by the
+  requested unit — one item is one line, one page the viewport,
+  ADR-0016), `increment`/`decrement` (the honest value-step for a
+  scrollbar whose value *is* the offset — one page), or `scroll_to`
+  (the app's own programmatic door, no route behind it).
+- `outcome` — what the scroll area answered: `delivered` (the offset
+  the clamp produced — a landing the clamp moved, the ask answered, or
+  the wall held) or `refused` (the ask moved nothing — the M28
+  honesty at the scroll tier).
+- `refusal` — the refusal species on a refused ask; `null` otherwise:
+  `no_scrollable_content` (the range has no span — the content fits
+  the viewport, no scroll exists to deliver) or `non_finite_ask` (the
+  funnel carries only finite asks — the value record's own rule; the
+  door refuses before the arithmetic, the state keeping the offset the
+  ask found).
+- `offset` — the offset the scroll area holds as the event resolves:
+  the clamp's result on a delivery, the untouched offset on a refusal
+  (the tree keeps the offset the app set). A scroll area's offset is
+  the tree's own vocabulary the AT already reads, never a secret.
+- `requested` — the finite offset the ask wanted, before the clamp
+  moved it (the M44 rule at the scroll tier) — the ask beside the
+  landing, a clamp the trail could not show visible as data; `null`
+  when the ask never became a finite scalar (`non_finite_ask` — JSON
+  cannot carry an infinite ask honestly). The additive field the
+  versioning rule admits at version 1 — clients that ignore unknown
+  fields are unaffected.
+- `target` — the control the ask rode (the routes' stamp, the M43
+  discipline at the scroll tier): the AccessKit-stable id the wheel
+  route resolved (the deepest hit under the hover) or the AT action
+  routed; `null` when the ask rode no route (the app's own handle
+  door — the honest absence).
+- `pinned` — the wall the clamp pinned the landing at (ADR-0055's
+  second kill rule): the range's own edge (`min`, `max`) a past ask
+  was turned back by; `null` when the ask wanted the wall exactly (the
+  landing *is* the ask), on every landing mid-range, and on every
+  refusal (a write that moved nothing pinned nothing).
+
+The record streams at the tick's start drain — one frame after the
+ask, the gesture trail's currency, the drain running after the gesture
+drain (a scroll explains the viewport the wheel moved; it streams
+beside the gestures). The queue behind it is bounded (256 facts per
+thread, oldest-first eviction) and the recorder's `scroll` ring holds
+512.
+
 ### `frame` — a completed frame
 
  ("why is this frame slow?", "what did this mask touch?")

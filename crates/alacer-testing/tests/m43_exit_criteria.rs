@@ -253,17 +253,20 @@ fn act_on_progress(harness: &mut TestHarness, id: u64, action: A11yAction) -> bo
 }
 
 #[test]
-fn m43_the_widget_doors_stay_off_the_value_log() {
+fn m43_the_widget_doors_rides_re_agree_at_m45() {
     let mut harness = TestHarness::new(400.0, 200.0);
     let observer = Share(std::rc::Rc::new(std::cell::RefCell::new(
         ValueObserver::new(),
     )));
-    // One slider, focused: the keyboard's step rides the widget's own
-    // door (the key route) — which streams no value fact at all (the
-    // input tier's records carry those rides until a consumer prices
-    // them, ADR-0046's second kill rule). The attribution stays
-    // exclusive to the AT tier: every value fact on the log names the
-    // control the funnel routed.
+    // One slider, focused: the keyboard's step rode the widget's own
+    // door, which M43's scope kept off the value log ("the input tier's
+    // records carry those rides until a consumer prices them",
+    // ADR-0046's second kill rule). M45 priced them: ADR-0049's first
+    // kill rule cashed (ADR-0051) — the arrows' rides stream the same
+    // record the AT tier streams, the funnel's key route stamping the
+    // focused control, the ride attributed like every other fact. The
+    // drag stays off (the per-pointer-move flood the kill rule
+    // refuses), and the attribution stays the funnel's own answer.
     harness
         .pipeline_mut()
         .set_observer(Box::new(Share(std::rc::Rc::clone(&observer.0))));
@@ -293,18 +296,24 @@ fn m43_the_widget_doors_stay_off_the_value_log() {
         "the focused slider consumes its own arrow"
     );
     harness.settle();
-    assert!(
-        value_records(&observer).is_empty(),
-        "the keyboard's step streams no value fact — the input tier carries the ride"
+    let records = value_records(&observer);
+    assert_eq!(
+        records.len(),
+        1,
+        "the keyboard's ride streams one fact — the M45 attribution"
     );
     assert_eq!(
-        harness.query(Role::Slider).named("Volume").first().value,
-        Some("21".to_string()),
+        records[0].action,
+        alacer_core::inspect::ValueAction::Increment,
+        "the ride carries the step tier's own action species"
+    );
+    assert_eq!(
+        records[0].value, 21.0,
         "the step landed exactly as it always landed"
     );
 
-    // The AT write beside it: the log stays attributable — one fact,
-    // the control named, the keyboard's silence the precedence.
+    // The AT write beside it: the same funnel's two doors, both
+    // attributable — one log, two routes, two names.
     let volume_id = harness.query(Role::Slider).named("Volume").first().id;
     clear_trail(&observer);
     let consumed = act_on(&mut harness, "Volume", A11yAction::Increment);
@@ -368,12 +377,12 @@ fn m43_the_living_documents_re_agree_at_m43() {
     // M43 landing in one cut, the workspace's one-milestone-per-minor
     // rule counting them as the minor's two entries).
     assert!(
-        readme.contains("M0 through M43") && readme.contains("fifty decision records"),
+        readme.contains("M0 through M45") && readme.contains("fifty-two decision records"),
         "the README's status block and count re-agree at M43"
     );
     assert!(
-        architecture.contains("50 decision records"),
-        "the architecture register re-agrees at 50 decision records"
+        architecture.contains("52 decision records"),
+        "the architecture register re-agrees at 52 decision records"
     );
     // The protocol document carries the target field (the wire's
     // documented shape).

@@ -3,14 +3,85 @@
 
 use alacer_core::events::{EventCtx, PointerEvent};
 use alacer_core::geom::Vector;
+use alacer_core::inspect::{ScrollAction, ScrollOutcome, ScrollRecord, ScrollRefusal};
 use alacer_core::style::Style;
 use alacer_core::widget::{A11yAction, EventResponse, LabelSource, Role, ScrollUnit, Widget};
+use std::cmp::Ordering;
 use std::sync::{Arc, Mutex};
 
 /// One line of a11y scroll, in pixels — the platform's wheel convention
 /// (`LineDelta` × 40 px/line, §10.2), so an assistive technology's
 /// "scroll one item" lands exactly where one wheel notch does.
 const A11Y_LINE: f32 = 40.0;
+
+/// The offsets name themselves equal (M50, ADR-0056): the one float
+/// equality the widget owns — [`f32::total_cmp`], the slider's
+/// `same_value` discipline at the scroll tier — answering every wall
+/// comparison. The wall is a computed fact at the door that knows the
+/// range, never guessed from the landing by the trail's readers.
+fn same_offset(a: f32, b: f32) -> bool {
+    a.total_cmp(&b) == Ordering::Equal
+}
+
+/// The wall the clamp pinned a delivered ask at (M50, ADR-0056,
+/// ADR-0055's second kill rule): `Some(species)` when the *ask* was
+/// turned back at the range's own edge — the landing at the wall, the
+/// ask somewhere else (the clamp, the wall that held a no-op against
+/// a past ask) — `None` when the ask wanted the wall exactly (the
+/// landing *is* the ask) and on every landing mid-range. The scroll
+/// tier's counterpart to the slider's `pinned_bound` (M49): the
+/// compute lives where the knowledge lives — the door that knows the
+/// span — never reconstructed by the trail's readers.
+fn pinned_offset_bound(landed: f32, ask: f32, span: f32) -> Option<alacer_core::RangeBound> {
+    use alacer_core::RangeBound;
+    if same_offset(landed, span) && !same_offset(ask, span) {
+        Some(RangeBound::Max)
+    } else if same_offset(landed, 0.0) && !same_offset(ask, 0.0) {
+        Some(RangeBound::Min)
+    } else {
+        None
+    }
+}
+
+/// Answers one scroll ask (M50, ADR-0056): clamps the ask to the
+/// range's span, mutates the state only on a delivery, and returns the
+/// record the door streams — the landed offset beside the ask, the
+/// wall the clamp pinned, the honest refusals (the non-finite ask the
+/// clamp arithmetic would have corrupted, the span-less range that has
+/// no scroll to deliver). One helper because the three doors — the
+/// wheel, the AT actions, the app's own handle — answer by the same
+/// arithmetic; each notes its own action species at its own site.
+fn answer_scroll_ask(
+    state: &mut ScrollState,
+    ask: f32,
+) -> (ScrollOutcome, f32, Option<alacer_core::RangeBound>) {
+    // The funnel carries only finite asks (the value tier's wall, the
+    // value record's own rule): a non-finite delta rode the clamp
+    // arithmetic and spread `NaN` into the state — the corruption the
+    // trail's design exposed, refused before the arithmetic now.
+    if !ask.is_finite() {
+        return (
+            ScrollOutcome::Refused(ScrollRefusal::NonFiniteAsk),
+            state.offset,
+            None,
+        );
+    }
+    let span = (state.content_height - state.viewport_height).max(0.0);
+    if same_offset(span, 0.0) {
+        // The range has no span: no scroll exists to deliver — the
+        // offset holds where it is, the ask's wall absent (a write
+        // that moved nothing pinned nothing).
+        return (
+            ScrollOutcome::Refused(ScrollRefusal::NoScrollableContent),
+            state.offset,
+            None,
+        );
+    }
+    let landed = ask.clamp(0.0, span);
+    let pinned = pinned_offset_bound(landed, ask, span);
+    state.offset = landed;
+    (ScrollOutcome::Delivered, landed, pinned)
+}
 
 /// Shared scroll state between the widget and its [`ListHandle`].
 #[derive(Debug, Default)]
@@ -117,9 +188,20 @@ impl Widget for List {
             let mut state = self.state.lock().expect("scroll state");
             // Wheel deltas: positive y scrolls up; scrolling down accumulates
             // (§10.2: same-direction deltas coalesce upstream).
-            state.offset = (state.offset - delta.y)
-                .clamp(0.0, (state.content_height - state.viewport_height).max(0.0));
+            let ask = state.offset - delta.y;
+            let (outcome, landed, pinned) = answer_scroll_ask(&mut state, ask);
             drop(state);
+            // The door's fact (M50, ADR-0056): the landed offset beside
+            // the ask, the wall the clamp pinned, the refusals named —
+            // the wheel route's stamp rides from the funnel.
+            alacer_core::scroll::note_scroll(ScrollRecord {
+                action: ScrollAction::Wheel,
+                outcome,
+                offset: landed,
+                requested: ask.is_finite().then_some(ask),
+                target: None,
+                pinned,
+            });
             // Translation-only: compose moves children, never layout.
             ctx.request(alacer_core::Change::PAINT.union(alacer_core::Change::A11Y));
             return EventResponse::Handled;
@@ -134,12 +216,25 @@ impl Widget for List {
         // step by a page, the honest value-step for a scrollbar whose value
         // *is* the offset. The pipeline merges `PAINT | A11Y` on consumption
         // (§7.2 pass 10), so bounds re-announce without a measure call.
+        //
+        // Since M50 (ADR-0056) every answered ask streams its fact on the
+        // scroll log too — the landed offset beside the ask, the wall the
+        // clamp pinned, the refusals named — while the actions outside the
+        // scroll tier (the press, the value tier's writes) stay refused and
+        // silent: a question outside the tier is not a tier fact (the
+        // ADR-0046 rule the scroll tier rides).
         let mut state = self.state.lock().expect("scroll state");
-        let down = match action {
-            A11yAction::ScrollDown(_) | A11yAction::Increment => true,
-            A11yAction::ScrollUp(_) | A11yAction::Decrement => false,
+        let (down, action_species) = match action {
+            A11yAction::ScrollDown(_) => (true, ScrollAction::ScrollDown),
+            A11yAction::ScrollUp(_) => (false, ScrollAction::ScrollUp),
+            // The step asks (the scrollbar's value *is* the offset, M10)
+            // name their own species on the record — the AT's ask, the
+            // scroll tier's answer (M50, ADR-0056).
+            A11yAction::Increment => (true, ScrollAction::Increment),
+            A11yAction::Decrement => (false, ScrollAction::Decrement),
             // The value tier (M11, ADR-0017) is not a scroll area's
-            // contract — refused, never munged into a scroll.
+            // contract — refused, never munged into a scroll, and never
+            // a scroll fact (the tier boundary the log prices).
             A11yAction::DefaultPress
             | A11yAction::SetValue(_)
             | A11yAction::ReplaceSelectedText(_)
@@ -153,12 +248,21 @@ impl Widget for List {
             ScrollUnit::Item => A11Y_LINE,
             ScrollUnit::Page => state.viewport_height,
         };
-        let target = if down {
+        let ask = if down {
             state.offset + distance
         } else {
             state.offset - distance
         };
-        state.offset = target.clamp(0.0, (state.content_height - state.viewport_height).max(0.0));
+        let (outcome, landed, pinned) = answer_scroll_ask(&mut state, ask);
+        drop(state);
+        alacer_core::scroll::note_scroll(ScrollRecord {
+            action: action_species,
+            outcome,
+            offset: landed,
+            requested: ask.is_finite().then_some(ask),
+            target: None,
+            pinned,
+        });
         true
     }
 }
@@ -186,13 +290,29 @@ impl ListHandle {
 
     /// Programmatic scroll (tests, a11y actions).
     ///
+    /// Since M50 (ADR-0056) the door streams its fact on the scroll log
+    /// too — the app's own ask, the landed offset beside it, the wall
+    /// the clamp pinned, the honest refusals. The door rides no route,
+    /// so the record's stamp carries the honest absence (the M43 rule:
+    /// the stamp fills only the identity the door cannot know — and
+    /// the app's handle knows no node id at all).
+    ///
     /// # Panics
     ///
     /// If the shared scroll state's lock is poisoned — a panicked writer
     /// means the frame is corrupt either way.
     pub fn scroll_to(&self, offset: f32) {
         let mut state = self.state.lock().expect("scroll state");
-        state.offset = offset.clamp(0.0, (state.content_height - state.viewport_height).max(0.0));
+        let (outcome, landed, pinned) = answer_scroll_ask(&mut state, offset);
+        drop(state);
+        alacer_core::scroll::note_scroll(ScrollRecord {
+            action: ScrollAction::ScrollTo,
+            outcome,
+            offset: landed,
+            requested: offset.is_finite().then_some(offset),
+            target: None,
+            pinned,
+        });
     }
 
     /// Current offset.

@@ -29,6 +29,15 @@
 //! stamps the facts queued beneath a routed pointer event with it,
 //! never a node id guessed at the note site.
 //!
+//! Since M48 the record names the wall a landing pinned too (ADR-0054,
+//! ADR-0053's first kill rule): a drag that slams an edge is the
+//! pointer's own bound jump, and the `Ended` record carries the bound
+//! the landing pinned beside it — the gesture vocabulary's own growth,
+//! never the AT tier's species. The bound lives where the knowledge
+//! lives: the drag's door knows the range and the landing, the trail
+//! knows the drain — the note site computes it, [`note_gesture`] never
+//! invents it.
+//!
 //! ```text
 //! // Widgets (core-only dependencies):
 //! use alacer_core::gesture::note_gesture;
@@ -177,6 +186,7 @@ mod tests {
             from: 20.0,
             to: None,
             target: None,
+            bound: None,
         });
         assert!(
             take_gesture_trail().is_empty(),
@@ -196,6 +206,7 @@ mod tests {
                 from,
                 to: Some(from + 1.0),
                 target: None,
+                bound: None,
             });
         }
         let drained = take_gesture_trail();
@@ -225,6 +236,7 @@ mod tests {
             from: 20.0,
             to: None,
             target: None,
+            bound: None,
         });
         drop(guard);
         let drained = take_gesture_trail();
@@ -244,6 +256,7 @@ mod tests {
             from: 20.0,
             to: Some(42.0),
             target: None,
+            bound: None,
         });
         // The caller's own answer is never overwritten.
         note_gesture(GestureRecord {
@@ -251,6 +264,7 @@ mod tests {
             from: 0.0,
             to: Some(1.0),
             target: Some(1),
+            bound: None,
         });
         let drained = take_gesture_trail();
         assert_eq!(
@@ -270,6 +284,7 @@ mod tests {
             from: 5.0,
             to: None,
             target: None,
+            bound: None,
         });
         let drained = take_gesture_trail();
         assert_eq!(
@@ -285,5 +300,16 @@ mod tests {
     fn the_phases_name_themselves() {
         assert_eq!(GesturePhase::Started.name(), "started");
         assert_eq!(GesturePhase::Ended.name(), "ended");
+    }
+
+    /// The bounds name themselves (M48, ADR-0054): the wire's stable
+    /// tags ride the record (the protocol's `snake_case` rule) — the
+    /// wall a landing pinned named the way the phases and the refusal
+    /// species are.
+    #[test]
+    fn the_bounds_name_themselves() {
+        use crate::inspect::RangeBound;
+        assert_eq!(RangeBound::Min.name(), "min");
+        assert_eq!(RangeBound::Max.name(), "max");
     }
 }

@@ -794,6 +794,7 @@ impl PassPipeline {
         crate::announce::set_announce_trail_enabled(true);
         crate::clipboard::set_clipboard_trail_enabled(true);
         crate::value::set_value_trail_enabled(true);
+        crate::gesture::set_gesture_trail_enabled(true);
     }
 
     /// Enables per-pass wall timing and the overhead ledger (the M1 gate
@@ -1197,6 +1198,21 @@ impl PassPipeline {
             );
         }
 
+        // The gesture trail's stamp (M46, ADR-0052): the route knows the
+        // control it is resolving — the deepest hit — the facts a value
+        // tier's drag door queues beneath this event carrying it (the
+        // M43/M45 stamp discipline at the pointer tier). The idle
+        // contract holds: while nobody listens the stamp is one `Cell`
+        // read and no id-path walk (the trail is off, no fact can
+        // queue); under an observer the guard lives for the length of
+        // this event's walks and dies with them — a panicking widget
+        // leaves no stale identity on the thread.
+        let _stamp = crate::gesture::gesture_trail_enabled().then(|| {
+            crate::gesture::GestureTargetGuard::for_target(
+                chain.last().copied().map(|id| self.id_hash(id)),
+            )
+        });
+
         // Capture: root → target (§10.1). First `Handled` stops the phase.
         for node in &chain {
             let response = self.visit_with_phase(*node, EventPhase::Capture, event);
@@ -1256,6 +1272,16 @@ impl PassPipeline {
                 "capture released with the gesture's end"
             );
         }
+        // The gesture trail's stamp (M46, ADR-0052): the captured route
+        // knows the control the press holds — the drag's moves and its
+        // end ride it wherever the pointer goes — so the facts the drag
+        // door queues beneath this event carry the captured node's id,
+        // the same stamp the hit-test route held at the press (one
+        // gesture, one identity). The idle contract is the hit-test
+        // route's own: one `Cell` read while nobody listens, the guard
+        // alive only for the length of this event's walks.
+        let _stamp = crate::gesture::gesture_trail_enabled()
+            .then(|| crate::gesture::GestureTargetGuard::for_target(Some(self.id_hash(captured))));
         // Capture: root → target (§10.1). First `Handled` stops the phase.
         for node in &chain {
             let response = self.visit_with_phase(*node, EventPhase::Capture, event);
@@ -1550,6 +1576,21 @@ impl PassPipeline {
     fn notify_value(&mut self, record: crate::inspect::ValueRecord) {
         if let Some(observer) = self.observer.as_mut() {
             observer.observe(InspectEvent::Value(record));
+        }
+    }
+
+    /// Forwards one gesture fact to the observer, when installed (§13.3,
+    /// ADR-0052): the gesture trail — the drag's own story, one record
+    /// per phase (the press that armed it, the release or leave that
+    /// answered it), never per move (the flood rule). The record is the
+    /// widget's own fact verbatim
+    /// ([`crate::inspect::GestureRecord`]), streamed at the tick's
+    /// start drain — one frame after the phase, the value trail's
+    /// currency. One branch when no observer is installed: the A7 idle
+    /// contract is unchanged.
+    fn notify_gesture(&mut self, record: crate::inspect::GestureRecord) {
+        if let Some(observer) = self.observer.as_mut() {
+            observer.observe(InspectEvent::Gesture(record));
         }
     }
 
@@ -2030,13 +2071,6 @@ impl PassPipeline {
             self.notify_announce(record);
         }
 
-        // The edit-trail drain (§13.3, ADR-0037): the journal facts the
-        // edit funnels queued on this thread ride the observer at the
-        // tick's start — the announcement drain's shape, one frame after
-        // the chord. Every fact streams (a bounded queue, never
-        // collapsed — the journal's own history), and the drain empties
-        // the queue whether an observer listens or not: a fact streams
-        // once, an absent reader just never sees it.
         // The clipboard-trail drain (§13.3, ADR-0045): the round-trip
         // facts the editing chords queued on this thread ride the
         // observer at the tick's start — the edit trail's shape, one
@@ -2072,6 +2106,19 @@ impl PassPipeline {
         // streams once, an absent reader just never sees it.
         for record in crate::value::take_value_trail() {
             self.notify_value(record);
+        }
+
+        // The gesture-trail drain (§13.3, ADR-0052): the drag's facts
+        // the gesture doors queued on this thread ride the observer at
+        // the tick's start — the value trail's shape, one frame after
+        // the phase, the drain running after the value drain (a gesture
+        // explains the value the pointer moved; it streams beside it).
+        // Every fact streams (a bounded queue, never collapsed — the
+        // phases are the whole per-gesture story), and the drain empties
+        // the queue whether an observer listens or not: a fact streams
+        // once, an absent reader just never sees it.
+        for record in crate::gesture::take_gesture_trail() {
+            self.notify_gesture(record);
         }
 
         let mut ledger: Vec<PassRun> = std::mem::take(&mut self.interframe);

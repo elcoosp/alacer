@@ -678,7 +678,7 @@ mod tests {
 
     #[test]
     fn gesture_records_ring_in_order_and_are_bounded() {
-        use alacer_core::inspect::GesturePhase;
+        use alacer_core::inspect::{GesturePhase, RangeBound};
         let recorder = CausalRecorder::new("gestures");
         let mut handle = recorder.clone_handle();
         for _ in 0..(super::GESTURE_RING_CAP + 10) {
@@ -687,6 +687,7 @@ mod tests {
                 from: 20.0,
                 to: None,
                 target: None,
+                bound: None,
             }));
         }
         let trail = recorder.gestures();
@@ -698,12 +699,14 @@ mod tests {
         );
 
         // The landing rides the same ring, the wire carrying the phase
-        // beside the found and landed values.
+        // beside the found and landed values — and since M48 (ADR-0054)
+        // the wall a landing pinned beside both.
         handle.observe(InspectEvent::Gesture(alacer_core::inspect::GestureRecord {
             phase: GesturePhase::Ended,
             from: 20.0,
             to: Some(42.0),
             target: Some(7),
+            bound: Some(RangeBound::Max),
         }));
         let drained = recorder.take_broadcast();
         let last = drained.last().expect("the gesture broadcast");
@@ -712,6 +715,7 @@ mod tests {
             from,
             to,
             target,
+            bound,
         } = last
         else {
             panic!("the gesture broadcast");
@@ -720,6 +724,11 @@ mod tests {
         assert!((from - 20.0).abs() < f32::EPSILON);
         assert_eq!(*to, Some(42.0));
         assert_eq!(*target, Some(7));
+        assert_eq!(
+            bound.as_deref(),
+            Some("max"),
+            "the pinned wall rides the broadcast beside the landing"
+        );
     }
 
     #[test]

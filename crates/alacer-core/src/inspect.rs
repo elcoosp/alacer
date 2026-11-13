@@ -658,7 +658,11 @@ impl ValueOutcome {
 /// second re-open rule) the record carries the ask beside the landing —
 /// the finite scalar the AT asked before the control's clamp-and-snap
 /// moved it, a clamp or a snap the trail could not show as one record's
-/// story. The fields are the additive wire rule's shape (ADR-0010).
+/// story. Since M49 (ADR-0055, ADR-0053's second kill rule) the record
+/// names the wall the funnel pinned the landing at: the range's own
+/// edge a past ask was turned back by, beside the species — the ask's
+/// own wall, never a second action species. The fields are the additive
+/// wire rule's shape (ADR-0010).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ValueRecord {
     /// The value-tier action the AT asked.
@@ -695,6 +699,17 @@ pub struct ValueRecord {
     /// route holds the same stamp for the focused control's key call,
     /// the arrows' rides carrying the id like the AT tier's own.
     pub target: Option<u64>,
+    /// The bound the funnel pinned the landing at (M49, ADR-0055,
+    /// ADR-0053's second kill rule): `Some(species)` when the ask was
+    /// turned back at the range's own edge — the landing at the wall,
+    /// the ask somewhere else (the clamp, the snap, the wall that held
+    /// a no-op against a past ask) — `None` when the ask wanted the
+    /// wall exactly (the M47 jumps: the species already names the
+    /// bound it asked for) and on every landing mid-range and every
+    /// refusal (a write that moved nothing pinned nothing). The ask's
+    /// own wall, beside the species — never a second action species
+    /// (the kill rule's own words).
+    pub pinned: Option<RangeBound>,
 }
 
 /// One drag gesture's record (§13.3, ADR-0052): the causal log's answer
@@ -715,7 +730,11 @@ pub struct ValueRecord {
 /// reads through [`crate::widget::Widget::value`]), and the control is
 /// the funnel's own stamp — the pointer route knows the deepest hit
 /// that captured (ADR-0025), the same discipline the action and key
-/// routes ride (ADR-0049, ADR-0051). The fields are the additive wire
+/// routes ride (ADR-0049, ADR-0051). Since M48 (ADR-0054, ADR-0053's
+/// first kill rule) the record names the wall a landing pinned: the
+/// bound the drag's ask was turned back by, beside the landing it
+/// produced — the gesture vocabulary's own growth, never the AT tier's
+/// species munged onto a pointer act. The fields are the additive wire
 /// rule's shape (ADR-0010).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GestureRecord {
@@ -735,6 +754,45 @@ pub struct GestureRecord {
     /// queued outside a routed pointer event (the honest absence, the
     /// action stamp's own rule).
     pub target: Option<u64>,
+    /// The bound the drag's landing pinned (M48, ADR-0054, ADR-0053's
+    /// first kill rule): `Some(species)` when the landing sits at the
+    /// range's own edge — the wall the pointer's ask was turned back
+    /// by, named beside the landing it produced — `None` on a
+    /// mid-track landing and on every [`GesturePhase::Started`] record
+    /// (the beginning is not the wall's fact: the landing, and so the
+    /// bound, is the gesture's answer). The gesture vocabulary's own
+    /// growth — a bound jump the *pointer* asked for reads the drag's
+    /// record, never the AT tier's species (the kill rule's own words).
+    pub bound: Option<RangeBound>,
+}
+
+/// The range's own edges, named apart (M48, ADR-0054): the two walls a
+/// bounded scalar's funnel can pin a landing against. The gesture
+/// record's [`GestureRecord::bound`] and the value record's pinned
+/// species both name their wall with this vocabulary — one concept, the
+/// range's own edges, spoken identically wherever a landing names it.
+/// The names are the wire's stable tags ([`RangeBound::name`], the
+/// protocol's `snake_case` rule).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RangeBound {
+    /// The range's minimum — the low wall.
+    Min,
+    /// The range's maximum — the high wall.
+    Max,
+}
+
+impl RangeBound {
+    /// The bound's name, the wire vocabulary's `snake_case` tag (the
+    /// protocol's stable, documented field values —
+    /// [`GesturePhase::name`] for gesture phases, this for the range's
+    /// edges).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Min => "min",
+            Self::Max => "max",
+        }
+    }
 }
 
 /// The drag's phase ([`GestureRecord::phase`], ADR-0052): the two

@@ -318,6 +318,7 @@ impl Widget for Progress {
             action: tier,
             outcome: alacer_core::ValueOutcome::Refused(alacer_core::ValueRefusal::NoWriteDoor),
             value: self.reported(),
+            target: None,
         });
         false
     }

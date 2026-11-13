@@ -17,8 +17,24 @@
 //! the finite scalar the door computed, before the clamp-and-snap moved
 //! it; and since M45 (ADR-0051) the arrows' steps stream the same record
 //! through the keyboard's own door, the dispatch funnel's key route
-//! stamping the focused control — the drag and the Home/End jumps stay
-//! off the log (the flood rule and the no-munging rule).
+//! stamping the focused control — the drag stays off the *value* log
+//! (the flood rule).
+//!
+//! Since M46 (ADR-0052) the drag tells its own story: the pointer's
+//! write joins the causal log as one per-gesture
+//! [`alacer_core::GestureRecord`] per phase — a `Started` the moment the
+//! press arms the drag (the value it found), an `Ended` the moment the
+//! release or the leave resolves it (the value it landed) — one hundred
+//! moves inside one gesture streaming exactly two records, the flood
+//! rule the kill criteria pre-registered holding by construction, and
+//! the funnel's pointer route stamping the control (the M43/M45
+//! discipline at the pointer tier).
+//!
+//! Since M47 (ADR-0053) the jumps tell theirs: the keyboard's Home/End
+//! stream the bound's own named species (`jump_to_min`/`jump_to_max`)
+//! through the same key route — never a munged `SetValue` (the M11
+//! rule's own words), the bound the ask the record carries, the stamp
+//! the M45 route already holds.
 
 use std::cmp::Ordering;
 
@@ -43,6 +59,11 @@ pub struct Slider {
     on_change: Option<Box<dyn FnMut(f32)>>,
     focused: bool,
     dragging: bool,
+    /// The value the drag found when the press armed it (M46, ADR-0052):
+    /// the `from` the gesture's `Ended` record carries beside its
+    /// landing — each record self-contained, the story readable from one
+    /// line. Meaningful only while `dragging`.
+    drag_from: f32,
     accent: Color,
     text_color: Color,
     font_size: f32,
@@ -82,6 +103,7 @@ impl Slider {
             on_change: None,
             focused: false,
             dragging: false,
+            drag_from: min,
             accent: crate::theme::ACCENT,
             text_color: crate::theme::TEXT,
             font_size: crate::theme::FONT_SIZE,
@@ -272,11 +294,12 @@ impl Slider {
     /// value, the ask beside it (M44, ADR-0050). The dispatch funnel's
     /// key route holds the stamp while this door answers, so the record
     /// carries the focused control's id — the ride attributed like
-    /// every other fact on the log. Home/End stay off the log (the
-    /// funnel routes no fact for them): the record vocabulary has no
-    /// bound action, and a jump munged into a `SetValue` would be the
-    /// M11 rule's own munging — the trail answers the step tier's
-    /// rides, never a jump the vocabulary cannot name.
+    /// every other fact on the log. Home/End ride beside them (M47,
+    /// ADR-0053): the jump's own named species through the bounds' door
+    /// below, never a munged `SetValue` — the M11 rule's own words. The
+    /// drag tells its own story beside the value log
+    /// (M46, ADR-0052): the per-gesture records stream from the
+    /// pointer's door, never from this one.
     fn step_note(&mut self, direction: f32, ctx: &mut EventCtx) -> bool {
         let ask = self.value + direction * self.step;
         let answered = self.step_by(direction, Some(ctx));
@@ -290,6 +313,35 @@ impl Slider {
                 outcome: alacer_core::ValueOutcome::Delivered,
                 value: self.value,
                 requested: ask.is_finite().then_some(ask),
+                target: None,
+            });
+        }
+        answered
+    }
+
+    /// The bounds' door (M47, ADR-0053, ADR-0051's kill arm): the
+    /// keyboard's Home/End ride the same shared route the step tier
+    /// rides, and the ride streams the jump's own named species —
+    /// `JumpToMin`/`JumpToMax`, the landing beside it, the ask beside
+    /// the landing (the bound *is* the ask: the funnel's clamp-and-snap
+    /// never moves it). Never a munged `SetValue` — the M11 rule's own
+    /// words at the value tier. The dispatch funnel's key route holds
+    /// the stamp while this door answers (M45), so the record carries
+    /// the focused control's id — the jump attributed like every other
+    /// fact on the log.
+    fn jump_note(
+        &mut self,
+        bound: f32,
+        action: alacer_core::ValueAction,
+        ctx: &mut EventCtx,
+    ) -> bool {
+        let answered = self.commit(bound, Some(ctx));
+        if answered {
+            alacer_core::value::note_write(alacer_core::ValueRecord {
+                action,
+                outcome: alacer_core::ValueOutcome::Delivered,
+                value: self.value,
+                requested: bound.is_finite().then_some(bound),
                 target: None,
             });
         }
@@ -549,10 +601,27 @@ impl Widget for Slider {
         match event {
             PointerEvent::Down { position, .. } => {
                 // The wall (M22, ADR-0028): a disabled slider consumes the
-                // press but arms nothing — no focus, no write, no masks.
+                // press but arms nothing — no focus, no write, no masks,
+                // and since M46 (ADR-0052) no gesture fact either: a
+                // gesture that never was streams nothing, the honest
+                // absence the trail's own rule names.
                 if !self.enabled {
                     return EventResponse::Handled;
                 }
+                // The gesture's beginning (M46, ADR-0052): the press arms
+                // the drag and one `Started` record streams — the value
+                // the drag found (the app's own, before the press's write
+                // lands), the funnel's pointer route stamping the control
+                // (the deepest hit that captured, the M43 discipline at
+                // the pointer tier). The moves that follow note nothing:
+                // the flood rule prices the gesture, never the moves.
+                self.drag_from = self.value;
+                alacer_core::gesture::note_gesture(alacer_core::GestureRecord {
+                    phase: alacer_core::inspect::GesturePhase::Started,
+                    from: self.drag_from,
+                    to: None,
+                    target: None,
+                });
                 self.dragging = true;
                 ctx.request(alacer_core::Change::PAINT.union(alacer_core::Change::FOCUS));
                 if let Some(bounds) = ctx.bounds() {
@@ -573,12 +642,36 @@ impl Widget for Slider {
                 }
             }
             PointerEvent::Up { .. } => {
+                // The gesture's answer (M46, ADR-0052): the release
+                // resolves the drag and one `Ended` record streams — the
+                // value it left the control holding, the beginning
+                // remembered beside it (each record self-contained). A
+                // release with no armed drag is not a gesture: it streams
+                // nothing (the honest absence).
+                if self.dragging {
+                    alacer_core::gesture::note_gesture(alacer_core::GestureRecord {
+                        phase: alacer_core::inspect::GesturePhase::Ended,
+                        from: self.drag_from,
+                        to: Some(self.value),
+                        target: None,
+                    });
+                }
                 self.dragging = false;
                 EventResponse::Handled
             }
-            // The leave ends the drag honestly (the capture released); the
-            // wheel is not a value gesture.
+            // The leave ends the drag honestly (the capture released): the
+            // gesture's answer streams like a release's — the landing is
+            // the last value the funnel committed — and the wheel is not a
+            // value gesture (M46, ADR-0052).
             PointerEvent::Leave => {
+                if self.dragging {
+                    alacer_core::gesture::note_gesture(alacer_core::GestureRecord {
+                        phase: alacer_core::inspect::GesturePhase::Ended,
+                        from: self.drag_from,
+                        to: Some(self.value),
+                        target: None,
+                    });
+                }
                 self.dragging = false;
                 EventResponse::Ignored
             }
@@ -603,8 +696,12 @@ impl Widget for Slider {
             alacer_core::events::Key::ArrowRight | alacer_core::events::Key::ArrowUp => {
                 self.step_note(1.0, ctx)
             }
-            alacer_core::events::Key::Home => self.commit(self.min, Some(ctx)),
-            alacer_core::events::Key::End => self.commit(self.max, Some(ctx)),
+            alacer_core::events::Key::Home => {
+                self.jump_note(self.min, alacer_core::ValueAction::JumpToMin, ctx)
+            }
+            alacer_core::events::Key::End => {
+                self.jump_note(self.max, alacer_core::ValueAction::JumpToMax, ctx)
+            }
             _ => return EventResponse::Ignored,
         };
         if response {

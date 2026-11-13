@@ -852,6 +852,14 @@ pub enum ScrollAction {
     /// (tests, flings, the app's code). No route rides behind it: the
     /// stamp's honest absence.
     ScrollTo,
+    /// The content's own story (M51, ADR-0057): the shared handle's
+    /// `set_content_height` re-clamping the offset when the content
+    /// shrank under it — the door with no ask (the clamp is the
+    /// content's story, not the ask's, ADR-0056's third kill rule's own
+    /// words). No route rides behind it: the stamp's honest absence,
+    /// the app door's rule — and no ask beside the landing, the field
+    /// riding its honest absence (a resize is not an ask).
+    ContentClamp,
 }
 
 impl ScrollAction {
@@ -868,6 +876,7 @@ impl ScrollAction {
             Self::Increment => "increment",
             Self::Decrement => "decrement",
             Self::ScrollTo => "scroll_to",
+            Self::ContentClamp => "content_clamp",
         }
     }
 }
@@ -888,6 +897,15 @@ pub enum ScrollRefusal {
     /// corruption the trail's design exposed). The door refuses before
     /// the arithmetic: the state keeps the offset the ask found.
     NonFiniteAsk,
+    /// The content height was not a finite scalar (M51, ADR-0057) —
+    /// the ask tier's own wall (`non_finite_ask`), at the content's
+    /// door: a non-finite height rode the clamp arithmetic and spread
+    /// `NaN` into the offset *and* the stored span alike (the
+    /// corruption class the M50 trail exposed at the wheel, still open
+    /// at the content's own door — the micro-debt the record's design
+    /// priced, cashed with it). The door refuses before the
+    /// arithmetic: the state keeps the height and offset it held.
+    NonFiniteContent,
 }
 
 impl ScrollRefusal {
@@ -898,6 +916,7 @@ impl ScrollRefusal {
         match self {
             Self::NoScrollableContent => "no_scrollable_content",
             Self::NonFiniteAsk => "non_finite_ask",
+            Self::NonFiniteContent => "non_finite_content",
         }
     }
 }
@@ -948,7 +967,11 @@ impl ScrollOutcome {
 /// funnel's own stamp — the wheel route knows the hit it resolved, the
 /// action route the id the action arrived under (the M43/M45/M46
 /// discipline at the scroll tier), the app's handle the honest absence.
-/// The fields are the additive wire rule's shape (ADR-0010).
+/// Since M51 (ADR-0057) the content's own door rides the record too —
+/// the clamp `set_content_height` answers when the content shrank under
+/// the offset, the ask-side doors' wall spoken identically (ADR-0056's
+/// third kill rule). The fields are the additive wire rule's shape
+/// (ADR-0010).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ScrollRecord {
     /// The scroll-tier action the ask rode.
@@ -969,7 +992,9 @@ pub struct ScrollRecord {
     /// became a finite scalar: the ask itself non-finite (the funnel's
     /// wall — the wire cannot carry an infinite ask honestly, `null`
     /// would claim an absence that never was, and the refusal species
-    /// names the wall).
+    /// names the wall). The content's own story rides the same absence
+    /// (M51, ADR-0057): a resize is not an ask —
+    /// [`ScrollAction::ContentClamp`] never carries one.
     pub requested: Option<f32>,
     /// The control the ask rode (the funnel's stamp, ADR-0056): the
     /// AccessKit-stable id hash of the node the wheel route resolved —
@@ -988,6 +1013,15 @@ pub struct ScrollRecord {
     /// beside the species — never a second action species (the kill
     /// rule's own words).
     pub pinned: Option<RangeBound>,
+    /// The asker's unit on the AT's unit scrolls (M52, ADR-0058 —
+    /// ADR-0056's first kill rule cashed): one item or one page beside
+    /// the [`ScrollAction::ScrollUp`] and [`ScrollAction::ScrollDown`]
+    /// actions, the ask the distance is priced against. The honest
+    /// absence on every other action: the wheel's notch is a coalesced
+    /// run, not a unit ask; the value step's page is the step, not a
+    /// unit scroll; the app's own door and the content's own clamp are
+    /// stories with no unit at all.
+    pub unit: Option<crate::widget::ScrollUnit>,
 }
 
 /// One observation: what the pipeline and the flux surface to devtools.

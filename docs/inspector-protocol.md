@@ -291,7 +291,11 @@ oldest-first eviction) and the recorder's `clipboard` ring holds 512.
 - `action` — the value-tier action the AT asked (M40, ADR-0046):
   `set_value` (a payload that parses, then rides the same
   clamp-and-snap funnel every other write rides), `increment`, or
-  `decrement` (one step, the funnel's own arithmetic).
+  `decrement` (one step, the funnel's own arithmetic). Since M47
+  (ADR-0053, ADR-0051's kill arm) the keyboard's jumps are named facts
+  too: `jump_to_min` and `jump_to_max` (the bounds' own species, never
+  a munged `SetValue` — the M11 rule's own words), riding the same
+  record the AT tier streams, the M45 key route's stamp on the record.
 - `outcome` — what the control answered: `delivered` (the value the
   request asked for — a write that lands where the value already was
   is an answered request, not a refusal, ADR-0026's own rule) or
@@ -328,10 +332,12 @@ oldest-first eviction) and the recorder's `clipboard` ring holds 512.
   The stamp side lives on the funnel: the facts queued beneath a
   routed action carry the id the action arrived under, the widget
   never guessing its own identity. `null` when the write rode no
-  routed action — the widget's own doors (the keyboard's step, the
-  drag) stream no value fact at all (the input tier's records carry
-  those rides until a consumer prices them, ADR-0046's second kill
-  rule), so the attribution stays exclusive to the AT tier.
+  routed action — a fact queued outside the funnel's routes carries
+  its honest absence. Since M45 (ADR-0051) the keyboard's steps ride
+  attributed too, and since M47 (ADR-0053) the jumps ride with them;
+  the drag stays off the value log (the flood rule, ADR-0046's second
+  kill rule) — the drag's own story rides the `gesture` event instead
+  (M46, ADR-0052).
 
 The record streams at the tick's start drain — one frame after the
 act, the clipboard trail's currency (the widget notes the fact where
@@ -342,6 +348,51 @@ and refused alike; a question outside the value tier (a press, a
 scroll, a text edit) is not a value fact. The queue behind it is
 bounded (256 facts per thread, oldest-first eviction) and the
 recorder's `value` ring holds 512.
+
+
+### `gesture` — a drag gesture answered ("where did the drag start, where did it land?")
+
+```json
+{"kind":"gesture","phase":"started","from":20.0,"to":null,"target":43981}
+{"kind":"gesture","phase":"ended","from":20.0,"to":42.0,"target":43981}
+```
+
+The drag's own story (M46, ADR-0052, the price ADR-0046's second kill
+rule and ADR-0051's kill arm pre-registered): a consumer needs the
+drag on the log — the value tier's trail answers the AT's writes and
+the keyboard's steps, but the drag queued nothing, so a trail reader
+could not answer "why did the slider's value move while the hand
+dragged it" without re-implementing the observation at the gesture
+site. The price is the per-gesture record, never per-move: one
+event when the press arms the drag, one when the release or the leave
+resolves it — one hundred moves inside one gesture stream exactly two
+events, the flood rule holding by construction.
+
+- `phase` — the gesture's moment: `started` (the press armed the
+  drag) or `ended` (the release or the leave answered it — the leave
+  resolving the drag honestly when the capture releases).
+- `from` — the value the drag found: the control's own scalar as the
+  press landed (the value the drag started *from*). The value tier's
+  own vocabulary — the same scalar the AT reads, never a secret.
+- `to` — the value the drag left the control holding; `null` on a
+  `started` event — the landing is the gesture's answer, not its
+  beginning's fact. An `ended` event is self-contained: the beginning
+  rides beside the landing, the whole story readable from one line.
+- `target` — the control the gesture rides (the funnel's stamp, the
+  M43 discipline at the pointer tier): the AccessKit-stable id of the
+  node the pointer route resolved — the deepest hit that captured
+  (ADR-0025). The stamp side lives on the funnel's pointer route (the
+  hit-test route and the captured route hold the guard for the length
+  of one routed event's walks); `null` when the fact queued outside a
+  routed pointer event (the honest absence). A gesture the
+  availability tier's wall never armed (M22, ADR-0028) streams
+  nothing at all — the honest absence is the wall's own answer.
+
+The record streams at the tick's start drain — one frame after the
+phase, the value trail's currency, the drain running after the value
+drain (a gesture explains the value the pointer moved; it streams
+beside it). The queue behind it is bounded (256 facts per thread,
+oldest-first eviction) and the recorder's `gesture` ring holds 512.
 
 ### `frame` — a completed frame
 
@@ -409,7 +460,7 @@ malformed text frame is treated as `bye`.
   oldest (a slow client never back-pressures the app).
 - The recorder's rings are bounded (frames 256, edges 1 024, writes 1 024,
   inputs 512, focus 512, edits 512, announces 512, keys 512,
-  clipboards 512); `clear` empties them.
+  clipboards 512, values 512, gestures 512); `clear` empties them.
 - Recording is opt-in: the pipeline forwards only when an observer is
   installed, and the flux records activations and provenance only when
   `Flux::set_causal_capture(true)`. With both off, the framework's default

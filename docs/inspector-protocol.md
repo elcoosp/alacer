@@ -285,7 +285,7 @@ oldest-first eviction) and the recorder's `clipboard` ring holds 512.
 ### `value` — a value-tier write answered ("did the write land — where, or why not?")
 
 ```json
-{"kind":"value","action":"set_value","outcome":"delivered","refusal":null,"value":42.0,"target":43981}
+{"kind":"value","action":"set_value","outcome":"delivered","refusal":null,"value":42.0,"requested":150.0,"target":43981}
 ```
 
 - `action` — the value-tier action the AT asked (M40, ADR-0046):
@@ -312,6 +312,12 @@ oldest-first eviction) and the recorder's `clipboard` ring holds 512.
   value on a refusal (the tree keeps the value the app wrote). A
   slider's value is the tree's own vocabulary the AT already reads,
   never a secret.
+- `requested` — the finite scalar the AT asked, before the control's
+  clamp-and-snap moved it (M44, ADR-0050): the ask beside the landing,
+  a clamp or a snap the trail could not show visible as data; `null`
+  when the ask never became a finite scalar (the unparsable payload,
+  the closed door, the non-finite wall — JSON cannot carry an infinite
+  ask honestly).
 - `target` — the control the action arrived under (M43, ADR-0049,
   ADR-0046's first re-open rule): the AccessKit-stable id the dispatch
   funnel routed — the identity a screen reader's client, an inspector

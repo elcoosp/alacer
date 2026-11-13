@@ -195,7 +195,19 @@ impl Widget for List {
             // the ask, the wall the clamp pinned, the refusals named —
             // the wheel route's stamp rides from the funnel. The wheel
             // is a coalesced run, not a unit ask — the unit rides its
-            // honest absence (M52, ADR-0058).
+            // honest absence (M52, ADR-0058). The run's own story rides
+            // beside it (M53, ADR-0059 — ADR-0058's second kill rule
+            // cashed): the coalesced delta priced by the platform's
+            // line convention — one line = 40 px, §10.2, the rule the
+            // platform's wheel conversion prices `LineDelta` with — so
+            // a notch answers 1.0 and the trackpad's pixel runs answer
+            // their honest fraction, computed before the clamp
+            // arithmetic (a pinned run still names the run it was: the
+            // count is the ask's story, never the landing's). A
+            // non-finite run prices no count: the refusal names the
+            // wall, the count of a run that never was riding the
+            // absence the M44 rule forbids guessing.
+            let lines = delta.y.is_finite().then(|| delta.y.abs() / A11Y_LINE);
             alacer_core::scroll::note_scroll(ScrollRecord {
                 action: ScrollAction::Wheel,
                 outcome,
@@ -204,6 +216,7 @@ impl Widget for List {
                 target: None,
                 pinned,
                 unit: None,
+                lines,
             });
             // Translation-only: compose moves children, never layout.
             ctx.request(alacer_core::Change::PAINT.union(alacer_core::Change::A11Y));
@@ -243,6 +256,11 @@ impl Widget for List {
             | A11yAction::ReplaceSelectedText(_)
             | A11yAction::SetTextSelection(_) => return false,
         };
+        // The value steps ride their page too (M54, ADR-0060 —
+        // ADR-0058's first kill rule cashed): the step's page is a
+        // unit-like distance a reader may want attributed the same
+        // way, and the vocabulary's own contract names it — the step
+        // steps a page, always (M10, ADR-0016).
         let unit = match action {
             A11yAction::ScrollDown(unit) | A11yAction::ScrollUp(unit) => unit,
             _ => ScrollUnit::Page,
@@ -260,7 +278,11 @@ impl Widget for List {
         drop(state);
         // The door's fact (M50, ADR-0056), the asker's unit beside the
         // unit-scroll species (M52, ADR-0058 — the ask the distance is
-        // priced against; the value steps ride the honest absence).
+        // priced against) and beside the value steps too (M54,
+        // ADR-0060 — ADR-0058's first kill rule cashed: the step's
+        // page is a unit-like distance, attributed the same way; the
+        // count the wheel prices rides no unit, the step carries the
+        // unit and no count).
         alacer_core::scroll::note_scroll(ScrollRecord {
             action: action_species,
             outcome,
@@ -270,12 +292,19 @@ impl Widget for List {
             pinned,
             unit: if matches!(
                 action_species,
-                ScrollAction::ScrollUp | ScrollAction::ScrollDown
+                ScrollAction::ScrollUp
+                    | ScrollAction::ScrollDown
+                    | ScrollAction::Increment
+                    | ScrollAction::Decrement
             ) {
                 Some(unit)
             } else {
                 None
             },
+            // The wheel run's story is the wheel door's alone (M53,
+            // ADR-0059): the AT's asks ride their unit's magnitude, the
+            // absence honest here.
+            lines: None,
         });
         true
     }
@@ -296,7 +325,7 @@ impl ListHandle {
     /// log"): a resize the clamp answers — the content shrank under the
     /// offset — streams one `ScrollAction::ContentClamp` record, the
     /// landing beside the wall it pinned (the same
-    /// [`pinned_offset_bound`] arithmetic the ask doors answer by,
+    /// `pinned_offset_bound` arithmetic the ask doors answer by,
     /// spoken identically — never a second action species), no ask
     /// beside it (a resize is not an ask) and no route behind it (the
     /// stamp's honest absence, the app door's rule). A resize the
@@ -329,6 +358,7 @@ impl ListHandle {
                 target: None,
                 pinned: None,
                 unit: None,
+                lines: None,
             });
             return;
         }
@@ -352,6 +382,7 @@ impl ListHandle {
                 target: None,
                 pinned,
                 unit: None,
+                lines: None,
             });
         }
     }
@@ -381,6 +412,7 @@ impl ListHandle {
             target: None,
             pinned,
             unit: None,
+            lines: None,
         });
     }
 

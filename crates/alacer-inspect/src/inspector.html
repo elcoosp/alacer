@@ -427,14 +427,23 @@ function connect() {
         // the landing — "the scroll landed (the offset 140) by one
         // page" — the ask the distance is priced against, the stories
         // with no unit riding the null the wire honestly carries.
+        // Since M53 the wheel's coalesced run names its magnitude too
+        // (ADR-0059, ADR-0058's second kill rule): the run's notional
+        // line count renders beside the landing — "the scroll landed
+        // (the offset 400) — the run priced 1 line" — a notch and the
+        // trackpad's fractional run alike, the stories with no run
+        // riding the null the wire honestly carries.
         const target = event.target != null ? " (control " + event.target + ")" : "";
         const wall = event.pinned != null ? ", pinned at the " + event.pinned : "";
         const clamp = event.requested != null && event.requested !== event.offset;
         const unit = event.unit != null ? " by one " + event.unit : "";
+        const run = event.action === "wheel" && event.lines != null
+          ? " — the run priced " + event.lines + " line" + (event.lines === 1 ? "" : "s")
+          : "";
         const span = event.outcome === "delivered"
           ? (clamp
-            ? " (asked " + event.requested + ", landed " + event.offset + ")" + unit
-            : " (the offset " + event.offset + ")" + unit)
+            ? " (asked " + event.requested + ", landed " + event.offset + ")" + unit + run
+            : " (the offset " + event.offset + ")" + unit + run)
           : "";
         const answer = event.outcome === "refused"
           ? "refused: " + event.refusal + target

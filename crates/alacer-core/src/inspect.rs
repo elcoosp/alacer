@@ -426,7 +426,10 @@ pub enum ClipboardRefusal {
     /// The clipboard had nothing to paste: the read answered `None`
     /// (an empty clipboard, a non-text payload, a clipboard this
     /// process cannot open), or the payload sanitized to nothing — a
-    /// paste never invents content either.
+    /// paste never invents content either. Since M42 (ADR-0048) the
+    /// record's `read` field splits the collapse: a paste that refused
+    /// for the *read* names the engine's species beside this verdict, a
+    /// paste that refused for the *field* carries the read's absence.
     EmptyClipboard,
     /// The platform refused the write (the permission/escape story made
     /// observable) — a cut whose write was refused did not delete, the
@@ -486,7 +489,12 @@ impl ClipboardOutcome {
 /// log is a devtools surface, not a shadow clipboard. Since M41
 /// (ADR-0047, ADR-0045's own re-open rule) the record carries the
 /// engine's platform-side fact beside the write refusal — the log
-/// answering "which clipboard failed it". The fields are the additive
+/// answering "which clipboard failed it". Since M42 (ADR-0048,
+/// ADR-0047's third re-open rule) the record carries the read's
+/// platform-side fact beside the paste's refusal — the M39
+/// `empty_clipboard` collapse splitting at last (a paste that refused
+/// for the *read* names the engine's species; a paste that refused for
+/// the *field* carries the read's absence). The fields are the additive
 /// wire rule's shape (ADR-0010).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ClipboardRecord {
@@ -503,6 +511,14 @@ pub struct ClipboardRecord {
     /// M41 additive field (ADR-0047) — the wire's documented `engine`
     /// beside the refusal species.
     pub engine: Option<crate::clipboard::ClipboardWriteRefusal>,
+    /// The engine's read-side fact when the read was refused (M42,
+    /// ADR-0048) — `Some(species)` when the paste refused for the read
+    /// (`unnamed` when the engine answered only its `Option`), `None`
+    /// on a delivery, on the field's own refusal (a payload that
+    /// sanitized to nothing — the read delivered), and on every
+    /// write-side round trip: a copy never asked a read question. The
+    /// wire's documented `read` beside the refusal species.
+    pub read: Option<crate::clipboard::ClipboardReadRefusal>,
     /// The payload's UTF-8 scalar count when the round trip delivered —
     /// the span copied, the span cut, the text pasted. Zero on a
     /// refusal: a refusal moves nothing.
@@ -619,8 +635,12 @@ impl ValueOutcome {
 /// control holds as the record resolves — the funnel's clamp-and-snap
 /// result on a delivery, the untouched current value on a refusal: a
 /// slider's value is the tree's own vocabulary the AT already reads,
-/// never a secret. The fields are the additive wire rule's shape
-/// (ADR-0010).
+/// never a secret. Since M43 (ADR-0049, ADR-0046's first re-open rule)
+/// the record names its control beside the action's routing — the
+/// dispatch funnel knows the id the action arrived under, the widget
+/// does not, so the stamp side lives on the funnel and the facts queued
+/// beneath a routed action carry it. The fields are the additive wire
+/// rule's shape (ADR-0010).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ValueRecord {
     /// The value-tier action the AT asked.
@@ -633,6 +653,14 @@ pub struct ValueRecord {
     /// current value on a refusal (the tree keeps the value the app
     /// wrote).
     pub value: f32,
+    /// The control the action arrived under (M43, ADR-0049): the
+    /// AccessKit-stable id hash the dispatch funnel routed — the
+    /// identity a screen reader's client, an inspector pane, or a test
+    /// correlates. `None` when the write rode no routed action: the
+    /// widget's own doors (a drag, the keyboard's step) queue their
+    /// facts from a funnel that routes no per-node action yet — the
+    /// second kill rule's open arm, the absence honest.
+    pub target: Option<u64>,
 }
 
 /// One observation: what the pipeline and the flux surface to devtools.

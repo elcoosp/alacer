@@ -417,6 +417,8 @@ oldest-first eviction) and the recorder's `gesture` ring holds 512.
 ```json
 {"kind":"scroll","action":"wheel","outcome":"delivered","refusal":null,"offset":400.0,"requested":450.0,"target":43981,"pinned":"max"}
 {"kind":"scroll","action":"scroll_down","outcome":"refused","refusal":"no_scrollable_content","offset":0.0,"requested":40.0,"target":43981,"pinned":null}
+{"kind":"scroll","action":"content_clamp","outcome":"delivered","refusal":null,"offset":200.0,"requested":null,"target":null,"pinned":"max"}
+{"kind":"scroll","action":"scroll_down","outcome":"delivered","refusal":null,"offset":140.0,"requested":140.0,"target":43981,"pinned":null,"unit":"page"}
 ```
 
 The scroll tier's own story (M50, ADR-0056, the price ADR-0055's
@@ -438,17 +440,22 @@ refusals named.
   requested unit — one item is one line, one page the viewport,
   ADR-0016), `increment`/`decrement` (the honest value-step for a
   scrollbar whose value *is* the offset — one page), or `scroll_to`
-  (the app's own programmatic door, no route behind it).
+  (the app's own programmatic door, no route behind it) — and since M51 the content's own story rides the same vocabulary: `content_clamp` (ADR-0057, the price ADR-0056's third kill rule pre-registered — the clamp `set_content_height` answers when the content shrank under the offset; the clamp is the content's story, not the ask's). Since M52 the unit scrolls name their asker's unit in the event's `unit` field (ADR-0058).
 - `outcome` — what the scroll area answered: `delivered` (the offset
   the clamp produced — a landing the clamp moved, the ask answered, or
   the wall held) or `refused` (the ask moved nothing — the M28
   honesty at the scroll tier).
 - `refusal` — the refusal species on a refused ask; `null` otherwise:
   `no_scrollable_content` (the range has no span — the content fits
-  the viewport, no scroll exists to deliver) or `non_finite_ask` (the
+  the viewport, no scroll exists to deliver), `non_finite_ask` (the
   funnel carries only finite asks — the value record's own rule; the
   door refuses before the arithmetic, the state keeping the offset the
-  ask found).
+  ask found), or — since M51 — `non_finite_content` (the content's
+  own wall, ADR-0057: a non-finite height rode the clamp arithmetic
+  and spread `NaN` into the offset and the stored span alike — the
+  corruption class the M50 trail exposed at the wheel door, closed
+  at the content's own door; the state keeps the height and offset
+  it held).
 - `offset` — the offset the scroll area holds as the event resolves:
   the clamp's result on a delivery, the untouched offset on a refusal
   (the tree keeps the offset the app set). A scroll area's offset is
@@ -464,12 +471,21 @@ refusals named.
   discipline at the scroll tier): the AccessKit-stable id the wheel
   route resolved (the deepest hit under the hover) or the AT action
   routed; `null` when the ask rode no route (the app's own handle
-  door — the honest absence).
+  door — the honest absence; the content clamp rides the same absence,
+  M51/ADR-0057).
 - `pinned` — the wall the clamp pinned the landing at (ADR-0055's
   second kill rule): the range's own edge (`min`, `max`) a past ask
   was turned back by; `null` when the ask wanted the wall exactly (the
   landing *is* the ask), on every landing mid-range, and on every
   refusal (a write that moved nothing pinned nothing).
+- `unit` — the asker's unit on the AT's unit scrolls (M52,
+  ADR-0058, the price ADR-0056's first kill rule pre-registered):
+  `item` or `page` beside the `scroll_up`/`scroll_down` actions,
+  the ask the distance is priced against; `null` on every other
+  action (the wheel's coalesced run, the value step's page, the
+  app's own door, the content's own clamp — stories with no unit
+  ride none). The additive field the versioning rule admits at
+  version 1 — clients that ignore unknown fields are unaffected.
 
 The record streams at the tick's start drain — one frame after the
 ask, the gesture trail's currency, the drain running after the gesture

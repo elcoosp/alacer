@@ -357,11 +357,17 @@ function connect() {
         // funnel routed, the vocabulary the AT's client already speaks;
         // a ride no funnel routed carries no target (null). Since M45
         // (ADR-0051) the keyboard's arrows ride attributed too — the
-        // key route stamps the focused control.
+        // key route stamps the focused control. Since M49 (ADR-0055,
+        // ADR-0053's second kill rule) the delivered write names the
+        // wall the funnel pinned it at: a past ask turned back at the
+        // range's edge renders the bound beside the clamp — "asked 150,
+        // landed 100, pinned at the max"; an ask the landing answers
+        // exactly renders the wall's absence, never a guessed edge.
         const target = event.target != null ? " (control " + event.target + ")" : "";
+        const wall = event.pinned != null ? ", pinned at the " + event.pinned : "";
         const answer = event.outcome === "refused"
           ? "refused: " + event.refusal + target
-          : "the value landed" + span + target;
+          : "the value landed" + span + wall + target;
         addLog("value", "value " + event.action, answer);
         break;
       }
@@ -377,11 +383,16 @@ function connect() {
         // criteria pre-registered holds on the wire by construction.
         // The control's identity beside the record (the funnel's
         // pointer-route stamp): a ride no funnel routed carries no
-        // target (null).
+        // target (null). Since M48 (ADR-0054, ADR-0053's first kill
+        // rule) the landing names the wall it pinned: a landing at the
+        // range's edge renders the bound beside it — the pointer's own
+        // bound jump, readable as data; a mid-track landing renders the
+        // wall's absence, never a guessed edge.
         const target = event.target != null ? " (control " + event.target + ")" : "";
+        const wall = event.bound != null ? ", pinned at the " + event.bound : "";
         const answer = event.phase === "started"
           ? "the drag found the value " + event.from + target
-          : "the drag landed the value " + event.to + " (from " + event.from + ")" + target;
+          : "the drag landed the value " + event.to + " (from " + event.from + ")" + wall + target;
         addLog("gesture", "gesture " + event.phase, answer);
         break;
       }

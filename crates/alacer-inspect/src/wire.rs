@@ -336,15 +336,29 @@ pub enum WireEvent {
         /// mid-range, and on every refusal (a write that moved nothing
         /// pinned nothing).
         pinned: Option<String>,
-        /// The asker's unit on the AT's unit scrolls (M52, ADR-0058) —
-        /// `item` or `page` beside the `scroll_up`/`scroll_down`
-        /// actions, the ask the distance is priced against; `null` on
-        /// every other action (the wheel's coalesced run, the value
-        /// step's page, the app's own door, the content's own clamp —
-        /// stories with no unit ride none). Additive at version 1 (the
-        /// `unit` field's rule): clients that ignore unknown fields
-        /// are unaffected.
+        /// The asker's unit on the AT's unit scrolls and value steps
+        /// (M52, ADR-0058; M54, ADR-0060) — `item` or `page` beside
+        /// the `scroll_up`/`scroll_down` actions, the ask the distance
+        /// is priced against, and the step's page beside the
+        /// `increment`/`decrement` species (the value step's page is a
+        /// unit-like distance, attributed the same way — the field's
+        /// contract grew beside its shape, no new field, no version
+        /// bump); `null` on the stories with no unit (the wheel's
+        /// coalesced run — M53 priced it its own magnitude instead —
+        /// the app's own door, the content's own clamp). Additive at
+        /// version 1 (the `unit` field's rule): clients that ignore
+        /// unknown fields are unaffected.
         unit: Option<String>,
+        /// The wheel run's notional line count (M53, ADR-0059) — the
+        /// coalesced run's magnitude priced by the platform's own
+        /// convention (one line = 40 px, §10.2), so a notch answers
+        /// 1.0 and the trackpad's pixel runs answer their honest
+        /// fraction, beside the `wheel` action only; `null` on every
+        /// other action and on the non-finite run (the refusal names
+        /// the wall, a count of a run that never was riding no wire).
+        /// Additive at version 1 (the `lines` field's rule): clients
+        /// that ignore unknown fields are unaffected.
+        lines: Option<f32>,
     },
     /// A completed frame — the ledger + the mask heatmap.
     Frame {
@@ -704,6 +718,7 @@ pub fn wire_scroll(record: &alacer_core::inspect::ScrollRecord) -> WireEvent {
             .unit
             .map(alacer_core::widget::ScrollUnit::name)
             .map(str::to_string),
+        lines: record.lines,
     }
 }
 
@@ -1307,6 +1322,7 @@ mod tests {
             target: Some(0xAB_CD),
             pinned: Some(alacer_core::inspect::RangeBound::Max),
             unit: None,
+            lines: Some(1.0),
         };
         let WireEvent::Scroll {
             action,
@@ -1317,6 +1333,7 @@ mod tests {
             target,
             pinned,
             unit,
+            lines,
         } = wire_scroll(&delivered)
         else {
             panic!("scroll event");
@@ -1343,6 +1360,11 @@ mod tests {
             unit, None,
             "the wheel is a coalesced run — the unit rides its absence (M52)"
         );
+        assert_eq!(
+            lines,
+            Some(1.0),
+            "the run prices its notional lines beside the wheel (M53, ADR-0059)"
+        );
 
         let refused = ScrollRecord {
             action: ScrollAction::ScrollDown,
@@ -1352,6 +1374,7 @@ mod tests {
             target: None,
             pinned: None,
             unit: None,
+            lines: None,
         };
         let WireEvent::Scroll {
             outcome, refusal, ..
@@ -1367,12 +1390,13 @@ mod tests {
         );
     }
 
-    /// M52 (ADR-0058, this cut): the asker's unit rides beside the
-    /// unit-scroll actions — `item`/`page` the ask the distance is
-    /// priced against — and rides its honest absence on the stories
-    /// that have no unit (the wheel, the step, the app door, the
-    /// content clamp). The additive field's rule at version 1: clients
-    /// that ignore unknown fields are unaffected.
+    /// M52 (ADR-0058) the asker's unit rides beside the unit-scroll
+    /// actions — `item`/`page` the ask the distance is priced against
+    /// — and M54 (ADR-0060) the value steps' page rides beside the
+    /// step species too; the honest absence keeps the stories that
+    /// have no unit (the wheel, the app door, the content clamp). The
+    /// additive field's rule at version 1: clients that ignore unknown
+    /// fields are unaffected.
     #[test]
     fn unit_scroll_events_carry_the_askers_unit() {
         use alacer_core::inspect::{ScrollAction, ScrollOutcome, ScrollRecord};
@@ -1385,6 +1409,7 @@ mod tests {
             target: Some(0xAB_CD),
             pinned: None,
             unit: Some(ScrollUnit::Item),
+            lines: None,
         };
         let WireEvent::Scroll { action, unit, .. } = wire_scroll(&item) else {
             panic!("scroll event");
@@ -1404,6 +1429,7 @@ mod tests {
             target: Some(0xAB_CD),
             pinned: None,
             unit: Some(ScrollUnit::Page),
+            lines: None,
         };
         let WireEvent::Scroll { unit, .. } = wire_scroll(&page) else {
             panic!("scroll event");
@@ -1414,22 +1440,112 @@ mod tests {
             "the other unit, same tag rule"
         );
 
-        let absent = ScrollRecord {
+        let step = ScrollRecord {
             action: ScrollAction::Increment,
             outcome: ScrollOutcome::Delivered,
             offset: 100.0,
             requested: None,
             target: Some(0xAB_CD),
             pinned: None,
-            unit: None,
+            unit: Some(ScrollUnit::Page),
+            lines: None,
         };
-        let WireEvent::Scroll { action, unit, .. } = wire_scroll(&absent) else {
+        let WireEvent::Scroll { action, unit, .. } = wire_scroll(&step) else {
             panic!("scroll event");
         };
         assert_eq!(action, "increment");
         assert_eq!(
+            unit.as_deref(),
+            Some("page"),
+            "the step's page rides beside the species (M54, ADR-0060 — the same field, the contract grown)"
+        );
+
+        let absent = ScrollRecord {
+            action: ScrollAction::ScrollTo,
+            outcome: ScrollOutcome::Delivered,
+            offset: 100.0,
+            requested: Some(100.0),
+            target: None,
+            pinned: None,
+            unit: None,
+            lines: None,
+        };
+        let WireEvent::Scroll { action, unit, .. } = wire_scroll(&absent) else {
+            panic!("scroll event");
+        };
+        assert_eq!(action, "scroll_to");
+        assert_eq!(
             unit, None,
-            "the step is not a unit scroll — the honest absence rides null"
+            "the app door rides no unit — the honest absence rides null"
+        );
+    }
+
+    /// M53 (ADR-0059, this cut): the wheel run's notional lines ride
+    /// beside the `wheel` action — the coalesced run's magnitude priced
+    /// by the platform's line convention (a notch answers 1.0, the
+    /// trackpad's pixel runs their honest fraction) — and ride their
+    /// honest absence on every story with no wheel run behind it. The
+    /// additive field's rule at version 1: clients that ignore unknown
+    /// fields are unaffected.
+    #[test]
+    fn wheel_runs_carry_their_notional_lines() {
+        use alacer_core::inspect::{ScrollAction, ScrollOutcome, ScrollRecord};
+        let notch = ScrollRecord {
+            action: ScrollAction::Wheel,
+            outcome: ScrollOutcome::Delivered,
+            offset: 40.0,
+            requested: Some(40.0),
+            target: Some(0xAB_CD),
+            pinned: None,
+            unit: None,
+            lines: Some(1.0),
+        };
+        let WireEvent::Scroll { action, lines, .. } = wire_scroll(&notch) else {
+            panic!("scroll event");
+        };
+        assert_eq!(action, "wheel");
+        assert_eq!(
+            lines,
+            Some(1.0),
+            "one notch prices one line (the platform's own convention)"
+        );
+
+        let flick = ScrollRecord {
+            action: ScrollAction::Wheel,
+            outcome: ScrollOutcome::Delivered,
+            offset: 100.0,
+            requested: Some(100.0),
+            target: Some(0xAB_CD),
+            pinned: None,
+            unit: None,
+            lines: Some(2.5),
+        };
+        let WireEvent::Scroll { lines, .. } = wire_scroll(&flick) else {
+            panic!("scroll event");
+        };
+        assert_eq!(
+            lines,
+            Some(2.5),
+            "the trackpad's pixel run prices its honest fraction"
+        );
+
+        let step = ScrollRecord {
+            action: ScrollAction::Decrement,
+            outcome: ScrollOutcome::Delivered,
+            offset: 60.0,
+            requested: None,
+            target: Some(0xAB_CD),
+            pinned: None,
+            unit: None,
+            lines: None,
+        };
+        let WireEvent::Scroll { action, lines, .. } = wire_scroll(&step) else {
+            panic!("scroll event");
+        };
+        assert_eq!(action, "decrement");
+        assert_eq!(
+            lines, None,
+            "the stories with no wheel run ride the absence — never a guessed count"
         );
     }
 
@@ -1449,6 +1565,7 @@ mod tests {
             target: None,
             pinned: Some(alacer_core::inspect::RangeBound::Max),
             unit: None,
+            lines: None,
         };
         let WireEvent::Scroll {
             action,
@@ -1459,6 +1576,7 @@ mod tests {
             target,
             pinned,
             unit,
+            ..
         } = wire_scroll(&clamped)
         else {
             panic!("scroll event");
@@ -1496,6 +1614,7 @@ mod tests {
             target: None,
             pinned: None,
             unit: None,
+            lines: None,
         };
         let WireEvent::Scroll {
             action,

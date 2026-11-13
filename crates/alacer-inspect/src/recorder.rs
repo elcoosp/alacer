@@ -52,6 +52,10 @@ pub const VALUE_RING_CAP: usize = 512;
 /// drag's per-phase facts at the recorder side, the same order the
 /// input, focus, edit, announce, key, clipboard, and value rings ride.
 pub const GESTURE_RING_CAP: usize = 512;
+/// The scroll-trail ring's cap (oldest dropped first, ADR-0056) — the
+/// scroll tier's facts at the recorder side, the same order the input,
+/// focus, edit, announce, key, clipboard, value, and gesture rings ride.
+pub const SCROLL_RING_CAP: usize = 512;
 
 /// One recorded frame (the wire conversion lives in [`crate::wire`]).
 #[derive(Debug, Clone)]
@@ -75,6 +79,7 @@ struct Recording {
     clipboards: VecDeque<ClipboardRecord>,
     values: VecDeque<alacer_core::inspect::ValueRecord>,
     gestures: VecDeque<alacer_core::inspect::GestureRecord>,
+    scrolls: VecDeque<alacer_core::inspect::ScrollRecord>,
     /// The most recent frame, for "what does the inspector see right now".
     latest: Option<alacer_core::inspect::FrameSummary>,
     /// The wire-shaped events awaiting the server's session drain (push, not
@@ -198,6 +203,15 @@ impl CausalRecorder {
         self.lock().gestures.iter().copied().collect()
     }
 
+    /// The recorded scroll trail, oldest first (ADR-0056): every scroll
+    /// ask the scroll doors answered — the wheel's clamp, the AT's unit
+    /// scrolls and value steps, the app's own programmatic scroll —
+    /// bounded by [`SCROLL_RING_CAP`].
+    #[must_use]
+    pub fn scrolls(&self) -> Vec<alacer_core::inspect::ScrollRecord> {
+        self.lock().scrolls.iter().copied().collect()
+    }
+
     /// The most recent frame, when any frame was observed.
     #[must_use]
     pub fn latest_frame(&self) -> Option<alacer_core::inspect::FrameSummary> {
@@ -224,6 +238,7 @@ impl CausalRecorder {
             recording.clipboards.clear();
             recording.values.clear();
             recording.gestures.clear();
+            recording.scrolls.clear();
         }
     }
 
@@ -307,6 +322,9 @@ impl InspectObserver for RecorderHandle {
             }
             InspectEvent::Gesture(record) => {
                 push_bounded(&mut recording.gestures, GESTURE_RING_CAP, record);
+            }
+            InspectEvent::Scroll(record) => {
+                push_bounded(&mut recording.scrolls, SCROLL_RING_CAP, record);
             }
             InspectEvent::Frame(summary) => {
                 self.frames_seen.fetch_add(1, Ordering::Relaxed);

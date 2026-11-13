@@ -53,6 +53,7 @@ pub mod mask;
 pub mod num;
 pub mod passes;
 pub mod scene;
+pub mod scroll;
 pub mod style;
 pub mod text_seam;
 pub mod utf16;
@@ -75,8 +76,9 @@ pub use input::EventCoalescer;
 pub use inspect::{
     BindingId, ClipboardAction, ClipboardOutcome, ClipboardRecord, ClipboardRefusal, DirtyNode,
     EdgeActivation, FocusRecord, FocusRider, FrameSummary, GesturePhase, GestureRecord, InputKind,
-    InputRecord, InspectEvent, InspectObserver, KeyRecord, PassTiming, RangeBound, SignalKey,
-    SignalWrite, ValueAction, ValueOutcome, ValueRecord, ValueRefusal,
+    InputRecord, InspectEvent, InspectObserver, KeyRecord, PassTiming, RangeBound, ScrollAction,
+    ScrollOutcome, ScrollRecord, ScrollRefusal, SignalKey, SignalWrite, ValueAction, ValueOutcome,
+    ValueRecord, ValueRefusal,
 };
 pub use keymap::{Chord, Keymap, KeymapConsult, KeymapSeam};
 pub use mask::Change;
@@ -111,7 +113,8 @@ pub mod prelude {
     pub use crate::flux::{Flux, RenderBinding};
     pub use crate::geom::{Point, Rect, Size, Vector};
     pub use crate::inspect::{
-        ClipboardRecord, GestureRecord, InspectEvent, InspectObserver, KeyRecord, ValueRecord,
+        ClipboardRecord, GestureRecord, InspectEvent, InspectObserver, KeyRecord, ScrollRecord,
+        ValueRecord,
     };
     pub use crate::keymap::{Chord, Keymap, KeymapConsult, KeymapSeam};
     pub use crate::mask::Change;

@@ -402,11 +402,11 @@ fn m39_the_living_documents_re_agree_at_m39() {
     // pins moving M41 → M43 and 48 → 50 across the chain — M42 and
     // M43 landing in one cut).
     assert!(
-        readme.contains("M0 through M45") && readme.contains("fifty-two decision records"),
+        readme.contains("M0 through M47") && readme.contains("fifty-four decision records"),
         "the README's status block and count re-agree at M39"
     );
     assert!(
-        architecture.contains("52 decision records"),
+        architecture.contains("54 decision records"),
         "the architecture register re-agrees at 46 decision records"
     );
     // The protocol document carries the clipboard event (the wire's

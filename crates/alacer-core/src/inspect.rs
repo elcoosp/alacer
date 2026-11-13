@@ -825,6 +825,171 @@ impl GesturePhase {
     }
 }
 
+/// What the scroll tier just answered (§13.3, ADR-0056): the scroll
+/// trail's action vocabulary, one [`ScrollRecord`] per routed ask —
+/// the wheel's notch, the AT's unit scroll, the AT's value step (the
+/// scrollbar's value *is* the offset, M10/ADR-0016), the app's own
+/// programmatic scroll. The names are the wire's stable tags
+/// ([`ScrollAction::name`], the protocol's `snake_case` rule).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScrollAction {
+    /// The pointer's wheel: a notch the coalescer accumulated upstream
+    /// (§10.2), the hover's hit the route the ask rides.
+    Wheel,
+    /// The AT's `ScrollUp`: a scroll area's scroll command, traveling
+    /// by the requested unit (M10, ADR-0016).
+    ScrollUp,
+    /// The AT's `ScrollDown`: a scroll area's scroll command, traveling
+    /// by the requested unit (M10, ADR-0016).
+    ScrollDown,
+    /// The AT's `Increment`: the honest value-step for a scrollbar
+    /// whose value *is* the offset — one page (M10, ADR-0016).
+    Increment,
+    /// The AT's `Decrement`: the honest value-step for a scrollbar
+    /// whose value *is* the offset — one page (M10, ADR-0016).
+    Decrement,
+    /// The app's own programmatic scroll — the shared handle's door
+    /// (tests, flings, the app's code). No route rides behind it: the
+    /// stamp's honest absence.
+    ScrollTo,
+}
+
+impl ScrollAction {
+    /// The action's name, the wire vocabulary's `snake_case` tag (the
+    /// protocol's stable, documented field values —
+    /// [`ValueAction::name`] for value-tier writes, this for the
+    /// scroll tier's asks).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Wheel => "wheel",
+            Self::ScrollUp => "scroll_up",
+            Self::ScrollDown => "scroll_down",
+            Self::Increment => "increment",
+            Self::Decrement => "decrement",
+            Self::ScrollTo => "scroll_to",
+        }
+    }
+}
+
+/// Why one scroll ask moved nothing (§13.3, ADR-0056): the honest
+/// refusals the scroll tier names (the M20 refuse-don't-munge rules at
+/// the tier whose funnel knows no range — ADR-0055's second kill
+/// rule's own words). The refusal streams too — the fact a trail
+/// reader wants is exactly the ask that never scrolled.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScrollRefusal {
+    /// The range has no span: the content fits the viewport, so no
+    /// scroll exists to deliver — the offset holds where it is, the
+    /// ask's wall absent (a write that moved nothing pinned nothing).
+    NoScrollableContent,
+    /// The ask was not a finite scalar — a non-finite wheel delta the
+    /// clamp arithmetic would have spread into the scroll state (the
+    /// corruption the trail's design exposed). The door refuses before
+    /// the arithmetic: the state keeps the offset the ask found.
+    NonFiniteAsk,
+}
+
+impl ScrollRefusal {
+    /// The refusal's name, the wire vocabulary's `snake_case` tag (the
+    /// protocol's stable, documented field values).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::NoScrollableContent => "no_scrollable_content",
+            Self::NonFiniteAsk => "non_finite_ask",
+        }
+    }
+}
+
+/// What the scroll tier answered one ask (§13.3, ADR-0056): the
+/// record is the ask's own outcome ([`ValueOutcome`]'s shape at the
+/// scroll tier) — the offset landed, or the ask was refused with its
+/// named species.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ScrollOutcome {
+    /// The ask landed: the offset carries the ask's clamp — a landing
+    /// the clamp moved, the ask answered, or the wall held (the pin
+    /// names the wall that held a no-op against a past ask — the M49
+    /// sentence at the scroll tier).
+    Delivered,
+    /// The ask moved nothing — [`ScrollRefusal`] names the species.
+    Refused(ScrollRefusal),
+}
+
+impl ScrollOutcome {
+    /// The outcome's name, the wire vocabulary's `snake_case` tag (the
+    /// protocol's stable, documented field values).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Delivered => "delivered",
+            Self::Refused(_) => "refused",
+        }
+    }
+}
+
+/// One scroll ask's record (§13.3, ADR-0056): the causal log's answer
+/// to "did the scroll land — where, or why not". The scroll doors
+/// (the wheel, the AT's unit scrolls and value steps, the app's own
+/// handle) answered the dispatch contract in silence: a wheel past the
+/// content's end clamped without a word, a wheel over a fitting list
+/// moved nothing unexplained. ADR-0055's second kill rule pre-registered
+/// the price — a consumer needs the wall named on a tier whose funnel
+/// knows no range, "that tier's own record grows its own fact beside
+/// its species, never the value record's" — and the record is the fact:
+/// the landed offset beside the ask (the M44 shape at the scroll tier),
+/// the wall the clamp pinned ([`RangeBound`], ADR-0054's one named-edges
+/// concept spoken identically wherever a landing names it), the
+/// refusals named. The record carries the offset the list holds as the
+/// record resolves — the clamp's result on a delivery, the untouched
+/// offset on a refusal: a scroll area's offset is the tree's own
+/// vocabulary the AT already reads, never a secret. The control is the
+/// funnel's own stamp — the wheel route knows the hit it resolved, the
+/// action route the id the action arrived under (the M43/M45/M46
+/// discipline at the scroll tier), the app's handle the honest absence.
+/// The fields are the additive wire rule's shape (ADR-0010).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ScrollRecord {
+    /// The scroll-tier action the ask rode.
+    pub action: ScrollAction,
+    /// What the scroll area answered — the landed offset or the named
+    /// refusal.
+    pub outcome: ScrollOutcome,
+    /// The offset the scroll area holds as the record resolves — the
+    /// clamp's result on a delivery, the untouched offset on a refusal
+    /// (the tree keeps the offset the app set).
+    pub offset: f32,
+    /// The finite offset the ask wanted, before the clamp moved it
+    /// (the M44 rule at the scroll tier): the ask beside the landing —
+    /// a clamp the trail could not show is one record's story now. The
+    /// fact lives where the knowledge lives: the widget's own door
+    /// computes the ask, the note site carries it — never an offset
+    /// reconstructed from the landing. `None` when the ask never
+    /// became a finite scalar: the ask itself non-finite (the funnel's
+    /// wall — the wire cannot carry an infinite ask honestly, `null`
+    /// would claim an absence that never was, and the refusal species
+    /// names the wall).
+    pub requested: Option<f32>,
+    /// The control the ask rode (the funnel's stamp, ADR-0056): the
+    /// AccessKit-stable id hash of the node the wheel route resolved —
+    /// the deepest accepting hit under the hover — or the id the AT
+    /// action arrived under. `None` when the ask rode no route: the
+    /// app's own handle door (the honest absence, the stamp rule's
+    /// shape).
+    pub target: Option<u64>,
+    /// The wall the clamp pinned the landing at (ADR-0055's second
+    /// kill rule): `Some(species)` when the ask was turned back at the
+    /// range's own edge — the landing at the wall, the ask somewhere
+    /// else (the clamp, the wall that held a no-op against a past ask)
+    /// — `None` when the ask wanted the wall exactly (the landing *is*
+    /// the ask), on every landing mid-range, and on every refusal (a
+    /// write that moved nothing pinned nothing). The ask's own wall,
+    /// beside the species — never a second action species (the kill
+    /// rule's own words).
+    pub pinned: Option<RangeBound>,
+}
+
 /// One observation: what the pipeline and the flux surface to devtools.
 #[derive(Debug, Clone)]
 pub enum InspectEvent {
@@ -877,6 +1042,13 @@ pub enum InspectEvent {
     /// drain's shape — the fact queues where the gesture's door
     /// resolves, one frame after the phase).
     Gesture(GestureRecord),
+    /// A scroll ask answered — the scroll trail (ADR-0056): the wheel,
+    /// the AT's unit scroll or value step, or the app's own programmatic
+    /// scroll, the landed offset beside the ask, the refusals named.
+    /// Streams with the frame's own records (the tick's start drain,
+    /// the gesture drain's shape — the fact queues where the door
+    /// resolves, one frame after the ask).
+    Scroll(ScrollRecord),
     /// A frame completed — the frame's causal summary.
     Frame(FrameSummary),
 }

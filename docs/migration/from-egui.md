@@ -166,7 +166,7 @@ Porting an egui app, expect to *delete* a11y fixes you hand-patched.
 
 egui: `egui_kittest` snapshots + harness clicks. Alacer: the headless
 `TestHarness` runs the real pipeline with the software rasterizer — no
-windowing, no mocks (A4) — plus 38 blessed PNG snapshots (37 styled scenarios) of the canonical
+windowing, no mocks (A4) — plus 39 blessed PNG snapshots (37 styled scenarios) of the canonical
 scenarios. Porting notes:
 
 ```rust

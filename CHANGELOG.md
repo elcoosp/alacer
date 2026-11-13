@@ -9,6 +9,49 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M49 — the funnel's wall is a named fact (ADR-0055)**: ADR-0053's
+  second kill rule cashed — a consumer needs *which* bound the value
+  pinned when a write was turned back at the range's edge, so the
+  refusal's payload grows beside the species: `ValueRecord` grows
+  `pinned: Option<RangeBound>` — the range's edge the funnel pinned
+  the landing at (the clamp, the snap, the wall that held a no-op
+  against a past ask), beside the action and outcome species, never a
+  second action species (`ClampToMax` would munge the range's answer
+  into an action the AT never asked). The absences are honest in both
+  directions: a landing mid-range and every refusal carry `None` (a
+  write that moved nothing pinned nothing), and the ask that wanted
+  the wall exactly — the M47 jumps — carries `None` too (the species
+  already names the bound it asked for). The slider's AT and arrow
+  note sites compute the wall through one `pinned_bound` door (the
+  read-only `Progress` carrying the absence at its `no_write_door`
+  refusal), the wire's `value` event carries the additive `pinned`
+  field at version 1 (clients that ignore unknown fields unaffected),
+  the embedded client rendering "asked 150, landed 100, pinned at the
+  max" beside the M44 clamp span, and `examples/pinned_writes.rs` is
+  the consumer demonstration. No new corpus case — the routes the
+  wall rides are already measured; the corpus stands at 64, the
+  living documents re-agree at the cut (M49, fifty-six decision
+  records).
+- **M48 — the drag's wall is a named fact (ADR-0054)**: ADR-0053's
+  first kill rule cashed — a consumer needs the bound jump the
+  *pointer* asked for (a drag that slams an edge), so the M46 gesture
+  record's vocabulary grows: `GestureRecord` grows
+  `bound: Option<RangeBound>` — the range's edge the `Ended` record's
+  landing pinned, beside the landing it produced, never the AT tier's
+  species munged onto a pointer act. The beginning is not the wall's
+  fact: every `Started` record and every mid-track landing carries
+  the honest absence. The slider's release and the leave answer
+  through one `landed_bound` door (the wall computed where the
+  knowledge lives — the widget's own `total_cmp` equality against the
+  range it owns), the M46 pointer route's stamp riding for free, the
+  flood rule untouched (the moves still stream nothing — the wall
+  rides the per-gesture record, never a per-move fact). The wire's
+  `gesture` event carries the additive `bound` field at version 1,
+  the embedded client rendering "pinned at the max" beside the
+  landing, and `examples/drag_bounds.rs` is the consumer
+  demonstration. No new corpus case — the route the wall rides is
+  already measured (`gestures/route_100_drag_moves_1k`); the corpus
+  stands at 64, the living documents re-agree at the cut.
 - **M47 — the keyboard's jumps are named facts (ADR-0053)**: ADR-0051's
   second kill rule cashed — a consumer needs Home/End on the log, so
   the jumps answer with their own named species: `ValueAction` grows

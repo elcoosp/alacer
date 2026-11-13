@@ -9,6 +9,64 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M42 — the clipboard read names its facts (ADR-0048)**: ADR-0047's
+  third re-open rule cashed — a consumer needs the read side's facts
+  the paste's `None` collapsed (the empty clipboard, the non-text
+  payload, the unopenable clipboard) so the seam's read door grows
+  beside the write door: one *provided* `ClipboardSeam::read_reported`
+  answering `ClipboardReadFact` (the M37 provided-method discipline —
+  the provided default maps the `Option` door and names its absence
+  honestly, a real engine overrides and names its species; the
+  `read_text` door stays the contract of record byte-for-byte, and a
+  refusal through either inserts nothing). The species are the
+  engine's own answers: `unnamed` (the honest absence), `unsupported`
+  (no clipboard subsystem at all, or one that cannot open), `empty`
+  (nothing the OS counts as content), `non_text` (content, but not
+  text — an image), `os_error` (the unclassifiable) — the arboard
+  engine splitting the empty and the non-text payload by the OS's own
+  second answer (the image question asked only when the text read
+  refused; each species the OS's answer to a question the engine
+  asked). The round trip's record grows the additive `read` field
+  beside the paste's verdict (`Some(species)` on a read-refused paste,
+  `None` on a delivery, on the field's own refusal — a payload that
+  sanitized to nothing, the read delivered — and on every write-side
+  round trip: a copy never asked a read question), the M39
+  `empty_clipboard` collapse split at last — one verdict, two facts,
+  the log answering "did the paste refuse for the read, or for the
+  field". The wire grows the same field at version 1 (clients that
+  ignore unknown fields unaffected), the recorder's ring carrying the
+  record verbatim, and the embedded client rendering the species
+  beside the paste's refusal. The memory engine names its own known
+  emptiness, so headless CI's paste refusals carry the species too.
+  The trail's shape is untouched (the same 256-bounded queue, the same
+  tick's start drain, one branch per chord while nobody listens), a
+  refused read inserts nothing and queues no masks, and
+  `examples/clipboard_read.rs` is the consumer demonstration.
+- **M43 — the value record names its control (ADR-0049)**: ADR-0046's
+  first re-open rule cashed — a consumer needs the *who* (the
+  control's identity on the record) so the record grows beside the
+  action's routing, never at the note site: one additive
+  `ValueRecord::target` carrying the AccessKit-stable id hash the
+  dispatch funnel routed, the stamp side living where the knowledge
+  lives (`value::ActionTargetGuard`, held by
+  `PassPipeline::dispatch_a11y_action` for the length of one widget
+  call — the facts queued beneath the action carrying the id, a
+  panicking widget leaving no stale identity, the widget never
+  guessing its own identity). A multi-control form's trail is
+  attributable at last: two sliders on one page, the facts tellable
+  apart, the refusals (the parse's, the read-only tier's) naming the
+  control that answered them beside the deliveries naming theirs. The
+  wire grows the same field at version 1 (the clipboard `engine`
+  field's rule — clients that ignore unknown fields unaffected), the
+  recorder's ring carrying the record verbatim, and the embedded
+  client rendering the control beside the record. The widget's own
+  doors stay off the value log — the keyboard's step and the drag
+  stream no value fact (the input tier's records carry those rides
+  until a consumer prices them, the second kill rule's open arm), the
+  attribution exclusive to the AT tier. The writes themselves are
+  untouched (the funnel's clamp-and-snap answering byte-for-byte, the
+  A7 idle contract one branch per write while nobody listens), and
+  `examples/value_targets.rs` is the consumer demonstration.
 - **M41 — the clipboard engine names its facts (ADR-0047)**: ADR-0045's
   own re-open rule cashed — a consumer needs the clipboard's
   *platform-side* facts the widget's round trips cannot name, so the

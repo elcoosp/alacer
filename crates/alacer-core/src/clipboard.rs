@@ -46,6 +46,20 @@
 //! verdict — the log answers "which clipboard failed it", not only
 //! "it failed".
 //!
+//! Since M42 the read side names its facts too (ADR-0048, ADR-0047's
+//! third re-open rule): the paste's `None` collapsed three facts — the
+//! empty clipboard, the non-text payload, the unopenable clipboard —
+//! into one silence, so one *provided* [`ClipboardSeam::read_reported`]
+//! door grows beside the `Option` door, answering [`ClipboardReadFact`]
+//! with the same provided-method discipline (the provided default maps
+//! the `Option` door and names its absence honestly, a real engine
+//! names its species). The round trip's record carries the read's
+//! species beside the paste's verdict — the M39 `empty_clipboard`
+//! collapse splits at last: a paste that refused for the *read* names
+//! the engine's species, a paste that refused for the *field* carries
+//! the read's absence. The log answers "did the paste refuse for the
+//! read, or for the field".
+//!
 //! [`crate::passes::PassPipeline::announce`]: crate::passes::PassPipeline::announce
 
 use std::cell::Cell;
@@ -73,6 +87,24 @@ pub trait ClipboardSeam: 'static {
     /// `None` and queues no masks (the refuse-don't-munge rule, now at
     /// the clipboard tier).
     fn read_text(&self) -> Option<String>;
+
+    /// The engine's reported read (M42, ADR-0048, ADR-0047's third
+    /// re-open rule): the read-side fact the `Option` door cannot
+    /// carry — the payload delivered, or refused with the species the
+    /// engine itself answered. *Provided*, so a custom engine that
+    /// overrides nothing keeps answering its `Option` door
+    /// ([`ClipboardReadRefusal::Unnamed`] naming the absence honestly —
+    /// the M37 `Option::None` discipline, as a species), and a real
+    /// engine names its species. The `read_text` door stays the
+    /// contract of record (the M35 `dispatch_installed` rule): a read
+    /// through either door is the same read, and a refusal through
+    /// either inserts nothing.
+    fn read_reported(&self) -> ClipboardReadFact {
+        match self.read_text() {
+            Some(text) => ClipboardReadFact::Delivered(text),
+            None => ClipboardReadFact::Refused(ClipboardReadRefusal::Unnamed),
+        }
+    }
 
     /// Writes `text` as the clipboard's text payload and reports whether
     /// the platform accepted it. `false` is the permission/escape story
@@ -161,6 +193,76 @@ impl ClipboardWriteFact {
     pub const fn name(self) -> &'static str {
         match self {
             Self::Accepted => "accepted",
+            Self::Refused(_) => "refused",
+        }
+    }
+}
+
+/// Why one engine read refused (M42, ADR-0048): the engine's own
+/// refusal species — the read-side facts ADR-0047's third re-open rule
+/// pre-registered, named by the engine that answered them, never a
+/// guess the OS did not (ADR-0020's rule stands). The species ride the
+/// round trip's record beside the paste's verdict
+/// ([`crate::inspect::ClipboardRecord::read`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ClipboardReadRefusal {
+    /// The engine answered only its `Option` (the provided door's
+    /// default) — the read's platform-side fact is honest about its
+    /// absence, the M37 `Option::None` discipline as a species.
+    Unnamed,
+    /// The platform offers no clipboard subsystem at all, or the
+    /// clipboard cannot open: a headless box, a sandboxed session.
+    Unsupported,
+    /// The clipboard carries nothing the OS counts as content — the
+    /// empty clipboard, named.
+    Empty,
+    /// The clipboard carries content, but not text (an image, a
+    /// custom format) — the payload the text format cannot carry,
+    /// named at last.
+    NonText,
+    /// The platform answered with an error the engine cannot classify —
+    /// its description traced engine-side, never guessed onto the wire.
+    OsError,
+}
+
+impl ClipboardReadRefusal {
+    /// The refusal's name, the wire vocabulary's `snake_case` tag (the
+    /// protocol's stable, documented field values).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Unnamed => "unnamed",
+            Self::Unsupported => "unsupported",
+            Self::Empty => "empty",
+            Self::NonText => "non_text",
+            Self::OsError => "os_error",
+        }
+    }
+}
+
+/// What the engine answered one read (M42, ADR-0048): the engine's own
+/// fact — the clipboard's text payload delivered, or refused with its
+/// named species ([`ClipboardReadRefusal`]). The read-tier answer the
+/// round trip's record carries beside its own verdict: the round trip
+/// says *what the field did*, the read fact says *what the clipboard
+/// answered*.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ClipboardReadFact {
+    /// The read landed — the clipboard's text payload.
+    Delivered(String),
+    /// The read moved nothing — the engine names its species.
+    Refused(ClipboardReadRefusal),
+}
+
+impl ClipboardReadFact {
+    /// The fact's name, the wire vocabulary's `snake_case` tag (the
+    /// protocol's stable, documented field values). Not `const`: the
+    /// delivered payload is a `String`, and a `const` match could not
+    /// drop it.
+    #[must_use]
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Delivered(_) => "delivered",
             Self::Refused(_) => "refused",
         }
     }
@@ -333,6 +435,17 @@ impl ClipboardSeam for MemoryClipboard {
         self.set(text);
         true
     }
+
+    /// The engine's reported read (M42, ADR-0048): the in-memory store
+    /// is a real engine whose absence is *known* emptiness — the store
+    /// knows the payload it holds, so it names its own species instead
+    /// of riding the provided default's honest `unnamed` absence.
+    fn read_reported(&self) -> ClipboardReadFact {
+        match self.text() {
+            Some(text) => ClipboardReadFact::Delivered(text),
+            None => ClipboardReadFact::Refused(ClipboardReadRefusal::Empty),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -358,7 +471,9 @@ mod tests {
     }
 
     /// A seam whose engine names its own species: the kiosk's clipboard
-    /// — no subsystem at all, the write refused with the fact answered.
+    /// — no subsystem at all, the write refused with the fact answered,
+    /// the read refused with the species the engine itself answered
+    /// (the M42 read door's real-engine shape).
     struct Kiosk;
 
     impl ClipboardSeam for Kiosk {
@@ -368,6 +483,10 @@ mod tests {
 
         fn write_text(&self, _text: &str) -> bool {
             false
+        }
+
+        fn read_reported(&self) -> super::ClipboardReadFact {
+            super::ClipboardReadFact::Refused(super::ClipboardReadRefusal::Unsupported)
         }
 
         fn write_reported(&self, _text: &str) -> ClipboardWriteFact {
@@ -463,6 +582,57 @@ mod tests {
         assert_eq!(super::ClipboardWriteFact::Accepted.name(), "accepted");
         assert_eq!(
             super::ClipboardWriteFact::Refused(ClipboardWriteRefusal::Occupied).name(),
+            "refused"
+        );
+    }
+
+    /// The provided read door maps the `Option` door honestly (M42,
+    /// ADR-0048): a delivery names `delivered`, an absence the Option
+    /// cannot name answers `unnamed` — and an engine that overrides the
+    /// door names its own species. The `read_text` contract of record
+    /// is untouched.
+    #[test]
+    fn the_read_reported_door_defaults_to_the_option_door_and_names_its_absence() {
+        let memory = MemoryClipboard::default();
+        assert_eq!(
+            memory.read_reported(),
+            super::ClipboardReadFact::Refused(super::ClipboardReadRefusal::Empty),
+            "the memory engine is a real engine — its absence is known emptiness"
+        );
+        memory.set("held");
+        assert_eq!(
+            memory.read_reported(),
+            super::ClipboardReadFact::Delivered("held".to_string()),
+            "the memory engine delivers the payload the store holds"
+        );
+        assert_eq!(
+            BoolRefuser.read_reported(),
+            super::ClipboardReadFact::Refused(super::ClipboardReadRefusal::Unnamed),
+            "the provided default names the absence honestly"
+        );
+        assert_eq!(
+            Kiosk.read_reported(),
+            super::ClipboardReadFact::Refused(super::ClipboardReadRefusal::Unsupported),
+            "an engine that names its species names it"
+        );
+    }
+
+    /// The read species' wire names: the protocol's stable, documented
+    /// `snake_case` tags.
+    #[test]
+    fn the_read_species_carry_their_wire_names() {
+        use super::ClipboardReadRefusal;
+        assert_eq!(ClipboardReadRefusal::Unnamed.name(), "unnamed");
+        assert_eq!(ClipboardReadRefusal::Unsupported.name(), "unsupported");
+        assert_eq!(ClipboardReadRefusal::Empty.name(), "empty");
+        assert_eq!(ClipboardReadRefusal::NonText.name(), "non_text");
+        assert_eq!(ClipboardReadRefusal::OsError.name(), "os_error");
+        assert_eq!(
+            super::ClipboardReadFact::Delivered("held".to_string()).name(),
+            "delivered"
+        );
+        assert_eq!(
+            super::ClipboardReadFact::Refused(ClipboardReadRefusal::NonText).name(),
             "refused"
         );
     }

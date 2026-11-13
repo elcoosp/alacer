@@ -48,6 +48,10 @@ pub const CLIPBOARD_RING_CAP: usize = 512;
 /// value tier's facts at the recorder side, the same order the input,
 /// focus, edit, announce, key, and clipboard rings ride.
 pub const VALUE_RING_CAP: usize = 512;
+/// The gesture-trail ring's cap (oldest dropped first, ADR-0052) — the
+/// drag's per-phase facts at the recorder side, the same order the
+/// input, focus, edit, announce, key, clipboard, and value rings ride.
+pub const GESTURE_RING_CAP: usize = 512;
 
 /// One recorded frame (the wire conversion lives in [`crate::wire`]).
 #[derive(Debug, Clone)]
@@ -70,6 +74,7 @@ struct Recording {
     keys: VecDeque<KeyRecord>,
     clipboards: VecDeque<ClipboardRecord>,
     values: VecDeque<alacer_core::inspect::ValueRecord>,
+    gestures: VecDeque<alacer_core::inspect::GestureRecord>,
     /// The most recent frame, for "what does the inspector see right now".
     latest: Option<alacer_core::inspect::FrameSummary>,
     /// The wire-shaped events awaiting the server's session drain (push, not
@@ -184,6 +189,15 @@ impl CausalRecorder {
         self.lock().values.iter().copied().collect()
     }
 
+    /// The recorded gesture trail, oldest first (ADR-0052): every
+    /// drag phase the value tier's doors answered — the press that
+    /// armed the drag, the release or leave that resolved it — bounded
+    /// by [`GESTURE_RING_CAP`].
+    #[must_use]
+    pub fn gestures(&self) -> Vec<alacer_core::inspect::GestureRecord> {
+        self.lock().gestures.iter().copied().collect()
+    }
+
     /// The most recent frame, when any frame was observed.
     #[must_use]
     pub fn latest_frame(&self) -> Option<alacer_core::inspect::FrameSummary> {
@@ -209,6 +223,7 @@ impl CausalRecorder {
             recording.keys.clear();
             recording.clipboards.clear();
             recording.values.clear();
+            recording.gestures.clear();
         }
     }
 
@@ -289,6 +304,9 @@ impl InspectObserver for RecorderHandle {
             }
             InspectEvent::Value(record) => {
                 push_bounded(&mut recording.values, VALUE_RING_CAP, record);
+            }
+            InspectEvent::Gesture(record) => {
+                push_bounded(&mut recording.gestures, GESTURE_RING_CAP, record);
             }
             InspectEvent::Frame(summary) => {
                 self.frames_seen.fetch_add(1, Ordering::Relaxed);
@@ -656,6 +674,52 @@ mod tests {
             "a paste with no observer-driven refusal rode the plain verdict"
         );
         assert_eq!(*chars, 0, "a refusal moved nothing");
+    }
+
+    #[test]
+    fn gesture_records_ring_in_order_and_are_bounded() {
+        use alacer_core::inspect::GesturePhase;
+        let recorder = CausalRecorder::new("gestures");
+        let mut handle = recorder.clone_handle();
+        for _ in 0..(super::GESTURE_RING_CAP + 10) {
+            handle.observe(InspectEvent::Gesture(alacer_core::inspect::GestureRecord {
+                phase: GesturePhase::Started,
+                from: 20.0,
+                to: None,
+                target: None,
+            }));
+        }
+        let trail = recorder.gestures();
+        assert_eq!(trail.len(), super::GESTURE_RING_CAP, "the ring is bounded");
+        assert_eq!(
+            trail[0].phase,
+            GesturePhase::Started,
+            "the survivors keep order"
+        );
+
+        // The landing rides the same ring, the wire carrying the phase
+        // beside the found and landed values.
+        handle.observe(InspectEvent::Gesture(alacer_core::inspect::GestureRecord {
+            phase: GesturePhase::Ended,
+            from: 20.0,
+            to: Some(42.0),
+            target: Some(7),
+        }));
+        let drained = recorder.take_broadcast();
+        let last = drained.last().expect("the gesture broadcast");
+        let crate::wire::WireEvent::Gesture {
+            phase,
+            from,
+            to,
+            target,
+        } = last
+        else {
+            panic!("the gesture broadcast");
+        };
+        assert_eq!(phase, "ended");
+        assert!((from - 20.0).abs() < f32::EPSILON);
+        assert_eq!(*to, Some(42.0));
+        assert_eq!(*target, Some(7));
     }
 
     #[test]

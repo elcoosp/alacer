@@ -171,6 +171,21 @@ pub enum ScrollUnit {
     Page,
 }
 
+impl ScrollUnit {
+    /// The unit's name, the wire vocabulary's `snake_case` tag (M52,
+    /// ADR-0058; the protocol's stable, documented field values — the
+    /// asker's unit the scroll record carries beside the unit-scroll
+    /// actions, the same naming rule the action species and the
+    /// refusal species ride).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Item => "item",
+            Self::Page => "page",
+        }
+    }
+}
+
 /// A range of text, expressed in the contract's unit — **UTF-16 code
 /// units** into the widget's value (§10.3; the same unit as the caret).
 ///

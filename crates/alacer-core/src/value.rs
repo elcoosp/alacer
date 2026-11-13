@@ -22,6 +22,11 @@
 //! (`ACTION_TARGET`, held by the funnel's route for the length of
 //! one action) and [`note_write`] stamps the facts queued beneath a
 //! routed action with it, never a node id guessed at the note site.
+//! Since M45 (ADR-0051, ADR-0049's first kill rule) the key route
+//! holds the same stamp: the focused control's arrows ride the log
+//! attributed, the AT tier's rides and the keyboard's tellable apart
+//! by nothing but the route that routed them — the same record, the
+//! same stamp discipline.
 //!
 //! ```text
 //! // Widgets (core-only dependencies):
@@ -66,6 +71,15 @@ pub(crate) fn set_value_trail_enabled(enabled: bool) {
     TRAIL_ENABLED.with(|slot| slot.set(enabled));
 }
 
+/// Whether the trail notes facts on this thread — the key route's
+/// idle-contract check (M45, ADR-0051): the stamp's id-path walk runs
+/// only under an observer, while nobody listens the stamp is one
+/// `Cell` read answered here (the A7 idle contract, one branch per
+/// routed key).
+pub(crate) fn value_trail_enabled() -> bool {
+    TRAIL_ENABLED.with(Cell::get)
+}
+
 /// The funnel's stamp guard (M43, ADR-0049): the AT action route holds
 /// one for the length of one widget call, the facts queued beneath the
 /// action carrying the id the action arrived under — the widget never
@@ -107,7 +121,11 @@ impl Drop for ActionTargetGuard {
 /// M43 (ADR-0049) a record whose `target` the widget left `None` is
 /// stamped with the id the routing funnel held — the control's
 /// identity riding beside the action's routing, never guessed at the
-/// note site.
+/// note site. Since M45 (ADR-0051) the key route holds the same stamp,
+/// the keyboard's rides carrying the focused control's id. The ask is
+/// never stamped: the widget's own door computed it (M44, ADR-0050),
+/// the record the caller built is the record the trail carries — the
+/// stamp fills only the identity the widget cannot know.
 pub fn note_write(record: crate::inspect::ValueRecord) {
     TRAIL_ENABLED.with(|enabled| {
         if !enabled.get() {
@@ -159,6 +177,7 @@ mod tests {
             action: ValueAction::SetValue,
             outcome: ValueOutcome::Delivered,
             value: 42.0,
+            requested: None,
             target: None,
         });
         assert!(
@@ -178,6 +197,7 @@ mod tests {
                 action: ValueAction::Increment,
                 outcome: ValueOutcome::Refused(ValueRefusal::NoWriteDoor),
                 value,
+                requested: None,
                 target: None,
             });
         }
@@ -201,12 +221,15 @@ mod tests {
     fn the_funnel_stamp_names_the_control_and_the_absence_holds() {
         crate::value::set_value_trail_enabled(true);
 
-        // Beneath a guard: the widget's `None` becomes the routed id.
+        // Beneath a guard: the widget's `None` becomes the routed id,
+        // the ask the caller carried untouched (M44, ADR-0050 — the
+        // stamp fills only the identity the widget cannot know).
         let guard = crate::value::ActionTargetGuard::for_target(Some(0xAB_CDEF));
         note_write(ValueRecord {
             action: ValueAction::SetValue,
             outcome: ValueOutcome::Delivered,
             value: 42.0,
+            requested: Some(150.0),
             target: None,
         });
         drop(guard);
@@ -216,12 +239,18 @@ mod tests {
             Some(0xAB_CDEF),
             "the fact queued beneath the route names the control the action arrived under"
         );
+        assert_eq!(
+            drained[0].requested,
+            Some(150.0),
+            "the caller's own ask rides untouched — the stamp never fills it"
+        );
 
         // Outside a guard: the absence honest — the widget doors' rides.
         note_write(ValueRecord {
             action: ValueAction::Increment,
             outcome: ValueOutcome::Delivered,
             value: 43.0,
+            requested: None,
             target: None,
         });
         // The caller's own answer is never overwritten.
@@ -229,6 +258,7 @@ mod tests {
             action: ValueAction::Decrement,
             outcome: ValueOutcome::Delivered,
             value: 41.0,
+            requested: Some(39.0),
             target: Some(1),
         });
         let drained = take_value_trail();
@@ -248,6 +278,7 @@ mod tests {
             action: ValueAction::Increment,
             outcome: ValueOutcome::Refused(ValueRefusal::NoWriteDoor),
             value: 41.0,
+            requested: None,
             target: None,
         });
         let drained = take_value_trail();

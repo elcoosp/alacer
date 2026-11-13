@@ -639,8 +639,11 @@ impl ValueOutcome {
 /// the record names its control beside the action's routing — the
 /// dispatch funnel knows the id the action arrived under, the widget
 /// does not, so the stamp side lives on the funnel and the facts queued
-/// beneath a routed action carry it. The fields are the additive wire
-/// rule's shape (ADR-0010).
+/// beneath a routed action carry it. Since M44 (ADR-0050, ADR-0049's
+/// second re-open rule) the record carries the ask beside the landing —
+/// the finite scalar the AT asked before the control's clamp-and-snap
+/// moved it, a clamp or a snap the trail could not show as one record's
+/// story. The fields are the additive wire rule's shape (ADR-0010).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ValueRecord {
     /// The value-tier action the AT asked.
@@ -653,13 +656,29 @@ pub struct ValueRecord {
     /// current value on a refusal (the tree keeps the value the app
     /// wrote).
     pub value: f32,
+    /// The finite scalar the AT asked, before the control's
+    /// clamp-and-snap moved it (M44, ADR-0050): the ask beside the
+    /// landing — a clamp or a snap the trail could not show is one
+    /// record's story now. The fact lives where the knowledge lives:
+    /// the widget's own door computes the ask, the note site carries
+    /// it — never a value reconstructed from the landing (the target
+    /// stamp's rule, ADR-0049). `None` when the ask never became a
+    /// finite scalar: the unparsable payload, the door refused before
+    /// arithmetic (the availability tier, the door-less reporting bar),
+    /// the ask itself non-finite (the funnel's wall — the wire cannot
+    /// carry an infinite ask honestly, `null` would claim an absence
+    /// that never was, and the refusal species names the wall).
+    pub requested: Option<f32>,
     /// The control the action arrived under (M43, ADR-0049): the
     /// AccessKit-stable id hash the dispatch funnel routed — the
     /// identity a screen reader's client, an inspector pane, or a test
     /// correlates. `None` when the write rode no routed action: the
-    /// widget's own doors (a drag, the keyboard's step) queue their
-    /// facts from a funnel that routes no per-node action yet — the
-    /// second kill rule's open arm, the absence honest.
+    /// drag queues its facts from a funnel that routes no per-node
+    /// action — the second kill rule's open arm, the absence honest.
+    /// Since M45 (ADR-0051, ADR-0049's first kill rule) the keyboard's
+    /// step rides the log attributed too: the dispatch funnel's key
+    /// route holds the same stamp for the focused control's key call,
+    /// the arrows' rides carrying the id like the AT tier's own.
     pub target: Option<u64>,
 }
 

@@ -292,18 +292,21 @@ pub enum WireEvent {
         bound: Option<String>,
     },
     /// A scroll ask answered — the scroll trail (ADR-0056): the wheel,
-    /// the AT's unit scroll or value step, or the app's own
-    /// programmatic scroll, the landed offset beside the ask, the
-    /// refusals named. Additive at version 1 (the rider field's rule):
+    /// the AT's unit scroll or value step, the app's own
+    /// programmatic scroll, or the content's own clamp (M51,
+    /// ADR-0057), the landed offset beside the ask, the refusals
+    /// named. Additive at version 1 (the rider field's rule):
     /// clients that ignore unknown kinds are unaffected.
     Scroll {
         /// The scroll-tier action the ask rode (`wheel`, `scroll_up`,
-        /// `scroll_down`, `increment`, `decrement`, `scroll_to`).
+        /// `scroll_down`, `increment`, `decrement`, `scroll_to`,
+        /// `content_clamp` — the content's own story, M51/ADR-0057).
         action: String,
         /// What the scroll area answered (`delivered`, `refused`).
         outcome: String,
         /// The refusal species (`no_scrollable_content`,
-        /// `non_finite_ask`) on a refused ask; `null` otherwise.
+        /// `non_finite_ask`, `non_finite_content` — the content's
+        /// wall, M51/ADR-0057) on a refused ask; `null` otherwise.
         refusal: Option<String>,
         /// The offset the scroll area holds as the event resolves —
         /// the clamp's result on a delivery, the untouched offset on a
@@ -315,13 +318,16 @@ pub enum WireEvent {
         /// landing, a clamp the trail could not show visible as data;
         /// `null` when the ask never became a finite scalar
         /// (`non_finite_ask` — JSON cannot carry an infinite ask
-        /// honestly). Additive at version 1 (the `requested` field's
-        /// rule): clients that ignore unknown fields are unaffected.
+        /// honestly) and on the content's own story (a resize is not
+        /// an ask, M51/ADR-0057). Additive at version 1 (the
+        /// `requested` field's rule): clients that ignore unknown
+        /// fields are unaffected.
         requested: Option<f32>,
         /// The control the ask rode (M50, ADR-0056) — the
         /// AccessKit-stable id the wheel route resolved (the deepest
         /// hit under the hover) or the AT action routed; `null` when
-        /// the ask rode no route (the app's own handle door).
+        /// the ask rode no route (the app's own handle door, the
+        /// content's clamp beside it — M51/ADR-0057).
         target: Option<u64>,
         /// The wall the clamp pinned the landing at (ADR-0055's second
         /// kill rule) — the range's own edge (`min`, `max`) a past ask
@@ -330,6 +336,15 @@ pub enum WireEvent {
         /// mid-range, and on every refusal (a write that moved nothing
         /// pinned nothing).
         pinned: Option<String>,
+        /// The asker's unit on the AT's unit scrolls (M52, ADR-0058) —
+        /// `item` or `page` beside the `scroll_up`/`scroll_down`
+        /// actions, the ask the distance is priced against; `null` on
+        /// every other action (the wheel's coalesced run, the value
+        /// step's page, the app's own door, the content's own clamp —
+        /// stories with no unit ride none). Additive at version 1 (the
+        /// `unit` field's rule): clients that ignore unknown fields
+        /// are unaffected.
+        unit: Option<String>,
     },
     /// A completed frame — the ledger + the mask heatmap.
     Frame {
@@ -684,6 +699,10 @@ pub fn wire_scroll(record: &alacer_core::inspect::ScrollRecord) -> WireEvent {
         pinned: record
             .pinned
             .map(alacer_core::inspect::RangeBound::name)
+            .map(str::to_string),
+        unit: record
+            .unit
+            .map(alacer_core::widget::ScrollUnit::name)
             .map(str::to_string),
     }
 }
@@ -1287,6 +1306,7 @@ mod tests {
             requested: Some(450.0),
             target: Some(0xAB_CD),
             pinned: Some(alacer_core::inspect::RangeBound::Max),
+            unit: None,
         };
         let WireEvent::Scroll {
             action,
@@ -1296,6 +1316,7 @@ mod tests {
             requested,
             target,
             pinned,
+            unit,
         } = wire_scroll(&delivered)
         else {
             panic!("scroll event");
@@ -1318,6 +1339,10 @@ mod tests {
             Some("max"),
             "the wall's snake_case tag rides the wire (the protocol's rule)"
         );
+        assert_eq!(
+            unit, None,
+            "the wheel is a coalesced run — the unit rides its absence (M52)"
+        );
 
         let refused = ScrollRecord {
             action: ScrollAction::ScrollDown,
@@ -1326,6 +1351,7 @@ mod tests {
             requested: Some(40.0),
             target: None,
             pinned: None,
+            unit: None,
         };
         let WireEvent::Scroll {
             outcome, refusal, ..
@@ -1338,6 +1364,154 @@ mod tests {
             refusal.as_deref(),
             Some("no_scrollable_content"),
             "the refusal's snake_case tag rides the wire"
+        );
+    }
+
+    /// M52 (ADR-0058, this cut): the asker's unit rides beside the
+    /// unit-scroll actions — `item`/`page` the ask the distance is
+    /// priced against — and rides its honest absence on the stories
+    /// that have no unit (the wheel, the step, the app door, the
+    /// content clamp). The additive field's rule at version 1: clients
+    /// that ignore unknown fields are unaffected.
+    #[test]
+    fn unit_scroll_events_carry_the_askers_unit() {
+        use alacer_core::inspect::{ScrollAction, ScrollOutcome, ScrollRecord};
+        use alacer_core::widget::ScrollUnit;
+        let item = ScrollRecord {
+            action: ScrollAction::ScrollDown,
+            outcome: ScrollOutcome::Delivered,
+            offset: 40.0,
+            requested: Some(40.0),
+            target: Some(0xAB_CD),
+            pinned: None,
+            unit: Some(ScrollUnit::Item),
+        };
+        let WireEvent::Scroll { action, unit, .. } = wire_scroll(&item) else {
+            panic!("scroll event");
+        };
+        assert_eq!(action, "scroll_down");
+        assert_eq!(
+            unit.as_deref(),
+            Some("item"),
+            "the asker's unit rides the wire (the protocol's snake_case rule)"
+        );
+
+        let page = ScrollRecord {
+            action: ScrollAction::ScrollUp,
+            outcome: ScrollOutcome::Delivered,
+            offset: 60.0,
+            requested: Some(60.0),
+            target: Some(0xAB_CD),
+            pinned: None,
+            unit: Some(ScrollUnit::Page),
+        };
+        let WireEvent::Scroll { unit, .. } = wire_scroll(&page) else {
+            panic!("scroll event");
+        };
+        assert_eq!(
+            unit.as_deref(),
+            Some("page"),
+            "the other unit, same tag rule"
+        );
+
+        let absent = ScrollRecord {
+            action: ScrollAction::Increment,
+            outcome: ScrollOutcome::Delivered,
+            offset: 100.0,
+            requested: None,
+            target: Some(0xAB_CD),
+            pinned: None,
+            unit: None,
+        };
+        let WireEvent::Scroll { action, unit, .. } = wire_scroll(&absent) else {
+            panic!("scroll event");
+        };
+        assert_eq!(action, "increment");
+        assert_eq!(
+            unit, None,
+            "the step is not a unit scroll — the honest absence rides null"
+        );
+    }
+
+    /// M51 (ADR-0057, this cut): the content clamp's story rides the
+    /// same flat event — the delivered clamp naming the wall it
+    /// pinned, the refused non-finite height naming its species, the
+    /// ask riding its honest absence on both (a resize is not an ask),
+    /// the stamp's honest absence beside them (the app door's rule).
+    #[test]
+    fn content_clamp_events_carry_the_content_vocabulary() {
+        use alacer_core::inspect::{ScrollAction, ScrollOutcome, ScrollRecord, ScrollRefusal};
+        let clamped = ScrollRecord {
+            action: ScrollAction::ContentClamp,
+            outcome: ScrollOutcome::Delivered,
+            offset: 200.0,
+            requested: None,
+            target: None,
+            pinned: Some(alacer_core::inspect::RangeBound::Max),
+            unit: None,
+        };
+        let WireEvent::Scroll {
+            action,
+            outcome,
+            refusal,
+            offset,
+            requested,
+            target,
+            pinned,
+            unit,
+        } = wire_scroll(&clamped)
+        else {
+            panic!("scroll event");
+        };
+        assert_eq!(
+            action, "content_clamp",
+            "the content's own story rides its own tag (the kill rule's words)"
+        );
+        assert_eq!(outcome, "delivered");
+        assert_eq!(refusal, None, "a delivery names no refusal");
+        assert_eq!(offset, 200.0, "the landing the clamp produced");
+        assert_eq!(
+            requested, None,
+            "a resize is not an ask — the honest absence rides the wire"
+        );
+        assert_eq!(
+            target, None,
+            "the app door rides no route — the stamp's honest absence"
+        );
+        assert_eq!(
+            pinned.as_deref(),
+            Some("max"),
+            "the wall the content clamp pinned rides the same vocabulary"
+        );
+        assert_eq!(
+            unit, None,
+            "a story with no unit rides the absence (M52, ADR-0058)"
+        );
+
+        let refused = ScrollRecord {
+            action: ScrollAction::ContentClamp,
+            outcome: ScrollOutcome::Refused(ScrollRefusal::NonFiniteContent),
+            offset: 100.0,
+            requested: None,
+            target: None,
+            pinned: None,
+            unit: None,
+        };
+        let WireEvent::Scroll {
+            action,
+            outcome,
+            refusal,
+            ..
+        } = wire_scroll(&refused)
+        else {
+            panic!("scroll event");
+        };
+        assert_eq!(action, "content_clamp");
+        assert_eq!(outcome, "refused");
+        assert_eq!(
+            refusal.as_deref(),
+            Some("non_finite_content"),
+            "the content's wall rides its own species (the M50 rule at the content door)"
         );
     }
 

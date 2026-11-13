@@ -179,6 +179,9 @@ pub enum WireEvent {
     /// carries the engine's platform-side fact beside the write
     /// refusal — the additive field the versioning rule admits at
     /// version 1 (clients that ignore unknown fields are unaffected).
+    /// Since M42 (ADR-0048) the event carries the engine's read-side
+    /// fact beside the paste's refusal — the same additive rule, the
+    /// empty clipboard and the non-text payload named apart.
     Clipboard {
         /// The round trip the field answered (`copy`, `cut`, `paste`).
         action: String,
@@ -193,6 +196,13 @@ pub enum WireEvent {
         /// delivery and on every other refusal — a paste reads, a
         /// no-selection copy never asked the engine (M41, ADR-0047).
         engine: Option<String>,
+        /// The engine's read-side species (`unnamed`, `unsupported`,
+        /// `empty`, `non_text`, `os_error`) when the paste refused for
+        /// the read; `null` on a delivery, on the field's own refusal
+        /// (a payload that sanitized to nothing — the read delivered),
+        /// and on every write-side round trip — a copy never asked a
+        /// read question (M42, ADR-0048).
+        read: Option<String>,
         /// The payload's UTF-8 scalar count when the round trip
         /// delivered — the span copied, the span cut, the text pasted.
         /// Zero on a refusal: a refusal moves nothing. The payload
@@ -221,6 +231,12 @@ pub enum WireEvent {
         /// wrote). A slider's value is the tree's own vocabulary the AT
         /// already reads, never a secret.
         value: f32,
+        /// The control the action arrived under (M43, ADR-0049) — the
+        /// AccessKit-stable id the dispatch funnel routed, the identity
+        /// a screen reader's client or an inspector pane correlates;
+        /// `null` when the write rode no routed action (the widget's
+        /// own doors — a drag, the keyboard's step).
+        target: Option<u64>,
     },
     /// A completed frame — the ledger + the mask heatmap.
     Frame {
@@ -486,6 +502,10 @@ pub fn wire_clipboard(record: &ClipboardRecord) -> WireEvent {
             .engine
             .map(alacer_core::clipboard::ClipboardWriteRefusal::name)
             .map(str::to_string),
+        read: record
+            .read
+            .map(alacer_core::clipboard::ClipboardReadRefusal::name)
+            .map(str::to_string),
         chars: record.chars,
     }
 }
@@ -514,6 +534,7 @@ pub fn wire_value(record: &alacer_core::inspect::ValueRecord) -> WireEvent {
             alacer_core::inspect::ValueOutcome::Delivered => None,
         },
         value: record.value,
+        target: record.target,
     }
 }
 
@@ -791,12 +812,13 @@ mod tests {
             action: ClipboardAction::Copy,
             outcome: ClipboardOutcome::Delivered,
             engine: None,
+            read: None,
             chars: 11,
         });
         let json = serde_json::to_string(&event).expect("clipboard json");
         assert_eq!(
             json,
-            r#"{"kind":"clipboard","action":"copy","outcome":"delivered","refusal":null,"engine":null,"chars":11}"#,
+            r#"{"kind":"clipboard","action":"copy","outcome":"delivered","refusal":null,"engine":null,"read":null,"chars":11}"#,
             "the documented clipboard shape (the announce event's flat rule)"
         );
         let WireEvent::Clipboard {
@@ -804,6 +826,7 @@ mod tests {
             outcome,
             refusal,
             engine,
+            read,
             chars,
         } = event
         else {
@@ -813,6 +836,7 @@ mod tests {
         assert_eq!(outcome, "delivered");
         assert_eq!(refusal, None);
         assert_eq!(engine, None, "an accepted write asked no refusal question");
+        assert_eq!(read, None, "a delivery asked no read question either");
         assert_eq!(chars, 11, "the record counts the span it moved");
     }
 
@@ -824,12 +848,13 @@ mod tests {
             action: ClipboardAction::Cut,
             outcome: ClipboardOutcome::Refused(ClipboardRefusal::WriteRefused),
             engine: Some(ClipboardWriteRefusal::Unnamed),
+            read: None,
             chars: 0,
         });
         let json = serde_json::to_string(&event).expect("refusal json");
         assert_eq!(
             json,
-            r#"{"kind":"clipboard","action":"cut","outcome":"refused","refusal":"write_refused","engine":"unnamed","chars":0}"#,
+            r#"{"kind":"clipboard","action":"cut","outcome":"refused","refusal":"write_refused","engine":"unnamed","read":null,"chars":0}"#,
             "the refusal species rides beside the outcome, the count honest at zero"
         );
         let WireEvent::Clipboard { refusal, .. } = event else {
@@ -839,17 +864,64 @@ mod tests {
     }
 
     #[test]
+    fn the_read_fact_rides_beside_the_paste_refusal() {
+        use alacer_core::clipboard::ClipboardReadRefusal;
+        use alacer_core::inspect::ClipboardRefusal;
+        // The read-refused paste: the read's species rides beside the
+        // verdict — the M39 collapse split, one verdict and two facts
+        // (M42, ADR-0048).
+        let event = wire_clipboard(&ClipboardRecord {
+            action: ClipboardAction::Paste,
+            outcome: ClipboardOutcome::Refused(ClipboardRefusal::EmptyClipboard),
+            engine: None,
+            read: Some(ClipboardReadRefusal::NonText),
+            chars: 0,
+        });
+        let json = serde_json::to_string(&event).expect("read json");
+        assert_eq!(
+            json,
+            r#"{"kind":"clipboard","action":"paste","outcome":"refused","refusal":"empty_clipboard","engine":null,"read":"non_text","chars":0}"#,
+            "the read's species rides beside the paste's verdict"
+        );
+        let WireEvent::Clipboard { read, .. } = event else {
+            panic!("clipboard event");
+        };
+        assert_eq!(read.as_deref(), Some("non_text"));
+
+        // The field-refused paste: the read delivered, the field's own
+        // refusal — the read fact rides null, the absence honest.
+        let event = wire_clipboard(&ClipboardRecord {
+            action: ClipboardAction::Paste,
+            outcome: ClipboardOutcome::Refused(ClipboardRefusal::EmptyClipboard),
+            engine: None,
+            read: None,
+            chars: 0,
+        });
+        let json = serde_json::to_string(&event).expect("field-refusal json");
+        assert_eq!(
+            json,
+            r#"{"kind":"clipboard","action":"paste","outcome":"refused","refusal":"empty_clipboard","engine":null,"read":null,"chars":0}"#,
+            "the field's own refusal carries the read's absence"
+        );
+        let WireEvent::Clipboard { read, .. } = event else {
+            panic!("clipboard event");
+        };
+        assert_eq!(read, None, "the read delivered — no read refusal rode");
+    }
+
+    #[test]
     fn value_events_carry_the_write_vocabulary() {
         use alacer_core::inspect::ValueAction;
         let event = wire_value(&alacer_core::inspect::ValueRecord {
             action: ValueAction::SetValue,
             outcome: alacer_core::inspect::ValueOutcome::Delivered,
             value: 42.0,
+            target: Some(0xAB_CD),
         });
         let json = serde_json::to_string(&event).expect("value json");
         assert_eq!(
             json,
-            r#"{"kind":"value","action":"set_value","outcome":"delivered","refusal":null,"value":42.0}"#,
+            r#"{"kind":"value","action":"set_value","outcome":"delivered","refusal":null,"value":42.0,"target":43981}"#,
             "the documented value shape (the clipboard event's flat rule)"
         );
         let WireEvent::Value {
@@ -857,6 +929,7 @@ mod tests {
             outcome,
             refusal,
             value,
+            target,
         } = event
         else {
             panic!("value event");
@@ -865,6 +938,11 @@ mod tests {
         assert_eq!(outcome, "delivered");
         assert_eq!(refusal, None);
         assert_eq!(value, 42.0, "the record carries the landed value");
+        assert_eq!(
+            target,
+            Some(0xAB_CD),
+            "the record names the control the action arrived under"
+        );
     }
 
     #[test]
@@ -874,11 +952,12 @@ mod tests {
             action: ValueAction::Increment,
             outcome: alacer_core::inspect::ValueOutcome::Refused(ValueRefusal::NoWriteDoor),
             value: 0.0,
+            target: None,
         });
         let json = serde_json::to_string(&event).expect("refusal json");
         assert_eq!(
             json,
-            r#"{"kind":"value","action":"increment","outcome":"refused","refusal":"no_write_door","value":0.0}"#,
+            r#"{"kind":"value","action":"increment","outcome":"refused","refusal":"no_write_door","value":0.0,"target":null}"#,
             "the refusal species rides beside the outcome, the tree's value honest"
         );
         let WireEvent::Value { refusal, value, .. } = event else {
@@ -898,12 +977,13 @@ mod tests {
             action: ClipboardAction::Copy,
             outcome: ClipboardOutcome::Refused(ClipboardRefusal::WriteRefused),
             engine: Some(ClipboardWriteRefusal::Unsupported),
+            read: None,
             chars: 0,
         });
         let json = serde_json::to_string(&event).expect("engine json");
         assert_eq!(
             json,
-            r#"{"kind":"clipboard","action":"copy","outcome":"refused","refusal":"write_refused","engine":"unsupported","chars":0}"#,
+            r#"{"kind":"clipboard","action":"copy","outcome":"refused","refusal":"write_refused","engine":"unsupported","read":null,"chars":0}"#,
             "the engine's species rides beside the round trip's verdict"
         );
         // A refusal that never asked the engine: the absence stays the
@@ -912,12 +992,13 @@ mod tests {
             action: ClipboardAction::Paste,
             outcome: ClipboardOutcome::Refused(ClipboardRefusal::EmptyClipboard),
             engine: None,
+            read: None,
             chars: 0,
         });
         let json = serde_json::to_string(&event).expect("read refusal json");
         assert_eq!(
             json,
-            r#"{"kind":"clipboard","action":"paste","outcome":"refused","refusal":"empty_clipboard","engine":null,"chars":0}"#,
+            r#"{"kind":"clipboard","action":"paste","outcome":"refused","refusal":"empty_clipboard","engine":null,"read":null,"chars":0}"#,
             "a read asked no write question — the engine fact rides null"
         );
     }

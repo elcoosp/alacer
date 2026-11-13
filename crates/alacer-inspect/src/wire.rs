@@ -249,6 +249,29 @@ pub enum WireEvent {
         /// route does.
         target: Option<u64>,
     },
+    /// A drag gesture answered — the gesture trail (ADR-0052): the
+    /// press that armed the value tier's drag beside the value it
+    /// found, or the release/leave that resolved it beside the value it
+    /// landed, one event per phase, never per move (the flood rule the
+    /// kill criteria pre-registered). Additive at version 1 (the rider
+    /// field's rule): clients that ignore unknown kinds are unaffected.
+    Gesture {
+        /// The gesture's phase (`started` — the press armed the drag;
+        /// `ended` — the release or the leave answered it).
+        phase: String,
+        /// The value the gesture found — the control's own scalar as
+        /// the press landed (the value the drag started from).
+        from: f32,
+        /// The value the gesture left the control holding; `null` on a
+        /// `started` record — the landing is the gesture's answer, not
+        /// its beginning's fact.
+        to: Option<f32>,
+        /// The control the gesture rides (M46, ADR-0052) — the
+        /// AccessKit-stable id the dispatch funnel's pointer route
+        /// resolved (the deepest hit that captured); `null` when the
+        /// fact queued outside a routed pointer event.
+        target: Option<u64>,
+    },
     /// A completed frame — the ledger + the mask heatmap.
     Frame {
         /// Monotonic frame number.
@@ -547,6 +570,22 @@ pub fn wire_value(record: &alacer_core::inspect::ValueRecord) -> WireEvent {
         },
         value: record.value,
         requested: record.requested,
+        target: record.target,
+    }
+}
+
+/// Converts a core [`alacer_core::inspect::GestureRecord`] into the
+/// wire event: the drag's answer, flat on the wire (ADR-0052) — the
+/// phase beside the value it found and the value it landed, the control
+/// the pointer route stamped beside them. One event per gesture phase,
+/// never per move: the flood rule the kill criteria pre-registered
+/// holds on the wire by construction.
+#[must_use]
+pub fn wire_gesture(record: &alacer_core::inspect::GestureRecord) -> WireEvent {
+    WireEvent::Gesture {
+        phase: record.phase.name().to_string(),
+        from: record.from,
+        to: record.to,
         target: record.target,
     }
 }
@@ -1025,6 +1064,47 @@ mod tests {
     }
 
     #[test]
+    fn the_gesture_phases_ride_the_flat_event() {
+        use alacer_core::inspect::GesturePhase;
+        // The beginning: the value the drag found, the landing absent —
+        // the documented shape (the value event's flat rule).
+        let event = wire_gesture(&alacer_core::inspect::GestureRecord {
+            phase: GesturePhase::Started,
+            from: 20.0,
+            to: None,
+            target: None,
+        });
+        let json = serde_json::to_string(&event).expect("gesture json");
+        assert_eq!(
+            json, r#"{"kind":"gesture","phase":"started","from":20.0,"to":null,"target":null}"#,
+            "the documented gesture shape (the value event's flat rule)"
+        );
+        let WireEvent::Gesture {
+            phase, from, to, ..
+        } = event
+        else {
+            panic!("gesture event");
+        };
+        assert_eq!(phase, "started");
+        assert!((from - 20.0).abs() < f32::EPSILON);
+        assert_eq!(to, None, "the landing is not the beginning's fact");
+
+        // The answer: the value it left the control holding, the stamp
+        // beside it — one event per phase, never per move.
+        let event = wire_gesture(&alacer_core::inspect::GestureRecord {
+            phase: GesturePhase::Ended,
+            from: 20.0,
+            to: Some(42.0),
+            target: Some(43981),
+        });
+        let json = serde_json::to_string(&event).expect("gesture end json");
+        assert_eq!(
+            json, r#"{"kind":"gesture","phase":"ended","from":20.0,"to":42.0,"target":43981}"#,
+            "the landing and the stamp ride the end's own event"
+        );
+    }
+
+    #[test]
     fn frames_carry_the_damage_verdict_and_regions() {
         use alacer_core::geom::Size;
         use alacer_core::passes::PassKind;
@@ -1149,6 +1229,25 @@ mod client_tests {
             assert!(
                 page.contains(fragment),
                 "the embedded client renders the binding's name: {fragment}"
+            );
+        }
+    }
+
+    /// M46 (ADR-0052, this cut): the embedded standalone client renders
+    /// the drag's echo — the phase beside the value it found and the
+    /// value it landed, the phases never conflating, the flood rule
+    /// visible as one row per gesture edge. The pin rides the file's
+    /// own fragments (the M30 route).
+    #[test]
+    fn the_client_renders_the_gestures_echo() {
+        let page = include_str!("inspector.html");
+        for fragment in [
+            "event.phase",
+            "The client renders the drag's echo (M46, ADR-0052)",
+        ] {
+            assert!(
+                page.contains(fragment),
+                "the embedded client renders the gesture event: {fragment}"
             );
         }
     }

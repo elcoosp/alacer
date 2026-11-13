@@ -337,13 +337,23 @@ function connect() {
         // so a reader answers "did the write land — where, or why not"
         // from the log alone. The value is the tree's own vocabulary
         // the AT already reads, never a secret.
+        // The ask beside the landing (M44, ADR-0050): a clamp or a snap
+        // the trail could not show is one record's story now — "asked
+        // 150, landed 100" renders as data; an ask the landing answers
+        // exactly renders the value alone, and an ask that never became
+        // a finite scalar (null) renders nothing.
+        const clamp = event.requested != null && event.requested !== event.value;
         const span = event.outcome === "delivered"
-          ? " (the value " + event.value + ")"
+          ? (clamp
+            ? " (asked " + event.requested + ", landed " + event.value + ")"
+            : " (the value " + event.value + ")")
           : "";
         // The control's identity beside the record (M43, ADR-0049): the
         // log answers "which control answered" — the id the dispatch
         // funnel routed, the vocabulary the AT's client already speaks;
-        // a ride no funnel routed carries no target (null).
+        // a ride no funnel routed carries no target (null). Since M45
+        // (ADR-0051) the keyboard's arrows ride attributed too — the
+        // key route stamps the focused control.
         const target = event.target != null ? " (control " + event.target + ")" : "";
         const answer = event.outcome === "refused"
           ? "refused: " + event.refusal + target

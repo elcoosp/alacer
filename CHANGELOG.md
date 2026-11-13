@@ -9,7 +9,33 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
-- **M42 — the clipboard read names its facts (ADR-0048)**: ADR-0047's
+- **M45 — the keyboard's ride joins the value log (ADR-0051)**:
+  ADR-0049's first kill rule cashed — a consumer needs the keyboard's
+  value rides on the log *attributed*, so the focused slider's arrows
+  stream the same `ValueRecord` the AT tier streams through the
+  keyboard's own door: the dispatch funnel's key route holds the stamp
+  the action route holds (the focused control's AccessKit-stable id,
+  one `Cell` read while nobody listens — the A7 idle contract, never
+  an id-path walk off an observer), the record carrying the step's own
+  action species (`Increment`/`Decrement`), the landed value, M44's
+  ask beside it, and the control the key rode. Home/End stay off the
+  log (the record vocabulary has no bound action — a jump munged into
+  a `SetValue` would be the M11 rule's own munging), and the drag
+  stays off (the per-pointer-move flood the kill rule refuses,
+  ADR-0046's second kill rule standing).
+- **M44 — the value record shows the clamp (ADR-0050)**: ADR-0049's
+  second re-open rule cashed — a consumer needs the *requested* value
+  beside the landed one (a clamp the trail cannot show), so one
+  additive `ValueRecord::requested` rides every value fact: the finite
+  scalar the AT asked before the control's clamp-and-snap moved it,
+  the fact living where the knowledge lives (the widget's own door
+  computes the ask, the note site carries it — never a value
+  reconstructed from the landing), the wire carrying it additively at
+  version 1 (the `target` field's rule), the embedded client rendering
+  "asked 150, landed 100" as data. `None` is the honest absence: the
+  unparsable payload, the door refused before arithmetic, the ask
+  itself non-finite (JSON cannot carry it — the species names the
+  wall).- **M42 — the clipboard read names its facts (ADR-0048)**: ADR-0047's
   third re-open rule cashed — a consumer needs the read side's facts
   the paste's `None` collapsed (the empty clipboard, the non-text
   payload, the unopenable clipboard) so the seam's read door grows

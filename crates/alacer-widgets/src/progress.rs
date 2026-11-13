@@ -323,6 +323,11 @@ impl Widget for Progress {
             value: self.reported(),
             requested: None,
             target: None,
+            // A write that moved nothing pinned nothing (M49, ADR-0055):
+            // the door-less control's refusal carries the honest
+            // absence, the wall a delivered write pins being the
+            // slider's story.
+            pinned: None,
         });
         false
     }

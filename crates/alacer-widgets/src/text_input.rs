@@ -508,6 +508,7 @@ impl TextInput {
                     alacer_core::ClipboardRefusal::NoSelection,
                 ),
                 engine: None,
+                read: None,
                 chars: 0,
             });
             return false;
@@ -531,6 +532,7 @@ impl TextInput {
                 alacer_core::clipboard::ClipboardWriteFact::Accepted => None,
                 alacer_core::clipboard::ClipboardWriteFact::Refused(refusal) => Some(refusal),
             },
+            read: None,
             chars: if accepted { copied.chars().count() } else { 0 },
         });
         accepted
@@ -556,6 +558,7 @@ impl TextInput {
                     alacer_core::ClipboardRefusal::NoSelection,
                 ),
                 engine: None,
+                read: None,
                 chars: 0,
             });
             return false;
@@ -579,6 +582,7 @@ impl TextInput {
                     alacer_core::clipboard::ClipboardWriteFact::Refused(refusal) => Some(refusal),
                     alacer_core::clipboard::ClipboardWriteFact::Accepted => None,
                 },
+                read: None,
                 chars: 0,
             });
             return false;
@@ -588,6 +592,7 @@ impl TextInput {
             action: alacer_core::ClipboardAction::Cut,
             outcome: alacer_core::ClipboardOutcome::Delivered,
             engine: None,
+            read: None,
             chars,
         });
         let (from, to) = self.selection_span();
@@ -603,11 +608,23 @@ impl TextInput {
     ///
     /// Since M39 the round trip streams its own fact (ADR-0045) beside
     /// the insert it drives — the trail reads clipboard → edit, the
-    /// payload's count naming what landed.
+    /// payload's count naming what landed. Since M42 the paste rides
+    /// the engine's reported read (ADR-0048): the read's own species
+    /// rides the record beside the verdict — a paste that refused for
+    /// the *read* names the species, a paste that refused for the
+    /// *field* (a payload that sanitized to nothing) carries the read's
+    /// absence — the M39 collapse split, one verdict and two facts.
     fn paste(&mut self) -> bool {
-        let raw = alacer_core::clipboard::with_clipboard(
-            alacer_core::clipboard::ClipboardSeam::read_text,
+        // The engine's reported read (M42, ADR-0048): the read-side fact
+        // rides the record beside the round trip's verdict — the log
+        // answers "did the paste refuse for the read, or for the field".
+        let fact = alacer_core::clipboard::with_clipboard(
+            alacer_core::clipboard::ClipboardSeam::read_reported,
         );
+        let (raw, read) = match fact {
+            alacer_core::clipboard::ClipboardReadFact::Delivered(text) => (Some(text), None),
+            alacer_core::clipboard::ClipboardReadFact::Refused(species) => (None, Some(species)),
+        };
         let Some(raw) = raw else {
             alacer_core::clipboard::note_round_trip(alacer_core::ClipboardRecord {
                 action: alacer_core::ClipboardAction::Paste,
@@ -615,6 +632,7 @@ impl TextInput {
                     alacer_core::ClipboardRefusal::EmptyClipboard,
                 ),
                 engine: None,
+                read,
                 chars: 0,
             });
             return false;
@@ -627,6 +645,7 @@ impl TextInput {
                     alacer_core::ClipboardRefusal::EmptyClipboard,
                 ),
                 engine: None,
+                read: None,
                 chars: 0,
             });
             return false;
@@ -636,6 +655,7 @@ impl TextInput {
             action: alacer_core::ClipboardAction::Paste,
             outcome: alacer_core::ClipboardOutcome::Delivered,
             engine: None,
+            read: None,
             chars,
         });
         self.insert(&sanitized);

@@ -415,10 +415,10 @@ oldest-first eviction) and the recorder's `gesture` ring holds 512.
 ### `scroll` — a scroll ask answered ("did the list scroll — where, or why not?")
 
 ```json
-{"kind":"scroll","action":"wheel","outcome":"delivered","refusal":null,"offset":400.0,"requested":450.0,"target":43981,"pinned":"max"}
-{"kind":"scroll","action":"scroll_down","outcome":"refused","refusal":"no_scrollable_content","offset":0.0,"requested":40.0,"target":43981,"pinned":null}
-{"kind":"scroll","action":"content_clamp","outcome":"delivered","refusal":null,"offset":200.0,"requested":null,"target":null,"pinned":"max"}
-{"kind":"scroll","action":"scroll_down","outcome":"delivered","refusal":null,"offset":140.0,"requested":140.0,"target":43981,"pinned":null,"unit":"page"}
+{"kind":"scroll","action":"wheel","outcome":"delivered","refusal":null,"offset":400.0,"requested":450.0,"target":43981,"pinned":"max","unit":null,"lines":1.0}
+{"kind":"scroll","action":"scroll_down","outcome":"refused","refusal":"no_scrollable_content","offset":0.0,"requested":40.0,"target":43981,"pinned":null,"unit":null,"lines":null}
+{"kind":"scroll","action":"content_clamp","outcome":"delivered","refusal":null,"offset":200.0,"requested":null,"target":null,"pinned":"max","unit":null,"lines":null}
+{"kind":"scroll","action":"scroll_down","outcome":"delivered","refusal":null,"offset":140.0,"requested":140.0,"target":43981,"pinned":null,"unit":"page","lines":null}
 ```
 
 The scroll tier's own story (M50, ADR-0056, the price ADR-0055's
@@ -478,14 +478,31 @@ refusals named.
   was turned back by; `null` when the ask wanted the wall exactly (the
   landing *is* the ask), on every landing mid-range, and on every
   refusal (a write that moved nothing pinned nothing).
-- `unit` — the asker's unit on the AT's unit scrolls (M52,
-  ADR-0058, the price ADR-0056's first kill rule pre-registered):
-  `item` or `page` beside the `scroll_up`/`scroll_down` actions,
-  the ask the distance is priced against; `null` on every other
-  action (the wheel's coalesced run, the value step's page, the
-  app's own door, the content's own clamp — stories with no unit
-  ride none). The additive field the versioning rule admits at
-  version 1 — clients that ignore unknown fields are unaffected.
+- `unit` — the asker's unit on the AT's unit scrolls and value steps
+  (M52, ADR-0058, the price ADR-0056's first kill rule
+  pre-registered; M54, ADR-0060, the price ADR-0058's first kill
+  rule pre-registered): `item` or `page` beside the
+  `scroll_up`/`scroll_down` actions, the ask the distance is priced
+  against, and the value step's page rides beside the step species
+  too — `page` beside `increment`/`decrement` (the step's page is a
+  unit-like distance a reader may want attributed the same way; the
+  field's contract grew beside its shape, no new field, no version
+  bump); `null` on the stories with no unit (the wheel's coalesced
+  run — the `lines` field prices it its own magnitude instead — the
+  app's own door, the content's own clamp). The additive field the
+  versioning rule admits at version 1 — clients that ignore unknown
+  fields are unaffected.
+- `lines` — the wheel run's notional line count (M53, ADR-0059,
+  the price ADR-0058's second kill rule pre-registered): the
+  coalesced run's magnitude priced by the platform's own convention
+  — one line = 40 px (§10.2), the rule the platform's wheel
+  conversion prices `LineDelta` with — so a notch answers `1.0` and
+  the trackpad's pixel runs answer their honest fraction, beside the
+  `wheel` action only; `null` on every other action and on the
+  non-finite run (`non_finite_ask` — a count of a run that never was
+  would be the lie the additive rule forbids). The additive field
+  the versioning rule admits at version 1 — clients that ignore
+  unknown fields are unaffected.
 
 The record streams at the tick's start drain — one frame after the
 ask, the gesture trail's currency, the drain running after the gesture

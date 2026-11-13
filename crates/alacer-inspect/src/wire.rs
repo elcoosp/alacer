@@ -231,11 +231,22 @@ pub enum WireEvent {
         /// wrote). A slider's value is the tree's own vocabulary the AT
         /// already reads, never a secret.
         value: f32,
+        /// The finite scalar the AT asked, before the control's
+        /// clamp-and-snap moved it (M44, ADR-0050) — the ask beside the
+        /// landing, a clamp or a snap the trail could not show visible
+        /// as data; `null` when the ask never became a finite scalar
+        /// (the unparsable payload, the closed door, the non-finite
+        /// wall — JSON cannot carry an infinite ask honestly). Additive
+        /// at version 1 (the `target` field's rule): clients that
+        /// ignore unknown fields are unaffected.
+        requested: Option<f32>,
         /// The control the action arrived under (M43, ADR-0049) — the
         /// AccessKit-stable id the dispatch funnel routed, the identity
         /// a screen reader's client or an inspector pane correlates;
-        /// `null` when the write rode no routed action (the widget's
-        /// own doors — a drag, the keyboard's step).
+        /// `null` when the write rode no routed action (the drag). Since
+        /// M45 (ADR-0051) the keyboard's arrows ride attributed too —
+        /// the key route stamps the focused control like the action
+        /// route does.
         target: Option<u64>,
     },
     /// A completed frame — the ledger + the mask heatmap.
@@ -521,7 +532,8 @@ pub const fn value_action_name(action: alacer_core::inspect::ValueAction) -> &'s
 /// Converts a core [`alacer_core::inspect::ValueRecord`] into the wire
 /// event: the value write's answer, flat on the wire (ADR-0046) — the
 /// clipboard event's flat rule, the refusal species carried beside the
-/// outcome and the landed value beside both.
+/// outcome and the landed value beside both, the ask beside the landing
+/// (M44, ADR-0050).
 #[must_use]
 pub fn wire_value(record: &alacer_core::inspect::ValueRecord) -> WireEvent {
     WireEvent::Value {
@@ -534,6 +546,7 @@ pub fn wire_value(record: &alacer_core::inspect::ValueRecord) -> WireEvent {
             alacer_core::inspect::ValueOutcome::Delivered => None,
         },
         value: record.value,
+        requested: record.requested,
         target: record.target,
     }
 }
@@ -916,12 +929,13 @@ mod tests {
             action: ValueAction::SetValue,
             outcome: alacer_core::inspect::ValueOutcome::Delivered,
             value: 42.0,
+            requested: Some(150.0),
             target: Some(0xAB_CD),
         });
         let json = serde_json::to_string(&event).expect("value json");
         assert_eq!(
             json,
-            r#"{"kind":"value","action":"set_value","outcome":"delivered","refusal":null,"value":42.0,"target":43981}"#,
+            r#"{"kind":"value","action":"set_value","outcome":"delivered","refusal":null,"value":42.0,"requested":150.0,"target":43981}"#,
             "the documented value shape (the clipboard event's flat rule)"
         );
         let WireEvent::Value {
@@ -929,6 +943,7 @@ mod tests {
             outcome,
             refusal,
             value,
+            requested,
             target,
         } = event
         else {
@@ -938,6 +953,11 @@ mod tests {
         assert_eq!(outcome, "delivered");
         assert_eq!(refusal, None);
         assert_eq!(value, 42.0, "the record carries the landed value");
+        assert_eq!(
+            requested,
+            Some(150.0),
+            "the record carries the ask beside the landing (M44, ADR-0050)"
+        );
         assert_eq!(
             target,
             Some(0xAB_CD),
@@ -952,12 +972,13 @@ mod tests {
             action: ValueAction::Increment,
             outcome: alacer_core::inspect::ValueOutcome::Refused(ValueRefusal::NoWriteDoor),
             value: 0.0,
+            requested: None,
             target: None,
         });
         let json = serde_json::to_string(&event).expect("refusal json");
         assert_eq!(
             json,
-            r#"{"kind":"value","action":"increment","outcome":"refused","refusal":"no_write_door","value":0.0,"target":null}"#,
+            r#"{"kind":"value","action":"increment","outcome":"refused","refusal":"no_write_door","value":0.0,"requested":null,"target":null}"#,
             "the refusal species rides beside the outcome, the tree's value honest"
         );
         let WireEvent::Value { refusal, value, .. } = event else {

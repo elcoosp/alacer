@@ -291,6 +291,46 @@ pub enum WireEvent {
         /// the wall's fact).
         bound: Option<String>,
     },
+    /// A scroll ask answered — the scroll trail (ADR-0056): the wheel,
+    /// the AT's unit scroll or value step, or the app's own
+    /// programmatic scroll, the landed offset beside the ask, the
+    /// refusals named. Additive at version 1 (the rider field's rule):
+    /// clients that ignore unknown kinds are unaffected.
+    Scroll {
+        /// The scroll-tier action the ask rode (`wheel`, `scroll_up`,
+        /// `scroll_down`, `increment`, `decrement`, `scroll_to`).
+        action: String,
+        /// What the scroll area answered (`delivered`, `refused`).
+        outcome: String,
+        /// The refusal species (`no_scrollable_content`,
+        /// `non_finite_ask`) on a refused ask; `null` otherwise.
+        refusal: Option<String>,
+        /// The offset the scroll area holds as the event resolves —
+        /// the clamp's result on a delivery, the untouched offset on a
+        /// refusal. A scroll area's offset is the tree's own
+        /// vocabulary the AT already reads, never a secret.
+        offset: f32,
+        /// The finite offset the ask wanted, before the clamp moved it
+        /// (the M44 rule at the scroll tier) — the ask beside the
+        /// landing, a clamp the trail could not show visible as data;
+        /// `null` when the ask never became a finite scalar
+        /// (`non_finite_ask` — JSON cannot carry an infinite ask
+        /// honestly). Additive at version 1 (the `requested` field's
+        /// rule): clients that ignore unknown fields are unaffected.
+        requested: Option<f32>,
+        /// The control the ask rode (M50, ADR-0056) — the
+        /// AccessKit-stable id the wheel route resolved (the deepest
+        /// hit under the hover) or the AT action routed; `null` when
+        /// the ask rode no route (the app's own handle door).
+        target: Option<u64>,
+        /// The wall the clamp pinned the landing at (ADR-0055's second
+        /// kill rule) — the range's own edge (`min`, `max`) a past ask
+        /// was turned back by; `null` when the ask wanted the wall
+        /// exactly (the landing *is* the ask), on every landing
+        /// mid-range, and on every refusal (a write that moved nothing
+        /// pinned nothing).
+        pinned: Option<String>,
+    },
     /// A completed frame — the ledger + the mask heatmap.
     Frame {
         /// Monotonic frame number.
@@ -616,6 +656,33 @@ pub fn wire_gesture(record: &alacer_core::inspect::GestureRecord) -> WireEvent {
         target: record.target,
         bound: record
             .bound
+            .map(alacer_core::inspect::RangeBound::name)
+            .map(str::to_string),
+    }
+}
+
+/// Converts a core [`alacer_core::inspect::ScrollRecord`] into the
+/// wire event: the scroll ask's answer, flat on the wire (ADR-0056) —
+/// the value event's flat rule, the refusal species carried beside the
+/// outcome and the landed offset beside both, the ask beside the
+/// landing, the wall the clamp pinned beside them (ADR-0055's second
+/// kill rule at the tier whose funnel knows no range).
+#[must_use]
+pub fn wire_scroll(record: &alacer_core::inspect::ScrollRecord) -> WireEvent {
+    WireEvent::Scroll {
+        action: record.action.name().to_string(),
+        outcome: record.outcome.name().to_string(),
+        refusal: match record.outcome {
+            alacer_core::inspect::ScrollOutcome::Refused(refusal) => {
+                Some(refusal.name().to_string())
+            }
+            alacer_core::inspect::ScrollOutcome::Delivered => None,
+        },
+        offset: record.offset,
+        requested: record.requested,
+        target: record.target,
+        pinned: record
+            .pinned
             .map(alacer_core::inspect::RangeBound::name)
             .map(str::to_string),
     }
@@ -1205,6 +1272,75 @@ mod tests {
         );
     }
 
+    /// M50 (ADR-0056, this cut): the scroll event carries the scroll
+    /// vocabulary — the action and outcome species, the landed offset
+    /// beside the ask, the wall the clamp pinned, the refusals named —
+    /// the value event's flat rule at the tier whose funnel knows no
+    /// range (ADR-0055's second kill rule).
+    #[test]
+    fn scroll_events_carry_the_scroll_vocabulary() {
+        use alacer_core::inspect::{ScrollAction, ScrollOutcome, ScrollRecord, ScrollRefusal};
+        let delivered = ScrollRecord {
+            action: ScrollAction::Wheel,
+            outcome: ScrollOutcome::Delivered,
+            offset: 400.0,
+            requested: Some(450.0),
+            target: Some(0xAB_CD),
+            pinned: Some(alacer_core::inspect::RangeBound::Max),
+        };
+        let WireEvent::Scroll {
+            action,
+            outcome,
+            refusal,
+            offset,
+            requested,
+            target,
+            pinned,
+        } = wire_scroll(&delivered)
+        else {
+            panic!("scroll event");
+        };
+        assert_eq!(
+            action, "wheel",
+            "the action's snake_case tag rides the wire"
+        );
+        assert_eq!(outcome, "delivered");
+        assert_eq!(refusal, None, "a delivery names no refusal");
+        assert_eq!(offset, 400.0, "the landing rides beside the ask");
+        assert_eq!(
+            requested,
+            Some(450.0),
+            "the ask rides beside the landing (the M44 rule at the scroll tier)"
+        );
+        assert_eq!(target, Some(0xAB_CD), "the route's stamp rides");
+        assert_eq!(
+            pinned.as_deref(),
+            Some("max"),
+            "the wall's snake_case tag rides the wire (the protocol's rule)"
+        );
+
+        let refused = ScrollRecord {
+            action: ScrollAction::ScrollDown,
+            outcome: ScrollOutcome::Refused(ScrollRefusal::NoScrollableContent),
+            offset: 0.0,
+            requested: Some(40.0),
+            target: None,
+            pinned: None,
+        };
+        let WireEvent::Scroll {
+            outcome, refusal, ..
+        } = wire_scroll(&refused)
+        else {
+            panic!("scroll event");
+        };
+        assert_eq!(outcome, "refused");
+        assert_eq!(
+            refusal.as_deref(),
+            Some("no_scrollable_content"),
+            "the refusal's snake_case tag rides the wire"
+        );
+    }
+
     #[test]
     fn frames_carry_the_damage_verdict_and_regions() {
         use alacer_core::geom::Size;
@@ -1353,6 +1489,25 @@ mod client_tests {
             assert!(
                 page.contains(fragment),
                 "the embedded client renders the gesture event: {fragment}"
+            );
+        }
+    }
+
+    /// M50 (ADR-0056, this cut): the embedded standalone client renders
+    /// the scroll's echo — the landed offset beside the ask, the wall
+    /// the clamp pinned, the refusals rendered the way the walk's
+    /// refusals are. The pin rides the file's own fragments (the M46
+    /// route).
+    #[test]
+    fn the_client_renders_the_scrolls_echo() {
+        let page = include_str!("inspector.html");
+        for fragment in [
+            "case \"scroll\":",
+            "The client renders the scroll's echo (M50, ADR-0056)",
+        ] {
+            assert!(
+                page.contains(fragment),
+                "the embedded client renders the scroll event: {fragment}"
             );
         }
     }

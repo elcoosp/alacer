@@ -184,6 +184,7 @@ mod tests {
             requested: Some(42.0),
             target: None,
             pinned: None,
+            unit: None,
         });
         assert!(
             take_scroll_trail().is_empty(),
@@ -205,6 +206,7 @@ mod tests {
                 requested: None,
                 target: None,
                 pinned: None,
+                unit: None,
             });
         }
         let drained = take_scroll_trail();
@@ -237,6 +239,7 @@ mod tests {
             requested: Some(100.0),
             target: None,
             pinned: Some(RangeBound::Max),
+            unit: None,
         });
         drop(guard);
         let drained = take_scroll_trail();
@@ -264,6 +267,7 @@ mod tests {
             requested: Some(30.0),
             target: None,
             pinned: None,
+            unit: None,
         });
         // The caller's own answer is never overwritten.
         note_scroll(ScrollRecord {
@@ -273,6 +277,7 @@ mod tests {
             requested: None,
             target: Some(1),
             pinned: None,
+            unit: None,
         });
         let drained = take_scroll_trail();
         assert_eq!(
@@ -294,6 +299,7 @@ mod tests {
             requested: Some(130.0),
             target: None,
             pinned: None,
+            unit: None,
         });
         let drained = take_scroll_trail();
         assert_eq!(

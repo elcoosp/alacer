@@ -9,6 +9,53 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M47 — the keyboard's jumps are named facts (ADR-0053)**: ADR-0051's
+  second kill rule cashed — a consumer needs Home/End on the log, so
+  the jumps answer with their own named species: `ValueAction` grows
+  `JumpToMin`/`JumpToMax` beside `SetValue`, never a munged jump (the
+  M11 rule's own words — the vocabulary the kill rule pre-registered,
+  not a payload that never was). The slider's bounds' door
+  (`jump_note`) streams the jump through the same shared route the
+  step tier rides: the landing the funnel's own arithmetic, the bound
+  the ask beside it (M44's discipline — the ask living where the
+  knowledge lives, the clamp-and-snap never moving it), the M45 key
+  route's stamp riding for free (the focused control's id on the
+  record, one funnel, four named facts), and the no-op jump answering
+  like the landed write it is (the M20 idle-frame property, the log
+  naming it). The wire's `action` vocabulary grows the two
+  `snake_case` tags additively at version 1 (the documented field
+  values' rule — clients that ignore unknown field values
+  unaffected), the embedded client rendering the species beside the
+  record, and `examples/bound_jumps.rs` is the consumer
+  demonstration.
+- **M46 — the drag's story joins the log, per-gesture (ADR-0052)**:
+  ADR-0046's second kill rule's open arm and ADR-0051's first kill
+  rule cashed together — a consumer needs the drag on the log (the
+  value tier's trail answers the AT's writes and the keyboard's steps,
+  but the drag queued nothing, so a trail reader could not answer "why
+  did the slider's value move while the hand dragged it"), priced the
+  way the kill rules name: one per-*gesture* record, never per-move.
+  One `GestureRecord` per phase — a `Started` the moment the press
+  arms the drag (the value it found, before the press's own write
+  lands), an `Ended` the moment the release or the leave resolves it
+  (the value it left the control holding, the beginning remembered
+  beside it — each record self-contained) — so one hundred moves
+  inside one gesture stream exactly two records, the flood rule
+  holding by construction. The `gesture` trail is the value trail's
+  shape (`crates/alacer-core/src/gesture.rs`: the bounded queue, the
+  A7 one-branch idle contract, the note site where the phase resolves,
+  the tick's-start drain after the value drain), and the funnel's
+  pointer route holds `GestureTargetGuard` — the deepest hit that
+  captured (ADR-0025) is the *who* the drag's door cannot know, the
+  M43 stamp discipline at the pointer tier, one `Cell` read while
+  nobody listens. The wall (M22, ADR-0028) arms nothing and streams
+  nothing: a gesture that never was is the honest absence. The wire
+  grows the flat `gesture` event additively at version 1, the
+  recorder's `gestures` ring carrying the trail beside the others, the
+  embedded client rendering the phases, the corpus growing 63 → 64
+  (`gestures/route_100_drag_moves_1k`, measured, published, and gated
+  at this run — the coordinated rule), and `examples/drag_gesture.rs`
+  is the consumer demonstration.
 - **M45 — the keyboard's ride joins the value log (ADR-0051)**:
   ADR-0049's first kill rule cashed — a consumer needs the keyboard's
   value rides on the log *attributed*, so the focused slider's arrows

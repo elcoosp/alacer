@@ -427,6 +427,7 @@ impl Widget for Slider {
                 action: tier,
                 outcome: alacer_core::ValueOutcome::Refused(alacer_core::ValueRefusal::Unavailable),
                 value: self.value,
+                target: None,
             });
             return false;
         }
@@ -443,6 +444,7 @@ impl Widget for Slider {
                             alacer_core::ValueRefusal::InvalidPayload,
                         ),
                         value: self.value,
+                        target: None,
                     });
                     return false;
                 }
@@ -466,6 +468,7 @@ impl Widget for Slider {
                 action: tier,
                 outcome: alacer_core::ValueOutcome::Delivered,
                 value: self.value,
+                target: None,
             });
         } else {
             alacer_core::value::note_write(alacer_core::ValueRecord {
@@ -474,6 +477,7 @@ impl Widget for Slider {
                     alacer_core::ValueRefusal::NonFiniteValue,
                 ),
                 value: self.value,
+                target: None,
             });
         }
         answered

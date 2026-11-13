@@ -28,6 +28,15 @@
 //! by nothing but the route that routed them — the same record, the
 //! same stamp discipline.
 //!
+//! Since M49 the record names the wall the funnel pinned the landing
+//! at too (ADR-0055, ADR-0053's second kill rule): a write the range
+//! turned back at its edge — the clamp, the snap, the wall that held a
+//! no-op against a past ask — carries the bound beside the species,
+//! the ask's own wall named where the knowledge lives (the widget's
+//! own door computes it, the trail never reconstructs it). The ask
+//! that wanted the wall exactly (the M47 jumps) rides the honest
+//! absence: the species already names the bound it asked for.
+//!
 //! ```text
 //! // Widgets (core-only dependencies):
 //! use alacer_core::value::note_write;
@@ -179,6 +188,7 @@ mod tests {
             value: 42.0,
             requested: None,
             target: None,
+            pinned: None,
         });
         assert!(
             take_value_trail().is_empty(),
@@ -199,6 +209,7 @@ mod tests {
                 value,
                 requested: None,
                 target: None,
+                pinned: None,
             });
         }
         let drained = take_value_trail();
@@ -231,6 +242,7 @@ mod tests {
             value: 42.0,
             requested: Some(150.0),
             target: None,
+            pinned: None,
         });
         drop(guard);
         let drained = take_value_trail();
@@ -252,6 +264,7 @@ mod tests {
             value: 43.0,
             requested: None,
             target: None,
+            pinned: None,
         });
         // The caller's own answer is never overwritten.
         note_write(ValueRecord {
@@ -260,6 +273,7 @@ mod tests {
             value: 41.0,
             requested: Some(39.0),
             target: Some(1),
+            pinned: None,
         });
         let drained = take_value_trail();
         assert_eq!(
@@ -280,6 +294,7 @@ mod tests {
             value: 41.0,
             requested: None,
             target: None,
+            pinned: None,
         });
         let drained = take_value_trail();
         assert_eq!(

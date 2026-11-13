@@ -52,3 +52,7 @@ harness = false
 [[bench]]
 name = "disabled"
 harness = false
+
+[[bench]]
+name = "gestures"
+harness = false

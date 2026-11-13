@@ -10,6 +10,15 @@
 //! directly (A1: masks are the only currency), and a write that lands where
 //! the value already is queues no masks — the idle-frame property the
 //! storm budget leans on.
+//!
+//! Since M40 (ADR-0046) every value-tier write the AT asks streams one
+//! [`alacer_core::ValueRecord`] at the exact place the answer resolves;
+//! since M44 (ADR-0050) the record carries the ask beside the landing —
+//! the finite scalar the door computed, before the clamp-and-snap moved
+//! it; and since M45 (ADR-0051) the arrows' steps stream the same record
+//! through the keyboard's own door, the dispatch funnel's key route
+//! stamping the focused control — the drag and the Home/End jumps stay
+//! off the log (the flood rule and the no-munging rule).
 
 use std::cmp::Ordering;
 
@@ -251,8 +260,40 @@ impl Slider {
 
     /// Steps by `direction` (the arrows' and the AT step tier's shared
     /// route).
-    fn step_by(&mut self, direction: f32, ctx: &mut EventCtx) -> bool {
-        self.commit(self.value + direction * self.step, Some(ctx))
+    fn step_by(&mut self, direction: f32, ctx: Option<&mut EventCtx>) -> bool {
+        self.commit(self.value + direction * self.step, ctx)
+    }
+
+    /// The arrows' door (M45, ADR-0051, ADR-0049's first kill rule): the
+    /// keyboard's step rides the same shared route the AT tier rides,
+    /// and the ride streams the same
+    /// [`alacer_core::inspect::ValueRecord`] the AT tier streams — the
+    /// step's own action species (`Increment`/`Decrement`), the landed
+    /// value, the ask beside it (M44, ADR-0050). The dispatch funnel's
+    /// key route holds the stamp while this door answers, so the record
+    /// carries the focused control's id — the ride attributed like
+    /// every other fact on the log. Home/End stay off the log (the
+    /// funnel routes no fact for them): the record vocabulary has no
+    /// bound action, and a jump munged into a `SetValue` would be the
+    /// M11 rule's own munging — the trail answers the step tier's
+    /// rides, never a jump the vocabulary cannot name.
+    fn step_note(&mut self, direction: f32, ctx: &mut EventCtx) -> bool {
+        let ask = self.value + direction * self.step;
+        let answered = self.step_by(direction, Some(ctx));
+        if answered {
+            alacer_core::value::note_write(alacer_core::ValueRecord {
+                action: if direction > 0.0 {
+                    alacer_core::ValueAction::Increment
+                } else {
+                    alacer_core::ValueAction::Decrement
+                },
+                outcome: alacer_core::ValueOutcome::Delivered,
+                value: self.value,
+                requested: ask.is_finite().then_some(ask),
+                target: None,
+            });
+        }
+        answered
     }
 
     /// Intrinsic size: the thumb's row (the track rides inside it), the
@@ -403,6 +444,11 @@ impl Widget for Slider {
     /// [`alacer_core::inspect::ValueRecord`] — the answer's own species
     /// where the `bool` collapsed four facts into one silence, the
     /// refusal streaming too (the clipboard trail's shape, ADR-0045).
+    /// Since M44 (ADR-0050) every record carries the ask beside the
+    /// landing: the finite scalar the door computed before the
+    /// clamp-and-snap, `None` where no finite ask ever was (the
+    /// unparsable payload, the closed door, the non-finite wall — the
+    /// wire cannot carry an infinite ask honestly).
     fn on_a11y_action(&mut self, action: A11yAction) -> bool {
         // The record's action vocabulary is the AT's value tier: a
         // question outside it (a press, a scroll, a text edit) is not a
@@ -421,21 +467,30 @@ impl Widget for Slider {
         // The availability tier (M22, ADR-0028): an unavailable slider
         // has no write door — every action is refused honestly, never
         // munged, and the refusal streams (the tree keeps the value the
-        // app wrote).
+        // app wrote). The ask never entered arithmetic — the honest
+        // absence rides it (M44, ADR-0050).
         if !self.enabled {
             alacer_core::value::note_write(alacer_core::ValueRecord {
                 action: tier,
                 outcome: alacer_core::ValueOutcome::Refused(alacer_core::ValueRefusal::Unavailable),
                 value: self.value,
+                requested: None,
                 target: None,
             });
             return false;
         }
+        // The ask (M44, ADR-0050): the finite scalar the door computed
+        // before the clamp-and-snap — the parse for `SetValue`, the step
+        // arithmetic for the step tier. The note sites below carry it;
+        // the wall's ask is not a finite scalar (the field's own
+        // contract), so its refusal rides the absence.
+        let mut asked: Option<f32> = None;
         let answered = match action {
             A11yAction::SetValue(value) => {
                 // The parse is an if/else, not a match: the refusal is a
                 // fact the tier records, not a silent arm.
                 if let Ok(parsed) = value.trim().parse::<f32>() {
+                    asked = Some(parsed);
                     self.commit(parsed, None)
                 } else {
                     alacer_core::value::note_write(alacer_core::ValueRecord {
@@ -444,6 +499,7 @@ impl Widget for Slider {
                             alacer_core::ValueRefusal::InvalidPayload,
                         ),
                         value: self.value,
+                        requested: None,
                         target: None,
                     });
                     return false;
@@ -455,19 +511,24 @@ impl Widget for Slider {
                 } else {
                     -1.0
                 };
-                self.commit(self.value + direction * self.step, None)
+                let ask = self.value + direction * self.step;
+                asked = ask.is_finite().then_some(ask);
+                self.commit(ask, None)
             }
             // The tier match above routed the rest; unreachable here.
             _ => false,
         };
         // The funnel's own wall: the payload parsed but the funnel
         // carries only finite scalars — "inf" parses fine, and the wall
-        // is its own fact (a different species than the parse's).
+        // is its own fact (a different species than the parse's). The
+        // delivery carries the ask; the wall's ask was never a finite
+        // scalar, so its refusal carries the honest absence.
         if answered {
             alacer_core::value::note_write(alacer_core::ValueRecord {
                 action: tier,
                 outcome: alacer_core::ValueOutcome::Delivered,
                 value: self.value,
+                requested: asked,
                 target: None,
             });
         } else {
@@ -477,6 +538,7 @@ impl Widget for Slider {
                     alacer_core::ValueRefusal::NonFiniteValue,
                 ),
                 value: self.value,
+                requested: None,
                 target: None,
             });
         }
@@ -536,10 +598,10 @@ impl Widget for Slider {
         }
         let response = match event.key {
             alacer_core::events::Key::ArrowLeft | alacer_core::events::Key::ArrowDown => {
-                self.step_by(-1.0, ctx)
+                self.step_note(-1.0, ctx)
             }
             alacer_core::events::Key::ArrowRight | alacer_core::events::Key::ArrowUp => {
-                self.step_by(1.0, ctx)
+                self.step_note(1.0, ctx)
             }
             alacer_core::events::Key::Home => self.commit(self.min, Some(ctx)),
             alacer_core::events::Key::End => self.commit(self.max, Some(ctx)),

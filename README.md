@@ -34,7 +34,7 @@
 | ⚡ **Incremental everything**     | The Taffy tree is built once and never cleared; relayout is bounded by the dirty set; scrolling is translation-only, zero measure calls.                                                                       |
 | ♿ **Accessible by construction** | `role()` and `label()` are required trait methods — an unnamed widget does not compile. Updates ship as incremental AccessKit deltas; tests query the a11y tree, not internals.                                |
 | 🖥️ **Two backends, one journal**  | wgpu and tiny-skia/softbuffer render the same scene journal; an equivalence fuzz pins partial repaints pixel-equal to full renders. True cargo features, honest refusals.                                      |
-| 🔭 **The Causality inspector**    | Every focus move, edit, shortcut, clipboard trip, value write, gesture and scroll answers as _named data_ on an opt-in WebSocket trail.                                                                        |
+| 🔭 **The Causality inspector**    | Every focus move, edit, shortcut, clipboard trip, value write, gesture, scroll and AT text write answers as _named data_ on an opt-in WebSocket trail.                                                                        |
 | 🔥 **Hot reload, state intact**   | A subsecond binary patch swaps code, never state — exactly one scoped re-render, pinned by a CI hot-patch suite.                                                                                               |
 | 💤 **Idle-cheap**                 | The winit loop parks in `ControlFlow::Wait` between interactions — an idle window costs zero CPU.                                                                                                              |
 
@@ -136,9 +136,9 @@ present paths; single-backend and pipeline-only builds are supported shapes, war
 rasterizes rounded-rect SDFs and glyphs from a CPU coverage atlas; softbuffer blends the same
 bitmaps through tiny-skia. Both implement identical damage semantics.
 
-**The frame carries a public ledger (M23).** The journal reports its own commits, drops and live
-layers through `PassPipeline::journal_stats` — one write batch ⇒ one layer re-commit
-(`frame_ledger` example).
+**The frame ledger.** Since M23 the frame carries a public ledger: the journal reports its own
+commits, drops and live layers through `PassPipeline::journal_stats` — one write batch ⇒ one
+layer re-commit, the static layers replay untouched (`frame_ledger` example).
 
 ## Accessibility
 
@@ -164,9 +164,14 @@ Accessibility is not a layer bolted on — it is the tree's own vocabulary:
 | **Values** (M20/M21)   | `Slider` is writable through one funnel — drag, arrows, AT `SetValue`/`Increment`/`Decrement` — clamped and snapped inside the widget; `Progress` is read-only: the app writes it, every AT action refuses (no write door)                          | 0026/0027 |
 | **Availability** (M22) | One `enabled` truth on the trait: unavailable controls are never Tab stops, focus is evicted, every door refuses (pointer wall, keyboard/IME silence, AT refusal), AccessKit reads `disabled` before it tries, the muted paint tells the same truth | 0028      |
 
+Since M20 the value tier is a widget — the `Slider` answers drag, arrows and AT writes from one
+funnel. Since M21 the value is reportable too — the read-only `Progress` names the door that has
+no write. Since M22 the availability tier is widget vocabulary — one `enabled` truth every door
+refuses behind, the AT reading the flag before it tries.
+
 ## Focus & shortcuts
 
-One walk, many riders — the keyboard's Tab fallback and the app's code ride the same doors:
+One walk, many riders — the keyboard's Tab fallback and the app's code ride the same doors. Since M24 the focus walk is public vocabulary (`FocusMove`, the framework's own door). Since M25 the walk is bounded too (`focus_move_in` roots it in a subtree). Since M26 the walk reads the window too (arrows answer from geometry, not tree order):
 
 | Capability                | What ships                                                                                                                                                              | ADR  |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
@@ -195,11 +200,20 @@ the same trail — one record per _fact_, never per event:
 | **Clipboard** (M39/M41/M42) | round trip                                    | the payload's _scalar count_ (never the payload — it can carry a secret); refusals split three ways: the field's (`no_selection`, `write_refused`), the engine's write species (`unnamed`/`unsupported`/`occupied`/`conversion`/`os_error`), the read's (`empty`/`non_text`/`unsupported`) | 0045/0047/0048      |
 | **Value** (M40/M43/M47/M49) | AT-tier write                                 | the landed value + the **target control** (the funnel stamps the id); species `unavailable`/`invalid_payload`/`non_finite_value`/`no_write_door`; Home/End as `jump_to_min`/`jump_to_max`, never a munged `SetValue`; the **pinned bound** when the wall held a past ask                   | 0046/0049/0053/0055 |
 | **Gesture** (M46/M48)       | _phase_ — `Started` / `Ended`, never per move | the value found and the value landed, the edge it pinned (`min`/`max`); 100 moves inside one gesture = exactly 2 records (the flood rule)                                                                                                                                                  | 0052/0054           |
-| **Scroll** (M50/M52)        | ask — wheel, AT, app door                     | the landed offset, the wall the clamp pinned, the asker's **unit** (item/page) when it had one; `no_scrollable_content` / `non_finite_ask` refused before corruption                                                                                                                       | 0056/0058           |
+| **Scroll** (M50–M54)        | ask — wheel, AT, app door                     | the landed offset, the wall the clamp pinned, the asker's **unit** (item/page — the step's page rides beside the step species too), the wheel's priced **run** (one line = 40 px); `no_scrollable_content` / `non_finite_ask` refused before corruption                                     | 0056/0058           |
 | **Content clamp** (M51)     | resize that shrank content under the offset   | the wall it pinned — no ask (a resize is not an ask), no route; resizes the offset never felt queue nothing                                                                                                                                                                                | 0057                |
+| **Text write** (M55)        | AT write at a field's door                    | the shape named by **lengths** (`replaced`/`inserted`, UTF-16 units — never the payload: a field's value can carry a secret), the landing selection, the ask beside the landing on the selection door, `unavailable` refused honestly                                                                 | 0061                |
 
-Widget-own doors stay off the value log until a consumer prices them (ADR-0046's kill rule);
-every trail is bounded and silent when nobody listens.
+The trail's growth, milestone by milestone: Since M50 the scroll answers on the log too — the
+wheel, the AT's unit scrolls and value steps, and the app's own door stream the landed offset
+beside the ask. Since M51 the content clamp answers on the log too — the content's own resize
+streams when it shrank the offset under it. Since M52 the AT's unit scrolls name their unit too.
+Since M53 the wheel's coalesced runs name their line count too. Since M54 the value steps name their page too.
+ Since M55 the AT's text writes name their door too — a screen reader's
+`SetValue`, `ReplaceSelectedText` and `SetTextSelection` stream one `TextWrite` record the tick
+after they resolve, the shape named by lengths (never the payload) and the landing selection
+beside it. Widget-own doors stay off the value log until a consumer prices them (ADR-0046's
+kill rule); every trail is bounded and silent when nobody listens.
 
 ## Input & hot reload
 
@@ -208,7 +222,7 @@ every trail is bounded and silent when nobody listens.
   one batch — a storm costs one frame of work, not N events (the 41.28× contract above).
 - **Drag capture (M19).** A press implicitly captures its deepest accepting hit — moves and the
   release keep arriving past the widget's frame; the wheel still follows the hover; with no press
-  in flight, routing is the hit test exactly as before (ADR-0025, `drag_capture` example).
+  in flight, routing is the hit test exactly as before (ADR-0025, `drag_capture` example). Since M19 the drag holds its target — the moves and the release keep arriving at the captured ancestor past the widget's own frame, and the wheel still follows the hover.
 - **Hot reload with state intact.** The `hot-reload` feature wraps view generation in
   `subsecond::call`; a binary patch swaps code, never state, and the loop answers with exactly one
   scoped re-render — pinned by a dedicated CI hot-patch suite (`tests/hot_reload_subsecond.rs`).
@@ -259,90 +273,93 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `inspector_demo`                                     | the counter with the Causality inspector at `127.0.0.1:9217`                     |
 | `todo` / `data_table`                                | the canons: a11y tree, record/replay, grid slots, keyboard navigation            |
 
-<details><summary><b>All 43 examples, grouped</b></summary>
+<details><summary><b>46 examples, grouped (47 ship; recording live in the catalog)</b></summary>
 
 **Start here**
 
-| Example          | Shows                                                            |
+| Example | Shows |
 | ---------------- | ---------------------------------------------------------------- |
-| `counter`        | one signal, one bound label, one button — masks end to end       |
-| `counter_view`   | the same app as an `rsx!` view, reconciled in place              |
-| `gallery`        | the whole widget vocabulary in one window                        |
-| `scrolling_list` | panels in a clipped viewport; translation-only scrolling         |
-| `todo`           | the todo canon: text input, checkboxes, a11y tree, record/replay |
-| `data_table`     | the table canon: grid slots, headers, keyboard navigation        |
-| `hot_reload`     | swaps the view generation live; state survives                   |
-| `inspector_demo` | counter + Causality inspector, served at `127.0.0.1:9217`        |
+| `counter` | one signal, one bound label, one button — masks end to end |
+| `counter_view` | the same app as an `rsx!` view, reconciled in place |
+| `gallery` | the whole widget vocabulary in one window |
+| `scrolling_list` | panels in a clipped viewport; translation-only scrolling |
+| `todo` | the todo canon: text input, checkboxes, a11y tree, record/replay |
+| `data_table` | the table canon: grid slots, headers, keyboard navigation |
+| `hot_reload` | swaps the view generation live; state survives |
+| `inspector_demo` | counter + Causality inspector, served at `127.0.0.1:9217` |
 
 **Input & the frame**
 
-| Example        | Shows                                                                                    |
+| Example | Shows |
 | -------------- | ---------------------------------------------------------------------------------------- |
-| `input_storm`  | the frame-batched queue: a `StormPanel` probe records ≤ 1 routed event per frame         |
-| `drag_capture` | press and drag past the panel's edge — the log keeps counting; release rides back        |
+| `input_storm` | the frame-batched queue: a `StormPanel` probe records ≤ 1 routed event per frame |
+| `drag_capture` | press and drag past the panel's edge — the log keeps counting; release rides back |
 | `frame_ledger` | one write batch re-commits exactly one journal layer; the static layer replays untouched |
 
 **Editing & speech**
 
-| Example          | Shows                                                                                                                    |
+| Example | Shows |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `text_input`     | caret/selection by keyboard, pointer and word; clipboard chords; AT value tier; undo/redo; IME; secure mode              |
-| `undo_redo`      | the journal driven directly: pure-append record, selection-restoring steps, app-write reset, honest refusal              |
-| `edit_trail`     | the same journal with the observer riding — one `Edit` record per action, coalescing visible as a depth that never moves |
-| `announcements`  | polite and assertive speech acts, the honest refusal, the status line mirroring the live region                          |
-| `announce_trail` | one `Announce` record per answered act — superseded facts beside the survivor                                            |
+| `text_input` | caret/selection by keyboard, pointer and word; clipboard chords; AT value tier; undo/redo; IME; secure mode |
+| `undo_redo` | the journal driven directly: pure-append record, selection-restoring steps, app-write reset, honest refusal |
+| `edit_trail` | the same journal with the observer riding — one `Edit` record per action, coalescing visible as a depth that never moves |
+| `at_text_writes` | the M55 AT text write driven from the consumer side: the selection ask beside its landing, the paste-shaped replacement priced by lengths, the whole-value rewrite with the journal reset beneath it, the locked field refusing honestly |
+| `announcements` | polite and assertive speech acts, the honest refusal, the status line mirroring the live region |
+| `announce_trail` | one `Announce` record per answered act — superseded facts beside the survivor |
 
 **Values & availability**
 
-| Example         | Shows                                                                                                                   |
+| Example | Shows |
 | --------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `slider`        | drag, arrows and AT `SetValue`/`Increment`/`Decrement` in one funnel; the status line mirrors the a11y value            |
-| `progress`      | the app writes through both doors — bridge and mutate seam; the AT reads, never writes                                  |
-| `value_view`    | slider + progress as `rsx!` elements; one `on_change` fans out through signals                                          |
-| `disabled`      | a send button held unavailable: the AT reads the flag before it tries the door                                          |
-| `value_trail`   | one `Value` record per AT write — landings, no-ops, all four refusal species                                            |
-| `value_targets` | two sliders, one funnel — every record names its control                                                                |
-| `bound_jumps`   | Home/End as `jump_to_min`/`jump_to_max`, the bound the ask, never a munged `SetValue`                                   |
+| `slider` | drag, arrows and AT `SetValue`/`Increment`/`Decrement` in one funnel; the status line mirrors the a11y value |
+| `progress` | the app writes through both doors — bridge and mutate seam; the AT reads, never writes |
+| `value_view` | slider + progress as `rsx!` elements; one `on_change` fans out through signals |
+| `disabled` | a send button held unavailable: the AT reads the flag before it tries the door |
+| `value_trail` | one `Value` record per AT write — landings, no-ops, all four refusal species |
+| `value_targets` | two sliders, one funnel — every record names its control |
+| `bound_jumps` | Home/End as `jump_to_min`/`jump_to_max`, the bound the ask, never a munged `SetValue` |
 | `pinned_writes` | asks past both walls — `asked 150, landed 100, pinned at the max`; the ask that _was_ the wall rides the honest absence |
 
 **Focus**
 
-| Example           | Shows                                                                                                  |
+| Example | Shows |
 | ----------------- | ------------------------------------------------------------------------------------------------------ |
-| `focus_traversal` | a four-control form walked one stop per beat; Tab rides the same funnel                                |
-| `focus_trap`      | the modal's subtree scope; the background control never becomes a stop                                 |
-| `focus_direction` | a 2×2 grid where tree order and geometry disagree; the corner refuses, `Next` still wraps              |
-| `focus_outcome`   | the walk's answer as data: landings with endpoints, refusals with species                              |
-| `focus_trail`     | the same beats streamed as `FocusRecord`s the moment each door resolves                                |
-| `focus_riders`    | all three riders — app doors, keyboard Tab, ring arrows — attributed on every record                   |
+| `focus_traversal` | a four-control form walked one stop per beat; Tab rides the same funnel |
+| `focus_trap` | the modal's subtree scope; the background control never becomes a stop |
+| `focus_direction` | a 2×2 grid where tree order and geometry disagree; the corner refuses, `Next` still wraps |
+| `focus_outcome` | the walk's answer as data: landings with endpoints, refusals with species |
+| `focus_trail` | the same beats streamed as `FocusRecord`s the moment each door resolves |
+| `focus_riders` | all three riders — app doors, keyboard Tab, ring arrows — attributed on every record |
 | `dpad_navigation` | arrows walk the grid through the real dispatch; the focused slider's own arrows step its value instead |
 
 **Shortcuts**
 
-| Example          | Shows                                                                                                              |
+| Example | Shows |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `shortcut_map`   | Ctrl+Up/Down step the count anywhere; _Swap chords_ rebinds in place                                               |
-| `keymap_trail`   | one `Key` record per consult — fired, fall-through, uninstalled                                                    |
-| `shortcut_names` | every fired record carries the binding's prose name; the rebind moves the name with the chord                      |
+| `shortcut_map` | Ctrl+Up/Down step the count anywhere; _Swap chords_ rebinds in place |
+| `keymap_trail` | one `Key` record per consult — fired, fall-through, uninstalled |
+| `shortcut_names` | every fired record carries the binding's prose name; the rebind moves the name with the chord |
 | `primary_chords` | one `Chord::primary()` table — Command/Control resolved at build time, the physical shape binding over it in place |
 
 **Clipboard**
 
-| Example            | Shows                                                                                             |
+| Example | Shows |
 | ------------------ | ------------------------------------------------------------------------------------------------- |
-| `clipboard_trail`  | copy/cut/paste and every honest refusal, counted — the payload never rides the log                |
-| `clipboard_engine` | engines swapped between beats: `unsupported`, the bool-only `unnamed`, the delivered cut          |
-| `clipboard_read`   | the read's species split: `empty`, `non_text`, `unsupported` — apart from the field's own refusal |
+| `clipboard_trail` | copy/cut/paste and every honest refusal, counted — the payload never rides the log |
+| `clipboard_engine` | engines swapped between beats: `unsupported`, the bool-only `unnamed`, the delivered cut |
+| `clipboard_read` | the read's species split: `empty`, `non_text`, `unsupported` — apart from the field's own refusal |
 
 **Gestures & scrolling**
 
-| Example         | Shows                                                                                                 |
+| Example | Shows |
 | --------------- | ----------------------------------------------------------------------------------------------------- |
-| `drag_gesture`  | `Started` + thirty silent moves + `Ended` — two records per gesture, the flood rule by construction   |
-| `drag_bounds`   | the release at max names the wall it pinned; mid-track rides the honest absence                       |
-| `scroll_trail`  | wheel, AT and app asks — landings, walls, `no_scrollable_content`, the NaN refused before it corrupts |
-| `content_clamp` | the shrink that pins the offset names its wall; idle resizes queue nothing                            |
-| `scroll_units`  | the AT's item and page scrolls name their unit; the wheel's coalesced run rides none                  |
+| `drag_gesture` | `Started` + thirty silent moves + `Ended` — two records per gesture, the flood rule by construction |
+| `drag_bounds` | the release at max names the wall it pinned; mid-track rides the honest absence |
+| `scroll_trail` | wheel, AT and app asks — landings, walls, `no_scrollable_content`, the NaN refused before it corrupts |
+| `content_clamp` | the shrink that pins the offset names its wall; idle resizes queue nothing |
+| `scroll_units` | the AT's item and page scrolls name their unit; the wheel's coalesced run rides none |
+| `wheel_lines` | the M53 wheel's run priced from the consumer side: one notch prices one line, the trackpad's fractional run its honest 2.5, the slam past the wall naming the run it was beside the pin, the NaN run refusing with no count |
+| `step_pages` | the M54 value step's page driven from the consumer side: the increments and the decrement name the page they stepped by, the wheel's run riding the count and no unit, the app door riding none |
 
 </details>
 
@@ -362,8 +379,8 @@ tree (`query(role).named(..)`, `press`, `find_all`) — never widget internals.
 ## Status
 
 > [!NOTE]
-> Alacer is at **0.17.0**, pre-1.0: milestones **M0–M52** of the architecture doc are complete,
-> but the API still moves between minor versions. MSRV **1.99**, edition **2024**.
+> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M55 of `docs/architecture.md` are
+> complete, but the API still moves between minor versions. MSRV **1.99**, edition **2024**.
 
 | Platform            | CI coverage                                                                                                                                                           |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -374,7 +391,7 @@ tree (`query(role).named(..)`, `press`, `find_all`) — never widget internals.
 ## Learn more
 
 - [Architecture](https://github.com/elcoosp/alacer/blob/main/docs/architecture.md) — design axioms, the ten-pass contract, rendering, accessibility, DX, performance, roadmap and kill criteria
-- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — fifty-nine decision records, from workspace discipline to the M52 scope
+- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — sixty-two decision records, from workspace discipline to the M55 scope
 - [Examples catalog](https://github.com/elcoosp/alacer/blob/main/docs/examples.md) — every example with the contract it exercises
 - [Migrating from Iced](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-iced.md) · [from egui](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-egui.md) — mental-model mappings, interop limits stated plainly
 - [Inspector protocol](https://github.com/elcoosp/alacer/blob/main/docs/inspector-protocol.md) — the versioned WebSocket contract behind `alacer-inspect`

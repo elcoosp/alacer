@@ -285,7 +285,7 @@ fn m21_the_value_write_route_joins_the_corpus_by_the_coordinated_rule() {
     ] {
         let source = read_workspace_file(&format!("crates/alacer-testing/tests/{suite}"));
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 64;"),
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 65;"),
             "{suite} must pin the 60-case corpus"
         );
     }

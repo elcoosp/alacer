@@ -287,7 +287,10 @@ impl TextInput {
     /// landed, named by lengths — never the payload (a field's value can
     /// carry a secret, the clipboard trail's rule, ADR-0045) — the
     /// landing selection beside it. The funnel stamps the control when a
-    /// route holds it (the M43 rule); a no-op edit answers no fact.
+    /// route holds it (the M43 rule); a no-op edit answers no fact. Since
+    /// M62 (ADR-0068) the landed records carry the outcome vocabulary's
+    /// own default — the M58 shape named additively, the wall's refusals
+    /// riding the same record beside it.
     fn note_key_edit(
         &self,
         action: alacer_core::KeyEditAction,
@@ -304,8 +307,88 @@ impl TextInput {
             inserted: landed.inserted,
             selection: TextSelection::new(self.anchor_utf16, self.caret_utf16),
             coalesced: landed.coalesced,
+            outcome: alacer_core::KeyEditOutcome::Landed,
             target: None,
         });
+    }
+
+    /// Notes the typing door's refusal (M62, ADR-0068): the closed
+    /// field's wall as data — the ask the open door would have answered
+    /// named by its action and driver (the M60 attribution rule at the
+    /// chord tier), the shape priced at nothing, the selection the
+    /// untouched one, never a munged delivered edit. The funnel stamps
+    /// the control when a route holds it (the M43 rule) — the wall
+    /// streamed where the route routed, the identity never guessed.
+    fn note_key_refusal(
+        &self,
+        action: alacer_core::KeyEditAction,
+        driver: alacer_core::KeyEditDriver,
+    ) {
+        alacer_core::key_edit::note_key_edit(alacer_core::KeyEditRecord {
+            action,
+            driver,
+            replaced: 0,
+            inserted: 0,
+            selection: TextSelection::new(self.anchor_utf16, self.caret_utf16),
+            coalesced: false,
+            outcome: alacer_core::KeyEditOutcome::Refused(alacer_core::KeyEditRefusal::Unavailable),
+            target: None,
+        });
+    }
+
+    /// The edit ask a key carries, when the open door would have
+    /// answered it with a fact: the classify half of [`Self::edit_key`]'s
+    /// match — the arms that edit the value (M62, ADR-0068), the action
+    /// and the driver the open door would have named (the chords keep
+    /// their own driver, the M60 attribution rule). A key an open door
+    /// answers without editing — the caret's walk, the submit's Enter,
+    /// the journal's and clipboard's chords, an unknown chord — asks
+    /// nothing and names nothing: the wall prices edit asks, never every
+    /// routed keystroke.
+    fn refused_action(
+        event: &KeyEvent,
+    ) -> Option<(alacer_core::KeyEditAction, alacer_core::KeyEditDriver)> {
+        let command = event.modifiers.control || event.modifiers.meta;
+        let word_chord = event.modifiers.alt || command;
+        match &event.key {
+            alacer_core::events::Key::Char(ch) => {
+                if command {
+                    match ch.to_ascii_lowercase() {
+                        'v' => Some((
+                            alacer_core::KeyEditAction::Paste,
+                            alacer_core::KeyEditDriver::Clipboard,
+                        )),
+                        'x' => Some((
+                            alacer_core::KeyEditAction::Cut,
+                            alacer_core::KeyEditDriver::Clipboard,
+                        )),
+                        _ => None,
+                    }
+                } else {
+                    Some((
+                        alacer_core::KeyEditAction::Insert,
+                        alacer_core::KeyEditDriver::Keyboard,
+                    ))
+                }
+            }
+            alacer_core::events::Key::Backspace if word_chord => Some((
+                alacer_core::KeyEditAction::WordDeleteBack,
+                alacer_core::KeyEditDriver::Keyboard,
+            )),
+            alacer_core::events::Key::Backspace => Some((
+                alacer_core::KeyEditAction::Backspace,
+                alacer_core::KeyEditDriver::Keyboard,
+            )),
+            alacer_core::events::Key::Delete if word_chord => Some((
+                alacer_core::KeyEditAction::WordDeleteForward,
+                alacer_core::KeyEditDriver::Keyboard,
+            )),
+            alacer_core::events::Key::Delete => Some((
+                alacer_core::KeyEditAction::Delete,
+                alacer_core::KeyEditDriver::Keyboard,
+            )),
+            _ => None,
+        }
     }
 
     /// Inserts `insertion` at the caret (UTF-16 units of it — commits may
@@ -1373,8 +1456,19 @@ impl Widget for TextInput {
     fn on_key_event(&mut self, ctx: &mut EventCtx, event: &KeyEvent) -> EventResponse {
         // The availability tier (M22, ADR-0028): the keyboard never
         // reaches an unavailable input — a routed edit key is ignored so
-        // the framework keeps it (Tab cycling).
+        // the framework keeps it (Tab cycling). Since M62 (ADR-0068) the
+        // wall streams its fact: the ask the open door would have
+        // answered named by its action and driver (ADR-0064's second
+        // kill rule cashed; the chords' refusals behind their own
+        // actions, ADR-0066's third riding beside), the shape priced at
+        // nothing, never a munged delivered edit. A release names no ask
+        // (the open door acts on presses only, §10.3).
         if !self.enabled {
+            if event.state == alacer_core::events::KeyState::Pressed
+                && let Some((action, driver)) = Self::refused_action(event)
+            {
+                self.note_key_refusal(action, driver);
+            }
             return EventResponse::Ignored;
         }
         // Editing acts on presses only (§10.3); preedit state makes keys
@@ -1398,8 +1492,22 @@ impl Widget for TextInput {
     fn on_ime_event(&mut self, ctx: &mut EventCtx, event: &ImeEvent) -> EventResponse {
         // The availability tier (M22, ADR-0028): an unavailable input
         // answers no composition — the IME event is ignored (nothing else
-        // consumes it; the framework drops it).
+        // consumes it; the framework drops it). Since M62 (ADR-0068) the
+        // commit the closed field turns away streams its ask — the
+        // wall's species beside the IME driver (the attribution rule at
+        // the typing tier), the shape priced at nothing; the empty
+        // commit asks nothing (the open door's honest absence), and the
+        // composing tier answers none beside it (the M61 silence rides
+        // the same wall).
         if !self.enabled {
+            if let ImeEvent::Commit { text } = event
+                && !text.is_empty()
+            {
+                self.note_key_refusal(
+                    alacer_core::KeyEditAction::Insert,
+                    alacer_core::KeyEditDriver::Ime,
+                );
+            }
             return EventResponse::Ignored;
         }
         match event {

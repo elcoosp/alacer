@@ -456,6 +456,17 @@ pub enum WireEvent {
         /// chords' `clipboard` — the M30 attribution rule at the
         /// typing tier).
         driver: String,
+        /// What the door answered (`landed`, or `refused` with the
+        /// species beside it — the value tier's own refusal vocabulary,
+        /// ADR-0046, at the typing tier; since M62, ADR-0068: the
+        /// closed field's wall streams the ask it turned away, the
+        /// shape priced at nothing).
+        outcome: String,
+        /// The refusal's species (`unavailable` — the availability
+        /// tier's wall) when the door refused; `null` on a landing.
+        /// The refusal is never a munged delivered edit: the ask rode
+        /// the record, the field's value untouched.
+        refusal: Option<String>,
         /// The span the edit consumed, in UTF-16 units of the field's
         /// value; `0` on a pure insertion.
         replaced: usize,
@@ -926,12 +937,23 @@ pub fn wire_route_drop(record: &alacer_core::inspect::RouteDropRecord) -> WireEv
 /// driver — the payload itself never rides the wire (a field's value
 /// can carry a secret, the clipboard trail's rule, ADR-0045), the
 /// shape naming itself the way the clipboard's count names the round
-/// trip.
+/// trip. Since M62 (ADR-0068) the record carries what the door
+/// answered — the landed edit or the wall's refusal (the value tier's
+/// own vocabulary, ADR-0046): the species beside the outcome on a
+/// refusal, `null` beside a landing, the ask the closed field turned
+/// away named by its action.
 #[must_use]
 pub fn wire_key_edit(record: &alacer_core::inspect::KeyEditRecord) -> WireEvent {
     WireEvent::KeyEdit {
         action: record.action.name().to_string(),
         driver: record.driver.name().to_string(),
+        outcome: record.outcome.name().to_string(),
+        refusal: match record.outcome {
+            alacer_core::inspect::KeyEditOutcome::Refused(refusal) => {
+                Some(refusal.name().to_string())
+            }
+            alacer_core::inspect::KeyEditOutcome::Landed => None,
+        },
         replaced: record.replaced,
         inserted: record.inserted,
         selection: WireSelection {
@@ -2106,7 +2128,11 @@ mod tests {
     /// M58 (ADR-0064, this cut): the typing door's edit rides its own
     /// flat event — the shape named by lengths (never the payload), the
     /// landing selection and the driver beside it, the journal's fold
-    /// naming the coalesced run.
+    /// naming the coalesced run. Since M62 (ADR-0068) the event carries
+    /// what the door answered — the landed outcome beside its `null`
+    /// refusal on every delivered edit, the wall's species beside its
+    /// `refused` on the closed field's ask: the value tier's own
+    /// vocabulary, additive field values at version 1.
     #[test]
     fn key_edit_events_carry_the_typing_doors_fact() {
         use alacer_core::inspect::{KeyEditAction, KeyEditDriver, KeyEditRecord};
@@ -2118,11 +2144,14 @@ mod tests {
             inserted: 3,
             selection: TextSelection::new(3, 3),
             coalesced: true,
+            outcome: alacer_core::inspect::KeyEditOutcome::Landed,
             target: Some(0xAB_CD),
         };
         let WireEvent::KeyEdit {
             action,
             driver,
+            outcome,
+            refusal,
             replaced,
             inserted,
             selection,
@@ -2134,6 +2163,8 @@ mod tests {
         };
         assert_eq!(action, "insert", "the field's own editing vocabulary");
         assert_eq!(driver, "keyboard", "the M30 rule at the typing tier");
+        assert_eq!(outcome, "landed", "the M58 shape, named additively");
+        assert!(refusal.is_none(), "a landing carries no refusal species");
         assert_eq!(replaced, 0, "a typed run consumed no span");
         assert_eq!(inserted, 3, "the run's shape, the fold's total");
         assert_eq!(selection.anchor, 3, "the landing's anchor");
@@ -2148,6 +2179,7 @@ mod tests {
             inserted: 0,
             selection: TextSelection::new(2, 2),
             coalesced: false,
+            outcome: alacer_core::inspect::KeyEditOutcome::Landed,
             target: None,
         };
         let WireEvent::KeyEdit {
@@ -2172,6 +2204,7 @@ mod tests {
             inserted: 4,
             selection: TextSelection::new(4, 4),
             coalesced: false,
+            outcome: alacer_core::inspect::KeyEditOutcome::Landed,
             target: Some(0x12_34),
         };
         let WireEvent::KeyEdit {
@@ -2196,6 +2229,7 @@ mod tests {
             inserted: 0,
             selection: TextSelection::new(0, 0),
             coalesced: false,
+            outcome: alacer_core::inspect::KeyEditOutcome::Landed,
             target: None,
         };
         let WireEvent::KeyEdit { action, driver, .. } = wire_key_edit(&cut) else {
@@ -2203,6 +2237,48 @@ mod tests {
         };
         assert_eq!(action, "cut", "the cut is never a munged Delete");
         assert_eq!(driver, "clipboard");
+    }
+
+    /// M62 (ADR-0068, this cut): the closed field's wall rides its own
+    /// species — the ask the availability tier turned away named by its
+    /// action and driver, the shape priced at nothing, never a munged
+    /// delivered edit.
+    #[test]
+    fn key_edit_events_carry_the_walls_refusal() {
+        use alacer_core::inspect::{KeyEditAction, KeyEditDriver, KeyEditRecord};
+        use alacer_core::widget::TextSelection;
+        let wall = KeyEditRecord {
+            action: KeyEditAction::Paste,
+            driver: KeyEditDriver::Clipboard,
+            replaced: 0,
+            inserted: 0,
+            selection: TextSelection::new(2, 2),
+            coalesced: false,
+            outcome: alacer_core::inspect::KeyEditOutcome::Refused(
+                alacer_core::inspect::KeyEditRefusal::Unavailable,
+            ),
+            target: Some(0xAB_CD),
+        };
+        let WireEvent::KeyEdit {
+            action,
+            outcome,
+            refusal,
+            replaced,
+            inserted,
+            ..
+        } = wire_key_edit(&wall)
+        else {
+            panic!("key_edit event");
+        };
+        assert_eq!(action, "paste", "the refused chord keeps its own ask");
+        assert_eq!(outcome, "refused", "the wall's own answer");
+        assert_eq!(
+            refusal.as_deref(),
+            Some("unavailable"),
+            "the species the value tier names (ADR-0027's own tag)"
+        );
+        assert_eq!(replaced, 0, "the wall consumed no span");
+        assert_eq!(inserted, 0, "the wall carried no payload");
     }
 
     /// M61 (ADR-0067, this cut): the composing state rides its own flat

@@ -229,11 +229,11 @@ fn m10_the_platform_maps_action_requests_instead_of_munging() {
 // The published corpus (the M5 coordinated rule)
 // ---------------------------------------------------------------------------
 
-/// The corpus pin, mirroring the coordinated rule: 60 criterion cases — the
+/// The corpus pin, mirroring the coordinated rule: 68 criterion cases — the
 /// 47 pre-M10 cases plus the route benches every later milestone added by
 /// the coordinated rule. Growing the corpus moves the bench file,
 /// contracts.json, the baseline, and the M-suite pins together.
-const EXPECTED_BENCH_COUNT: usize = 65;
+const EXPECTED_BENCH_COUNT: usize = 68;
 
 #[test]
 fn m10_the_corpus_pin_agrees_with_the_published_data() {
@@ -267,8 +267,8 @@ fn m10_the_corpus_pin_agrees_with_the_published_data() {
     ] {
         let source = read_workspace_file(&format!("crates/alacer-testing/tests/{suite}"));
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 65;"),
-            "{suite} must pin the 60-case corpus"
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 68;"),
+            "{suite} must pin the 68-case corpus"
         );
     }
 }

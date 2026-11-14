@@ -355,12 +355,12 @@ fn m46_the_living_documents_re_agree_at_the_cut() {
     // m-suite pins move across the chain together — the workspace's
     // one-milestone-per-minor rule counting the cut's entries).
     assert!(
-        readme.contains("M0 through M55") && readme.contains("sixty-two decision records"),
+        readme.contains("M0 through M57") && readme.contains("sixty-four decision records"),
         "the README's status block and count re-agree at the cut"
     );
     assert!(
-        architecture.contains("62 decision records"),
-        "the architecture register re-agrees at 62 decision records"
+        architecture.contains("64 decision records"),
+        "the architecture register re-agrees at 64 decision records"
     );
     // The protocol document carries the gesture event (the wire's
     // documented shape).

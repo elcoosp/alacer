@@ -360,6 +360,55 @@ pub enum WireEvent {
         /// that ignore unknown fields are unaffected.
         lines: Option<f32>,
     },
+    /// An AT text write answered — the text-write trail (M55,
+    /// ADR-0061): the `SetValue`, `ReplaceSelectedText`, or
+    /// `SetTextSelection` a screen reader asked at a field's write
+    /// door, the write's shape named by lengths beside the landing
+    /// selection, the refusals named. Additive at version 1 (the
+    /// event-kind rule): clients that ignore unknown kinds are
+    /// unaffected.
+    TextWrite {
+        /// The text-write action the ask rode (`set_value`,
+        /// `replace_selection`, `set_selection` — the AT editing
+        /// tier's own vocabulary, M11/ADR-0017).
+        action: String,
+        /// What the field answered (`delivered`, `refused`).
+        outcome: String,
+        /// The refusal species (`unavailable` — the availability
+        /// tier's closed door, M22/ADR-0028, the same fact the value
+        /// tier names `unavailable`) on a refused write; `null`
+        /// otherwise.
+        refusal: Option<String>,
+        /// The span the write consumed, in UTF-16 units of the
+        /// field's value — the whole value for a `set_value`, the
+        /// selection's span for a `replace_selection`; `null` when
+        /// the write consumed no span (the selection ask, every
+        /// refusal). The write's shape named by its size — the
+        /// payload itself never rides the wire (a field's value can
+        /// carry a secret, the clipboard trail's rule, ADR-0045).
+        replaced: Option<usize>,
+        /// The payload's own length, in UTF-16 units — the write's
+        /// size beside the span it consumed; `null` when the write
+        /// carried no payload (the selection ask, every refusal).
+        inserted: Option<usize>,
+        /// The selection the AT asked for, before the forgiving read
+        /// side floored or clamped it (the M44 rule at the text
+        /// tier) — the ask beside the landing, a clamp the trail
+        /// could not show visible as data; `null` on the writes that
+        /// ask with a payload (their shape rides `replaced`/
+        /// `inserted`) and on every refusal.
+        requested: Option<WireSelection>,
+        /// The selection the field carries as the event resolves —
+        /// the caret the write left, or the field's own untouched
+        /// selection on a refusal. A field's selection is the tree's
+        /// own vocabulary the AT already reads, never a secret.
+        selection: WireSelection,
+        /// The control the write rode (M55, ADR-0061 — the funnel's
+        /// stamp, the M43 rule at the editing tier) — the
+        /// AccessKit-stable id the AT action routed; `null` when the
+        /// fact rode no route.
+        target: Option<u64>,
+    },
     /// A completed frame — the ledger + the mask heatmap.
     Frame {
         /// Monotonic frame number.
@@ -415,6 +464,19 @@ pub struct WireDirtyNode {
     pub label: String,
     /// The bounds, `[x, y, w, h]`, when laid out.
     pub bounds: Option<[f32; 4]>,
+}
+
+/// One selection on the wire (M55, ADR-0061): the `(anchor, focus)`
+/// pair the text-write trail carries — the M11 vocabulary's own
+/// shape, UTF-16 units of the field's value, the pair riding as one
+/// object so the ask and the landing read as the single fact each is.
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+pub struct WireSelection {
+    /// Where the selection began, as a UTF-16 offset into the value.
+    pub anchor: usize,
+    /// The active end (the caret while extending), as a UTF-16
+    /// offset.
+    pub focus: usize,
 }
 
 /// The damage verdict's wire name.
@@ -719,6 +781,40 @@ pub fn wire_scroll(record: &alacer_core::inspect::ScrollRecord) -> WireEvent {
             .map(alacer_core::widget::ScrollUnit::name)
             .map(str::to_string),
         lines: record.lines,
+    }
+}
+
+/// Converts a core [`alacer_core::inspect::TextWriteRecord`] into the
+/// wire event: the text write's answer, flat on the wire (ADR-0061) —
+/// the value event's flat rule, the refusal species carried beside the
+/// outcome, the write's shape named by lengths and the landing
+/// selection beside both, the ask beside the landing on the selection
+/// door (the M44 rule at the text tier). The payload itself never
+/// rides the wire — a field's value can carry a secret, the clipboard
+/// trail's rule (ADR-0045) — the lengths naming the shape the way the
+/// clipboard's count names the round trip.
+#[must_use]
+pub fn wire_text_write(record: &alacer_core::inspect::TextWriteRecord) -> WireEvent {
+    WireEvent::TextWrite {
+        action: record.action.name().to_string(),
+        outcome: record.outcome.name().to_string(),
+        refusal: match record.outcome {
+            alacer_core::inspect::TextWriteOutcome::Refused(refusal) => {
+                Some(refusal.name().to_string())
+            }
+            alacer_core::inspect::TextWriteOutcome::Delivered => None,
+        },
+        replaced: record.replaced,
+        inserted: record.inserted,
+        requested: record.requested.map(|ask| WireSelection {
+            anchor: ask.anchor,
+            focus: ask.focus,
+        }),
+        selection: WireSelection {
+            anchor: record.selection.anchor,
+            focus: record.selection.focus,
+        },
+        target: record.target,
     }
 }
 
@@ -1634,6 +1730,146 @@ mod tests {
         );
     }
 
+    /// M55 (ADR-0061, this cut): the AT's text write rides the wire as
+    /// its own flat event — the whole-value write's shape named by
+    /// lengths (the payload itself never riding the wire), the stamp
+    /// beside it.
+    #[test]
+    fn text_write_events_carry_the_write_shape() {
+        use alacer_core::inspect::{TextWriteAction, TextWriteOutcome, TextWriteRecord};
+        use alacer_core::widget::TextSelection;
+        let rewrite = TextWriteRecord {
+            action: TextWriteAction::SetValue,
+            outcome: TextWriteOutcome::Delivered,
+            replaced: Some(11),
+            inserted: Some(21),
+            requested: None,
+            selection: TextSelection::new(21, 21),
+            target: Some(0xAB_CD),
+        };
+        let WireEvent::TextWrite {
+            action,
+            outcome,
+            refusal,
+            replaced,
+            inserted,
+            requested,
+            selection,
+            target,
+        } = wire_text_write(&rewrite)
+        else {
+            panic!("text_write event");
+        };
+        assert_eq!(
+            action, "set_value",
+            "the whole-value write rides its own tag"
+        );
+        assert_eq!(outcome, "delivered");
+        assert_eq!(refusal, None, "a delivery names no refusal");
+        assert_eq!(
+            replaced,
+            Some(11),
+            "the value the field carried was the consumed span"
+        );
+        assert_eq!(
+            inserted,
+            Some(21),
+            "the payload's own length, never the payload"
+        );
+        assert_eq!(
+            requested, None,
+            "a payload write carries no selection ask — the honest absence"
+        );
+        assert_eq!(
+            (selection.anchor, selection.focus),
+            (21, 21),
+            "the caret the write left rides beside the shape"
+        );
+        assert_eq!(target, Some(0xAB_CD), "the stamp names the control");
+    }
+
+    /// M55 (ADR-0061, this cut): the selection ask rides the wire with
+    /// the ask beside the landing — the forgiving clamp visible as
+    /// data, the write's shape riding the honest absence.
+    #[test]
+    fn text_write_events_carry_the_ask_beside_the_landing() {
+        use alacer_core::inspect::{TextWriteAction, TextWriteOutcome, TextWriteRecord};
+        use alacer_core::widget::TextSelection;
+        let clamped = TextWriteRecord {
+            action: TextWriteAction::SetSelection,
+            outcome: TextWriteOutcome::Delivered,
+            replaced: None,
+            inserted: None,
+            requested: Some(TextSelection::new(2, 100)),
+            selection: TextSelection::new(2, 11),
+            target: Some(0xAB_CD),
+        };
+        let WireEvent::TextWrite {
+            action,
+            replaced,
+            inserted,
+            requested,
+            selection,
+            ..
+        } = wire_text_write(&clamped)
+        else {
+            panic!("text_write event");
+        };
+        assert_eq!(action, "set_selection");
+        assert_eq!(
+            (replaced, inserted),
+            (None, None),
+            "a selection consumes no span and inserts nothing — the honest absence"
+        );
+        let ask = requested.expect("the ask rides beside the landing");
+        assert_eq!(
+            (ask.anchor, ask.focus),
+            (2, 100),
+            "the ask beside the landing — the M44 rule at the text tier"
+        );
+        assert_eq!(
+            (selection.anchor, selection.focus),
+            (2, 11),
+            "the forgiving clamp's landing rides beside the ask"
+        );
+    }
+
+    /// M55 (ADR-0061, this cut): the closed door's refusal rides its
+    /// species the way the value tier names it — the same fact,
+    /// spoken identically wherever a door names it.
+    #[test]
+    fn text_write_events_carry_the_closed_doors_species() {
+        use alacer_core::inspect::{
+            TextWriteAction, TextWriteOutcome, TextWriteRecord, TextWriteRefusal,
+        };
+        use alacer_core::widget::TextSelection;
+        let refused = TextWriteRecord {
+            action: TextWriteAction::ReplaceSelection,
+            outcome: TextWriteOutcome::Refused(TextWriteRefusal::Unavailable),
+            replaced: None,
+            inserted: None,
+            requested: None,
+            selection: TextSelection::new(0, 0),
+            target: Some(0xAB_CD),
+        };
+        let WireEvent::TextWrite {
+            action,
+            outcome,
+            refusal,
+            ..
+        } = wire_text_write(&refused)
+        else {
+            panic!("text_write event");
+        };
+        assert_eq!(action, "replace_selection");
+        assert_eq!(outcome, "refused");
+        assert_eq!(
+            refusal.as_deref(),
+            Some("unavailable"),
+            "the closed door's species rides the way the value tier names it"
+        );
+    }
+
     #[test]
     fn frames_carry_the_damage_verdict_and_regions() {
         use alacer_core::geom::Size;
@@ -1801,6 +2037,26 @@ mod client_tests {
             assert!(
                 page.contains(fragment),
                 "the embedded client renders the scroll event: {fragment}"
+            );
+        }
+    }
+
+    /// M55 (ADR-0061, this cut): the embedded standalone client renders
+    /// the text write's echo — the write's shape named by lengths
+    /// beside the landing selection, the refusal rendered the way the
+    /// other tiers' refusals are, the payload itself never riding the
+    /// wire (the clipboard trail's rule). The pin rides the file's own
+    /// fragments (the M50 route).
+    #[test]
+    fn the_client_renders_the_text_writes_echo() {
+        let page = include_str!("inspector.html");
+        for fragment in [
+            "case \"text_write\":",
+            "The client renders the text write's echo (M55, ADR-0061)",
+        ] {
+            assert!(
+                page.contains(fragment),
+                "the embedded client renders the text_write event: {fragment}"
             );
         }
     }

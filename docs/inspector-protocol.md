@@ -114,7 +114,7 @@ keyboard's Tab fallback, the app's doors, and the ring's arrows alike
 ### `edit` — a journal action answered ("what did this field's journal do?")
 
 ```json
-{"kind":"edit","action":"record","coalesced":true,"refused":false,"undo_depth":1,"redo_depth":0}
+{"kind":"edit","action":"record","coalesced":true,"refused":false,"undo_depth":1,"redo_depth":0,"target":43981}
 ```
 
 - `action` — the journal action the record carries (M31, ADR-0037):
@@ -132,6 +132,12 @@ keyboard's Tab fallback, the app's doors, and the ring's arrows alike
 - `undo_depth` / `redo_depth` — the journal's branch depths when the
   fact streamed (the M15 journal's own introspection vocabulary,
   `EditHistory::undo_depth`).
+- `target` — the field the journal serves (M66, ADR-0072): the
+  AccessKit-stable id the routed event arrived under — the M43 stamp
+  rule at the journal tier, the key route's and the AT action route's
+  guard filling what the journal cannot know. `null` when the journal
+  answered outside any route (the app's direct rides — the honest
+  absence); two journals tellable apart on one log.
 
 The record streams at the tick's start drain — one frame after the
 chord, the announcement drain's currency (the journal queues the fact
@@ -591,9 +597,13 @@ ADR-0061's third kill rule pre-registered): the asks the boundary
 dropped before any widget's door — the action no widget contract
 answers, the `SetValue`/`ReplaceSelectedText` whose payload the request
 never carried, the `SetTextSelection` aimed at another node, the
-dispatch funnel's ask aimed at an id no tree node carries, and — since
-M59 (ADR-0065) — the IME event no live field held (a committed
-composition with nowhere to land) — stream one flat record each. A drop never rides a widget-door record (no door ever
+dispatch funnel's ask aimed at an id no tree node carries, the IME
+event no live field held (a committed composition with nowhere to land,
+M59/ADR-0065) — and, since M65 (ADR-0071), the record names the rider
+beside the species — the route that dropped the ask, the platform
+boundary's mapping arms, the dispatch funnel's refusal, and the IME
+route's silence tellable apart on one flat record each, the dead
+focused node's drop priced apart from the never-focused one. A drop never rides a widget-door record (no door ever
 answered, and a munged one would be the lie the kill rule refuses): the
 action is named by its stable `snake_case` tag — the platform
 vocabulary's own name for what arrived (`A11yAction::name` answers the
@@ -606,6 +616,7 @@ verbatim, never re-resolved against the tree.
   "kind": "route_drop",
   "action": "set_value",
   "species": "unknown_target",
+  "rider": "funnel",
   "target": 3735928559
 }
 ```
@@ -623,10 +634,20 @@ Fields:
   another node — the single-node selection contract, ADR-0017),
   `unknown_target` (the dispatch funnel's ask aimed at an id no tree
   node carries), `no_focused_field` (M59, ADR-0065: the IME event no
-  live field held — no field has focus, or the focused node has gone;
-  the `action` rides the event's own tag `ime_preedit`/`ime_commit`,
-  and `target` rides its honest absence — the boundary had no aim to
-  name).
+  live field held — *no field has focus*; the `action` rides the
+  event's own tag `ime_preedit`/`ime_commit`, and `target` rides its
+  honest absence — the boundary had no aim to name), `dead_focus`
+  (M65, ADR-0071: the field that held focus has gone — the focused
+  node died, and the composition names *why* it had nowhere, never the
+  never-focused one the pre-M65 collapse munged it into; the same
+  honest absence on `target`).
+- `rider` — which route dropped the ask (M65, ADR-0071): `boundary`
+  (the platform's mapping arms — the ask never became a core action),
+  `funnel` (the dispatch funnel's own refusal — the unknown target),
+  or `ime_route` (the IME event no live field held — both halves of
+  the split silence). The attribution is declared where the drop
+  resolves; a trail reader answers "which route said no" from the row
+  alone.
 - `target` — the id the request aimed at, verbatim: the identity the
   AT's client correlates against the tree it believes exists; `null`
   when the boundary had no aim to name.

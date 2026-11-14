@@ -1694,6 +1694,43 @@ pub trait InspectObserver {
     fn observe(&mut self, event: InspectEvent);
 }
 
+/// The observer's tee (§13.3, ADR-0070): two observers behind one. The
+/// pipeline's observer slot is single ([`crate::PassPipeline::set_observer`]),
+/// and a consumer pricing two doors at once — the inspector's recorder
+/// on the wire beside the trail's provided reader in-process
+/// ([`crate::trail::TrailLog`]) — needed either a hand-rolled wrapper
+/// or one door silently losing the other. The combinator the slot's
+/// own contract implies: each event forwards first to `first` then to
+/// `second` (the arrival order the causal reads rely on), and a third
+/// reader nests — `Tee::new(a, Tee::new(b, c))` — the composition the
+/// slot cannot hold on its own.
+pub struct Tee {
+    first: Box<dyn InspectObserver>,
+    second: Box<dyn InspectObserver>,
+}
+
+impl std::fmt::Debug for Tee {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Tee").finish_non_exhaustive()
+    }
+}
+
+impl Tee {
+    /// Two observers behind one slot: the events forwarded first to
+    /// `first` then to `second`.
+    #[must_use]
+    pub fn new(first: Box<dyn InspectObserver>, second: Box<dyn InspectObserver>) -> Self {
+        Self { first, second }
+    }
+}
+
+impl InspectObserver for Tee {
+    fn observe(&mut self, event: InspectEvent) {
+        self.first.observe(event.clone());
+        self.second.observe(event);
+    }
+}
+
 /// The heatmap cap: dirty nodes carried per [`FrameSummary`] before
 /// truncation (a devtools log, not a frame-budget liability).
 pub const DIRTY_HEATMAP_CAP: usize = 512;

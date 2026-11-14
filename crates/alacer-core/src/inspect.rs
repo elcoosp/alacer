@@ -1448,6 +1448,14 @@ pub enum KeyEditAction {
     /// accepted write (ADR-0020's refuse-don't-munge rule) named by
     /// the chord, never a munged [`KeyEditAction::Backspace`].
     Cut,
+    /// The selection moved out to the clipboard and the field kept it —
+    /// the copy chord (M68, ADR-0074), the ask whose field change is
+    /// nothing. A delivered copy answers no fact (the m60 rule: the
+    /// wall prices edit asks, and a delivered copy is none); the
+    /// payloadless copy — the read that found nothing to move — names
+    /// this action beside its refusal (the ask the door's own match
+    /// named, the M62 rule at the read tier).
+    Copy,
 }
 
 impl KeyEditAction {
@@ -1463,6 +1471,7 @@ impl KeyEditAction {
             Self::WordDeleteForward => "word_delete_forward",
             Self::Paste => "paste",
             Self::Cut => "cut",
+            Self::Copy => "copy",
         }
     }
 }
@@ -1481,6 +1490,13 @@ pub enum KeyEditRefusal {
     /// tier's own species (`unavailable` — the tag the AT tier's
     /// closed door streams, ADR-0027) at the typing tier.
     Unavailable,
+    /// The read's wall (M68, ADR-0074): the door is open, the chord's
+    /// read answered, and the selection was empty — nothing was there
+    /// to move out (the payloadless copy or cut). The field's own
+    /// answer beside the clipboard trail's `NoSelection` round trip —
+    /// one fact per trail, never a double-priced ask, the delivered
+    /// chord's two-fact shape mirrored at the wall.
+    EmptySelection,
 }
 
 impl KeyEditRefusal {
@@ -1490,6 +1506,7 @@ impl KeyEditRefusal {
     pub const fn name(self) -> &'static str {
         match self {
             Self::Unavailable => "unavailable",
+            Self::EmptySelection => "empty_selection",
         }
     }
 }
@@ -1648,6 +1665,23 @@ pub struct PreeditRecord {
     pub target: Option<u64>,
 }
 
+/// The adapter's full-tree echo (§13.3, ADR-0073): the a11y tier's own
+/// fact — the assistive technology connected or reconnected, and the
+/// sink answered with the whole resolved tree, the same builder the
+/// deltas use. The tree is named by its node count: the shape rides,
+/// the payload itself never does (the lengths rule at every tier — a
+/// resolved tree carries the app's labels, and a label can carry a
+/// secret). `Copy` like the records beside it: one count.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct A11yEchoRecord {
+    /// The resolved tree's size — the node count the full-tree build
+    /// answered with, the same answer the adapter forwards. `0` never
+    /// rides: an activation before the first frame resolves no tree,
+    /// and no fact streams for it (the honest absence — the trail
+    /// never invents a size).
+    pub nodes: usize,
+}
+
 /// One observation: what the pipeline and the flux surface to devtools.
 #[derive(Debug, Clone)]
 pub enum InspectEvent {
@@ -1744,6 +1778,14 @@ pub enum InspectEvent {
     /// start drain, the key-edit drain's shape — the fact queues where
     /// the composing state resolves, one frame after the preedit).
     Preedit(PreeditRecord),
+    /// The adapter's full-tree echo — the a11y trail (ADR-0073): the
+    /// assistive technology connected or reconnected and the sink
+    /// answered with the whole resolved tree, the tree named by its
+    /// node count (the lengths rule — the payload never rides the
+    /// log). Streams ahead of the frame's routes at the tick's start
+    /// drain (a connect predates the asks the frame carries, the echo
+    /// explains the tree those asks answer into).
+    A11yEcho(A11yEchoRecord),
     /// A frame completed — the frame's causal summary.
     Frame(FrameSummary),
 }

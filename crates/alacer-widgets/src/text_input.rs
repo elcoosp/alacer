@@ -70,6 +70,34 @@ pub struct TextInput {
     on_submit: Option<SubmitHandler>,
 }
 
+/// The shape one edit landed (the typing door's fact, M58, ADR-0064):
+/// the UTF-16 spans the edit consumed and inserted, and whether the
+/// journal folded it into its tip — the flood rule's own bit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct LandedEdit {
+    /// The span the edit consumed, in UTF-16 units.
+    replaced: usize,
+    /// The payload's own length, in UTF-16 units.
+    inserted: usize,
+    /// Whether the journal folded the edit into its tip.
+    coalesced: bool,
+}
+
+impl LandedEdit {
+    /// No edit landed — a no-op door answers no fact (the honest
+    /// absence: the journal recorded nothing, the trail queues none).
+    const NONE: Self = Self {
+        replaced: 0,
+        inserted: 0,
+        coalesced: false,
+    };
+
+    /// Whether any edit landed — a no-op door queues nothing.
+    fn landed(self) -> bool {
+        self.replaced != 0 || self.inserted != 0
+    }
+}
+
 impl TextInput {
     /// A text input with the accessible name `name`.
     #[must_use]
@@ -255,48 +283,75 @@ impl TextInput {
         }
     }
 
+    /// Notes the typing door's fact (M58, ADR-0064): the shape the edit
+    /// landed, named by lengths — never the payload (a field's value can
+    /// carry a secret, the clipboard trail's rule, ADR-0045) — the
+    /// landing selection beside it. The funnel stamps the control when a
+    /// route holds it (the M43 rule); a no-op edit answers no fact.
+    fn note_key_edit(
+        &self,
+        action: alacer_core::KeyEditAction,
+        driver: alacer_core::KeyEditDriver,
+        landed: LandedEdit,
+    ) {
+        if !landed.landed() {
+            return;
+        }
+        alacer_core::key_edit::note_key_edit(alacer_core::KeyEditRecord {
+            action,
+            driver,
+            replaced: landed.replaced,
+            inserted: landed.inserted,
+            selection: TextSelection::new(self.anchor_utf16, self.caret_utf16),
+            coalesced: landed.coalesced,
+            target: None,
+        });
+    }
+
     /// Inserts `insertion` at the caret (UTF-16 units of it — commits may
     /// carry any text, including surrogate pairs). An active selection is
     /// consumed first (M11): the insertion replaces it, like every editor.
-    fn insert(&mut self, insertion: &str) {
+    /// Answers the shape the edit landed (the typing door's fact).
+    fn insert(&mut self, insertion: &str) -> LandedEdit {
         let (from, to) = self.selection_span();
-        self.edit(from, to, insertion);
+        self.edit(from, to, insertion)
     }
 
     /// Deletes the text before the caret (backspace). An active selection
     /// is consumed whole (M11): the range goes, not one scalar value.
-    fn backspace(&mut self) {
+    /// Answers the shape the edit landed — `NONE` when nothing went (the
+    /// caret at the value's start, an empty selection).
+    fn backspace(&mut self) -> LandedEdit {
         if self.has_selection() {
             let (from, to) = self.selection_range();
-            self.edit(from, to, "");
-            return;
+            return self.edit(from, to, "");
         }
         if self.caret_utf16 == 0 {
-            return;
+            return LandedEdit::NONE;
         }
         // Floor to the scalar boundary at or below the unit before the
         // caret: a caret mid-pair deletes the whole pair, never half.
         let from = utf16::floor_boundary(&self.text, self.caret_utf16 - 1);
-        self.edit(from, self.caret_utf16, "");
+        self.edit(from, self.caret_utf16, "")
     }
 
     /// Deletes the scalar value after the caret (forward delete). An active
-    /// selection is consumed whole (M11), like under backspace.
-    fn delete(&mut self) {
+    /// selection is consumed whole (M11), like under backspace. Answers
+    /// the shape the edit landed — `NONE` at the value's end.
+    fn delete(&mut self) -> LandedEdit {
         if self.has_selection() {
             let (from, to) = self.selection_range();
-            self.edit(from, to, "");
-            return;
+            return self.edit(from, to, "");
         }
         let len = utf16::len_utf16(&self.text);
         if self.caret_utf16 >= len {
-            return;
+            return LandedEdit::NONE;
         }
         let mut to = self.caret_utf16 + 1;
         while to < len && !utf16::is_boundary(&self.text, to) {
             to += 1;
         }
-        self.edit(self.caret_utf16, to, "");
+        self.edit(self.caret_utf16, to, "")
     }
 
     /// Whether a non-degenerate selection is active.
@@ -330,7 +385,10 @@ impl TextInput {
     /// collapsed onto it, and notifies. One definition — no edit path
     /// grows its own caret arithmetic or its own dialect of the history,
     /// and every journaled step carries the selection it consumed.
-    fn edit(&mut self, from_utf16: usize, to_utf16: usize, insertion: &str) {
+    /// Answers the shape the edit landed (the typing door's fact, M58,
+    /// ADR-0064): the spans it consumed and inserted, and the journal's
+    /// own fold — the caller notes the fact beside the door it rode.
+    fn edit(&mut self, from_utf16: usize, to_utf16: usize, insertion: &str) -> LandedEdit {
         let selection_before = (self.anchor_utf16, self.caret_utf16);
         let from = utf16::byte_offset(&self.text, from_utf16);
         let to = utf16::byte_offset(&self.text, to_utf16);
@@ -338,7 +396,7 @@ impl TextInput {
         self.text.replace_range(from..to, insertion);
         self.caret_utf16 = from_utf16 + utf16::len_utf16(insertion);
         self.anchor_utf16 = self.caret_utf16;
-        self.history.record(
+        let coalesced = self.history.record(
             from_utf16,
             removed,
             insertion.to_string(),
@@ -346,6 +404,11 @@ impl TextInput {
             (self.caret_utf16, self.caret_utf16),
         );
         self.notify_changed();
+        LandedEdit {
+            replaced: to_utf16 - from_utf16,
+            inserted: utf16::len_utf16(insertion),
+            coalesced,
+        }
     }
 
     /// Undoes the newest journaled edit (Ctrl/Cmd+Z, ADR-0021): the text
@@ -492,32 +555,32 @@ impl TextInput {
     /// 0019): a word chord deletes exactly the span the caret would hop —
     /// the word, with the separator following in the next chord. An
     /// active selection is consumed whole first (the M11 edit rule).
-    fn delete_word_back(&mut self) {
+    /// Answers the shape the edit landed — `NONE` when no word went.
+    fn delete_word_back(&mut self) -> LandedEdit {
         if self.has_selection() {
             let (from, to) = self.selection_range();
-            self.edit(from, to, "");
-            return;
+            return self.edit(from, to, "");
         }
         let to = self.word_hop(alacer_core::text_seam::WordDirection::Previous);
         if to == self.caret_utf16 {
-            return;
+            return LandedEdit::NONE;
         }
-        self.edit(to, self.caret_utf16, "");
+        self.edit(to, self.caret_utf16, "")
     }
 
     /// Deletes the hop's span ahead of the caret (Ctrl/Alt+Delete), the
     /// mirror of [`Self::delete_word_back`] — the caret stays put.
-    fn delete_word_forward(&mut self) {
+    /// Answers the shape the edit landed, like its mirror.
+    fn delete_word_forward(&mut self) -> LandedEdit {
         if self.has_selection() {
             let (from, to) = self.selection_range();
-            self.edit(from, to, "");
-            return;
+            return self.edit(from, to, "");
         }
         let to = self.word_hop(alacer_core::text_seam::WordDirection::Next);
         if to == self.caret_utf16 {
-            return;
+            return LandedEdit::NONE;
         }
-        self.edit(self.caret_utf16, to, "");
+        self.edit(self.caret_utf16, to, "")
     }
 
     /// Writes the active selection's span to the clipboard seam (ADR-0020):
@@ -700,6 +763,14 @@ impl TextInput {
     /// clipboard read or write, a copy without a selection — is Handled
     /// with no masks: the refusal costs an idle frame, the honesty the
     /// action tier already pins (ADR-0020).
+    ///
+    /// Since M58 (ADR-0064) every editing arm notes the typing door's
+    /// fact beside the mutation it landed — the match is the keyboard
+    /// door's own narrative, each arm the key's whole story.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "the keyboard door's match is one readable key-by-key narrative; splitting it would hide the note sites the M58 facts ride"
+    )]
     fn edit_key(&mut self, ctx: &mut EventCtx, event: &KeyEvent) -> (bool, bool) {
         let shift = event.modifiers.shift;
         let command = event.modifiers.control || event.modifiers.meta;
@@ -711,24 +782,41 @@ impl TextInput {
                 if command {
                     self.command_chord(*ch, shift)
                 } else {
-                    self.insert(&ch.to_string());
+                    let landed = self.insert(&ch.to_string());
+                    self.note_key_edit(
+                        alacer_core::KeyEditAction::Insert,
+                        alacer_core::KeyEditDriver::Keyboard,
+                        landed,
+                    );
                     (true, true)
                 }
             }
             alacer_core::events::Key::Backspace => {
-                if word_chord {
-                    self.delete_word_back();
+                let landed = if word_chord {
+                    self.delete_word_back()
                 } else {
-                    self.backspace();
-                }
+                    self.backspace()
+                };
+                let action = if word_chord {
+                    alacer_core::KeyEditAction::WordDeleteBack
+                } else {
+                    alacer_core::KeyEditAction::Backspace
+                };
+                self.note_key_edit(action, alacer_core::KeyEditDriver::Keyboard, landed);
                 (true, true)
             }
             alacer_core::events::Key::Delete => {
-                if word_chord {
-                    self.delete_word_forward();
+                let landed = if word_chord {
+                    self.delete_word_forward()
                 } else {
-                    self.delete();
-                }
+                    self.delete()
+                };
+                let action = if word_chord {
+                    alacer_core::KeyEditAction::WordDeleteForward
+                } else {
+                    alacer_core::KeyEditAction::Delete
+                };
+                self.note_key_edit(action, alacer_core::KeyEditDriver::Keyboard, landed);
                 (true, true)
             }
             // Arrows and Home/End: Shift extends from the anchor (M11), a
@@ -1302,11 +1390,19 @@ impl Widget for TextInput {
                 EventResponse::Handled
             }
             // Final text: insert at the caret, clear the preedit. Commits may
-            // carry surrogate pairs — `insert` counts UTF-16 units.
+            // carry surrogate pairs — `insert` counts UTF-16 units. Since
+            // M58 (ADR-0064) the commit's fact rides the key-edit trail —
+            // the composition's shape beside the landing, the IME driver
+            // named (the attribution rule at the typing tier).
             ImeEvent::Commit { text } => {
                 self.preedit = None;
                 if !text.is_empty() {
-                    self.insert(text);
+                    let landed = self.insert(text);
+                    self.note_key_edit(
+                        alacer_core::KeyEditAction::Insert,
+                        alacer_core::KeyEditDriver::Ime,
+                        landed,
+                    );
                 }
                 ctx.request(alacer_core::Change::PAINT.union(alacer_core::Change::A11Y));
                 EventResponse::Handled

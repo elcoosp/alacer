@@ -312,17 +312,21 @@ impl TextInput {
         });
     }
 
-    /// Notes the typing door's refusal (M62, ADR-0068): the closed
-    /// field's wall as data — the ask the open door would have answered
-    /// named by its action and driver (the M60 attribution rule at the
-    /// chord tier), the shape priced at nothing, the selection the
-    /// untouched one, never a munged delivered edit. The funnel stamps
-    /// the control when a route holds it (the M43 rule) — the wall
-    /// streamed where the route routed, the identity never guessed.
+    /// Notes the typing door's refusal (M62, ADR-0068): the wall as
+    /// data — the ask the open door would have answered named by its
+    /// action and driver (the M60 attribution rule at the chord tier),
+    /// the species the door's own match named (the availability wall's
+    /// `Unavailable`, and since M68 the read's `EmptySelection` —
+    /// ADR-0074's payloadless chord), the shape priced at nothing, the
+    /// selection the untouched one, never a munged delivered edit. The
+    /// funnel stamps the control when a route holds it (the M43 rule) —
+    /// the wall streamed where the route routed, the identity never
+    /// guessed.
     fn note_key_refusal(
         &self,
         action: alacer_core::KeyEditAction,
         driver: alacer_core::KeyEditDriver,
+        refusal: alacer_core::KeyEditRefusal,
     ) {
         alacer_core::key_edit::note_key_edit(alacer_core::KeyEditRecord {
             action,
@@ -331,7 +335,7 @@ impl TextInput {
             inserted: 0,
             selection: TextSelection::new(self.anchor_utf16, self.caret_utf16),
             coalesced: false,
-            outcome: alacer_core::KeyEditOutcome::Refused(alacer_core::KeyEditRefusal::Unavailable),
+            outcome: alacer_core::KeyEditOutcome::Refused(refusal),
             target: None,
         });
     }
@@ -687,6 +691,16 @@ impl TextInput {
                 read: None,
                 chars: 0,
             });
+            // The field's own answer (M68, ADR-0074): the payloadless
+            // copy names its read beside the round trip — one fact per
+            // trail, the delivered chord's two-fact shape mirrored at
+            // the wall (the ask the door's own match named, the shape
+            // priced at nothing, the selection the untouched one).
+            self.note_key_refusal(
+                alacer_core::KeyEditAction::Copy,
+                alacer_core::KeyEditDriver::Clipboard,
+                alacer_core::KeyEditRefusal::EmptySelection,
+            );
             return false;
         }
         let (min, max) = self.selection_range();
@@ -739,6 +753,15 @@ impl TextInput {
                 read: None,
                 chars: 0,
             });
+            // The field's own answer (M68, ADR-0074): the payloadless
+            // cut names its read beside the round trip — the same
+            // species the copy's read named, the chord's own action
+            // beside it (one fact per trail, never a double-priced ask).
+            self.note_key_refusal(
+                alacer_core::KeyEditAction::Cut,
+                alacer_core::KeyEditDriver::Clipboard,
+                alacer_core::KeyEditRefusal::EmptySelection,
+            );
             return false;
         }
         let (min, max) = self.selection_range();
@@ -1467,7 +1490,7 @@ impl Widget for TextInput {
             if event.state == alacer_core::events::KeyState::Pressed
                 && let Some((action, driver)) = Self::refused_action(event)
             {
-                self.note_key_refusal(action, driver);
+                self.note_key_refusal(action, driver, alacer_core::KeyEditRefusal::Unavailable);
             }
             return EventResponse::Ignored;
         }
@@ -1506,6 +1529,7 @@ impl Widget for TextInput {
                 self.note_key_refusal(
                     alacer_core::KeyEditAction::Insert,
                     alacer_core::KeyEditDriver::Ime,
+                    alacer_core::KeyEditRefusal::Unavailable,
                 );
             }
             return EventResponse::Ignored;

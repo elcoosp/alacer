@@ -173,6 +173,15 @@ pub(crate) fn take_value_trail() -> Vec<crate::inspect::ValueRecord> {
     TRAIL.with(|slot| slot.borrow_mut().drain(..).collect())
 }
 
+/// The stamp the routing funnel holds (M43, ADR-0049), read by the
+/// sibling trails that queue beneath the same routes (the text-write
+/// trail, ADR-0061): `Some(id)` while the AT action route or the key
+/// route holds its guard, `None` otherwise — the routes shared, the
+/// identity never guessed at any note site.
+pub(crate) fn action_target() -> Option<u64> {
+    ACTION_TARGET.with(Cell::get)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{VALUE_TRAIL_CAP, note_write, take_value_trail};

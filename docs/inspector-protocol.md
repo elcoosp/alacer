@@ -567,6 +567,14 @@ selection beside the shape, the refusals named. The fields:
 - `target` — the control the write rode (the funnel's stamp, the M43
   discipline at the editing tier): the AccessKit-stable id the AT
   action routed; `null` when the fact rode no route.
+- `source` — the door the write rode (M56, ADR-0062, the M30
+  attribution rule at the text tier): `at_door` for the AT's ask at
+  the action door, `app_door` for the app's own write — the
+  imperative `set_value` door the mutate seam calls and the view
+  reconciliation's patches ride (the door the journal's reset echo
+  already streamed beside). The trail reader's answer to "did the
+  screen reader rewrite this field, or did the app?" — named where
+  the record is built, never reconstructed.
 
 The event streams at the tick's start drain — one frame after the
 write, the scroll trail's currency, the drain running after the scroll
@@ -575,6 +583,57 @@ beside the scrolls). The queue behind it is bounded (256 facts per
 thread, oldest-first eviction) and the recorder's `text_write` ring
 holds 512. The additive event the versioning rule admits at version 1
 — clients that ignore unknown kinds are unaffected.
+
+### `route_drop` — an ask dropped before any widget's door
+
+The boundary route's own refusal vocabulary (M57, ADR-0063, the price
+ADR-0061's third kill rule pre-registered): the asks the boundary
+dropped before any widget's door — the action no widget contract
+answers, the `SetValue`/`ReplaceSelectedText` whose payload the request
+never carried, the `SetTextSelection` aimed at another node, and the
+dispatch funnel's ask aimed at an id no tree node carries — stream one
+flat record each. A drop never rides a widget-door record (no door ever
+answered, and a munged one would be the lie the kill rule refuses): the
+action is named by its stable `snake_case` tag — the platform
+vocabulary's own name for what arrived (`A11yAction::name` answers the
+same tags for the actions the two vocabularies share) — the species
+naming why the boundary refused beside it, and the aimed id riding
+verbatim, never re-resolved against the tree.
+
+```json
+{
+  "kind": "route_drop",
+  "action": "set_value",
+  "species": "unknown_target",
+  "target": 3735928559
+}
+```
+
+Fields:
+
+- `action` — the dropped action's stable tag (`set_value`, `focus`,
+  `show_context_menu`, …): the ask the boundary refused, never the
+  core action it did not become.
+- `species` — why the boundary dropped the ask: `unknown_action` (no
+  consumer in the framework's vocabulary — mapping it onto a press
+  would be a correctness bug, ADR-0016's rule), `no_payload` (a
+  `SetValue`/`ReplaceSelectedText` whose payload the request did not
+  carry), `off_target_selection` (a `SetTextSelection` aimed at
+  another node — the single-node selection contract, ADR-0017),
+  `unknown_target` (the dispatch funnel's ask aimed at an id no tree
+  node carries).
+- `target` — the id the request aimed at, verbatim: the identity the
+  AT's client correlates against the tree it believes exists; `null`
+  when the boundary had no aim to name.
+
+The event streams at the tick's start drain — one frame after the
+drop, the text-write trail's currency, the drain running after the
+text-write drain (a drop explains the ask the boundary refused; it
+streams beside the doors' facts). The queue behind it is bounded (256
+facts per thread, oldest-first eviction) and the recorder's
+`route_drop` ring holds 512. The additive event the versioning rule
+admits at version 1 — clients that ignore unknown kinds are
+unaffected.
 
 ### `frame` — a completed frame
 

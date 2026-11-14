@@ -20,6 +20,11 @@
 //!   causal log as one per-gesture record per phase — the beginning, the
 //!   end — never per move (ADR-0052, the flood rule the kill criteria
 //!   pre-registered).
+//! - [`preedit`] — the preedit trail: the field's composing state
+//!   reaches the causal log as one growing record per live session —
+//!   the composition's inline shape named by lengths, never the
+//!   payload — beside the commit's key-edit fact (ADR-0067, the IME
+//!   tier's own record).
 //! - [`keymap`] — the keymap seam: the app's window-level shortcuts, named
 //!   by one installed [`KeymapSeam`] the dispatch funnel consults when the
 //!   focused widget did not answer, the consult as data
@@ -53,6 +58,7 @@ pub mod keymap;
 pub mod mask;
 pub mod num;
 pub mod passes;
+pub mod preedit;
 pub mod route_drop;
 pub mod scene;
 pub mod scroll;
@@ -80,10 +86,10 @@ pub use inspect::{
     BindingId, ClipboardAction, ClipboardOutcome, ClipboardRecord, ClipboardRefusal, DirtyNode,
     EdgeActivation, FocusRecord, FocusRider, FrameSummary, GesturePhase, GestureRecord, InputKind,
     InputRecord, InspectEvent, InspectObserver, KeyEditAction, KeyEditDriver, KeyEditRecord,
-    KeyRecord, PassTiming, RangeBound, RouteDropRecord, RouteDropSpecies, ScrollAction,
-    ScrollOutcome, ScrollRecord, ScrollRefusal, SignalKey, SignalWrite, TextWriteAction,
-    TextWriteOutcome, TextWriteRecord, TextWriteRefusal, TextWriteSource, ValueAction,
-    ValueOutcome, ValueRecord, ValueRefusal,
+    KeyRecord, PassTiming, PreeditAction, PreeditRecord, RangeBound, RouteDropRecord,
+    RouteDropSpecies, ScrollAction, ScrollOutcome, ScrollRecord, ScrollRefusal, SignalKey,
+    SignalWrite, TextWriteAction, TextWriteOutcome, TextWriteRecord, TextWriteRefusal,
+    TextWriteSource, ValueAction, ValueOutcome, ValueRecord, ValueRefusal,
 };
 pub use keymap::{Chord, Keymap, KeymapConsult, KeymapSeam};
 pub use mask::Change;
@@ -119,7 +125,7 @@ pub mod prelude {
     pub use crate::geom::{Point, Rect, Size, Vector};
     pub use crate::inspect::{
         ClipboardRecord, GestureRecord, InspectEvent, InspectObserver, KeyEditRecord, KeyRecord,
-        ScrollRecord, TextWriteRecord, ValueRecord,
+        PreeditRecord, ScrollRecord, TextWriteRecord, ValueRecord,
     };
     pub use crate::keymap::{Chord, Keymap, KeymapConsult, KeymapSeam};
     pub use crate::mask::Change;

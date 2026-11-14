@@ -241,7 +241,7 @@ fn m21_the_value_write_route_joins_the_corpus_by_the_coordinated_rule() {
 
     assert_eq!(
         baselines["bench_count"],
-        serde_json::json!(65),
+        serde_json::json!(68),
         "the corpus grows 56 → 57 at M22's measurement run"
     );
     let benches = baselines["benches"].as_object().expect("benches object");
@@ -258,7 +258,7 @@ fn m21_the_value_write_route_joins_the_corpus_by_the_coordinated_rule() {
     // cut (the coordinated rule: bench, gates, baseline, pins together).
     assert_eq!(
         gates.len(),
-        65,
+        68,
         "every case carries exactly one regression gate"
     );
     assert!(
@@ -285,18 +285,18 @@ fn m21_the_value_write_route_joins_the_corpus_by_the_coordinated_rule() {
     ] {
         let source = read_workspace_file(&format!("crates/alacer-testing/tests/{suite}"));
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 65;"),
-            "{suite} must pin the 60-case corpus"
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 68;"),
+            "{suite} must pin the 68-case corpus"
         );
     }
     let m19 = read_workspace_file("crates/alacer-testing/tests/m19_exit_criteria.rs");
     assert!(
-        m19.contains("All 65 criterion cases") && m19.contains("serde_json::json!(65)"),
+        m19.contains("All 68 criterion cases") && m19.contains("serde_json::json!(68)"),
         "the m19 suite's pins moved with the corpus"
     );
     let m20 = read_workspace_file("crates/alacer-testing/tests/m20_exit_criteria.rs");
     assert!(
-        m20.contains("serde_json::json!(65)") && m20.contains("usize = 65;"),
+        m20.contains("serde_json::json!(68)") && m20.contains("usize = 68;"),
         "the m20 suite's pins moved with the corpus (the one-cycle drift the pattern prices)"
     );
 }
@@ -308,11 +308,11 @@ fn m21_the_living_documents_re_agree() {
     // newest control, and the status block is the 0.14.0 family at M23.
     let readme = read_workspace_file("README.md");
     for fragment in [
-        "All 65 criterion cases",
+        "All 68 criterion cases",
         "Since M21 the value is reportable too",
         "version-0.17.0",
-        "M0 through M61",
-        "sixty-eight decision records",
+        "M0 through M64",
+        "seventy-one decision records",
         "`Progress`",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
@@ -341,7 +341,7 @@ fn m21_the_living_documents_re_agree() {
     let architecture = read_workspace_file("docs/architecture.md");
     for fragment in [
         "ADR-0027",
-        "68 decision records",
+        "71 decision records",
         "the progress indicator joins the value tier",
     ] {
         assert!(

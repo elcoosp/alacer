@@ -46,7 +46,7 @@
 | 50-event pointer storm                                | **1** coalesced dispatch (**41.28×**)           | `input_storm_batching` budget                                                                          |
 | 10k-node churn frame vs egui, same host               | 1.10 ms vs 20.7 ms full frame (**18.8×**)       | 5-run medians, declared rig (`benchmarks/rig.json`)                                                    |
 | …vs Masonry                                           | 1.10 ms vs 4.6 ms full pass pipeline (**4.2×**) | same rig, `scripts/run_comparison.py`                                                                  |
-| All 64 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
+| All 65 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
 
 _Competitor rows compare Alacer's incremental frame against their full frame/pass — every row in
 `benchmarks/comparisons/results.json` is labeled with its scope._
@@ -86,7 +86,7 @@ cargo test --workspace                                          # headless: real
 > `ALACER_SOFTWARE=1` presents through softbuffer — the platform honors it at startup
 > (`BackendPreference::software_env`) whichever backend the app asked for; any other value is
 > refused with a named warning, never guessed. CI and the headless tests already run this path:
-> no mock renderer, no mock event loop. The full 50-example catalog is [below](#examples).
+> no mock renderer, no mock event loop. The full 52-example catalog is [below](#examples).
 
 ## How it works
 
@@ -283,7 +283,7 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `inspector_demo`                                     | the counter with the Causality inspector at `127.0.0.1:9217`                     |
 | `todo` / `data_table`                                | the canons: a11y tree, record/replay, grid slots, keyboard navigation            |
 
-<details><summary><b>49 examples, grouped (50 ship; recording live in the catalog)</b></summary>
+<details><summary><b>51 examples, grouped (52 ship; recording live in the catalog)</b></summary>
 
 **Start here**
 
@@ -315,8 +315,10 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `edit_trail` | the same journal with the observer riding — one `Edit` record per action, coalescing visible as a depth that never moves |
 | `at_text_writes` | the M55 AT text write driven from the consumer side: the selection ask beside its landing, the paste-shaped replacement priced by lengths, the whole-value rewrite with the journal reset beneath it, the locked field refusing honestly |
 | `app_text_writes` | the M56 app door driven from the consumer side: the mutate seam's whole-value write beside the AT's ask on one log, the doors tellable apart by the record's `source`, the journal's reset streaming beneath the write |
-| `route_drops` | the M57 boundary driven from the consumer side: the ask aimed at an unknown target names its drop (the species beside the aimed id), the delivered ask beside it streaming nothing — the honest absence |
+| `route_drops` | the M57 boundary driven from the consumer side: the ask aimed at an unknown target names its drop (the species beside the aimed id), the delivered ask beside it streaming nothing — the honest absence, the committed composition no field held naming its own drop (the M59 beat) |
 | `key_edits` | the M58 typing door driven from the consumer side: the typed run named as one fact (the flood rule), the backspace's span, the word chord's species, the IME's commit named by its driver, the app door's write beside them streaming nothing — the honest absence |
+| `paste_edits` | the M60 chords driven from the consumer side: the paste named by its driver and shape (the payload priced by lengths, never carried), the paste over a selection pricing both spans, the cut's span, the refused paste streaming nothing — the honest absence, the copy editing nothing beside it |
+| `preedit_trail` | the M61 composing door driven from the consumer side: one session composing in three frames riding one growing record (never an echo per frame), the cleared composition naming its own end, the commit landing beside it on the key-edit trail, the spurious clear streaming none |
 | `announcements` | polite and assertive speech acts, the honest refusal, the status line mirroring the live region |
 | `announce_trail` | one `Announce` record per answered act — superseded facts beside the survivor |
 
@@ -392,7 +394,7 @@ tree (`query(role).named(..)`, `press`, `find_all`) — never widget internals.
 ## Status
 
 > [!NOTE]
-> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M57 of `docs/architecture.md` are
+> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M61 of `docs/architecture.md` are
 > complete, but the API still moves between minor versions. MSRV **1.99**, edition **2024**.
 
 | Platform            | CI coverage                                                                                                                                                           |
@@ -404,7 +406,7 @@ tree (`query(role).named(..)`, `press`, `find_all`) — never widget internals.
 ## Learn more
 
 - [Architecture](https://github.com/elcoosp/alacer/blob/main/docs/architecture.md) — design axioms, the ten-pass contract, rendering, accessibility, DX, performance, roadmap and kill criteria
-- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — sixty-four decision records, from workspace discipline to the M57 scope
+- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — sixty-eight decision records, from workspace discipline to the M61 scope
 - [Examples catalog](https://github.com/elcoosp/alacer/blob/main/docs/examples.md) — every example with the contract it exercises
 - [Migrating from Iced](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-iced.md) · [from egui](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-egui.md) — mental-model mappings, interop limits stated plainly
 - [Inspector protocol](https://github.com/elcoosp/alacer/blob/main/docs/inspector-protocol.md) — the versioned WebSocket contract behind `alacer-inspect`

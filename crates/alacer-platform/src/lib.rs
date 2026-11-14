@@ -734,10 +734,14 @@ fn action_tag(action: accesskit::Action) -> &'static str {
 /// trail's own one-branch idle contract (a no-op while nobody
 /// listens). A drop never rides a widget-door record: no door ever
 /// answered, and a munged one would be the lie the kill rule refuses.
+/// Since M65 (ADR-0071) the record names its rider — the boundary
+/// declared where it stands, the funnel's and the IME route's drops
+/// tellable apart from the mapping arms' on one log.
 fn note_drop(request: &accesskit::ActionRequest, species: alacer_core::RouteDropSpecies) {
     alacer_core::route_drop::note_route_drop(alacer_core::RouteDropRecord {
         action: action_tag(request.action),
         species,
+        rider: alacer_core::RouteDropRider::Boundary,
         target: Some(request.target_node.0),
     });
 }
@@ -1548,6 +1552,11 @@ mod tests {
             drops[0].species,
             alacer_core::RouteDropSpecies::NoPayload,
             "the payload the ask never carried is the species"
+        );
+        assert_eq!(
+            drops[0].rider,
+            alacer_core::RouteDropRider::Boundary,
+            "the mapping arms name the boundary (M65, ADR-0071)"
         );
         assert_eq!(
             drops[0].target,

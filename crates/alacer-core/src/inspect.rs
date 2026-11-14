@@ -1052,6 +1052,151 @@ pub struct ScrollRecord {
     pub lines: Option<f32>,
 }
 
+/// The AT text-write action vocabulary (M55, ADR-0061): the three
+/// asks a screen reader can make at a field's write door. The names
+/// are the wire's stable tags ([`TextWriteAction::name`], the
+/// protocol's `snake_case` rule).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TextWriteAction {
+    /// The AT's `SetValue`: the whole value replaced — the same write
+    /// the view's reconciliation makes, the journal resetting beneath
+    /// it (ADR-0021's reset rule: undo never fights the write).
+    SetValue,
+    /// The AT's `ReplaceSelectedText`: the selection's span replaced
+    /// by the payload, like a paste the reader made (M11, ADR-0017).
+    ReplaceSelection,
+    /// The AT's `SetTextSelection`: the selection moved directly, the
+    /// forgiving read side flooring and clamping the ask (M11).
+    SetSelection,
+}
+
+impl TextWriteAction {
+    /// The action's name, the wire vocabulary's `snake_case` tag (the
+    /// protocol's stable, documented field values).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::SetValue => "set_value",
+            Self::ReplaceSelection => "replace_selection",
+            Self::SetSelection => "set_selection",
+        }
+    }
+}
+
+/// Why a text write moved nothing (M55, ADR-0061): the closed door's
+/// species. The availability tier (M22, ADR-0028) holds an
+/// unavailable field's write door shut — the refusal streams the way
+/// the value tier's own four do (ADR-0046's rhythm at the editing
+/// tier), the ask that never entered arithmetic riding the honest
+/// absence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TextWriteRefusal {
+    /// The field is unavailable — no write door (M22, ADR-0028). The
+    /// same fact the value tier names `unavailable` (one concept, the
+    /// availability tier, spoken identically wherever a door names
+    /// it).
+    Unavailable,
+}
+
+impl TextWriteRefusal {
+    /// The refusal's name, the wire vocabulary's `snake_case` tag (the
+    /// protocol's stable, documented field values).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Unavailable => "unavailable",
+        }
+    }
+}
+
+/// What the field answered one AT text write (M55, ADR-0061): the
+/// record is the write's own outcome ([`ValueOutcome`]'s shape at the
+/// editing tier) — the write landed, or it was refused with its named
+/// species.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TextWriteOutcome {
+    /// The write landed: the field carries the value or selection the
+    /// ask asked for.
+    Delivered,
+    /// The write moved nothing — [`TextWriteRefusal`] names the
+    /// species.
+    Refused(TextWriteRefusal),
+}
+
+impl TextWriteOutcome {
+    /// The outcome's name, the wire vocabulary's `snake_case` tag (the
+    /// protocol's stable, documented field values).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Delivered => "delivered",
+            Self::Refused(_) => "refused",
+        }
+    }
+}
+
+/// One AT text write's record (M55, ADR-0061): the causal log's
+/// answer to "did the screen reader rewrite this field — what shape,
+/// where did the caret land, or why not". The input's AT actions
+/// (M11, ADR-0017) answered the widget's own `bool`, whose `false`
+/// collapsed the closed door into the same silence as an answered
+/// write — and the answered write itself left no fact a trail reader
+/// could price (the journal's reset and record echoes rode, but they
+/// are the journal's facts about the depths, not the door's facts
+/// about the ask). The write's shape is named by **lengths** — the
+/// span the write consumed and the payload's own length, in UTF-16
+/// units — never the payload itself: a field's value can carry a
+/// secret, and the clipboard trail's rule (ADR-0045) is the house
+/// rule ("the length names the fact, never the payload"). The
+/// selection door carries the ask beside the landing (the M44 rule,
+/// ADR-0050, at the text tier): the forgiving read side's floor and
+/// clamp visible as data, never reconstructed. Since M43
+/// (ADR-0049) the record names its control beside the action's
+/// routing — the dispatch funnel knows the id the action arrived
+/// under, the widget does not, so the stamp side lives on the funnel
+/// and the facts queued beneath a routed action carry it. The fields
+/// are the additive wire rule's shape (ADR-0010).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TextWriteRecord {
+    /// The text-write action the AT asked.
+    pub action: TextWriteAction,
+    /// What the field answered — the landed write or the named
+    /// refusal.
+    pub outcome: TextWriteOutcome,
+    /// The span the write consumed, in UTF-16 units of the field's
+    /// value — the whole value for a `set_value` (the value the field
+    /// carried), the selection's span for a `replace_selection`.
+    /// `None` when the write consumed no span: the selection ask (a
+    /// selection replaces nothing) and every refusal (a write that
+    /// moved nothing consumed nothing).
+    pub replaced: Option<usize>,
+    /// The payload's own length, in UTF-16 units — the write's shape
+    /// named by its size, the payload itself never riding the log.
+    /// `None` when the write carried no payload: the selection ask and
+    /// every refusal.
+    pub inserted: Option<usize>,
+    /// The selection the AT asked for, before the forgiving read side
+    /// floored or clamped it (the ask beside the landing, the M44
+    /// rule at the text tier). `None` on the writes that ask with a
+    /// payload — the payload's shape rides `replaced`/`inserted` —
+    /// and on every refusal (a write that moved nothing asked
+    /// nothing the door could forgive).
+    pub requested: Option<crate::widget::TextSelection>,
+    /// The selection the field carries as the record resolves — the
+    /// caret the write left (a whole-value write parks it at the
+    /// write's end, a replacement at the insertion's end, a selection
+    /// ask at its floored-and-clamped landing), or the field's own
+    /// untouched selection on a refusal.
+    pub selection: crate::widget::TextSelection,
+    /// The control the action arrived under (the funnel's stamp, the
+    /// M43 rule): the AccessKit-stable id hash the dispatch funnel
+    /// routed — the identity a screen reader's client, an inspector
+    /// pane, or a test correlates. `None` when the fact queued
+    /// outside a routed action (the honest absence, the stamp's own
+    /// rule).
+    pub target: Option<u64>,
+}
+
 /// One observation: what the pipeline and the flux surface to devtools.
 #[derive(Debug, Clone)]
 pub enum InspectEvent {
@@ -1111,6 +1256,14 @@ pub enum InspectEvent {
     /// the gesture drain's shape — the fact queues where the door
     /// resolves, one frame after the ask).
     Scroll(ScrollRecord),
+    /// An AT text write answered — the text-write trail (ADR-0061):
+    /// the `SetValue`, `ReplaceSelectedText`, or `SetTextSelection` a
+    /// screen reader asked at a field's write door, the write's shape
+    /// named by lengths beside the landing selection, the refusals
+    /// named. Streams with the frame's own records (the tick's start
+    /// drain, the scroll drain's shape — the fact queues where the
+    /// door resolves, one frame after the write).
+    TextWrite(TextWriteRecord),
     /// A frame completed — the frame's causal summary.
     Frame(FrameSummary),
 }

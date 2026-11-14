@@ -9,6 +9,55 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M68 — the payloadless chord names its read (ADR-0074)**:
+  ADR-0068's second kill rule cashed — a consumer prices the
+  payloadless chord (the copy or cut whose selection is empty: the
+  chord arrived, the field's door answered, nothing was there to
+  move, and the key-edit trail answered nothing — "why did my copy
+  do nothing" unanswerable from the field's tier alone) — so the
+  wall grows the read's species beside the door's
+  ([`KeyEditRefusal::EmptySelection`](crates/alacer-core/src/inspect.rs),
+  the ask named by the door's own match — the action vocabulary
+  growing `KeyEditAction::Copy`, a delivered copy answering no fact,
+  the m60 rule standing), one fact per trail (the round trip keeping
+  its `NoSelection` fact, the field's refusal beside it — the
+  delivered chord's two-fact shape mirrored at the wall), the paste
+  keeping the honest absence (its read is the clipboard seam's, the
+  m60 pin standing), the wire carrying the new `action` value
+  (`copy`) and `refusal` species (`empty_selection`) additively at
+  version 1, the embedded client rendering the refusal row it
+  already renders, `examples/paste_edits.rs` walking the read beat,
+  no new corpus case (the refusal rides the editing route the
+  key-edit bench already prices — the M62 precedent, the corpus at
+  68), the living documents re-agree (the m68 suite pins the
+  refusal through the real chord route, the absence on the delivered
+  copy and the refused paste, and the documents)
+- **M67 — the adapter's full-tree echo joins the causal log (ADR-0073)**:
+  M59's pre-registered kill rule cashed — a consumer prices the
+  adapter activation's timing and the a11y sink's full-tree fallbacks
+  (the AT connected or reconnected; the app answered with the whole
+  resolved tree — "why did the app just push the whole tree, and how
+  big was it" unanswerable from the log alone) — so the a11y tier
+  grows its own trail
+  ([`A11yEchoRecord`](crates/alacer-core/src/inspect.rs), the tree
+  named by its node count — the lengths rule at the a11y tier, the
+  payload never riding; `0` never riding, the honest absence), the
+  note site the sink's own full-tree build
+  ([`AccessKitSink::full_tree_update`](crates/alacer-a11y/src/lib.rs)
+  — the same builder the deltas use, the build's purity unchanged,
+  the note the trail's one branch while nobody listens), the trail
+  the route-drop trail's shape (bounded 256, the tick's start drain
+  ahead of the frame's routes — a connect predates the asks), the
+  wire carrying the flat `a11y_echo` event at version 1, the
+  embedded client rendering "the AT answered with the full tree
+  (N nodes)", the protocol document's section carrying the field and
+  the bounds list re-agreeing (the M56–M66 rings it had lagged ride
+  the same line), `examples/a11y_echo.rs` walking the echo beat
+  beside the reconnect, no new corpus case (the echo rides no
+  measured route — the coordinated rule's no-growth arm, the corpus
+  at 68), the living documents re-agree (the m67 suite pins the echo
+  through the real sink build, the absence on the unbuilt tree, and
+  the documents)
 - **M66 — the journal's echo names its field (ADR-0072)**:
   ADR-0037's second kill rule cashed — a consumer needs per-field
   attribution (two inputs, two journals, one log: the depths streamed

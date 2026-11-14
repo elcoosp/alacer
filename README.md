@@ -34,7 +34,7 @@
 | ⚡ **Incremental everything**     | The Taffy tree is built once and never cleared; relayout is bounded by the dirty set; scrolling is translation-only, zero measure calls.                                                                       |
 | ♿ **Accessible by construction** | `role()` and `label()` are required trait methods — an unnamed widget does not compile. Updates ship as incremental AccessKit deltas; tests query the a11y tree, not internals.                                |
 | 🖥️ **Two backends, one journal**  | wgpu and tiny-skia/softbuffer render the same scene journal; an equivalence fuzz pins partial repaints pixel-equal to full renders. True cargo features, honest refusals.                                      |
-| 🔭 **The Causality inspector**    | Every focus move, edit, shortcut, clipboard trip, value write, gesture, scroll and AT text write answers as _named data_ on an opt-in WebSocket trail.                                                                        |
+| 🔭 **The Causality inspector**    | Every focus move, edit, shortcut, clipboard trip, value write, gesture, scroll, AT text write, app text write and boundary drop answers as _named data_ on an opt-in WebSocket trail.                                                                        |
 | 🔥 **Hot reload, state intact**   | A subsecond binary patch swaps code, never state — exactly one scoped re-render, pinned by a CI hot-patch suite.                                                                                               |
 | 💤 **Idle-cheap**                 | The winit loop parks in `ControlFlow::Wait` between interactions — an idle window costs zero CPU.                                                                                                              |
 
@@ -86,7 +86,7 @@ cargo test --workspace                                          # headless: real
 > `ALACER_SOFTWARE=1` presents through softbuffer — the platform honors it at startup
 > (`BackendPreference::software_env`) whichever backend the app asked for; any other value is
 > refused with a named warning, never guessed. CI and the headless tests already run this path:
-> no mock renderer, no mock event loop. The full 43-example catalog is [below](#examples).
+> no mock renderer, no mock event loop. The full 49-example catalog is [below](#examples).
 
 ## How it works
 
@@ -202,7 +202,8 @@ the same trail — one record per _fact_, never per event:
 | **Gesture** (M46/M48)       | _phase_ — `Started` / `Ended`, never per move | the value found and the value landed, the edge it pinned (`min`/`max`); 100 moves inside one gesture = exactly 2 records (the flood rule)                                                                                                                                                  | 0052/0054           |
 | **Scroll** (M50–M54)        | ask — wheel, AT, app door                     | the landed offset, the wall the clamp pinned, the asker's **unit** (item/page — the step's page rides beside the step species too), the wheel's priced **run** (one line = 40 px); `no_scrollable_content` / `non_finite_ask` refused before corruption                                     | 0056/0058           |
 | **Content clamp** (M51)     | resize that shrank content under the offset   | the wall it pinned — no ask (a resize is not an ask), no route; resizes the offset never felt queue nothing                                                                                                                                                                                | 0057                |
-| **Text write** (M55)        | AT write at a field's door                    | the shape named by **lengths** (`replaced`/`inserted`, UTF-16 units — never the payload: a field's value can carry a secret), the landing selection, the ask beside the landing on the selection door, `unavailable` refused honestly                                                                 | 0061                |
+| **Text write** (M55/M56)    | write at a field's door — the AT's or the app's | the shape named by **lengths** (`replaced`/`inserted`, UTF-16 units — never the payload: a field's value can carry a secret), the landing selection, the ask beside the landing on the selection door, `unavailable` refused honestly, the **door** the write rode (`at_door`/`app_door`) | 0061/0062           |
+| **Route drop** (M57)        | ask the boundary dropped before any widget's door | the dropped action's stable tag beside the species (`unknown_action`/`no_payload`/`off_target_selection`/`unknown_target`) and the aimed id, verbatim — never a munged widget-door fact                                                                                                                | 0063                |
 
 The trail's growth, milestone by milestone: Since M50 the scroll answers on the log too — the
 wheel, the AT's unit scrolls and value steps, and the app's own door stream the landed offset
@@ -212,7 +213,11 @@ Since M53 the wheel's coalesced runs name their line count too. Since M54 the va
  Since M55 the AT's text writes name their door too — a screen reader's
 `SetValue`, `ReplaceSelectedText` and `SetTextSelection` stream one `TextWrite` record the tick
 after they resolve, the shape named by lengths (never the payload) and the landing selection
-beside it. Widget-own doors stay off the value log until a consumer prices them (ADR-0046's
+beside it. Since M56 the app's own text writes name their door too — the imperative `set_value` (the
+door the view reconciliation's patches ride) streams the same record with `source: app_door`, so
+the log answers "did the screen reader rewrite this field, or did the app" from one row. Since M57 the boundary's drops stream their fact too — the unknown action, the payloadless write, the
+off-target selection and the unknown target ride one `RouteDrop` record each, the action's tag
+beside the species and the aimed id, never a munged widget-door fact. Widget-own doors stay off the value log until a consumer prices them (ADR-0046's
 kill rule); every trail is bounded and silent when nobody listens.
 
 ## Input & hot reload
@@ -273,7 +278,7 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `inspector_demo`                                     | the counter with the Causality inspector at `127.0.0.1:9217`                     |
 | `todo` / `data_table`                                | the canons: a11y tree, record/replay, grid slots, keyboard navigation            |
 
-<details><summary><b>46 examples, grouped (47 ship; recording live in the catalog)</b></summary>
+<details><summary><b>48 examples, grouped (49 ship; recording live in the catalog)</b></summary>
 
 **Start here**
 
@@ -304,6 +309,8 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `undo_redo` | the journal driven directly: pure-append record, selection-restoring steps, app-write reset, honest refusal |
 | `edit_trail` | the same journal with the observer riding — one `Edit` record per action, coalescing visible as a depth that never moves |
 | `at_text_writes` | the M55 AT text write driven from the consumer side: the selection ask beside its landing, the paste-shaped replacement priced by lengths, the whole-value rewrite with the journal reset beneath it, the locked field refusing honestly |
+| `app_text_writes` | the M56 app door driven from the consumer side: the mutate seam's whole-value write beside the AT's ask on one log, the doors tellable apart by the record's `source`, the journal's reset streaming beneath the write |
+| `route_drops` | the M57 boundary driven from the consumer side: the ask aimed at an unknown target names its drop (the species beside the aimed id), the delivered ask beside it streaming nothing — the honest absence |
 | `announcements` | polite and assertive speech acts, the honest refusal, the status line mirroring the live region |
 | `announce_trail` | one `Announce` record per answered act — superseded facts beside the survivor |
 
@@ -379,7 +386,7 @@ tree (`query(role).named(..)`, `press`, `find_all`) — never widget internals.
 ## Status
 
 > [!NOTE]
-> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M55 of `docs/architecture.md` are
+> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M57 of `docs/architecture.md` are
 > complete, but the API still moves between minor versions. MSRV **1.99**, edition **2024**.
 
 | Platform            | CI coverage                                                                                                                                                           |
@@ -391,7 +398,7 @@ tree (`query(role).named(..)`, `press`, `find_all`) — never widget internals.
 ## Learn more
 
 - [Architecture](https://github.com/elcoosp/alacer/blob/main/docs/architecture.md) — design axioms, the ten-pass contract, rendering, accessibility, DX, performance, roadmap and kill criteria
-- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — sixty-two decision records, from workspace discipline to the M55 scope
+- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — sixty-four decision records, from workspace discipline to the M57 scope
 - [Examples catalog](https://github.com/elcoosp/alacer/blob/main/docs/examples.md) — every example with the contract it exercises
 - [Migrating from Iced](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-iced.md) · [from egui](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-egui.md) — mental-model mappings, interop limits stated plainly
 - [Inspector protocol](https://github.com/elcoosp/alacer/blob/main/docs/inspector-protocol.md) — the versioned WebSocket contract behind `alacer-inspect`

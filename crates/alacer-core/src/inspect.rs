@@ -1318,6 +1318,9 @@ pub struct RouteDropRecord {
 /// keyboard's own keys and the IME's commits both ride the field's
 /// one edit funnel, and a trail reader can only price a typed run
 /// against a committed composition when the record names its driver.
+/// Since M60 (ADR-0066) the clipboard's chords ride their own driver
+/// too — a paste or a cut is the clipboard's field change, never the
+/// keyboard's and never a munge onto the keys it mirrors.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KeyEditDriver {
     /// The keyboard's own keys — a typed character, the editing keys.
@@ -1325,6 +1328,11 @@ pub enum KeyEditDriver {
     /// The IME's committed composition — the preedit the field showed
     /// landing as final text.
     Ime,
+    /// The clipboard's chords — the paste's insertion and the cut's
+    /// deletion, the field's change behind the round trip (M60,
+    /// ADR-0066; the round trip itself keeps the clipboard trail's
+    /// fact, ADR-0045).
+    Clipboard,
 }
 
 impl KeyEditDriver {
@@ -1335,6 +1343,7 @@ impl KeyEditDriver {
         match self {
             Self::Keyboard => "keyboard",
             Self::Ime => "ime",
+            Self::Clipboard => "clipboard",
         }
     }
 }
@@ -1345,7 +1354,12 @@ impl KeyEditDriver {
 /// edit vocabulary — never a munge onto the AT's action tier (a typed
 /// character is not a `SetValue`, the record is the typing door's, not
 /// the action route's) and never a collapse of the word chords into
-/// the single-unit deletes they mirror.
+/// the single-unit deletes they mirror. Since M60 (ADR-0066) the
+/// clipboard's chords carry their own species — the paste's insertion
+/// and the cut's deletion named by the chord that drove them, never
+/// munged onto the insert and delete they mirror (the cut that
+/// streamed a delete fact and a cut fact would double the edit, the
+/// round trip's own rule, ADR-0020).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KeyEditAction {
     /// Text landed at the caret (or onto the selection it consumed) —
@@ -1363,6 +1377,16 @@ pub enum KeyEditAction {
     /// The word run ahead of the caret went — the Ctrl/Alt+Delete
     /// word chord, the mirror of [`KeyEditAction::WordDeleteBack`].
     WordDeleteForward,
+    /// The clipboard's text landed at the caret (or onto the selection
+    /// it consumed) — the paste chord (M60, ADR-0066), the field's
+    /// change behind the round trip (the payload's shape named by
+    /// lengths, never the payload).
+    Paste,
+    /// The active selection moved out to the clipboard and went — the
+    /// cut chord (M60, ADR-0066), the deletion that follows an
+    /// accepted write (ADR-0020's refuse-don't-munge rule) named by
+    /// the chord, never a munged [`KeyEditAction::Backspace`].
+    Cut,
 }
 
 impl KeyEditAction {
@@ -1376,6 +1400,8 @@ impl KeyEditAction {
             Self::Delete => "delete",
             Self::WordDeleteBack => "word_delete_back",
             Self::WordDeleteForward => "word_delete_forward",
+            Self::Paste => "paste",
+            Self::Cut => "cut",
         }
     }
 }
@@ -1387,10 +1413,11 @@ impl KeyEditAction {
 /// edit consumed and inserted, never the payload (a field's value can
 /// carry a secret, the clipboard trail's rule, ADR-0045) — the landing
 /// selection, the driver who wrote it, and whether the journal folded
-/// the edit into its tip. The clipboard chords' edits keep their own
-/// trails (the round trip is the clipboard record's fact, the depths
-/// the journal's) — the typing door was the silence, and this is its
-/// named vocabulary. `Copy` like the records beside it: lengths, a
+/// the edit into its tip. Since M60 (ADR-0066) the clipboard's chords
+/// name their field changes here too — the paste's shape and the cut's
+/// span behind their own actions and driver — while the round trip
+/// keeps the clipboard trail's fact (one fact per trail, never a
+/// double-priced edit). `Copy` like the records beside it: lengths, a
 /// selection, a driver, an action, a bit, an id.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct KeyEditRecord {
@@ -1420,6 +1447,71 @@ pub struct KeyEditRecord {
     /// the typing tier — ADR-0049): the AccessKit-stable id the key
     /// route held; `None` when the fact rode no route (the app's
     /// direct mutate seam) or the route holds no stamp.
+    pub target: Option<u64>,
+}
+
+/// What the composing door answered (M61, ADR-0067): the phases the
+/// field's composing state walks, named where the preedit resolves.
+/// The preedit is not an edit — it lands nowhere, the journal never
+/// hears of it — so the vocabulary never munges a composition onto the
+/// edit tier's actions: a commit's landing is the key-edit trail's
+/// fact (M58, ADR-0064), the composing state's own story is this one's.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PreeditAction {
+    /// The IME owns the canvas: the field shows the composition's
+    /// inline shape at the caret — the live session's own fact, one
+    /// record superseded in place while the session grows (the flood
+    /// rule at the composing tier, never an echo per composition
+    /// frame).
+    Composing,
+    /// The composing state ended with no landing — the empty preedit
+    /// the platform delivers when the session dissolves. The shape is
+    /// the field's honest `0`: whatever the session had shown is named
+    /// by the `Composing` records beside it. A commit's landing rides
+    /// the key-edit trail instead — one fact per trail.
+    Cleared,
+}
+
+impl PreeditAction {
+    /// The action's name, the wire vocabulary's `snake_case` tag (the
+    /// protocol's stable, documented field values).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Composing => "composing",
+            Self::Cleared => "cleared",
+        }
+    }
+}
+
+/// One composing-state fact (M61, ADR-0067): the causal log's answer
+/// to "what is the field showing while the IME composes". The
+/// composition's inline shape named by its UTF-16 length — never the
+/// payload (a field's value can carry a secret, ADR-0011's rule at the
+/// composition tier; the secret-entry field suppresses the preedit
+/// echo at the platform, and the trail keeps the same discipline) —
+/// the platform's cursor inside the preedit beside it, and the funnel's
+/// stamp (the M43 rule at the composing tier). One live session is one
+/// record: each arrival supersedes the session's record in place while
+/// nobody drained, the shape growing to the composition's — `Copy`
+/// like the records beside it: a phase, a length, a cursor, an id.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PreeditRecord {
+    /// What the composing door answered.
+    pub action: PreeditAction,
+    /// The composition's inline shape, in UTF-16 units of the preedit
+    /// text — `0` on a cleared state. The shape named by its size, the
+    /// payload itself never riding the log (the secret-safety rule).
+    pub shape: usize,
+    /// The platform's cursor inside the preedit, in UTF-16 units of
+    /// the preedit text — the caret the composition paints within its
+    /// own inline shape; `None` when the platform named none. A
+    /// preedit-local position, never a field offset (the composition
+    /// lands nowhere).
+    pub cursor: Option<usize>,
+    /// The control the composition rode (the funnel's stamp, the M43
+    /// rule at the composing tier — ADR-0049): the AccessKit-stable id
+    /// the IME route held; `None` when the fact rode no route.
     pub target: Option<u64>,
 }
 
@@ -1509,6 +1601,16 @@ pub enum InspectEvent {
     /// route-drop drain's shape — the fact queues where the edit
     /// resolves, one frame after the key).
     KeyEdit(KeyEditRecord),
+    /// A composing state answered — the preedit trail (ADR-0067): the
+    /// composition the field shows while the IME owns the canvas, the
+    /// inline shape named by lengths beside the platform's cursor, one
+    /// live session riding as one record (the flood rule at the
+    /// composing tier). The preedit is not an edit — it lands nowhere —
+    /// and a commit's landing streams on the key-edit trail beside it
+    /// (M58's record). Streams with the frame's own records (the tick's
+    /// start drain, the key-edit drain's shape — the fact queues where
+    /// the composing state resolves, one frame after the preedit).
+    Preedit(PreeditRecord),
     /// A frame completed — the frame's causal summary.
     Frame(FrameSummary),
 }

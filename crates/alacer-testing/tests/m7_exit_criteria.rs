@@ -322,7 +322,7 @@ fn the_m5_and_m6_corpus_pins_do_not_move() {
     // The M46 cut joined the drag route's case (ADR-0052) and the
     // corpus grew 63 → 64 with it — this pin re-agrees at the cut.
     assert_eq!(
-        bench_count, 65,
+        bench_count, 68,
         "the workspace corpus grows by the coordinated rule — M7/M8/M9/M10/M11/M12/M13/M14/M15/M18/M20/M21/M26/M27 add data by the coordinated corpus rule (ADR-0013/ADR-0014/ADR-0015/ADR-0016/ADR-0017/ADR-0018/ADR-0019/ADR-0020/ADR-0021/ADR-0024/ADR-0026/ADR-0027/ADR-0032/ADR-0033)"
     );
     // The M46 cut joined the drag route's gate (ADR-0052); the raw
@@ -332,7 +332,7 @@ fn the_m5_and_m6_corpus_pins_do_not_move() {
             .as_array()
             .expect("regressions array")
             .len(),
-        65,
+        68,
         "no absolute regression gates on competitor medians (ADR-0011's same-host rule)"
     );
 
@@ -340,8 +340,8 @@ fn the_m5_and_m6_corpus_pins_do_not_move() {
     for suite in ["m5_exit_criteria.rs", "m6_exit_criteria.rs"] {
         let source = read_workspace_file(&format!("crates/alacer-testing/tests/{suite}"));
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 65;"),
-            "{suite} must keep the 60-case corpus pin"
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 68;"),
+            "{suite} must keep the 68-case corpus pin"
         );
     }
 }
@@ -397,7 +397,7 @@ fn the_release_state_is_coherent() {
 
     let readme = read_workspace_file("README.md");
     assert!(
-        readme.contains("M0 through M61"),
+        readme.contains("M0 through M64"),
         "the README status reflects the living cut (the M22-era literal missed the \
          M23/M24 pin sweeps and went red against a coherent tree — the M25 sweep \
          re-joins the chain, ADR-0031)"

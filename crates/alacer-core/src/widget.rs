@@ -255,6 +255,28 @@ pub enum A11yAction {
     SetTextSelection(TextSelection),
 }
 
+impl A11yAction {
+    /// The action's name, the wire vocabulary's `snake_case` tag (M57,
+    /// ADR-0063): the stable, documented field value the route-drop
+    /// trail's records carry beside their species — the dropped
+    /// action's own name, never a munge onto the action it did not
+    /// become (the platform boundary's mapping uses the same tags for
+    /// the actions the two vocabularies share).
+    #[must_use]
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::DefaultPress => "default_press",
+            Self::Increment => "increment",
+            Self::Decrement => "decrement",
+            Self::ScrollUp(_) => "scroll_up",
+            Self::ScrollDown(_) => "scroll_down",
+            Self::SetValue(_) => "set_value",
+            Self::ReplaceSelectedText(_) => "replace_selected_text",
+            Self::SetTextSelection(_) => "set_text_selection",
+        }
+    }
+}
+
 /// A toggle control's checked state, carried neutrally to the a11y sink
 /// (M6): `alacer-a11y` maps it onto AccessKit's `Toggled` property.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

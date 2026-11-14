@@ -171,7 +171,37 @@ impl TextInput {
     /// the caret — a new value has no remembered range — and the journal
     /// resets: the app wrote the value, not the user, and undo must never
     /// fight the app's own write (ADR-0021's reset rule).
+    ///
+    /// Since M56 (ADR-0062) the app door streams its own fact beside the
+    /// journal's reset echo: one [`alacer_core::TextWriteRecord`] with
+    /// `source: AppDoor` — the write's shape named by lengths (the value
+    /// the field carried, the value the app handed over; the payload
+    /// itself never riding the log — a field's value can carry a secret,
+    /// the clipboard trail's rule, ADR-0045) and the caret the write
+    /// left. The view reconciliation's patches ride this same door, so
+    /// their writes are attributed with it — the kill rule ADR-0061
+    /// pre-registered. The AT's asks never ride here: the action door
+    /// writes through the raw `apply_value` and notes its own record
+    /// (one ask, one fact).
     pub fn set_value(&mut self, value: impl Into<String>) {
+        let replaced = utf16::len_utf16(&self.text);
+        self.apply_value(value);
+        alacer_core::text_write::note_text_write(alacer_core::TextWriteRecord {
+            action: alacer_core::TextWriteAction::SetValue,
+            outcome: alacer_core::TextWriteOutcome::Delivered,
+            replaced: Some(replaced),
+            inserted: Some(utf16::len_utf16(&self.text)),
+            requested: None,
+            selection: TextSelection::new(self.anchor_utf16, self.caret_utf16),
+            target: None,
+            source: alacer_core::TextWriteSource::AppDoor,
+        });
+    }
+
+    /// The whole-value write, raw — no door fact of its own (M56,
+    /// ADR-0062). The app door (`set_value`) notes its record around it;
+    /// the AT action door rides it bare, so one ask streams one fact.
+    fn apply_value(&mut self, value: impl Into<String>) {
         self.text = value.into();
         self.caret_utf16 = utf16::len_utf16(&self.text);
         self.anchor_utf16 = self.caret_utf16;
@@ -961,6 +991,7 @@ impl Widget for TextInput {
                 requested: None,
                 selection: TextSelection::new(self.anchor_utf16, self.caret_utf16),
                 target: None,
+                source: alacer_core::TextWriteSource::AtDoor,
             });
             return false;
         }
@@ -972,7 +1003,7 @@ impl Widget for TextInput {
                 // journal resets beneath it (ADR-0021's reset rule: the
                 // AT's write is an app write, undo never fights it).
                 let replaced = utf16::len_utf16(&self.text);
-                self.set_value(value);
+                self.apply_value(value);
                 alacer_core::text_write::note_text_write(alacer_core::TextWriteRecord {
                     action: tier,
                     outcome: alacer_core::TextWriteOutcome::Delivered,
@@ -981,6 +1012,7 @@ impl Widget for TextInput {
                     requested: None,
                     selection: TextSelection::new(self.anchor_utf16, self.caret_utf16),
                     target: None,
+                    source: alacer_core::TextWriteSource::AtDoor,
                 });
                 true
             }
@@ -1001,6 +1033,7 @@ impl Widget for TextInput {
                     requested: None,
                     selection: TextSelection::new(self.anchor_utf16, self.caret_utf16),
                     target: None,
+                    source: alacer_core::TextWriteSource::AtDoor,
                 });
                 true
             }
@@ -1023,6 +1056,7 @@ impl Widget for TextInput {
                     requested: Some(selection),
                     selection: TextSelection::new(self.anchor_utf16, self.caret_utf16),
                     target: None,
+                    source: alacer_core::TextWriteSource::AtDoor,
                 });
                 true
             }

@@ -798,6 +798,7 @@ impl PassPipeline {
         crate::gesture::set_gesture_trail_enabled(true);
         crate::scroll::set_scroll_trail_enabled(true);
         crate::text_write::set_text_write_trail_enabled(true);
+        crate::route_drop::set_route_drop_trail_enabled(true);
     }
 
     /// Enables per-pass wall timing and the overhead ledger (the M1 gate
@@ -1645,6 +1646,20 @@ impl PassPipeline {
         }
     }
 
+    /// Forwards one route-drop fact to the observer, when installed
+    /// (§13.3, ADR-0063): the route-drop trail — the ask the boundary
+    /// dropped before any widget's door, the species and the aimed id
+    /// beside it. The record is the route's own fact verbatim
+    /// ([`crate::inspect::RouteDropRecord`]), streamed at the tick's
+    /// start drain — one frame after the drop, the text-write trail's
+    /// currency. One branch when no observer is installed: the A7 idle
+    /// contract is unchanged.
+    fn notify_route_drop(&mut self, record: crate::inspect::RouteDropRecord) {
+        if let Some(observer) = self.observer.as_mut() {
+            observer.observe(InspectEvent::RouteDrop(record));
+        }
+    }
+
     /// Forwards one speech-act fact to the observer, when installed
     /// (§13.3, ADR-0039): the announcement trail — the record the
     /// pipeline answered the act with, the politeness beside it. The
@@ -2196,6 +2211,20 @@ impl PassPipeline {
         // reader just never sees it.
         for record in crate::text_write::take_text_write_trail() {
             self.notify_text_write(record);
+        }
+
+        // The route-drop drain (§13.3, ADR-0063): the boundary's drops
+        // — the unknown action, the payloadless write, the off-target
+        // selection, the unknown target — ride the observer at the
+        // tick's start, the text-write trail's shape, one frame after
+        // the drop, the drain running after the text-write drain (a
+        // drop explains the ask the boundary refused; it streams beside
+        // the doors' facts). Every fact streams (a bounded queue, never
+        // collapsed), and the drain empties the queue whether an
+        // observer listens or not: a fact streams once, an absent
+        // reader just never sees it.
+        for record in crate::route_drop::take_route_drop_trail() {
+            self.notify_route_drop(record);
         }
 
         let mut ledger: Vec<PassRun> = std::mem::take(&mut self.interframe);
@@ -2841,6 +2870,17 @@ impl PassPipeline {
     /// (A1; the §13.3 inspector sees the action as an input event).
     pub fn dispatch_a11y_action(&mut self, target: u64, action: crate::widget::A11yAction) -> bool {
         let Some(node) = self.node_for_hash(target) else {
+            // The funnel's own defensive drop (M57, ADR-0063): the ask
+            // was aimed at an id no tree node carries — no widget's door
+            // ever answered, so the route names its own fact instead of
+            // a munged widget-door one: the action beside the aimed id,
+            // verbatim, the species the boundary refused with. One
+            // branch when nobody listens (the A7 idle contract).
+            crate::route_drop::note_route_drop(crate::inspect::RouteDropRecord {
+                action: action.name(),
+                species: crate::inspect::RouteDropSpecies::UnknownTarget,
+                target: Some(target),
+            });
             return false;
         };
         let mut guard = self.arena.mutate(node);

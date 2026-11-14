@@ -542,6 +542,17 @@ pub enum FocusRefusal {
     },
 }
 
+/// The IME event's stable `snake_case` tag (M59, ADR-0065) — the
+/// boundary's own name for what arrived, the route-drop record's
+/// action field riding it verbatim (the M57 rule: the ask the
+/// boundary refused, never the core action it did not become).
+fn ime_event_tag(event: &ImeEvent) -> &'static str {
+    match event {
+        ImeEvent::Preedit { .. } => "ime_preedit",
+        ImeEvent::Commit { .. } => "ime_commit",
+    }
+}
+
 /// The focus walk's answer as data (M27, ADR-0033): what the two doors
 /// (`focus_move`, `focus_move_in`) return instead of the boolean they
 /// took through M26. ADR-0031's pre-registered re-open rule — "a door
@@ -799,6 +810,7 @@ impl PassPipeline {
         crate::scroll::set_scroll_trail_enabled(true);
         crate::text_write::set_text_write_trail_enabled(true);
         crate::route_drop::set_route_drop_trail_enabled(true);
+        crate::key_edit::set_key_edit_trail_enabled(true);
     }
 
     /// Enables per-pass wall timing and the overhead ledger (the M1 gate
@@ -1503,6 +1515,18 @@ impl PassPipeline {
             && self.node_is_live(focused)
         {
             run.ran = true;
+            // The funnel's stamp (M43, ADR-0049; the key route's own
+            // discipline since M58, ADR-0064): the IME route holds the
+            // guard for the length of one event, a committed
+            // composition's fact naming the control it rode — the same
+            // vocabulary the key route stamps, the identity never
+            // guessed at the note site. While nobody listens the stamp
+            // is one `Cell` read and no id-path walk (the trail is off,
+            // no fact can queue); the guard dies with the widget's call
+            // — a panicking widget leaves no stale identity on the
+            // thread.
+            let _stamp = crate::value::value_trail_enabled()
+                .then(|| crate::value::ActionTargetGuard::for_target(Some(self.id_hash(focused))));
             let (handled, requested) = {
                 let mut guard = self.arena.mutate(focused);
                 let mut ctx = crate::events::EventCtx::with_phase(EventPhase::Bubble);
@@ -1516,6 +1540,22 @@ impl PassPipeline {
                 self.arena.merge_mask(focused, requested);
             }
             response = handled;
+        } else {
+            // The boundary's own silence, named (M59, ADR-0065): the
+            // IME event no live field held — no field has focus, or
+            // the focused node has gone — drops before any widget's
+            // door, the consumed `Ignored` verdict the one answer it
+            // left. A committed composition vanishing is a fact a
+            // consumer prices (ADR-0063's first kill rule): the record
+            // is the route's own vocabulary, the event named by its
+            // stable tag, the aim riding its honest absence (the
+            // boundary had no aim to name — the drop *is* the missing
+            // field).
+            crate::route_drop::note_route_drop(crate::inspect::RouteDropRecord {
+                action: ime_event_tag(event),
+                species: crate::inspect::RouteDropSpecies::NoFocusedField,
+                target: None,
+            });
         }
 
         run.nanos = start.map_or(0, |t| crate::num::u128_to_u64(t.elapsed().as_nanos()));
@@ -1657,6 +1697,18 @@ impl PassPipeline {
     fn notify_route_drop(&mut self, record: crate::inspect::RouteDropRecord) {
         if let Some(observer) = self.observer.as_mut() {
             observer.observe(InspectEvent::RouteDrop(record));
+        }
+    }
+
+    /// Forwards one typing-door edit to the observer, when installed
+    /// (§13.3, ADR-0064): the key-edit trail's fact — the shape the
+    /// keyboard's keys or the IME's commits landed, named by lengths,
+    /// the landing selection beside it, a coalesced typed run riding as
+    /// one record (the flood rule). One branch when no observer is
+    /// installed: the A7 idle contract is unchanged.
+    fn notify_key_edit(&mut self, record: crate::inspect::KeyEditRecord) {
+        if let Some(observer) = self.observer.as_mut() {
+            observer.observe(InspectEvent::KeyEdit(record));
         }
     }
 
@@ -2225,6 +2277,20 @@ impl PassPipeline {
         // reader just never sees it.
         for record in crate::route_drop::take_route_drop_trail() {
             self.notify_route_drop(record);
+        }
+
+        // The key-edit drain (§13.3, ADR-0064): the typing door's facts
+        // the keyboard's keys and the IME's commits queued on this thread
+        // ride the observer at the tick's start — the route-drop trail's
+        // shape, one frame after the edit, the drain running after the
+        // route-drop drain (a key edit explains the field the typist
+        // changed; it streams beside the doors' facts and the boundary's).
+        // Every fact streams (a bounded queue, never collapsed — the
+        // journal's own fold bounds a typed run to one record), and the
+        // drain empties the queue whether an observer listens or not: a
+        // fact streams once, an absent reader just never sees it.
+        for record in crate::key_edit::take_key_edit_trail() {
+            self.notify_key_edit(record);
         }
 
         let mut ledger: Vec<PassRun> = std::mem::take(&mut self.interframe);

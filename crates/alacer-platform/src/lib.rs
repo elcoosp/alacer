@@ -691,13 +691,65 @@ fn drain_a11y_updates(pipeline: &mut PassPipeline) -> Vec<accesskit::TreeUpdate>
         .unwrap_or_default()
 }
 
+/// The AccessKit action's own tag (M57, ADR-0063): the wire
+/// vocabulary's `snake_case` name for what arrived at the boundary —
+/// the route-drop trail's record carries it beside the drop's species,
+/// the platform vocabulary's own name for the ask, never a munge onto
+/// the core action it did not become ([`alacer_core::widget::A11yAction`]
+/// answers the same tags for the actions the two vocabularies share).
+fn action_tag(action: accesskit::Action) -> &'static str {
+    use accesskit::Action;
+
+    match action {
+        Action::Click => "click",
+        Action::Focus => "focus",
+        Action::Blur => "blur",
+        Action::Collapse => "collapse",
+        Action::Expand => "expand",
+        Action::CustomAction => "custom_action",
+        Action::Decrement => "decrement",
+        Action::Increment => "increment",
+        Action::HideTooltip => "hide_tooltip",
+        Action::ShowTooltip => "show_tooltip",
+        Action::ReplaceSelectedText => "replace_selected_text",
+        Action::ScrollDown => "scroll_down",
+        Action::ScrollLeft => "scroll_left",
+        Action::ScrollRight => "scroll_right",
+        Action::ScrollUp => "scroll_up",
+        Action::ScrollIntoView => "scroll_into_view",
+        Action::ScrollToPoint => "scroll_to_point",
+        Action::SetScrollOffset => "set_scroll_offset",
+        Action::SetTextSelection => "set_text_selection",
+        Action::SetSequentialFocusNavigationStartingPoint => {
+            "set_sequential_focus_navigation_starting_point"
+        }
+        Action::SetValue => "set_value",
+        Action::ShowContextMenu => "show_context_menu",
+    }
+}
+
+/// Notes one boundary drop on the causal log (M57, ADR-0063): the
+/// platform's defensive refusals stream the route's own fact — the
+/// action's tag beside the species and the aimed id, verbatim — the
+/// trail's own one-branch idle contract (a no-op while nobody
+/// listens). A drop never rides a widget-door record: no door ever
+/// answered, and a munged one would be the lie the kill rule refuses.
+fn note_drop(request: &accesskit::ActionRequest, species: alacer_core::RouteDropSpecies) {
+    alacer_core::route_drop::note_route_drop(alacer_core::RouteDropRecord {
+        action: action_tag(request.action),
+        species,
+        target: Some(request.target_node.0),
+    });
+}
+
 /// Maps an AccessKit `ActionRequest` onto the core action vocabulary
 /// (ADR-0016): one variant per AccessKit action the framework has a widget
 /// contract for, the request's `ScrollUnit` data carried through. Actions
 /// with no consumer in the vocabulary map to `None` — they are dropped at
-/// the boundary (traced, once, with the action name) instead of being
-/// munged into a press: a `Focus` request that clicked something would be
-/// a correctness bug, not a fallback.
+/// the boundary (traced, once, with the action name, and — since M57,
+/// ADR-0063 — streamed as the route-drop trail's own fact) instead of
+/// being munged into a press: a `Focus` request that clicked something
+/// would be a correctness bug, not a fallback.
 fn map_action_request(
     request: &accesskit::ActionRequest,
 ) -> Option<alacer_core::widget::A11yAction> {
@@ -715,12 +767,15 @@ fn map_action_request(
 
     // The value tier (M11, ADR-0017): the payload rides the request, so a
     // mapping without it is a munge — a SetValue with no `Value` data is
-    // dropped at the boundary, traced, exactly like an unknown action.
-    let value = |data: Option<&ActionData>| -> Option<String> {
+    // dropped at the boundary, traced, exactly like an unknown action —
+    // and the drop streams its own fact (M57, ADR-0063), the species
+    // naming the payload the ask never carried.
+    let value = |request: &accesskit::ActionRequest, data: Option<&ActionData>| -> Option<String> {
         match data {
             Some(ActionData::Value(text)) => Some(text.to_string()),
             other => {
                 tracing::trace!(?other, "accesskit value action dropped: no payload");
+                note_drop(request, alacer_core::RouteDropSpecies::NoPayload);
                 None
             }
         }
@@ -732,14 +787,18 @@ fn map_action_request(
         Action::Decrement => Some(Core::Decrement),
         Action::ScrollUp => Some(Core::ScrollUp(unit(request.data.as_ref()))),
         Action::ScrollDown => Some(Core::ScrollDown(unit(request.data.as_ref()))),
-        Action::SetValue => value(request.data.as_ref()).map(Core::SetValue),
-        Action::ReplaceSelectedText => value(request.data.as_ref()).map(Core::ReplaceSelectedText),
+        Action::SetValue => value(request, request.data.as_ref()).map(Core::SetValue),
+        Action::ReplaceSelectedText => {
+            value(request, request.data.as_ref()).map(Core::ReplaceSelectedText)
+        }
         Action::SetTextSelection => match request.data.as_ref() {
             Some(ActionData::SetTextSelection(selection)) => {
                 // The single-node selection contract (ADR-0017): Alacer's
                 // editable nodes carry their own value, so the AT's
                 // character indexes map straight through. A position aimed
-                // at another node cannot be honored here and is dropped.
+                // at another node cannot be honored here and is dropped —
+                // the drop streaming its own fact (M57, ADR-0063), the
+                // aim riding verbatim.
                 if selection.anchor.node != request.target_node
                     || selection.focus.node != request.target_node
                 {
@@ -747,6 +806,7 @@ fn map_action_request(
                         ?selection,
                         "accesskit SetTextSelection dropped: positions off target"
                     );
+                    note_drop(request, alacer_core::RouteDropSpecies::OffTargetSelection);
                     None
                 } else {
                     Some(Core::SetTextSelection(TextSelection::new(
@@ -757,11 +817,13 @@ fn map_action_request(
             }
             other => {
                 tracing::trace!(?other, "accesskit value action dropped: no payload");
+                note_drop(request, alacer_core::RouteDropSpecies::NoPayload);
                 None
             }
         },
         other => {
             tracing::trace!(?other, "accesskit action dropped: no widget contract yet");
+            note_drop(request, alacer_core::RouteDropSpecies::UnknownAction);
             None
         }
     }
@@ -1391,5 +1453,211 @@ mod tests {
                 "the value {junk:?} is nobody's answer — the preference stands, the warn names it"
             );
         }
+    }
+
+    // ------------------------------------------------------------------
+    // M57 (ADR-0063): the boundary's defensive drops stream their facts.
+    // The mapping's refusals are the route's own vocabulary — the action
+    // named by its stable tag, the species naming why the boundary
+    // refused, the aim riding verbatim — never a munged widget-door
+    // fact (no door ever answered). The tests ride the real pipeline
+    // (A4): the observer installs, the mapping refuses, the tick's
+    // start drain streams the fact — the production path a window runs.
+    // ------------------------------------------------------------------
+
+    /// One AT ask at the boundary, aimed at node `0xAB_CD`.
+    fn an_ask(
+        action: accesskit::Action,
+        data: Option<accesskit::ActionData>,
+    ) -> accesskit::ActionRequest {
+        accesskit::ActionRequest {
+            action,
+            target_tree: accesskit::TreeId::ROOT,
+            target_node: accesskit::NodeId(0xAB_CD),
+            data,
+        }
+    }
+
+    /// The observer the tests share: the route-drop facts the tick's
+    /// start drain streams, collected the way the exit suites collect
+    /// them (the m-suite's bounded-ring shape).
+    #[derive(Default)]
+    struct DropRing {
+        drops: std::collections::VecDeque<alacer_core::RouteDropRecord>,
+    }
+
+    impl DropRing {
+        fn drops(&self) -> Vec<alacer_core::RouteDropRecord> {
+            self.drops.iter().copied().collect()
+        }
+    }
+
+    impl alacer_core::inspect::InspectObserver for DropRing {
+        fn observe(&mut self, event: alacer_core::inspect::InspectEvent) {
+            if let alacer_core::inspect::InspectEvent::RouteDrop(record) = event {
+                self.drops.push_back(record);
+            }
+        }
+    }
+
+    /// The shared-ring wrapper the pipeline owns (`Rc<RefCell>`, the
+    /// m-suite's shape).
+    #[derive(Clone)]
+    struct Ring(std::rc::Rc<std::cell::RefCell<DropRing>>);
+
+    impl alacer_core::inspect::InspectObserver for Ring {
+        fn observe(&mut self, event: alacer_core::inspect::InspectEvent) {
+            self.0.borrow_mut().observe(event);
+        }
+    }
+
+    /// A real pipeline with the observer installed — the drop facts
+    /// stream through the tick's start drain, one frame after the ask.
+    fn a_pipeline(ring: &Ring) -> PassPipeline {
+        alacer_core::text_seam::install(std::rc::Rc::new(alacer_text::ThreadLocalTextSeam));
+        let mut pipeline = PassPipeline::new(
+            alacer_core::Flux::new(),
+            Box::new(alacer_layout::LayoutHost::new(std::sync::Arc::new(
+                alacer_text::ThreadLocalMeasurer,
+            ))),
+            Box::new(alacer_render::SceneJournalImpl::new()),
+            Box::new(alacer_a11y::AccessKitSink::new()),
+        );
+        pipeline.set_observer(Box::new(ring.clone()));
+        pipeline
+    }
+
+    #[test]
+    fn a_payloadless_value_write_drops_at_the_boundary() {
+        let ring = Ring(std::rc::Rc::new(std::cell::RefCell::new(
+            DropRing::default(),
+        )));
+        let mut pipeline = a_pipeline(&ring);
+        let ask = an_ask(accesskit::Action::SetValue, None);
+        assert!(
+            super::map_action_request(&ask).is_none(),
+            "no payload, no munge — the boundary refuses"
+        );
+        pipeline
+            .tick(alacer_core::Size::new(400.0, 200.0))
+            .expect("the drop drains at the tick's start");
+        let drops = ring.0.borrow().drops();
+        assert_eq!(drops.len(), 1, "the drop is a fact the log carries");
+        assert_eq!(drops[0].action, "set_value", "the ask's own tag");
+        assert_eq!(
+            drops[0].species,
+            alacer_core::RouteDropSpecies::NoPayload,
+            "the payload the ask never carried is the species"
+        );
+        assert_eq!(
+            drops[0].target,
+            Some(0xAB_CD),
+            "the aim the boundary refused, verbatim"
+        );
+    }
+
+    #[test]
+    fn a_delivered_value_write_names_no_drop() {
+        let ring = Ring(std::rc::Rc::new(std::cell::RefCell::new(
+            DropRing::default(),
+        )));
+        let mut pipeline = a_pipeline(&ring);
+        let ask = an_ask(
+            accesskit::Action::SetValue,
+            Some(accesskit::ActionData::Value("carried".into())),
+        );
+        assert!(
+            super::map_action_request(&ask).is_some(),
+            "the payload rides, the mapping lands"
+        );
+        pipeline
+            .tick(alacer_core::Size::new(400.0, 200.0))
+            .expect("the drain runs");
+        assert!(
+            ring.0.borrow().drops().is_empty(),
+            "a delivered ask is not a drop — the honest absence"
+        );
+    }
+
+    #[test]
+    fn a_selection_aimed_at_another_node_drops_at_the_boundary() {
+        let ring = Ring(std::rc::Rc::new(std::cell::RefCell::new(
+            DropRing::default(),
+        )));
+        let mut pipeline = a_pipeline(&ring);
+        let off_target = accesskit::TextSelection {
+            anchor: accesskit::TextPosition {
+                node: accesskit::NodeId(0x99),
+                character_index: 0,
+            },
+            focus: accesskit::TextPosition {
+                node: accesskit::NodeId(0x99),
+                character_index: 4,
+            },
+        };
+        let ask = an_ask(
+            accesskit::Action::SetTextSelection,
+            Some(accesskit::ActionData::SetTextSelection(off_target)),
+        );
+        assert!(
+            super::map_action_request(&ask).is_none(),
+            "the single-node contract refuses the off-target aim"
+        );
+        pipeline
+            .tick(alacer_core::Size::new(400.0, 200.0))
+            .expect("the drop drains");
+        let drops = ring.0.borrow().drops();
+        assert_eq!(drops.len(), 1, "the drop streams");
+        assert_eq!(drops[0].action, "set_text_selection");
+        assert_eq!(
+            drops[0].species,
+            alacer_core::RouteDropSpecies::OffTargetSelection,
+            "the aim the contract cannot honor is the species"
+        );
+    }
+
+    #[test]
+    fn an_action_without_a_widget_contract_drops_at_the_boundary() {
+        let ring = Ring(std::rc::Rc::new(std::cell::RefCell::new(
+            DropRing::default(),
+        )));
+        let mut pipeline = a_pipeline(&ring);
+        // `ShowContextMenu` has no consumer in the core vocabulary: a
+        // munge onto a press would be the correctness bug ADR-0016
+        // refuses, so the boundary drops — and the drop names its fact.
+        let ask = an_ask(accesskit::Action::ShowContextMenu, None);
+        assert!(super::map_action_request(&ask).is_none());
+        pipeline
+            .tick(alacer_core::Size::new(400.0, 200.0))
+            .expect("the drop drains");
+        let drops = ring.0.borrow().drops();
+        assert_eq!(drops.len(), 1);
+        assert_eq!(drops[0].action, "show_context_menu");
+        assert_eq!(
+            drops[0].species,
+            alacer_core::RouteDropSpecies::UnknownAction
+        );
+    }
+
+    #[test]
+    fn a_funnel_without_an_observer_notes_the_drop_nowhere() {
+        // The A7 idle contract at the boundary tier: no observer, no
+        // trail — the disabled path costs one branch per drop, the
+        // ask refusing exactly as before (the verdict byte-for-byte).
+        let mut pipeline = PassPipeline::new(
+            alacer_core::Flux::new(),
+            Box::new(alacer_layout::LayoutHost::new(std::sync::Arc::new(
+                alacer_text::ThreadLocalMeasurer,
+            ))),
+            Box::new(alacer_render::SceneJournalImpl::new()),
+            Box::new(alacer_a11y::AccessKitSink::new()),
+        );
+        let ask = an_ask(accesskit::Action::SetValue, None);
+        assert!(super::map_action_request(&ask).is_none());
+        pipeline
+            .tick(alacer_core::Size::new(400.0, 200.0))
+            .expect("the drain runs, and answers nothing");
+        // The assertion is the absence: no panic, no fact, the verdict
+        // `false` the funnel always answered (the m10 contract).
     }
 }

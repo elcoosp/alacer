@@ -557,6 +557,19 @@ function connect() {
           (event.target != null ? " (at " + event.target + ")" : ""));
         break;
       }
+      case "a11y_echo": {
+        // The client renders the adapter's echo (M67, ADR-0073): the
+        // a11y tier's own fact lands in the log pane beside the other
+        // trails — the tree the activation answered, named by its node
+        // count (never the payload: a resolved tree carries the app's
+        // labels, and a label can carry a secret), so a reader answers
+        // "why did the app just push the whole tree, and how big was
+        // it" from the row alone. A connect is rare — one row per
+        // build, the log quiet between connects.
+        addLog("a11y_echo", "a11y_echo full_tree",
+          "the AT answered with the full tree (" + event.nodes + " nodes)");
+        break;
+      }
       case "frame":
         renderFrame(event);
         addLog("frame", "frame " + event.number,

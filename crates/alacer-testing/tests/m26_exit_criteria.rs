@@ -606,7 +606,7 @@ fn m26_the_corpus_pins_moved_with_the_routes() {
             "crates/alacer-testing/tests/{suite}_exit_criteria.rs"
         ));
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 64;"),
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 65;"),
             "the {suite} suite's corpus pin moved with the routes"
         );
     }

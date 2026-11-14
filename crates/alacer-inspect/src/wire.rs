@@ -468,9 +468,10 @@ pub enum WireEvent {
     /// fold.
     KeyEdit {
         /// What the typing door did (`insert`, `backspace`, `delete`,
-        /// `word_delete_back`, `word_delete_forward`, and since M60 the
-        /// chords' own species `paste`/`cut` — the field's own editing
-        /// vocabulary, the M11 edit rule's actions).
+        /// `word_delete_back`, `word_delete_forward`, since M60 the
+        /// chords' own species `paste`/`cut`, and since M68 the copy's
+        /// read `copy` — the field's own editing vocabulary, the M11
+        /// edit rule's actions).
         action: String,
         /// Who drove the edit (`keyboard`, `ime`, and since M60 the
         /// chords' `clipboard` — the M30 attribution rule at the
@@ -483,7 +484,8 @@ pub enum WireEvent {
         /// shape priced at nothing).
         outcome: String,
         /// The refusal's species (`unavailable` — the availability
-        /// tier's wall) when the door refused; `null` on a landing.
+        /// tier's wall, and since M68 the read's `empty_selection`
+        /// beside it) when the door refused; `null` on a landing.
         /// The refusal is never a munged delivered edit: the ask rode
         /// the record, the field's value untouched.
         refusal: Option<String>,
@@ -529,6 +531,22 @@ pub enum WireEvent {
         /// M43 rule at the composing tier); `null` when the fact rode
         /// no route.
         target: Option<u64>,
+    },
+    /// The adapter's full-tree echo — the a11y trail (M67, ADR-0073):
+    /// the assistive technology connected or reconnected and the sink
+    /// answered with the whole resolved tree, the same builder the
+    /// deltas use. The record rides flat (the additive rule ADR-0010
+    /// names — a new event kind, version 1, clients that ignore
+    /// unknown kinds unaffected): the tree named by its node count —
+    /// the payload itself never rides the wire (a resolved tree
+    /// carries the app's labels, and a label can carry a secret, the
+    /// clipboard trail's rule at the a11y tier).
+    A11yEcho {
+        /// The resolved tree's size — the node count the full-tree
+        /// build answered with. `0` never rides: an activation before
+        /// the first frame resolves no tree, and no fact streams for
+        /// it (the honest absence).
+        nodes: usize,
     },
     /// A completed frame — the ledger + the mask heatmap.
     Frame {
@@ -1005,6 +1023,19 @@ pub fn wire_preedit(record: &alacer_core::inspect::PreeditRecord) -> WireEvent {
         shape: record.shape,
         cursor: record.cursor,
         target: record.target,
+    }
+}
+
+/// The adapter's full-tree echo, flat on the wire (M67, ADR-0073): the
+/// a11y tier's own fact — the tree the activation answered, named by
+/// its node count. The payload itself never rides the wire (a resolved
+/// tree carries the app's labels, and a label can carry a secret, the
+/// clipboard trail's rule at the a11y tier), the count naming the size
+/// the way the clipboard's count names the round trip.
+#[must_use]
+pub fn wire_a11y_echo(record: &alacer_core::inspect::A11yEchoRecord) -> WireEvent {
+    WireEvent::A11yEcho {
+        nodes: record.nodes,
     }
 }
 
@@ -2139,6 +2170,22 @@ mod tests {
         );
     }
 
+    /// M67 (ADR-0073, this cut): the adapter's full-tree echo rides its
+    /// own flat event — the tree the activation answered, named by its
+    /// node count (the lengths rule: the payload never rides the wire).
+    #[test]
+    fn a11y_echo_events_carry_the_adapters_answer() {
+        use alacer_core::inspect::A11yEchoRecord;
+        let echo = A11yEchoRecord { nodes: 1_024 };
+        let WireEvent::A11yEcho { nodes } = wire_a11y_echo(&echo) else {
+            panic!("a11y_echo event");
+        };
+        assert_eq!(
+            nodes, 1_024,
+            "the echo names the tree's size — the count, never the payload"
+        );
+    }
+
     /// M57 (ADR-0063, this cut): the boundary's drop rides its own
     /// flat event — the action's tag beside the species and the aimed
     /// id, never a munged widget-door fact. Since M65 (ADR-0071) the
@@ -2365,6 +2412,47 @@ mod tests {
         );
         assert_eq!(replaced, 0, "the wall consumed no span");
         assert_eq!(inserted, 0, "the wall carried no payload");
+    }
+
+    /// M68 (ADR-0074, this cut): the payloadless chord's read rides its
+    /// own species beside the wall's — the empty selection the open
+    /// door found, the ask named by the chord's own action, the shape
+    /// priced at nothing.
+    #[test]
+    fn key_edit_events_carry_the_reads_refusal() {
+        use alacer_core::inspect::{KeyEditAction, KeyEditDriver, KeyEditRecord};
+        use alacer_core::widget::TextSelection;
+        let read = KeyEditRecord {
+            action: KeyEditAction::Copy,
+            driver: KeyEditDriver::Clipboard,
+            replaced: 0,
+            inserted: 0,
+            selection: TextSelection::new(0, 0),
+            coalesced: false,
+            outcome: alacer_core::inspect::KeyEditOutcome::Refused(
+                alacer_core::inspect::KeyEditRefusal::EmptySelection,
+            ),
+            target: Some(0xAB_CD),
+        };
+        let WireEvent::KeyEdit {
+            action,
+            outcome,
+            refusal,
+            ..
+        } = wire_key_edit(&read)
+        else {
+            panic!("key_edit event");
+        };
+        assert_eq!(
+            action, "copy",
+            "the chord's own ask, the vocabulary grown for the read"
+        );
+        assert_eq!(outcome, "refused", "the read's own answer");
+        assert_eq!(
+            refusal.as_deref(),
+            Some("empty_selection"),
+            "the read's species beside the wall's (the additive tag)"
+        );
     }
 
     /// M61 (ADR-0067, this cut): the composing state rides its own flat

@@ -66,6 +66,11 @@ pub const TEXT_WRITE_RING_CAP: usize = 512;
 /// focus, edit, announce, key, clipboard, value, gesture, scroll, and
 /// text-write rings ride.
 pub const ROUTE_DROP_RING_CAP: usize = 512;
+/// The key-edit trail ring's cap (oldest dropped first, ADR-0064) —
+/// the typing door's facts at the recorder side, the same order the
+/// input, focus, edit, announce, key, clipboard, value, gesture,
+/// scroll, text-write, and route-drop rings ride.
+pub const KEY_EDIT_RING_CAP: usize = 512;
 
 /// One recorded frame (the wire conversion lives in [`crate::wire`]).
 #[derive(Debug, Clone)]
@@ -99,6 +104,10 @@ struct Recording {
     /// off-target selection, the unknown target — bounded by
     /// [`ROUTE_DROP_RING_CAP`]).
     route_drops: VecDeque<alacer_core::inspect::RouteDropRecord>,
+    /// The recorded key edits, oldest first (the typing door's own
+    /// facts — the typed run folded to one record, the IME commit,
+    /// the unit and word deletes — bounded by [`KEY_EDIT_RING_CAP`]).
+    key_edits: VecDeque<alacer_core::inspect::KeyEditRecord>,
     /// The most recent frame, for "what does the inspector see right now".
     latest: Option<alacer_core::inspect::FrameSummary>,
     /// The wire-shaped events awaiting the server's session drain (push, not
@@ -249,6 +258,15 @@ impl CausalRecorder {
         self.lock().route_drops.iter().copied().collect()
     }
 
+    /// The recorded key-edit trail, oldest first (ADR-0064): every edit
+    /// the typing door landed — the typed run folded to one record, the
+    /// IME's committed composition, the unit and word deletes — bounded
+    /// by [`KEY_EDIT_RING_CAP`].
+    #[must_use]
+    pub fn key_edits(&self) -> Vec<alacer_core::inspect::KeyEditRecord> {
+        self.lock().key_edits.iter().copied().collect()
+    }
+
     /// The most recent frame, when any frame was observed.
     #[must_use]
     pub fn latest_frame(&self) -> Option<alacer_core::inspect::FrameSummary> {
@@ -276,6 +294,9 @@ impl CausalRecorder {
             recording.values.clear();
             recording.gestures.clear();
             recording.scrolls.clear();
+            recording.text_writes.clear();
+            recording.route_drops.clear();
+            recording.key_edits.clear();
         }
     }
 
@@ -368,6 +389,9 @@ impl InspectObserver for RecorderHandle {
             }
             InspectEvent::RouteDrop(record) => {
                 push_bounded(&mut recording.route_drops, ROUTE_DROP_RING_CAP, record);
+            }
+            InspectEvent::KeyEdit(record) => {
+                push_bounded(&mut recording.key_edits, KEY_EDIT_RING_CAP, record);
             }
             InspectEvent::Frame(summary) => {
                 self.frames_seen.fetch_add(1, Ordering::Relaxed);

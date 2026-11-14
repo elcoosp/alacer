@@ -470,7 +470,12 @@ function connect() {
         // landing's endpoints beside the ask, the write's shape riding
         // the null the wire honestly carries. The control's identity
         // beside the record (the funnel's stamp): the app's own doors
-        // ride no route and carry no target (null).
+        // ride no route and carry no target (null). Since M56 the
+        // record names the door the write rode (ADR-0062, the M30
+        // attribution rule at the text tier): "the app's text write
+        // landed…" answers "did the screen reader rewrite this field,
+        // or did the app?" from the row alone, the AT door's rows
+        // unchanged.
         const target = event.target != null ? " (control " + event.target + ")" : "";
         const shape = event.replaced != null && event.inserted != null
           ? " (" + event.replaced + " replaced by " + event.inserted + ")"
@@ -479,10 +484,25 @@ function connect() {
           ? " (asked " + event.requested.anchor + ".." + event.requested.focus + ")"
           : "";
         const landed = "the selection at " + event.selection.anchor + ".." + event.selection.focus;
+        const who = event.source === "app_door" ? "the app's text write" : "the text write";
         const answer = event.outcome === "refused"
           ? "refused: " + event.refusal + target
-          : "the text write landed" + shape + ask + " — " + landed + target;
+          : who + " landed" + shape + ask + " — " + landed + target;
         addLog("text_write", "text_write " + event.action, answer);
+        break;
+      }
+      case "route_drop": {
+        // The client renders the route-drop echo (M57, ADR-0063): the
+        // boundary's defensive drops land in the log pane beside the
+        // other trails — the dropped action's tag beside the species
+        // and the aimed id, so a reader answers "the AT asked; why did
+        // no door ever answer" from the row alone. A drop is never a
+        // munged widget-door fact: the row is the route's own
+        // vocabulary, the aim riding verbatim (null when the boundary
+        // had no aim to name).
+        const target = event.target != null ? " (aimed at " + event.target + ")" : "";
+        addLog("route_drop", "route_drop " + event.action,
+          "dropped: " + event.species + target);
         break;
       }
       case "frame":

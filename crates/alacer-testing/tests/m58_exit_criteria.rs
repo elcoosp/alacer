@@ -268,16 +268,15 @@ fn m58_the_noop_edit_rides_the_honest_absence() {
 }
 
 #[test]
-fn m58_the_clipboard_chords_stay_off_the_typing_door() {
+fn m58_the_clipboard_chords_price_their_field_changes() {
     let observer = Share::new();
     let (mut harness, _id, _node) = mount_input(&observer);
     harness.type_text("copy me");
-    clear_trail(&observer);
     harness.set_clipboard("seed");
-    // Ctrl+A selects whole; Ctrl+C copies; Ctrl+V pastes at the
-    // selection — the round trip's facts ride the clipboard trail and
-    // the journal's, never the typing door's (one fact per trail, the
-    // door discipline).
+    clear_trail(&observer);
+    // Ctrl+A selects whole; Ctrl+C copies — the round trip's facts ride
+    // the clipboard trail and the journal's, never the typing door's
+    // (a copy edits nothing: no journal step, no fact).
     harness.key(&KeyEvent {
         key: Key::Char('a'),
         state: KeyState::Pressed,
@@ -296,6 +295,14 @@ fn m58_the_clipboard_chords_stay_off_the_typing_door() {
         },
         text: None,
     });
+    assert!(
+        key_edits(&observer).is_empty(),
+        "the copy edits nothing — the typing door streams none"
+    );
+    // Since M60 (ADR-0066) the paste names its field change beside the
+    // round trip: the chord's own action and driver, the shape priced
+    // by lengths (one fact per trail, never a double-priced edit — the
+    // pin re-agreed from the M58 absence the kill rule re-opened).
     harness.key(&KeyEvent {
         key: Key::Char('v'),
         state: KeyState::Pressed,
@@ -305,9 +312,17 @@ fn m58_the_clipboard_chords_stay_off_the_typing_door() {
         },
         text: None,
     });
-    assert!(
-        key_edits(&observer).is_empty(),
-        "the clipboard chords' edits ride the clipboard trail — the typing door streams none"
+    let edits = key_edits(&observer);
+    assert_eq!(edits.len(), 1, "the paste's field change is one fact");
+    assert_eq!(edits[0].action, alacer_core::KeyEditAction::Paste);
+    assert_eq!(edits[0].driver, alacer_core::KeyEditDriver::Clipboard);
+    assert_eq!(
+        edits[0].replaced, 7,
+        "the selection the paste consumed (the copy's own payload rides back)"
+    );
+    assert_eq!(
+        edits[0].inserted, 7,
+        "the payload's length, never the payload"
     );
 }
 

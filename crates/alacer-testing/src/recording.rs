@@ -378,9 +378,9 @@ use crate::TestHarness;
 #[cfg(test)]
 mod tests {
     use super::{Recording, Session, Step, key_from_name, key_name, role_from_name};
-    use crate::WidgetBoxExt as _;
     use alacer_core::Role;
     use alacer_core::events::Key;
+    use alacer_widgets::BoxedWidget as _;
 
     #[test]
     fn keys_round_trip_through_recording_names() {

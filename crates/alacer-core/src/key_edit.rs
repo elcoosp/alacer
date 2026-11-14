@@ -22,10 +22,13 @@
 //! supersedes the run's record in place — N keystrokes in one
 //! pure-append run land as one record whose shape is the run's, the
 //! `coalesced` bit naming the fold — and every edit the journal kept
-//! as its own step lands as its own record. The clipboard chords'
-//! edits ride the clipboard trail and the journal's (the round trip
-//! is the clipboard record's fact, the depths the journal's); the
-//! typing door's notes name the typing door only.
+//! as its own step lands as its own record. Since M60 (ADR-0066) the
+//! clipboard's chords name their field changes here too — the paste's
+//! shape and the cut's span behind their own actions and the
+//! clipboard's driver — while the round trip keeps the clipboard
+//! trail's fact (ADR-0045): one fact per trail, the chord never
+//! superseded into a typed run's record and never a double-priced
+//! edit; the typing door's notes name the typing door only.
 //!
 //! The record names its control with the value trail's own stamp
 //! (M43, ADR-0049): the key route and the IME route hold one
@@ -345,6 +348,68 @@ mod tests {
         crate::key_edit::set_key_edit_trail_enabled(false);
     }
 
+    /// The chord's record is its own fact (M60, ADR-0066): a paste the
+    /// journal folded into the typed run's tip lands beside the run's
+    /// record — the drivers' records never merge even when the
+    /// journal's tip folded the shape — and two chords never supersede
+    /// each other: the flood rule stays the typed run's, the chord a
+    /// discrete act, one fact per chord.
+    #[test]
+    fn the_chord_records_stay_their_own_facts() {
+        crate::key_edit::set_key_edit_trail_enabled(true);
+
+        // The typed run's record, then the paste the journal folded
+        // (coalesced) but the trail kept apart: the driver guard holds
+        // the run and the chord apart.
+        note_key_edit(insert_at(0, 2, false));
+        note_key_edit(KeyEditRecord {
+            action: KeyEditAction::Paste,
+            driver: KeyEditDriver::Clipboard,
+            replaced: 0,
+            inserted: 3,
+            selection: TextSelection::new(5, 5),
+            coalesced: true,
+            target: None,
+        });
+        let drained = take_key_edit_trail();
+        assert_eq!(
+            drained.len(),
+            2,
+            "the paste never merges into the typed run's record"
+        );
+        assert_eq!(drained[1].action, KeyEditAction::Paste);
+
+        // Two chords the journal folded tip-to-tip stay two facts: the
+        // supersede is the pure-insertion run's rule, never a chord's.
+        note_key_edit(KeyEditRecord {
+            action: KeyEditAction::Paste,
+            driver: KeyEditDriver::Clipboard,
+            replaced: 0,
+            inserted: 2,
+            selection: TextSelection::new(5, 5),
+            coalesced: true,
+            target: None,
+        });
+        note_key_edit(KeyEditRecord {
+            action: KeyEditAction::Paste,
+            driver: KeyEditDriver::Clipboard,
+            replaced: 0,
+            inserted: 2,
+            selection: TextSelection::new(7, 7),
+            coalesced: true,
+            target: None,
+        });
+        let drained = take_key_edit_trail();
+        assert_eq!(
+            drained.len(),
+            2,
+            "a chord never supersedes a chord — one fact per chord"
+        );
+        assert_eq!(drained[0].inserted, 2, "the first chord's own shape");
+        assert_eq!(drained[1].inserted, 2, "the second chord's own shape");
+        crate::key_edit::set_key_edit_trail_enabled(false);
+    }
+
     /// The vocabulary carries its stable tags — the wire vocabulary's
     /// `snake_case` rule, the names the protocol document pins.
     #[test]
@@ -357,7 +422,10 @@ mod tests {
             KeyEditAction::WordDeleteForward.name(),
             "word_delete_forward"
         );
+        assert_eq!(KeyEditAction::Paste.name(), "paste");
+        assert_eq!(KeyEditAction::Cut.name(), "cut");
         assert_eq!(KeyEditDriver::Keyboard.name(), "keyboard");
         assert_eq!(KeyEditDriver::Ime.name(), "ime");
+        assert_eq!(KeyEditDriver::Clipboard.name(), "clipboard");
     }
 }

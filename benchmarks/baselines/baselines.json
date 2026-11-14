@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "description": "Published Alacer performance baseline (M5, ADR-0011): one entry per criterion benchmark case, median/mean/MAD in nanoseconds. Ids are the criterion result directories under target/criterion. Regenerate with scripts/collect_baseline.py after `cargo bench`.",
-  "generated_at": "2026-11-13T14:23:48+00:00",
+  "generated_at": "2026-11-14T12:23:41+00:00",
   "toolchain": "rustc 1.99.1",
   "git": {
     "commit": "229c5b20ddba637549a244d8c261e918539c5148",
@@ -14,7 +14,7 @@
     "cpu_count": "2",
     "fingerprint": "ee37c3efc5995352"
   },
-  "bench_count": 64,
+  "bench_count": 65,
   "benches": {
     "a11y/full_rebuild_1k": {
       "median_ns": 92823.87060866013,
@@ -398,6 +398,12 @@
       "median_ns": 3359.6903918073467,
       "mean_ns": 3384.97403815692,
       "median_abs_dev_ns": 87.75256985393544,
+      "samples": 100
+    },
+    "editing/route_100_key_edits_1k": {
+      "median_ns": 232406.77181818182,
+      "mean_ns": 233267.900581868,
+      "median_abs_dev_ns": 2784.554733619598,
       "samples": 100
     }
   }

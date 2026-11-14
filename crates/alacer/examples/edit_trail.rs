@@ -20,6 +20,15 @@
 //! RUST_LOG=alacer=info cargo run -p alacer --example edit_trail
 //! ```
 //!
+//! Since M66 (ADR-0072) the echo names its field too — ADR-0037's
+//! second kill rule cashed: the record grows the M43 stamp, the key
+//! route's and the AT action route's guard filling the field a
+//! multi-field log could not name, the app's direct rides carrying the
+//! honest absence. The demo's startup beat routes one committed
+//! composition through the real IME route into a live `TextInput` — its
+//! echo carries the field's id beside the depths, the direct journal's
+//! echoes beside it carrying none.
+//!
 //! Run with `cargo run -p alacer --example edit_trail`. Click *Type hi*
 //! a few times and watch the trail log one coalesced fact per press
 //! (the depth never moves — the pure-append rule); *Undo*/*Redo* stream
@@ -55,6 +64,9 @@ fn backend_choice() -> BackendPreference {
 /// depths it left, the refusal it carried.
 fn describe(record: &EditRecord) -> String {
     let depths = format!("(undo {} · redo {})", record.undo_depth, record.redo_depth);
+    let field = record
+        .target
+        .map_or_else(String::new, |target| format!(" — the field {target}"));
     let action = match record.action {
         EditAction::Record if record.coalesced => "record — coalesced into the tip".to_string(),
         EditAction::Record => "record — opened a step".to_string(),
@@ -65,7 +77,7 @@ fn describe(record: &EditRecord) -> String {
         EditAction::Redo => "redo — the step re-pushed".to_string(),
         EditAction::Reset => "reset — the app's write cleared both branches".to_string(),
     };
-    format!("{action} {depths}")
+    format!("{action} {depths}{field}")
 }
 
 /// The causal trail the demo shares between the pipeline's observer and
@@ -317,6 +329,18 @@ fn push_buttons(
     }
 }
 
+/// Ticks until no pass has work (the idle contract's demo shape, A7).
+fn settle(pipeline: &mut alacer_core::passes::PassPipeline) {
+    for _ in 0..16 {
+        let Ok(report) = pipeline.tick(alacer_core::geom::Size::new(460.0, 260.0)) else {
+            return;
+        };
+        if report.is_idle() {
+            return;
+        }
+    }
+}
+
 fn main() {
     let mut pipeline = pipeline_default();
 
@@ -385,6 +409,20 @@ fn main() {
         &status_signal,
     );
 
+    // The routed beat (M66, ADR-0072): a live field takes focus and one
+    // committed composition rides the real IME route — the journal's
+    // echo carries the field's id beside the depths, the buttons'
+    // direct rides beside it carrying none (the honest absence). One
+    // log, both stamps tellable apart.
+    let field = pipeline.add_child(root, alacer_widgets::TextInput::new("routed").boxed());
+    settle(&mut pipeline);
+    pipeline.request_focus(field);
+    settle(&mut pipeline);
+    let _consumed =
+        pipeline.dispatch_ime(&alacer_core::events::ImeEvent::Commit { text: "よ".into() });
+    settle(&mut pipeline);
+    tracing::info!(target: "alacer::edit_trail", "the routed echo names its field; the direct rides name none");
+
     if let Err(error) = alacer::run_window(
         pipeline,
         "Alacer edit trail",
@@ -406,6 +444,7 @@ fn main() {
             .iter()
             .filter(|record| record.action == EditAction::Reset)
             .count(),
-        "the journal's facts streamed as they resolved — the causal log carries the edit trail"
+        stamped = read_back.iter().filter(|record| record.target.is_some()).count(),
+        "the journal's facts streamed as they resolved — the causal log carries the edit trail, the field named beside the depths"
     );
 }

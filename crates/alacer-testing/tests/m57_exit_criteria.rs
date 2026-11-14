@@ -206,8 +206,8 @@ fn m57_the_living_documents_re_agree() {
     // the demonstration.
     let readme = read_workspace_file("README.md");
     for fragment in [
-        "M0 through M57",
-        "sixty-four decision records",
+        "M0 through M61",
+        "sixty-eight decision records",
         "Since M57 the boundary's drops stream their fact too",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
@@ -229,7 +229,7 @@ fn m57_the_living_documents_re_agree() {
     let architecture = read_workspace_file("docs/architecture.md");
     for fragment in [
         "ADR-0063",
-        "64 decision records",
+        "68 decision records",
         "the boundary's drops join the causal log",
     ] {
         assert!(
@@ -256,7 +256,7 @@ fn m57_the_living_documents_re_agree() {
     // the chain too — one sweep, no drift).
     let m56 = read_workspace_file("crates/alacer-testing/tests/m56_exit_criteria.rs");
     assert!(
-        m56.contains("M0 through M57"),
+        m56.contains("M0 through M61"),
         "the m56 suite's pins moved with the documents"
     );
 }

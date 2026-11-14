@@ -61,6 +61,11 @@ pub const SCROLL_RING_CAP: usize = 512;
 /// input, focus, edit, announce, key, clipboard, value, gesture, and
 /// scroll rings ride.
 pub const TEXT_WRITE_RING_CAP: usize = 512;
+/// The route-drop ring's cap (oldest dropped first, ADR-0063) — the
+/// boundary's facts at the recorder side, the same order the input,
+/// focus, edit, announce, key, clipboard, value, gesture, scroll, and
+/// text-write rings ride.
+pub const ROUTE_DROP_RING_CAP: usize = 512;
 
 /// One recorded frame (the wire conversion lives in [`crate::wire`]).
 #[derive(Debug, Clone)]
@@ -89,6 +94,11 @@ struct Recording {
     /// the whole-value write, the replacement, the selection ask, the
     /// closed door's refusal — bounded by [`TEXT_WRITE_RING_CAP`]).
     text_writes: VecDeque<alacer_core::inspect::TextWriteRecord>,
+    /// The recorded route drops, oldest first (the boundary's own
+    /// facts — the unknown action, the payloadless write, the
+    /// off-target selection, the unknown target — bounded by
+    /// [`ROUTE_DROP_RING_CAP`]).
+    route_drops: VecDeque<alacer_core::inspect::RouteDropRecord>,
     /// The most recent frame, for "what does the inspector see right now".
     latest: Option<alacer_core::inspect::FrameSummary>,
     /// The wire-shaped events awaiting the server's session drain (push, not
@@ -230,6 +240,15 @@ impl CausalRecorder {
         self.lock().text_writes.iter().copied().collect()
     }
 
+    /// The recorded route-drop trail, oldest first (ADR-0063): every
+    /// ask the boundary dropped before any widget's door — the unknown
+    /// action, the payloadless write, the off-target selection, the
+    /// unknown target — bounded by [`ROUTE_DROP_RING_CAP`].
+    #[must_use]
+    pub fn route_drops(&self) -> Vec<alacer_core::inspect::RouteDropRecord> {
+        self.lock().route_drops.iter().copied().collect()
+    }
+
     /// The most recent frame, when any frame was observed.
     #[must_use]
     pub fn latest_frame(&self) -> Option<alacer_core::inspect::FrameSummary> {
@@ -346,6 +365,9 @@ impl InspectObserver for RecorderHandle {
             }
             InspectEvent::TextWrite(record) => {
                 push_bounded(&mut recording.text_writes, TEXT_WRITE_RING_CAP, record);
+            }
+            InspectEvent::RouteDrop(record) => {
+                push_bounded(&mut recording.route_drops, ROUTE_DROP_RING_CAP, record);
             }
             InspectEvent::Frame(summary) => {
                 self.frames_seen.fetch_add(1, Ordering::Relaxed);

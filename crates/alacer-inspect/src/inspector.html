@@ -453,6 +453,38 @@ function connect() {
         addLog("scroll", "scroll " + event.action, answer);
         break;
       }
+      case "text_write": {
+        // The client renders the text write's echo (M55, ADR-0061): the
+        // text-write trail lands in the log pane beside the focus,
+        // edit, announce, key, clipboard, value, gesture, and scroll
+        // trails — the action and the outcome named, the refusal
+        // rendered the way the other tiers' refusals are, so a reader
+        // answers "did the screen reader rewrite this field — what
+        // shape, where did the caret land, or why not" from the log
+        // alone. The write's shape renders by lengths — "11 replaced
+        // by 20" — the payload itself never riding the wire (a field's
+        // value can carry a secret, the clipboard trail's rule). Since
+        // M55 the selection ask renders beside the landing too (the
+        // M44 rule at the text tier): a forgiving clamp the trail
+        // could not show reads "asked 2..100, landed 2..11" — the
+        // landing's endpoints beside the ask, the write's shape riding
+        // the null the wire honestly carries. The control's identity
+        // beside the record (the funnel's stamp): the app's own doors
+        // ride no route and carry no target (null).
+        const target = event.target != null ? " (control " + event.target + ")" : "";
+        const shape = event.replaced != null && event.inserted != null
+          ? " (" + event.replaced + " replaced by " + event.inserted + ")"
+          : "";
+        const ask = event.requested != null
+          ? " (asked " + event.requested.anchor + ".." + event.requested.focus + ")"
+          : "";
+        const landed = "the selection at " + event.selection.anchor + ".." + event.selection.focus;
+        const answer = event.outcome === "refused"
+          ? "refused: " + event.refusal + target
+          : "the text write landed" + shape + ask + " — " + landed + target;
+        addLog("text_write", "text_write " + event.action, answer);
+        break;
+      }
       case "frame":
         renderFrame(event);
         addLog("frame", "frame " + event.number,

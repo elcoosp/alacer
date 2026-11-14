@@ -65,6 +65,7 @@ pub mod scroll;
 pub mod style;
 pub mod text_seam;
 pub mod text_write;
+pub mod trail;
 pub mod utf16;
 pub mod value;
 pub mod widget;
@@ -88,8 +89,8 @@ pub use inspect::{
     InputRecord, InspectEvent, InspectObserver, KeyEditAction, KeyEditDriver, KeyEditOutcome,
     KeyEditRecord, KeyEditRefusal, KeyRecord, PassTiming, PreeditAction, PreeditRecord, RangeBound,
     RouteDropRecord, RouteDropSpecies, ScrollAction, ScrollOutcome, ScrollRecord, ScrollRefusal,
-    SignalKey, SignalWrite, TextWriteAction, TextWriteOutcome, TextWriteRecord, TextWriteRefusal,
-    TextWriteSource, ValueAction, ValueOutcome, ValueRecord, ValueRefusal,
+    SignalKey, SignalWrite, Tee, TextWriteAction, TextWriteOutcome, TextWriteRecord,
+    TextWriteRefusal, TextWriteSource, ValueAction, ValueOutcome, ValueRecord, ValueRefusal,
 };
 pub use keymap::{Chord, Keymap, KeymapConsult, KeymapSeam};
 pub use mask::Change;
@@ -107,6 +108,7 @@ pub use style::{
     CrossAxisAlignment, Display, MainAxisAlignment, MeasureFn, MeasureSpec, Style, TextSpec,
 };
 pub use text_seam::{GlyphRun, PlacedGlyph, TextSeam};
+pub use trail::{TRAIL_RING_CAP, TrailLog};
 pub use widget::{
     A11yAction, EventResponse, LabelSource, Role, ScrollUnit, TableSlot, TextSelection,
     ToggleState, Widget,
@@ -125,13 +127,14 @@ pub mod prelude {
     pub use crate::geom::{Point, Rect, Size, Vector};
     pub use crate::inspect::{
         ClipboardRecord, GestureRecord, InspectEvent, InspectObserver, KeyEditOutcome,
-        KeyEditRecord, KeyEditRefusal, KeyRecord, PreeditRecord, ScrollRecord, TextWriteRecord,
-        ValueRecord,
+        KeyEditRecord, KeyEditRefusal, KeyRecord, PreeditRecord, ScrollRecord, Tee,
+        TextWriteRecord, ValueRecord,
     };
     pub use crate::keymap::{Chord, Keymap, KeymapConsult, KeymapSeam};
     pub use crate::mask::Change;
     pub use crate::passes::{PassKind, PassPipeline};
     pub use crate::style::{CrossAxisAlignment, Display, MainAxisAlignment, Style};
+    pub use crate::trail::{TRAIL_RING_CAP, TrailLog};
     pub use crate::widget::{
         EventResponse, LabelSource, Role, TableSlot, TextSelection, ToggleState, Widget,
     };

@@ -505,6 +505,24 @@ function connect() {
           "dropped: " + event.species + target);
         break;
       }
+      case "key_edit": {
+        // The client renders the key-edit echo (M58, ADR-0064): the
+        // typing door's edits land in the log pane beside the other
+        // trails — the edit's shape named by lengths (never the
+        // payload: a field's value can carry a secret), the landing
+        // selection and the driver beside it, so a reader answers
+        // "what did the typist change" from the row alone. A
+        // coalesced typed run rides one row (the flood rule): the
+        // lengths are the run's, the fold named on the record.
+        const who = event.driver === "ime" ? "the IME's commit" : "the keyboard";
+        const shape = " (" + event.replaced + " replaced by " + event.inserted + ")";
+        const landed = "the selection at " + event.selection.anchor + ".." + event.selection.focus;
+        const run = event.coalesced ? " — the journal folded the run" : "";
+        addLog("key_edit", "key_edit " + event.action,
+          who + " landed" + shape + " — " + landed + run +
+          (event.target != null ? " (at " + event.target + ")" : ""));
+        break;
+      }
       case "frame":
         renderFrame(event);
         addLog("frame", "frame " + event.number,

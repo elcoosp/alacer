@@ -22,17 +22,19 @@ use serde_json::Value;
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
-/// The corpus pin, mirroring the M1 suite's 37-scenario pin: 63 criterion
-/// cases across the seven benching crates (38 M5 cases + the M6 workloads:
-/// W2 ×2, W3 ×1, W5 ×2 — ADR-0012 + the M8 input-storm pair — ADR-0014 + the
-/// M9 a11y-ratio pair — ADR-0015 + the M10 action-route bench — ADR-0016 +
-/// the M11 set-value route — ADR-0017 + the M12 caret-click route —
-/// ADR-0018 + the M13 word-move route — ADR-0019 + the M14 clipboard route
-/// — ADR-0020 + the M15 undo/redo route — ADR-0021 + the M35 keymap's
-/// mixed route — ADR-0041). Growing the corpus is the coordinated bench +
-/// contracts.json + baseline-regeneration rule, reviewed here and by the
-/// M6–M12 suites (which assert this pin agrees with their own).
-const EXPECTED_BENCH_COUNT: usize = 65;
+/// The corpus pin, mirroring the M1 suite's 37-scenario pin: 68 criterion
+/// cases across the seven benching crates (the M5 seed cases + the M6
+/// workloads: W2 ×2, W3 ×1, W5 ×2 — ADR-0012 + the M8 input-storm pair —
+/// ADR-0014 + the M9 a11y-ratio pair — ADR-0015 + the M10 action-route bench
+/// — ADR-0016 + the M11 set-value route — ADR-0017 + the M12 caret-click
+/// route — ADR-0018 + the M13 word-move route — ADR-0019 + the M14
+/// clipboard route — ADR-0020 + the M15 undo/redo route — ADR-0021 + the
+/// M35 keymap's mixed route — ADR-0041 + the M63 trail reader's route and
+/// ring cases — ADR-0069 + the M64 tee's fan-out — ADR-0070). Growing the
+/// corpus is the coordinated bench + contracts.json + baseline-regeneration
+/// rule, reviewed here and by the M6–M12 suites (which assert this pin
+/// agrees with their own).
+const EXPECTED_BENCH_COUNT: usize = 68;
 
 /// The one criterion-expressible architecture budget in M5's contract set:
 /// the W1 gate (§18 M2, ADR-0008).

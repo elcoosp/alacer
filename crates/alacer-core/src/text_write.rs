@@ -2,6 +2,13 @@
 //! door (§13.3, ADR-0061) — reach the causal log without any widget
 //! holding a devtools dependency.
 //!
+//! Since M56 (ADR-0062) the trail carries both doors' facts: the AT's
+//! asks name `source: AtDoor`, the app's own `set_value` (the
+//! imperative door the view reconciliation's patches ride) names
+//! `source: AppDoor` — the M30 attribution rule at the text tier, the
+//! trail answering "did the screen reader rewrite this field, or did
+//! the app?" from one record.
+//!
 //! The editing tier's AT actions (M11, ADR-0017) answered the widget's
 //! own `bool`, whose `false` collapsed the closed door (M22) into the
 //! same silence as an answered write — and the answered write itself
@@ -18,7 +25,7 @@
 //!
 //! The record names its control with the value trail's own stamp
 //! (M43, ADR-0049): the dispatch funnel holds one
-//! [`crate::value::ActionTargetGuard`] for the length of one action,
+//! `crate::value::ActionTargetGuard` for the length of one action,
 //! the AT tier's facts and the keyboard's stamping themselves with it
 //! — and the text-write door's facts stamp from the same guard, the
 //! routes shared, the identity never guessed at the note site.
@@ -133,6 +140,7 @@ mod tests {
             requested: None,
             selection: TextSelection::new(3, 3),
             target: None,
+            source: crate::inspect::TextWriteSource::AppDoor,
         });
         assert!(
             take_text_write_trail().is_empty(),
@@ -155,6 +163,7 @@ mod tests {
                 requested: Some(TextSelection::new(caret, caret)),
                 selection: TextSelection::new(caret, caret),
                 target: None,
+                source: crate::inspect::TextWriteSource::AtDoor,
             });
         }
         let drained = take_text_write_trail();
@@ -193,6 +202,7 @@ mod tests {
             requested: None,
             selection: TextSelection::new(9, 9),
             target: None,
+            source: crate::inspect::TextWriteSource::AtDoor,
         });
         drop(guard);
         let drained = take_text_write_trail();
@@ -216,6 +226,7 @@ mod tests {
             requested: Some(TextSelection::new(0, 4)),
             selection: TextSelection::new(0, 4),
             target: None,
+            source: crate::inspect::TextWriteSource::AtDoor,
         });
         // The caller's own answer is never overwritten.
         note_text_write(TextWriteRecord {
@@ -226,6 +237,7 @@ mod tests {
             requested: None,
             selection: TextSelection::new(0, 0),
             target: Some(1),
+            source: crate::inspect::TextWriteSource::AtDoor,
         });
         let drained = take_text_write_trail();
         assert_eq!(
@@ -248,11 +260,55 @@ mod tests {
             requested: None,
             selection: TextSelection::new(1, 1),
             target: None,
+            source: crate::inspect::TextWriteSource::AtDoor,
         });
         let drained = take_text_write_trail();
         assert_eq!(
             drained[0].target, None,
             "the guard's drop cleared the stamp"
+        );
+        crate::text_write::set_text_write_trail_enabled(false);
+    }
+
+    /// The attribution side (M56, ADR-0062): the record rides the
+    /// source its caller named — the trail never guesses the door. The
+    /// two doors' facts are tellable apart on the drained log, the
+    /// caller's own answer never overwritten (the stamp's rule: the
+    /// trail fills only what the caller cannot know — an identity, not
+    /// a door).
+    #[test]
+    fn the_record_rides_the_source_its_caller_named() {
+        crate::text_write::set_text_write_trail_enabled(true);
+        note_text_write(TextWriteRecord {
+            action: TextWriteAction::SetValue,
+            outcome: TextWriteOutcome::Delivered,
+            replaced: Some(9),
+            inserted: Some(18),
+            requested: None,
+            selection: TextSelection::new(18, 18),
+            target: None,
+            source: crate::inspect::TextWriteSource::AppDoor,
+        });
+        note_text_write(TextWriteRecord {
+            action: TextWriteAction::SetValue,
+            outcome: TextWriteOutcome::Delivered,
+            replaced: Some(18),
+            inserted: Some(21),
+            requested: None,
+            selection: TextSelection::new(21, 21),
+            target: None,
+            source: crate::inspect::TextWriteSource::AtDoor,
+        });
+        let drained = take_text_write_trail();
+        assert_eq!(
+            drained[0].source,
+            crate::inspect::TextWriteSource::AppDoor,
+            "the app door's fact names the app door"
+        );
+        assert_eq!(
+            drained[1].source,
+            crate::inspect::TextWriteSource::AtDoor,
+            "the AT door's fact names the AT door"
         );
         crate::text_write::set_text_write_trail_enabled(false);
     }

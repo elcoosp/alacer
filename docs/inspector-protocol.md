@@ -680,14 +680,18 @@ the drivers' records never merge. Since M60
 (ADR-0066) the clipboard chords' field changes stream here too —
 `paste`/`cut` behind the `clipboard` driver, the round trip keeping
 the clipboard trail's fact (one fact per trail, never a
-double-priced edit); since M62 (ADR-0068) the record names what the
-door answered — the landed edit or the wall's refusal (the routed
-edit key a disabled field ignored, the IME's commit a closed field
-turned away, the ask named by the open door's own match, the window
-the availability tier's own — the M22 eviction bounds it, the
-boundary's post-eviction silence the route's own); the AT's and
-app's writes ride `text_write` — the doors tellable apart on one
-log.
+double-priced edit); since M68 (ADR-0074) the payloadless chord's
+read streams here too — `copy` beside the chords, the empty
+selection the open door found naming its own refusal, the round
+trip keeping its fact (one fact per trail, the delivered chord's
+two-fact shape mirrored at the wall); since M62 (ADR-0068) the
+record names what the door answered — the landed edit or the wall's
+refusal (the routed edit key a disabled field ignored, the IME's
+commit a closed field turned away, the ask named by the open door's
+own match, the window the availability tier's own — the M22
+eviction bounds it, the boundary's post-eviction silence the
+route's own); the AT's and app's writes ride `text_write` — the
+doors tellable apart on one log.
 
 ```json
 {
@@ -725,8 +729,10 @@ Fields:
   edit.
 - `refusal` — the refusal's species when the door refused:
   `unavailable` (the availability tier's wall, M22, ADR-0028 — the
-  tag the AT tier's closed door streams, ADR-0027); `null` on a
-  landing.
+  tag the AT tier's closed door streams, ADR-0027);
+  `empty_selection` (the read's wall, M68, ADR-0074 — the payloadless
+  copy or cut, the open door's read finding nothing to move); `null`
+  on a landing.
 - `replaced` — the span the edit consumed, in UTF-16 units of the
   field's value; `0` on a pure insertion.
 - `inserted` — the payload's own length, in UTF-16 units; `0` on a
@@ -797,6 +803,37 @@ Fields:
 - `target` — the control the composition rode (the funnel's stamp, the
   M43 rule at the composing tier); `null` when the fact rode no route.
 
+### `a11y_echo` — the adapter's full-tree echo
+
+ ("why did the app just push the whole tree, and how big was it?")
+
+```json
+{
+  "kind":"a11y_echo",
+  "nodes":42
+}
+```
+
+The a11y tier's own fact (M67, ADR-0073, the price M59's kill rule
+pre-registered): an assistive technology connected or reconnected —
+`InitialTreeRequested` — and the sink answered with the whole resolved
+tree, the same node builder the deltas use. The tree is named by its
+node count; the payload itself never rides the wire (a resolved tree
+carries the app's labels, and a label can carry a secret, the clipboard
+trail's rule at the a11y tier). `nodes` is never `0`: an activation
+before the first frame resolves no tree, and no fact streams for it
+(the honest absence — the trail never invents a size).
+
+The event streams at the tick's start drain, *ahead of the frame's
+routes* — a connect predates the asks the frame carries, and the echo
+explains the tree those asks answer into (the echo reads first, the
+routes beside it). The queue behind it is bounded (256 facts per
+thread, oldest-first eviction) and the recorder's `a11y_echo` ring
+holds 512. A connect is rare — one fact per build, the log quiet
+between connects (the flood rule at a tier whose events are rare). The
+additive event the versioning rule admits at version 1 — clients that
+ignore unknown kinds are unaffected.
+
 ### `frame` — a completed frame
 
  ("why is this frame slow?", "what did this mask touch?")
@@ -863,7 +900,9 @@ malformed text frame is treated as `bye`.
   oldest (a slow client never back-pressures the app).
 - The recorder's rings are bounded (frames 256, edges 1 024, writes 1 024,
   inputs 512, focus 512, edits 512, announces 512, keys 512,
-  clipboards 512, values 512, gestures 512); `clear` empties them.
+  clipboards 512, values 512, gestures 512, scrolls 512, text_writes 512,
+  route_drops 512, key_edits 512, preedits 512, a11y_echoes 512); `clear`
+  empties them.
 - Recording is opt-in: the pipeline forwards only when an observer is
   installed, and the flux records activations and provenance only when
   `Flux::set_causal_capture(true)`. With both off, the framework's default

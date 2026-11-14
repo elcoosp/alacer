@@ -438,19 +438,23 @@ pub enum WireEvent {
     },
     /// A typing-door edit answered — the key-edit trail (M58,
     /// ADR-0064): the character the keyboard typed, the composition
-    /// the IME committed, the unit or word a chord deleted. The
-    /// record rides flat (the additive rule ADR-0010 names): the
-    /// edit's shape named by lengths — the payload itself never rides
-    /// the wire (a field's value can carry a secret, the clipboard
-    /// trail's rule, ADR-0045) — beside the landing selection, the
-    /// driver, and the journal's fold.
+    /// the IME committed, the unit or word a chord deleted, and since
+    /// M60 (ADR-0066) the clipboard's chords' field changes — the
+    /// paste's shape, the cut's span. The record rides flat (the
+    /// additive rule ADR-0010 names): the edit's shape named by
+    /// lengths — the payload itself never rides the wire (a field's
+    /// value can carry a secret, the clipboard trail's rule, ADR-0045)
+    /// — beside the landing selection, the driver, and the journal's
+    /// fold.
     KeyEdit {
         /// What the typing door did (`insert`, `backspace`, `delete`,
-        /// `word_delete_back`, `word_delete_forward` — the field's own
-        /// editing vocabulary, the M11 edit rule's actions).
+        /// `word_delete_back`, `word_delete_forward`, and since M60 the
+        /// chords' own species `paste`/`cut` — the field's own editing
+        /// vocabulary, the M11 edit rule's actions).
         action: String,
-        /// Who drove the edit (`keyboard`, `ime` — the M30 attribution
-        /// rule at the typing tier).
+        /// Who drove the edit (`keyboard`, `ime`, and since M60 the
+        /// chords' `clipboard` — the M30 attribution rule at the
+        /// typing tier).
         driver: String,
         /// The span the edit consumed, in UTF-16 units of the field's
         /// value; `0` on a pure insertion.
@@ -469,6 +473,30 @@ pub enum WireEvent {
         /// The control the edit rode (the funnel's stamp, the M43
         /// rule at the typing tier); `null` when the fact rode no
         /// route (the app's direct mutate seam).
+        target: Option<u64>,
+    },
+    /// A composing state answered — the preedit trail (M61, ADR-0067):
+    /// the composition the field shows while the IME owns the canvas.
+    /// The record rides flat (the additive rule ADR-0010 names — a new
+    /// event kind, version 1, clients that ignore unknown kinds
+    /// unaffected): the inline shape named by its length — the payload
+    /// itself never rides the wire (a field's value can carry a
+    /// secret, ADR-0011's rule at the composition tier) — beside the
+    /// platform's preedit-local cursor and the funnel's stamp.
+    Preedit {
+        /// What the composing door answered (`composing`, `cleared` —
+        /// the composing state's own phases, never the edit tier's).
+        action: String,
+        /// The composition's inline shape, in UTF-16 units of the
+        /// preedit text; `0` on a cleared state.
+        shape: usize,
+        /// The platform's cursor inside the preedit, in UTF-16 units
+        /// of the preedit text — preedit-local, never a field offset;
+        /// `null` when the platform named none.
+        cursor: Option<usize>,
+        /// The control the composition rode (the funnel's stamp, the
+        /// M43 rule at the composing tier); `null` when the fact rode
+        /// no route.
         target: Option<u64>,
     },
     /// A completed frame — the ledger + the mask heatmap.
@@ -911,6 +939,21 @@ pub fn wire_key_edit(record: &alacer_core::inspect::KeyEditRecord) -> WireEvent 
             focus: record.selection.focus,
         },
         coalesced: record.coalesced,
+        target: record.target,
+    }
+}
+
+/// The composing state, named for the wire
+/// ([`alacer_core::inspect::PreeditRecord`]'s own
+/// event, ADR-0067): the phase's `snake_case` tag beside the shape
+/// named by its length — never the payload — the preedit-local cursor
+/// and the funnel's stamp beside it.
+#[must_use]
+pub fn wire_preedit(record: &alacer_core::inspect::PreeditRecord) -> WireEvent {
+    WireEvent::Preedit {
+        action: record.action.name().to_string(),
+        shape: record.shape,
+        cursor: record.cursor,
         target: record.target,
     }
 }
@@ -2118,6 +2161,88 @@ mod tests {
             "the word chord is never a munged Delete"
         );
         assert_eq!(replaced, 6, "the span the chord consumed");
+
+        // M60 (ADR-0066, this cut): the clipboard's chords ride their
+        // own species and driver — the new values are additive field
+        // values at version 1, the payload never riding the wire.
+        let paste = KeyEditRecord {
+            action: KeyEditAction::Paste,
+            driver: KeyEditDriver::Clipboard,
+            replaced: 7,
+            inserted: 4,
+            selection: TextSelection::new(4, 4),
+            coalesced: false,
+            target: Some(0x12_34),
+        };
+        let WireEvent::KeyEdit {
+            action,
+            driver,
+            replaced,
+            inserted,
+            ..
+        } = wire_key_edit(&paste)
+        else {
+            panic!("key_edit event");
+        };
+        assert_eq!(action, "paste", "the chord's own species");
+        assert_eq!(driver, "clipboard", "the chord's own driver");
+        assert_eq!(replaced, 7, "the selection the paste consumed");
+        assert_eq!(inserted, 4, "the payload's length, never the payload");
+
+        let cut = KeyEditRecord {
+            action: KeyEditAction::Cut,
+            driver: KeyEditDriver::Clipboard,
+            replaced: 9,
+            inserted: 0,
+            selection: TextSelection::new(0, 0),
+            coalesced: false,
+            target: None,
+        };
+        let WireEvent::KeyEdit { action, driver, .. } = wire_key_edit(&cut) else {
+            panic!("key_edit event");
+        };
+        assert_eq!(action, "cut", "the cut is never a munged Delete");
+        assert_eq!(driver, "clipboard");
+    }
+
+    /// M61 (ADR-0067, this cut): the composing state rides its own flat
+    /// event — the shape named by its length (never the payload), the
+    /// preedit-local cursor beside it, the funnel's stamp. A new event
+    /// kind, additive at version 1 (ADR-0010's rule).
+    #[test]
+    fn preedit_events_carry_the_composing_states_fact() {
+        use alacer_core::inspect::{PreeditAction, PreeditRecord};
+        let composing = PreeditRecord {
+            action: PreeditAction::Composing,
+            shape: 3,
+            cursor: Some(2),
+            target: Some(0xAB_CD),
+        };
+        let WireEvent::Preedit {
+            action,
+            shape,
+            cursor,
+            target,
+        } = wire_preedit(&composing)
+        else {
+            panic!("preedit event");
+        };
+        assert_eq!(action, "composing", "the composing state's own phase");
+        assert_eq!(shape, 3, "the composition's shape, never its payload");
+        assert_eq!(cursor, Some(2), "the platform's preedit-local cursor");
+        assert_eq!(target, Some(0xAB_CD), "the funnel's stamp beside");
+
+        let cleared = PreeditRecord {
+            action: PreeditAction::Cleared,
+            shape: 0,
+            cursor: None,
+            target: None,
+        };
+        let WireEvent::Preedit { action, shape, .. } = wire_preedit(&cleared) else {
+            panic!("preedit event");
+        };
+        assert_eq!(action, "cleared", "the end names itself");
+        assert_eq!(shape, 0, "the field shows no composing text");
     }
 
     #[test]

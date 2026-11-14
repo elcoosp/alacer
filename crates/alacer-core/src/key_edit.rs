@@ -28,7 +28,15 @@
 //! clipboard's driver — while the round trip keeps the clipboard
 //! trail's fact (ADR-0045): one fact per trail, the chord never
 //! superseded into a typed run's record and never a double-priced
-//! edit; the typing door's notes name the typing door only.
+//! edit; the typing door's notes name the typing door only. Since M62
+//! (ADR-0068) the door's refusals ride the same trail — the record's
+//! [`crate::inspect::KeyEditOutcome`] names the wall (ADR-0064's
+//! second kill rule cashed): the routed edit key a disabled field
+//! ignored and the IME's commit a closed field turned away stream
+//! their ask behind `Refused(unavailable)`, the shape priced at
+//! nothing, the supersede staying the delivered run's fold — a
+//! refusal at the tip supersedes nothing, never a munged delivered
+//! edit.
 //!
 //! The record names its control with the value trail's own stamp
 //! (M43, ADR-0049): the key route and the IME route hold one
@@ -113,6 +121,7 @@ pub fn note_key_edit(record: crate::inspect::KeyEditRecord) {
             target: "alacer::key_edit",
             action = record.action.name(),
             driver = record.driver.name(),
+            outcome = record.outcome.name(),
             replaced = record.replaced,
             inserted = record.inserted,
             coalesced = record.coalesced,
@@ -124,10 +133,16 @@ pub fn note_key_edit(record: crate::inspect::KeyEditRecord) {
             // into its tip, and the trail's last record is the run that
             // tip continues — the same control, driver, and pure
             // insertion, landing exactly where the run's record left
-            // off. The run's record grows; no per-keystroke flood.
+            // off. The run's record grows; no per-keystroke flood. The
+            // supersede is the *delivered* run's fold (M62, ADR-0068):
+            // a refusal at the tip is the wall's own fact — a coalesced
+            // run never merges into the ask the wall turned away (the
+            // munged delivered edit the kill rule refuses), the wall's
+            // record and the run's record tellable apart on one log.
             if record.coalesced
                 && let Some(last) = queue.back_mut()
                 && last.action == crate::inspect::KeyEditAction::Insert
+                && last.outcome == crate::inspect::KeyEditOutcome::Landed
                 && last.driver == record.driver
                 && last.target == record.target
                 && record.selection.focus.checked_sub(record.inserted) == Some(last.selection.focus)
@@ -156,7 +171,7 @@ pub(crate) fn take_key_edit_trail() -> Vec<crate::inspect::KeyEditRecord> {
 #[cfg(test)]
 mod tests {
     use super::{KEY_EDIT_TRAIL_CAP, note_key_edit, take_key_edit_trail};
-    use crate::inspect::{KeyEditAction, KeyEditDriver, KeyEditRecord};
+    use crate::inspect::{KeyEditAction, KeyEditDriver, KeyEditOutcome, KeyEditRecord};
     use crate::widget::TextSelection;
 
     /// The fact one edit carries: a pure insertion of `inserted` units
@@ -171,7 +186,24 @@ mod tests {
             inserted,
             selection: TextSelection::new(caret, caret),
             coalesced,
+            outcome: KeyEditOutcome::Landed,
             target: None,
+        }
+    }
+
+    /// The fact one refusal carries: the ask the open door would have
+    /// answered, the shape priced at nothing (M62, ADR-0068) — the
+    /// selection the untouched one, the fold never riding.
+    fn refused_at(action: KeyEditAction, focus: usize, target: Option<u64>) -> KeyEditRecord {
+        KeyEditRecord {
+            action,
+            driver: KeyEditDriver::Keyboard,
+            replaced: 0,
+            inserted: 0,
+            selection: TextSelection::new(focus, focus),
+            coalesced: false,
+            outcome: KeyEditOutcome::Refused(crate::inspect::KeyEditRefusal::Unavailable),
+            target,
         }
     }
 
@@ -308,6 +340,7 @@ mod tests {
             inserted: 1,
             selection: TextSelection::new(11, 11),
             coalesced: true,
+            outcome: KeyEditOutcome::Landed,
             target: Some(0xBEEF),
         });
         note_key_edit(KeyEditRecord {
@@ -317,6 +350,7 @@ mod tests {
             inserted: 1,
             selection: TextSelection::new(12, 12),
             coalesced: true,
+            outcome: KeyEditOutcome::Landed,
             target: Some(0xFEED),
         });
         let drained = take_key_edit_trail();
@@ -335,6 +369,7 @@ mod tests {
             inserted: 3,
             selection: TextSelection::new(4, 4),
             coalesced: true,
+            outcome: KeyEditOutcome::Landed,
             target: None,
         });
         let drained = take_key_edit_trail();
@@ -369,6 +404,7 @@ mod tests {
             inserted: 3,
             selection: TextSelection::new(5, 5),
             coalesced: true,
+            outcome: KeyEditOutcome::Landed,
             target: None,
         });
         let drained = take_key_edit_trail();
@@ -388,6 +424,7 @@ mod tests {
             inserted: 2,
             selection: TextSelection::new(5, 5),
             coalesced: true,
+            outcome: KeyEditOutcome::Landed,
             target: None,
         });
         note_key_edit(KeyEditRecord {
@@ -397,6 +434,7 @@ mod tests {
             inserted: 2,
             selection: TextSelection::new(7, 7),
             coalesced: true,
+            outcome: KeyEditOutcome::Landed,
             target: None,
         });
         let drained = take_key_edit_trail();
@@ -427,5 +465,83 @@ mod tests {
         assert_eq!(KeyEditDriver::Keyboard.name(), "keyboard");
         assert_eq!(KeyEditDriver::Ime.name(), "ime");
         assert_eq!(KeyEditDriver::Clipboard.name(), "clipboard");
+    }
+
+    /// The outcome vocabulary carries its stable tags too (M62,
+    /// ADR-0068) — the wall's species the value tier's own word, the
+    /// protocol document pins.
+    #[test]
+    fn the_outcomes_carry_their_stable_tags() {
+        use crate::inspect::KeyEditRefusal;
+        assert_eq!(KeyEditOutcome::Landed.name(), "landed");
+        assert_eq!(
+            KeyEditOutcome::Refused(KeyEditRefusal::Unavailable).name(),
+            "refused"
+        );
+        assert_eq!(KeyEditRefusal::Unavailable.name(), "unavailable");
+    }
+
+    /// The wall's fact is its own fact (M62, ADR-0068): a refusal at
+    /// the trail's tip supersedes nothing — a coalesced run whose
+    /// arithmetic would fold (the same control and driver, the caret
+    /// continuing exactly at the refusal's) pushes its own record
+    /// beside the wall's, the munged merge the kill rule refuses. The
+    /// refusal never rides the flood rule either: one fact per ask.
+    #[test]
+    fn the_refusal_supersedes_nothing_and_rides_no_fold() {
+        crate::key_edit::set_key_edit_trail_enabled(true);
+
+        // The wall's record sits at the tip: the backspace the disabled
+        // field turned away.
+        note_key_edit(refused_at(KeyEditAction::Backspace, 0, Some(7)));
+        // A coalesced run arrives whose supersede arithmetic would
+        // match everything but the outcome — the guard holds: two
+        // facts, the wall's and the run's.
+        note_key_edit(KeyEditRecord {
+            action: KeyEditAction::Insert,
+            driver: KeyEditDriver::Keyboard,
+            replaced: 0,
+            inserted: 1,
+            selection: TextSelection::new(1, 1),
+            coalesced: true,
+            outcome: KeyEditOutcome::Landed,
+            target: Some(7),
+        });
+        let drained = take_key_edit_trail();
+        assert_eq!(
+            drained.len(),
+            2,
+            "a refusal never merges into the run that follows it"
+        );
+        assert_eq!(
+            drained[0].outcome,
+            KeyEditOutcome::Refused(crate::inspect::KeyEditRefusal::Unavailable),
+            "the wall's own record, first"
+        );
+        assert_eq!(
+            drained[1].outcome,
+            KeyEditOutcome::Landed,
+            "the delivered run keeps its own record"
+        );
+        crate::key_edit::set_key_edit_trail_enabled(false);
+    }
+
+    /// The stamp rides the refusal (M62, ADR-0068, the M43 rule): the
+    /// wall's fact queued beneath the funnel's guard names the control
+    /// it held — the identity never guessed at the note site.
+    #[test]
+    fn the_stamp_rides_the_refusal() {
+        crate::key_edit::set_key_edit_trail_enabled(true);
+
+        let guard = crate::value::ActionTargetGuard::for_target(Some(0xAB_CDEF));
+        note_key_edit(refused_at(KeyEditAction::Insert, 2, None));
+        drop(guard);
+        let drained = take_key_edit_trail();
+        assert_eq!(
+            drained[0].target,
+            Some(0xAB_CDEF),
+            "the refusal queued beneath the route names the control the wall held"
+        );
+        crate::key_edit::set_key_edit_trail_enabled(false);
     }
 }

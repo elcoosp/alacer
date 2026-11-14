@@ -55,16 +55,6 @@ impl IdPath {
         self.prefix_hashes.last().copied().unwrap_or(0)
     }
 
-    /// The pre-folded hash of the first `depth` segments.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `depth` exceeds the path length.
-    #[must_use]
-    pub fn prefix_hash(&self, depth: usize) -> u64 {
-        self.prefix_hashes[..depth].last().copied().unwrap_or(0)
-    }
-
     /// The raw segments.
     #[must_use]
     pub fn segments(&self) -> &[u64] {
@@ -86,18 +76,7 @@ impl IdPath {
 
 #[cfg(test)]
 mod tests {
-    use super::{IdPath, fold_hash};
-
-    #[test]
-    fn prefix_hashes_are_prefolded_consistently() {
-        let mut path = IdPath::root(7);
-        path.push(42);
-        path.push(99);
-        assert_eq!(path.len(), 3);
-        assert_eq!(path.hash(), path.prefix_hash(3));
-        assert_eq!(path.prefix_hash(2), fold_hash(fold_hash(0, 7), 42));
-        assert_eq!(path.prefix_hash(1), fold_hash(0, 7));
-    }
+    use super::IdPath;
 
     #[test]
     fn distinct_paths_hash_distinctly() {

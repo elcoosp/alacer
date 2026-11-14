@@ -9,6 +9,37 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M55 — the AT's text write joins the causal log (ADR-0061)**:
+  ADR-0046's second kill rule cashed — a consumer needs the input
+  tier's rides priced (a trail reader cannot answer "did the screen
+  reader rewrite this field — what shape, where did the caret land,
+  or why not" from the log alone) — so the input's AT door streams
+  one `TextWriteRecord` per ask: the action beside the outcome
+  (`set_value`/`replace_selection`/`set_selection`, `delivered`/
+  `refused`), the write's shape named by lengths (`replaced`/
+  `inserted`, UTF-16 units — the whole value for a `set_value`, the
+  selection's span for a `replace_selection`) and never the payload
+  (a field's value can carry a secret — the clipboard trail's rule,
+  ADR-0045), the landing selection beside them, the ask beside the
+  landing on the selection door (the M44 rule at the text tier — the
+  forgiving floor and clamp visible as data), and the closed door's
+  refusal streaming too (`unavailable` — the same fact the value
+  tier names, ADR-0028's tier). The record's `target` fills from the
+  routing funnel's own guard (M43, ADR-0049 — the same stamp the
+  value tier's writes and the keyboard's steps stamp from), and the
+  facts ride the tick's start drain into `InspectEvent::TextWrite`
+  (the scroll drain's shape — dev-mode, bounded, silent while nobody
+  listens). The journal's own echoes are untouched: a `set_value`
+  still resets the journal (ADR-0021's rule — the AT's write is an
+  app write, undo never fights it) and the reset still streams. The
+  wire's `text_write` event carries the record flat at version 1
+  (clients that ignore unknown kinds unaffected), the embedded client
+  rendering "the text write landed (11 replaced by 21) — the
+  selection at 21..21" beside the landings, and
+  `examples/at_text_writes.rs` is the consumer demonstration. No new
+  corpus case — the record rides the route the write already rides;
+  the corpus stands at 64, the living documents re-agree at the cut
+  (M55, sixty-two decision records).
 - **M54 — the value step's page joins the scroll record (ADR-0060)**:
   ADR-0058's first kill rule cashed — a consumer needs the step's
   unit named — the value step's page is a unit-like distance a

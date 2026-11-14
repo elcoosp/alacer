@@ -511,6 +511,71 @@ beside the gestures). The queue behind it is bounded (256 facts per
 thread, oldest-first eviction) and the recorder's `scroll` ring holds
 512.
 
+### `text_write` — an AT text write answered
+
+ ("did the screen reader rewrite this field — what shape, where did
+ the caret land, or why not?")
+
+```json
+{
+  "kind":"text_write",
+  "action":"set_value",
+  "outcome":"delivered",
+  "refusal":null,
+  "replaced":11,
+  "inserted":21,
+  "requested":null,
+  "selection":{"anchor":21,"focus":21},
+  "target":7312465530086738955
+}
+```
+
+One event per AT text write (M55, ADR-0061, the price ADR-0046's second
+kill rule pre-registered): the `SetValue`, `ReplaceSelectedText`, or
+`SetTextSelection` a screen reader asked at a field's write door —
+the write's shape named by lengths and never the payload (a field's value
+can carry a secret — the clipboard trail's rule, ADR-0045), the landing
+selection beside the shape, the refusals named. The fields:
+
+- `action` — the text-write action the ask rode: `set_value` (the
+  whole value replaced — the journal resetting beneath it,
+  ADR-0021's rule), `replace_selection` (the selection's span
+  replaced, like a paste the reader made), `set_selection` (the
+  selection moved directly).
+- `outcome` — `delivered` or `refused`.
+- `refusal` — the refusal species on a refused write:
+  `unavailable` (the availability tier's closed door, M22/ADR-0028 —
+  the same fact the value tier names); `null` otherwise.
+- `replaced` — the span the write consumed, in UTF-16 units of the
+  field's value (the whole value for a `set_value`, the selection's
+  span for a `replace_selection`); `null` when the write consumed no
+  span (the selection ask, every refusal).
+- `inserted` — the payload's own length, in UTF-16 units — the
+  payload itself never riding the wire (a field's value can carry a
+  secret, the clipboard trail's rule); `null` when the write carried
+  no payload (the selection ask, every refusal).
+- `requested` — the selection the AT asked for, before the forgiving
+  read side floored or clamped it (the M44 rule at the text tier):
+  `{"anchor":…,"focus":…}` — the ask beside the landing, a clamp the
+  trail could not show visible as data; `null` on the writes that ask
+  with a payload (their shape rides `replaced`/`inserted`) and on
+  every refusal.
+- `selection` — the selection the field carries as the event
+  resolves: the caret the write left, or the field's own untouched
+  selection on a refusal. A field's selection is the tree's own
+  vocabulary the AT already reads, never a secret.
+- `target` — the control the write rode (the funnel's stamp, the M43
+  discipline at the editing tier): the AccessKit-stable id the AT
+  action routed; `null` when the fact rode no route.
+
+The event streams at the tick's start drain — one frame after the
+write, the scroll trail's currency, the drain running after the scroll
+drain (a text write explains the field the reader rewrote; it streams
+beside the scrolls). The queue behind it is bounded (256 facts per
+thread, oldest-first eviction) and the recorder's `text_write` ring
+holds 512. The additive event the versioning rule admits at version 1
+— clients that ignore unknown kinds are unaffected.
+
 ### `frame` — a completed frame
 
  ("why is this frame slow?", "what did this mask touch?")

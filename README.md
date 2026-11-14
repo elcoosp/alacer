@@ -86,7 +86,7 @@ cargo test --workspace                                          # headless: real
 > `ALACER_SOFTWARE=1` presents through softbuffer — the platform honors it at startup
 > (`BackendPreference::software_env`) whichever backend the app asked for; any other value is
 > refused with a named warning, never guessed. CI and the headless tests already run this path:
-> no mock renderer, no mock event loop. The full 49-example catalog is [below](#examples).
+> no mock renderer, no mock event loop. The full 50-example catalog is [below](#examples).
 
 ## How it works
 
@@ -203,7 +203,8 @@ the same trail — one record per _fact_, never per event:
 | **Scroll** (M50–M54)        | ask — wheel, AT, app door                     | the landed offset, the wall the clamp pinned, the asker's **unit** (item/page — the step's page rides beside the step species too), the wheel's priced **run** (one line = 40 px); `no_scrollable_content` / `non_finite_ask` refused before corruption                                     | 0056/0058           |
 | **Content clamp** (M51)     | resize that shrank content under the offset   | the wall it pinned — no ask (a resize is not an ask), no route; resizes the offset never felt queue nothing                                                                                                                                                                                | 0057                |
 | **Text write** (M55/M56)    | write at a field's door — the AT's or the app's | the shape named by **lengths** (`replaced`/`inserted`, UTF-16 units — never the payload: a field's value can carry a secret), the landing selection, the ask beside the landing on the selection door, `unavailable` refused honestly, the **door** the write rode (`at_door`/`app_door`) | 0061/0062           |
-| **Route drop** (M57)        | ask the boundary dropped before any widget's door | the dropped action's stable tag beside the species (`unknown_action`/`no_payload`/`off_target_selection`/`unknown_target`) and the aimed id, verbatim — never a munged widget-door fact                                                                                                                | 0063                |
+| **Route drop** (M57)        | ask the boundary dropped before any widget's door | the dropped action's stable tag beside the species (`unknown_action`/`no_payload`/`off_target_selection`/`unknown_target`/`no_focused_field`) and the aimed id, verbatim — never a munged widget-door fact                                                                                                                | 0063                |
+| **Key edit** (M58)          | edit the typing door landed — the keyboard's keys, the IME's commit | the change's shape named by **lengths** (`replaced`/`inserted`, UTF-16 units — never the payload), the landing selection, the driver (`keyboard`/`ime`), the journal's fold — a coalesced typed run landing as **one** record (the flood rule), the clipboard chords riding their own trail | 0064                |
 
 The trail's growth, milestone by milestone: Since M50 the scroll answers on the log too — the
 wheel, the AT's unit scrolls and value steps, and the app's own door stream the landed offset
@@ -217,7 +218,11 @@ beside it. Since M56 the app's own text writes name their door too — the imper
 door the view reconciliation's patches ride) streams the same record with `source: app_door`, so
 the log answers "did the screen reader rewrite this field, or did the app" from one row. Since M57 the boundary's drops stream their fact too — the unknown action, the payloadless write, the
 off-target selection and the unknown target ride one `RouteDrop` record each, the action's tag
-beside the species and the aimed id, never a munged widget-door fact. Widget-own doors stay off the value log until a consumer prices them (ADR-0046's
+beside the species and the aimed id, never a munged widget-door fact. Since M58 the typing door's
+edits stream their fact too — a typed run, a backspace, a word chord, a committed composition ride
+one `KeyEdit` record each, the shape named by lengths, the driver beside it, and the journal's own
+fold bounding a typed run to one record (the flood rule: N keystrokes in one run = one row). Since M59 the route's other silence names its drop too — the IME event no live field held (a committed composition with nowhere to land) rides one `RouteDrop` record with the `no_focused_field` species, the event's tag beside it, the aim riding its honest absence.
+ Widget-own doors stay off the value log until a consumer prices them (ADR-0046's
 kill rule); every trail is bounded and silent when nobody listens.
 
 ## Input & hot reload
@@ -278,7 +283,7 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `inspector_demo`                                     | the counter with the Causality inspector at `127.0.0.1:9217`                     |
 | `todo` / `data_table`                                | the canons: a11y tree, record/replay, grid slots, keyboard navigation            |
 
-<details><summary><b>48 examples, grouped (49 ship; recording live in the catalog)</b></summary>
+<details><summary><b>49 examples, grouped (50 ship; recording live in the catalog)</b></summary>
 
 **Start here**
 
@@ -311,6 +316,7 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `at_text_writes` | the M55 AT text write driven from the consumer side: the selection ask beside its landing, the paste-shaped replacement priced by lengths, the whole-value rewrite with the journal reset beneath it, the locked field refusing honestly |
 | `app_text_writes` | the M56 app door driven from the consumer side: the mutate seam's whole-value write beside the AT's ask on one log, the doors tellable apart by the record's `source`, the journal's reset streaming beneath the write |
 | `route_drops` | the M57 boundary driven from the consumer side: the ask aimed at an unknown target names its drop (the species beside the aimed id), the delivered ask beside it streaming nothing — the honest absence |
+| `key_edits` | the M58 typing door driven from the consumer side: the typed run named as one fact (the flood rule), the backspace's span, the word chord's species, the IME's commit named by its driver, the app door's write beside them streaming nothing — the honest absence |
 | `announcements` | polite and assertive speech acts, the honest refusal, the status line mirroring the live region |
 | `announce_trail` | one `Announce` record per answered act — superseded facts beside the survivor |
 

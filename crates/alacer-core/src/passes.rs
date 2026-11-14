@@ -797,10 +797,11 @@ impl PassPipeline {
     /// the doors and the same drain).
     /// Replaces any previous observer. Installing one also enables the
     /// edit trail, the announcement trail, the text-write trail
-    /// (ADR-0061), and the preedit trail (ADR-0067): the journal, the
-    /// push route, the AT's editing tier, and the composing tier note
-    /// their facts on this thread from here on, and the disabled paths
-    /// stay one branch per action.
+    /// (ADR-0061), the preedit trail (ADR-0067), and the a11y-echo
+    /// trail (ADR-0073): the journal, the push route, the AT's editing
+    /// tier, the composing tier, and the adapter tier note their facts
+    /// on this thread from here on, and the disabled paths stay one
+    /// branch per action.
     pub fn set_observer(&mut self, observer: Box<dyn InspectObserver>) {
         self.observer = Some(observer);
         crate::history::set_edit_trail_enabled(true);
@@ -813,6 +814,7 @@ impl PassPipeline {
         crate::route_drop::set_route_drop_trail_enabled(true);
         crate::key_edit::set_key_edit_trail_enabled(true);
         crate::preedit::set_preedit_trail_enabled(true);
+        crate::a11y_echo::set_a11y_echo_trail_enabled(true);
     }
 
     /// Enables per-pass wall timing and the overhead ledger (the M1 gate
@@ -1736,6 +1738,20 @@ impl PassPipeline {
         }
     }
 
+    /// Forwards one adapter-echo fact to the observer, when installed
+    /// (§13.3, ADR-0073): the a11y trail — the full-tree echo the a11y
+    /// tier answered a connect with, the tree named by its node count.
+    /// The record is the sink's own fact verbatim
+    /// ([`crate::inspect::A11yEchoRecord`]), streamed at the tick's
+    /// start drain ahead of the frame's routes — a connect predates the
+    /// asks. One branch when no observer is installed: the A7 idle
+    /// contract is unchanged.
+    fn notify_a11y_echo(&mut self, record: crate::inspect::A11yEchoRecord) {
+        if let Some(observer) = self.observer.as_mut() {
+            observer.observe(InspectEvent::A11yEcho(record));
+        }
+    }
+
     /// Forwards one speech-act fact to the observer, when installed
     /// (§13.3, ADR-0039): the announcement trail — the record the
     /// pipeline answered the act with, the politeness beside it. The
@@ -2151,6 +2167,19 @@ impl PassPipeline {
     )]
     pub fn tick(&mut self, viewport: Size) -> Result<FrameReport, LayoutError> {
         let total_start = self.timings.then(std::time::Instant::now);
+
+        // The a11y-echo drain (§13.3, ADR-0073): the adapter tier's facts
+        // — the full-tree echo a connect or reconnect answered — ride the
+        // observer at the tick's start, ahead of the frame's routes: a
+        // connect predates the asks the frame carries, and the echo
+        // explains the tree those asks answer into (the echo reads
+        // first, the routes beside it). Every fact streams (a bounded
+        // queue, never collapsed), and the drain empties the queue
+        // whether an observer listens or not: a fact streams once, an
+        // absent reader just never sees it.
+        for record in crate::a11y_echo::take_a11y_echo_trail() {
+            self.notify_a11y_echo(record);
+        }
 
         // Frame-batched input (§10.2, ADR-0014): the queued storm coalesces
         // and routes here, before the ledger is taken — its event passes are
@@ -2700,11 +2729,11 @@ impl PassPipeline {
             if *cached == style {
                 continue;
             }
-            // `clip_overflow` paints (viewport clipping); the rest is layout.
+            // `clip_overflow` paints (viewport clipping); any other style
+            // diff is layout — the reason flag the branch split already
+            // carries (the pre-M25 sweep's dead comparison removed: the
+            // normalized clone was computed and discarded every frame).
             let paint_diff = cached.clip_overflow != style.clip_overflow;
-            let mut layout_only = cached.clone();
-            layout_only.clip_overflow = style.clip_overflow;
-            let _ = layout_only != style; // reason flag: any style diff invalidates layout
             let change = if paint_diff {
                 Change::LAYOUT.union(Change::PAINT)
             } else {

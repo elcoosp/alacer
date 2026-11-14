@@ -113,7 +113,10 @@ pub enum WireEvent {
     /// A journal action answered — the edit trail (ADR-0037): the
     /// applied step, the refused chord, or the app's reset, the depths
     /// beside it. Additive at version 1 (the rider field's rule):
-    /// clients that ignore unknown kinds are unaffected.
+    /// clients that ignore unknown kinds are unaffected. Since M66
+    /// (ADR-0072) the event carries the field the journal serves
+    /// (`target` — the M43 stamp rule at the journal tier; `null` when
+    /// the journal answered outside any route, the app's direct rides).
     Edit {
         /// The action the journal answered (`record`, `undo`, `redo`,
         /// `reset`).
@@ -128,6 +131,10 @@ pub enum WireEvent {
         undo_depth: usize,
         /// The redo branch's depth when the fact streamed.
         redo_depth: usize,
+        /// The field the journal serves (M66, ADR-0072): the
+        /// AccessKit-stable id the routed event arrived under; `null`
+        /// when no route held the stamp (the direct rides).
+        target: Option<u64>,
     },
     /// A speech act answered — the announcement trail (ADR-0039): the
     /// delivered act, the superseded act, or the named refusal, the
@@ -422,15 +429,28 @@ pub enum WireEvent {
     /// record rides flat (the additive rule ADR-0010 names): the
     /// dropped action's stable tag beside the drop's species and the
     /// aimed id — clients that ignore unknown kinds are unaffected.
+    /// Since M65 (ADR-0071) the event carries the rider beside the
+    /// species — the route that dropped the ask (`boundary`, `funnel`,
+    /// `ime_route`) — and the species vocabulary grows the split
+    /// silence (`dead_focus`, the dead focused node's drop priced
+    /// apart from the never-focused one), the additive fields the
+    /// versioning rule admits at version 1.
     RouteDrop {
         /// The dropped action's stable tag (`set_value`, `focus`, …)
         /// — the platform vocabulary's own name for what arrived.
         action: String,
         /// Why the boundary dropped the ask (`unknown_action`,
         /// `no_payload`, `off_target_selection`, `unknown_target`,
-        /// `no_focused_field` — the route's own silences, the IME
-        /// event no live field held joining at M59/ADR-0065).
+        /// `no_focused_field`, `dead_focus` — the route's own
+        /// silences, the IME event no live field held joining at
+        /// M59/ADR-0065 and the dead focused node's drop splitting at
+        /// M65/ADR-0071).
         species: String,
+        /// Which route dropped the ask (M65, ADR-0071): `boundary`
+        /// (the platform's mapping arms), `funnel` (the dispatch
+        /// funnel's refusal), or `ime_route` (the composing event no
+        /// live field held).
+        rider: String,
         /// The id the request aimed at, verbatim — the identity the
         /// AT's client correlates against the tree it believes
         /// exists; `null` when the boundary had no aim to name.
@@ -727,7 +747,10 @@ pub const fn edit_action_name(action: EditAction) -> &'static str {
 }
 
 /// Converts a core [`EditRecord`] into the wire event: the journal's own
-/// fact, flat on the wire (ADR-0037).
+/// fact, flat on the wire (ADR-0037). Since M66 (ADR-0072) the event
+/// carries the field the journal serves beside the depths — the M43
+/// stamp rule at the journal tier, the honest absence on the direct
+/// rides.
 #[must_use]
 pub fn wire_edit(record: &EditRecord) -> WireEvent {
     WireEvent::Edit {
@@ -736,6 +759,7 @@ pub fn wire_edit(record: &EditRecord) -> WireEvent {
         refused: record.refused,
         undo_depth: record.undo_depth,
         redo_depth: record.redo_depth,
+        target: record.target,
     }
 }
 
@@ -921,13 +945,17 @@ pub fn wire_text_write(record: &alacer_core::inspect::TextWriteRecord) -> WireEv
 }
 
 /// The route-drop record, flat on the wire (M57, ADR-0063): the
-/// dropped action's stable tag beside the drop's species and the aimed
-/// id — the boundary's own answer, never a munged widget-door fact.
+/// dropped action's stable tag beside the drop's species, the rider,
+/// and the aimed id — the boundary's own answer, never a munged
+/// widget-door fact. Since M65 (ADR-0071) the rider rides beside the
+/// species — the route that dropped the ask, named where the drop
+/// resolved.
 #[must_use]
 pub fn wire_route_drop(record: &alacer_core::inspect::RouteDropRecord) -> WireEvent {
     WireEvent::RouteDrop {
         action: record.action.to_string(),
         species: record.species.name().to_string(),
+        rider: record.rider.name().to_string(),
         target: record.target,
     }
 }
@@ -1137,6 +1165,9 @@ mod tests {
         assert_eq!(masks, "layout+paint");
     }
 
+    /// M66 (ADR-0072, this cut): the journal's echo names its field —
+    /// the additive `target` beside the depths (the M43 stamp rule at
+    /// the journal tier), the honest absence on the direct rides.
     #[test]
     fn edit_events_carry_the_journal_vocabulary() {
         let event = wire_edit(&EditRecord {
@@ -1145,11 +1176,12 @@ mod tests {
             refused: false,
             undo_depth: 1,
             redo_depth: 0,
+            target: Some(0xAB_CD),
         });
         let json = serde_json::to_string(&event).expect("edit json");
         assert_eq!(
             json,
-            r#"{"kind":"edit","action":"record","coalesced":true,"refused":false,"undo_depth":1,"redo_depth":0}"#,
+            r#"{"kind":"edit","action":"record","coalesced":true,"refused":false,"undo_depth":1,"redo_depth":0,"target":43981}"#,
             "the documented edit shape (the focus event's flat rule)"
         );
         let WireEvent::Edit {
@@ -1158,6 +1190,7 @@ mod tests {
             refused,
             undo_depth,
             redo_depth,
+            target,
         } = event
         else {
             panic!("edit event");
@@ -1166,6 +1199,27 @@ mod tests {
         assert!(coalesced);
         assert!(!refused);
         assert_eq!((undo_depth, redo_depth), (1, 0));
+        assert_eq!(
+            target,
+            Some(0xAB_CD),
+            "the field the journal serves rides beside the depths (M66)"
+        );
+
+        let direct = wire_edit(&EditRecord {
+            action: EditAction::Record,
+            coalesced: false,
+            refused: false,
+            undo_depth: 1,
+            redo_depth: 0,
+            target: None,
+        });
+        let WireEvent::Edit { target, .. } = direct else {
+            panic!("edit event");
+        };
+        assert_eq!(
+            target, None,
+            "a ride no funnel routed carries no field — the honest absence"
+        );
     }
 
     #[test]
@@ -1176,6 +1230,7 @@ mod tests {
             refused: true,
             undo_depth: 0,
             redo_depth: 0,
+            target: None,
         });
         let WireEvent::Edit {
             action, refused, ..
@@ -2086,18 +2141,22 @@ mod tests {
 
     /// M57 (ADR-0063, this cut): the boundary's drop rides its own
     /// flat event — the action's tag beside the species and the aimed
-    /// id, never a munged widget-door fact.
+    /// id, never a munged widget-door fact. Since M65 (ADR-0071) the
+    /// event carries the rider beside the species — the route that
+    /// dropped the ask — and the split silence rides its own tag.
     #[test]
     fn route_drop_events_carry_the_boundarys_fact() {
-        use alacer_core::inspect::{RouteDropRecord, RouteDropSpecies};
+        use alacer_core::inspect::{RouteDropRecord, RouteDropRider, RouteDropSpecies};
         let aimed_nowhere = RouteDropRecord {
             action: "set_value",
             species: RouteDropSpecies::UnknownTarget,
+            rider: RouteDropRider::Funnel,
             target: Some(0xDEAD_BEEF),
         };
         let WireEvent::RouteDrop {
             action,
             species,
+            rider,
             target,
         } = wire_route_drop(&aimed_nowhere)
         else {
@@ -2109,6 +2168,10 @@ mod tests {
             "the species names why the boundary refused"
         );
         assert_eq!(
+            rider, "funnel",
+            "the rider names the route that dropped the ask (M65)"
+        );
+        assert_eq!(
             target,
             Some(0xDEAD_BEEF),
             "the aim the boundary refused, verbatim"
@@ -2117,12 +2180,35 @@ mod tests {
         let payloadless = RouteDropRecord {
             action: "replace_selected_text",
             species: RouteDropSpecies::NoPayload,
+            rider: RouteDropRider::Boundary,
             target: Some(0xAB_CD),
         };
-        let WireEvent::RouteDrop { species, .. } = wire_route_drop(&payloadless) else {
+        let WireEvent::RouteDrop { species, rider, .. } = wire_route_drop(&payloadless) else {
             panic!("route_drop event");
         };
         assert_eq!(species, "no_payload");
+        assert_eq!(rider, "boundary", "the mapping arms name the boundary");
+
+        let dead_focus = RouteDropRecord {
+            action: "ime_commit",
+            species: RouteDropSpecies::DeadFocus,
+            rider: RouteDropRider::ImeRoute,
+            target: None,
+        };
+        let WireEvent::RouteDrop {
+            species, target, ..
+        } = wire_route_drop(&dead_focus)
+        else {
+            panic!("route_drop event");
+        };
+        assert_eq!(
+            species, "dead_focus",
+            "the dead focused node's drop rides its own tag (M65)"
+        );
+        assert_eq!(
+            target, None,
+            "the IME route's silence carries no aim — the drop is the missing field"
+        );
     }
 
     /// M58 (ADR-0064, this cut): the typing door's edit rides its own

@@ -427,11 +427,48 @@ pub enum WireEvent {
         /// — the platform vocabulary's own name for what arrived.
         action: String,
         /// Why the boundary dropped the ask (`unknown_action`,
-        /// `no_payload`, `off_target_selection`, `unknown_target`).
+        /// `no_payload`, `off_target_selection`, `unknown_target`,
+        /// `no_focused_field` — the route's own silences, the IME
+        /// event no live field held joining at M59/ADR-0065).
         species: String,
         /// The id the request aimed at, verbatim — the identity the
         /// AT's client correlates against the tree it believes
         /// exists; `null` when the boundary had no aim to name.
+        target: Option<u64>,
+    },
+    /// A typing-door edit answered — the key-edit trail (M58,
+    /// ADR-0064): the character the keyboard typed, the composition
+    /// the IME committed, the unit or word a chord deleted. The
+    /// record rides flat (the additive rule ADR-0010 names): the
+    /// edit's shape named by lengths — the payload itself never rides
+    /// the wire (a field's value can carry a secret, the clipboard
+    /// trail's rule, ADR-0045) — beside the landing selection, the
+    /// driver, and the journal's fold.
+    KeyEdit {
+        /// What the typing door did (`insert`, `backspace`, `delete`,
+        /// `word_delete_back`, `word_delete_forward` — the field's own
+        /// editing vocabulary, the M11 edit rule's actions).
+        action: String,
+        /// Who drove the edit (`keyboard`, `ime` — the M30 attribution
+        /// rule at the typing tier).
+        driver: String,
+        /// The span the edit consumed, in UTF-16 units of the field's
+        /// value; `0` on a pure insertion.
+        replaced: usize,
+        /// The payload's own length, in UTF-16 units; `0` on a pure
+        /// deletion. The shape named by its size — a coalesced typed
+        /// run's record carries the run's total.
+        inserted: usize,
+        /// The selection the field carries as the edit resolves — the
+        /// caret the edit left, anchor collapsed onto it.
+        selection: WireSelection,
+        /// Whether the journal folded the edit into its tip — the
+        /// flood rule's own bit: a typed run of N keystrokes streams
+        /// one record whose shape is the run's.
+        coalesced: bool,
+        /// The control the edit rode (the funnel's stamp, the M43
+        /// rule at the typing tier); `null` when the fact rode no
+        /// route (the app's direct mutate seam).
         target: Option<u64>,
     },
     /// A completed frame — the ledger + the mask heatmap.
@@ -852,6 +889,28 @@ pub fn wire_route_drop(record: &alacer_core::inspect::RouteDropRecord) -> WireEv
     WireEvent::RouteDrop {
         action: record.action.to_string(),
         species: record.species.name().to_string(),
+        target: record.target,
+    }
+}
+
+/// The key-edit record, flat on the wire (M58, ADR-0064): the typing
+/// door's edit named by lengths beside the landing selection and the
+/// driver — the payload itself never rides the wire (a field's value
+/// can carry a secret, the clipboard trail's rule, ADR-0045), the
+/// shape naming itself the way the clipboard's count names the round
+/// trip.
+#[must_use]
+pub fn wire_key_edit(record: &alacer_core::inspect::KeyEditRecord) -> WireEvent {
+    WireEvent::KeyEdit {
+        action: record.action.name().to_string(),
+        driver: record.driver.name().to_string(),
+        replaced: record.replaced,
+        inserted: record.inserted,
+        selection: WireSelection {
+            anchor: record.selection.anchor,
+            focus: record.selection.focus,
+        },
+        coalesced: record.coalesced,
         target: record.target,
     }
 }
@@ -1999,6 +2058,66 @@ mod tests {
             panic!("route_drop event");
         };
         assert_eq!(species, "no_payload");
+    }
+
+    /// M58 (ADR-0064, this cut): the typing door's edit rides its own
+    /// flat event — the shape named by lengths (never the payload), the
+    /// landing selection and the driver beside it, the journal's fold
+    /// naming the coalesced run.
+    #[test]
+    fn key_edit_events_carry_the_typing_doors_fact() {
+        use alacer_core::inspect::{KeyEditAction, KeyEditDriver, KeyEditRecord};
+        use alacer_core::widget::TextSelection;
+        let typed = KeyEditRecord {
+            action: KeyEditAction::Insert,
+            driver: KeyEditDriver::Keyboard,
+            replaced: 0,
+            inserted: 3,
+            selection: TextSelection::new(3, 3),
+            coalesced: true,
+            target: Some(0xAB_CD),
+        };
+        let WireEvent::KeyEdit {
+            action,
+            driver,
+            replaced,
+            inserted,
+            selection,
+            coalesced,
+            target,
+        } = wire_key_edit(&typed)
+        else {
+            panic!("key_edit event");
+        };
+        assert_eq!(action, "insert", "the field's own editing vocabulary");
+        assert_eq!(driver, "keyboard", "the M30 rule at the typing tier");
+        assert_eq!(replaced, 0, "a typed run consumed no span");
+        assert_eq!(inserted, 3, "the run's shape, the fold's total");
+        assert_eq!(selection.anchor, 3, "the landing's anchor");
+        assert_eq!(selection.focus, 3, "the landing's caret");
+        assert!(coalesced, "the flood rule's own bit rides");
+        assert_eq!(target, Some(0xAB_CD), "the funnel's stamp beside");
+
+        let chord = KeyEditRecord {
+            action: KeyEditAction::WordDeleteForward,
+            driver: KeyEditDriver::Keyboard,
+            replaced: 6,
+            inserted: 0,
+            selection: TextSelection::new(2, 2),
+            coalesced: false,
+            target: None,
+        };
+        let WireEvent::KeyEdit {
+            action, replaced, ..
+        } = wire_key_edit(&chord)
+        else {
+            panic!("key_edit event");
+        };
+        assert_eq!(
+            action, "word_delete_forward",
+            "the word chord is never a munged Delete"
+        );
+        assert_eq!(replaced, 6, "the span the chord consumed");
     }
 
     #[test]

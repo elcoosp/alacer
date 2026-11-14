@@ -1406,6 +1406,65 @@ impl KeyEditAction {
     }
 }
 
+/// Why the typing door refused an edit (M62, ADR-0068): the wall's own
+/// species, the value tier's refusal vocabulary ([`ValueRefusal`],
+/// ADR-0046) named at the typing tier. A refusal prices the *ask* —
+/// the edit an open door would have answered — never a delivered
+/// shape, and never a munge onto the landing selection it left
+/// untouched.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KeyEditRefusal {
+    /// The availability tier's wall (M22, ADR-0028): the field is held
+    /// down, the routed edit key ignored so the framework keeps it
+    /// (Tab cycling), the IME's commit landing nowhere. The value
+    /// tier's own species (`unavailable` — the tag the AT tier's
+    /// closed door streams, ADR-0027) at the typing tier.
+    Unavailable,
+}
+
+impl KeyEditRefusal {
+    /// The refusal's name, the wire vocabulary's `snake_case` tag (the
+    /// protocol's stable, documented field values).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Unavailable => "unavailable",
+        }
+    }
+}
+
+/// What the typing door answered one edit (M62, ADR-0068): the record
+/// is the edit's own outcome (the value trail's own refusal
+/// vocabulary, [`ValueOutcome`]'s shape at the typing tier) — the
+/// edit landed with the shape the record prices, or the door refused
+/// with its named species and the shape priced at nothing. The M58
+/// records all landed; the field is the additive default (the wire
+/// rule ADR-0010 names), never a munged delivered edit — a refusal
+/// behind a delivered shape would double the ask the wall never
+/// answered.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KeyEditOutcome {
+    /// The edit landed: the shape the record prices (`replaced` /
+    /// `inserted`) is the field's own change (the M58 shape).
+    Landed,
+    /// The door moved nothing — [`KeyEditRefusal`] names the species,
+    /// the shape priced at nothing (the value and the selection
+    /// untouched).
+    Refused(KeyEditRefusal),
+}
+
+impl KeyEditOutcome {
+    /// The outcome's name, the wire vocabulary's `snake_case` tag (the
+    /// protocol's stable, documented field values).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Landed => "landed",
+            Self::Refused(_) => "refused",
+        }
+    }
+}
+
 /// One typing-door edit's record (M58, ADR-0064): the causal log's
 /// answer to "what did the typist change in this field". The journal's
 /// own [`EditRecord`] streams the depths the edit left; this record
@@ -1417,8 +1476,14 @@ impl KeyEditAction {
 /// name their field changes here too — the paste's shape and the cut's
 /// span behind their own actions and driver — while the round trip
 /// keeps the clipboard trail's fact (one fact per trail, never a
-/// double-priced edit). `Copy` like the records beside it: lengths, a
-/// selection, a driver, an action, a bit, an id.
+/// double-priced edit). Since M62 (ADR-0068) the record names what the
+/// door answered — the landed edit or the wall's refusal ([`KeyEditOutcome`],
+/// ADR-0064's second kill rule cashed): the routed edit key a disabled
+/// field ignored and the IME's commit a closed field turned away
+/// stream their ask behind the wall's species, the shape priced at
+/// nothing, never a munged delivered edit. `Copy` like the records
+/// beside it: lengths, a selection, a driver, an action, an outcome, a
+/// bit, an id.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct KeyEditRecord {
     /// What the typing door did.
@@ -1436,8 +1501,15 @@ pub struct KeyEditRecord {
     /// The selection the field carries as the edit resolves — the
     /// caret the edit left, anchor collapsed onto it (the M11 edit
     /// rule). A field's selection is the tree's own vocabulary the AT
-    /// already reads, never a secret.
+    /// already reads, never a secret. On a refusal the selection is
+    /// the untouched one — the wall moved nothing.
     pub selection: crate::widget::TextSelection,
+    /// What the door answered (M62, ADR-0068): the landed edit or the
+    /// wall's refusal (the value trail's own vocabulary, ADR-0046) —
+    /// the ask the open door would have answered named by its action,
+    /// the shape priced at nothing on a refusal, never a munged
+    /// delivered edit.
+    pub outcome: KeyEditOutcome,
     /// Whether the journal folded this edit into its tip (the
     /// pure-append rule, ADR-0021) — the flood rule's own bit: the
     /// trail supersedes the run's record so N keystrokes in one

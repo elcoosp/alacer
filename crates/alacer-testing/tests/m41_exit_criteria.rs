@@ -334,12 +334,12 @@ fn m41_the_living_documents_re_agree_at_m41() {
     // pins moving M41 → M43 and 48 → 50 across the chain — M42 and
     // M43 landing in one cut).
     assert!(
-        readme.contains("M0 through M55") && readme.contains("sixty-two decision records"),
+        readme.contains("M0 through M57") && readme.contains("sixty-four decision records"),
         "the README's status block and count re-agree at M43"
     );
     assert!(
-        architecture.contains("62 decision records"),
-        "the architecture register re-agrees at 62 decision records"
+        architecture.contains("64 decision records"),
+        "the architecture register re-agrees at 64 decision records"
     );
     // The protocol document carries the engine fact (the wire's
     // documented shape).

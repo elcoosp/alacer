@@ -148,7 +148,13 @@ impl TrailLog {
     /// holding it).
     #[must_use]
     pub fn look(&self) -> Vec<InspectEvent> {
-        self.inner.lock().expect("trail lock").ring.clone().into()
+        self.inner
+            .lock()
+            .expect("trail lock")
+            .ring
+            .iter()
+            .cloned()
+            .collect()
     }
 
     /// The window's tip — the newest fact — without disturbing the

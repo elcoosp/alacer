@@ -29,6 +29,24 @@
       "op": ">=",
       "budget": 2.0,
       "cite": "architecture \u00a711.1 item 4 (never a full-tree rebuild per frame \u2014 the egui cost we refuse), ADR-0015; the M9 shape drains the sink's dirty-only delta where the pre-M9 window rebuilt the whole tree per a11y frame"
+    },
+    {
+      "id": "trail_reader_overhead",
+      "metric": "median_ratio",
+      "numerator": "trail/reader_announce_100_1k",
+      "denominator": "announce/route_100_announcements_1k",
+      "op": "<=",
+      "budget": 2.0,
+      "cite": "architecture \u00a718 M63 exit gate, ADR-0069: the provided reader installed on the announce route costs at most 2\u00d7 the unobserved route \u2014 the trail rides the observe branch an installed observer already pays (A7), never a re-price of the route itself"
+    },
+    {
+      "id": "trail_tee_overhead",
+      "metric": "median_ratio",
+      "numerator": "trail/tee_announce_100_1k",
+      "denominator": "announce/route_100_announcements_1k",
+      "op": "<=",
+      "budget": 2.5,
+      "cite": "architecture \u00a718 M64 exit gate, ADR-0070: two doors behind the tee cost at most 2.5\u00d7 the unobserved route \u2014 each door rides the observe branch the slot already pays (A7), the fan-out never a second pass over the route"
     }
   ],
   "regressions": [
@@ -355,6 +373,21 @@
     {
       "id": "w5_memo_cold_10_sources",
       "baseline": "w5/memo_cold_10_sources",
+      "scope": "same-host"
+    },
+    {
+      "id": "trail_reader_announce_100_1k",
+      "baseline": "trail/reader_announce_100_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "trail_ring_fill_drain_1024",
+      "baseline": "trail_ring/fill_drain_1024",
+      "scope": "same-host"
+    },
+    {
+      "id": "trail_tee_announce_100_1k",
+      "baseline": "trail/tee_announce_100_1k",
       "scope": "same-host"
     }
   ],

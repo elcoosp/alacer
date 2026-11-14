@@ -642,7 +642,9 @@ impl TextInput {
     /// the deletion it drives lands — the trail reads clipboard → edit,
     /// the causal order the cut ran. The cut never rides the copy funnel:
     /// a cut that streamed a copy fact and a cut fact would double the
-    /// round trip in the log.
+    /// round trip in the log. Since M60 (ADR-0066) the deletion itself
+    /// names the typing door's fact beside the round trip — the chord's
+    /// own action and driver, one fact per trail.
     fn cut(&mut self) -> bool {
         if !self.has_selection() {
             alacer_core::clipboard::note_round_trip(alacer_core::ClipboardRecord {
@@ -688,8 +690,19 @@ impl TextInput {
             read: None,
             chars,
         });
-        let (from, to) = self.selection_span();
-        self.edit(from, to, "");
+        // The field's own change (M60, ADR-0066): the deletion the cut
+        // drove notes the typing door's fact beside the round trip —
+        // the chord's own action and driver, the span priced by
+        // lengths (the causal order the cut ran: clipboard → edit, the
+        // round trip's fact first). Never a munged Delete and never a
+        // second clipboard fact: one fact per trail.
+        let landed = self.selection_span();
+        let edit = self.edit(landed.0, landed.1, "");
+        self.note_key_edit(
+            alacer_core::KeyEditAction::Cut,
+            alacer_core::KeyEditDriver::Clipboard,
+            edit,
+        );
         true
     }
 
@@ -707,6 +720,9 @@ impl TextInput {
     /// the *read* names the species, a paste that refused for the
     /// *field* (a payload that sanitized to nothing) carries the read's
     /// absence — the M39 collapse split, one verdict and two facts.
+    /// Since M60 (ADR-0066) the insertion itself names the typing
+    /// door's fact beside the round trip — the chord's own action and
+    /// driver, the shape priced by lengths, one fact per trail.
     fn paste(&mut self) -> bool {
         // The engine's reported read (M42, ADR-0048): the read-side fact
         // rides the record beside the round trip's verdict — the log
@@ -751,7 +767,19 @@ impl TextInput {
             read: None,
             chars,
         });
-        self.insert(&sanitized);
+        // The field's own change (M60, ADR-0066): the insertion the
+        // paste drove notes the typing door's fact beside the round
+        // trip — the chord's own action and driver, both spans priced
+        // by lengths (never the payload: a field's value can carry a
+        // secret, the clipboard trail's rule, ADR-0045). Never a munged
+        // Insert and never a second clipboard fact: one fact per
+        // trail.
+        let edit = self.insert(&sanitized);
+        self.note_key_edit(
+            alacer_core::KeyEditAction::Paste,
+            alacer_core::KeyEditDriver::Clipboard,
+            edit,
+        );
         true
     }
     /// The key's editing outcome: `(changed, consumed)` — whether value or
@@ -1380,10 +1408,34 @@ impl Widget for TextInput {
             // A11Y rides the request (M11): the field's composing state is
             // part of its accessible state — the selection report drops
             // while the IME owns the canvas, and re-arms after commit.
+            // Since M61 (ADR-0067) the composing state notes the
+            // preedit trail's fact — the composition's inline shape
+            // named by lengths (never the payload), the platform's
+            // cursor inside it beside it — one live session riding as
+            // one record (the flood rule at the composing tier), while
+            // a commit's landing keeps its own key-edit fact (M58,
+            // ADR-0064): one fact per trail.
             ImeEvent::Preedit { text, cursor_utf16 } => {
                 if text.is_empty() {
+                    // The session dissolved with no landing — the end
+                    // names itself (the honest `0`); a clear with no
+                    // live session behind it answers no fact.
+                    if self.preedit.is_some() {
+                        alacer_core::preedit::note_preedit(alacer_core::PreeditRecord {
+                            action: alacer_core::PreeditAction::Cleared,
+                            shape: 0,
+                            cursor: None,
+                            target: None,
+                        });
+                    }
                     self.preedit = None;
                 } else {
+                    alacer_core::preedit::note_preedit(alacer_core::PreeditRecord {
+                        action: alacer_core::PreeditAction::Composing,
+                        shape: utf16::len_utf16(text),
+                        cursor: *cursor_utf16,
+                        target: None,
+                    });
                     self.preedit = Some((text.clone(), *cursor_utf16));
                 }
                 ctx.request(alacer_core::Change::PAINT.union(alacer_core::Change::A11Y));

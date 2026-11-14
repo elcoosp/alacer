@@ -928,26 +928,105 @@ impl Widget for TextInput {
         // input's contract — refused, never munged into an edit.
         // The availability tier (M22, ADR-0028): an unavailable input has
         // no write door — the AT's edit is refused honestly, never munged.
+        // Since M55 (ADR-0061) every text write the AT asks streams one
+        // [`alacer_core::TextWriteRecord`] — the answer's own species
+        // where the `bool` collapsed the closed door and the answered
+        // write into one silence, the refusal streaming too (the value
+        // trail's shape, ADR-0046), the write's shape named by lengths
+        // and never the payload (a field's value can carry a secret —
+        // the clipboard trail's rule, ADR-0045).
+        let tier = match action {
+            A11yAction::SetValue(_) => alacer_core::TextWriteAction::SetValue,
+            A11yAction::ReplaceSelectedText(_) => alacer_core::TextWriteAction::ReplaceSelection,
+            A11yAction::SetTextSelection(_) => alacer_core::TextWriteAction::SetSelection,
+            A11yAction::DefaultPress
+            | A11yAction::Increment
+            | A11yAction::Decrement
+            | A11yAction::ScrollUp(_)
+            | A11yAction::ScrollDown(_) => return false,
+        };
         if !self.enabled {
+            // The closed door's fact: the availability tier refused the
+            // write before arithmetic (M22, ADR-0028) — the shape rides
+            // the honest absence, the field's own selection untouched
+            // beside it, the funnel's stamp naming the control the ask
+            // arrived under (M43, ADR-0049).
+            alacer_core::text_write::note_text_write(alacer_core::TextWriteRecord {
+                action: tier,
+                outcome: alacer_core::TextWriteOutcome::Refused(
+                    alacer_core::TextWriteRefusal::Unavailable,
+                ),
+                replaced: None,
+                inserted: None,
+                requested: None,
+                selection: TextSelection::new(self.anchor_utf16, self.caret_utf16),
+                target: None,
+            });
             return false;
         }
         match action {
             A11yAction::SetValue(value) => {
+                // The whole-value write: the value the field carried is
+                // the span the write consumed — the lengths name the
+                // shape, the payload never rides the log — and the
+                // journal resets beneath it (ADR-0021's reset rule: the
+                // AT's write is an app write, undo never fights it).
+                let replaced = utf16::len_utf16(&self.text);
                 self.set_value(value);
+                alacer_core::text_write::note_text_write(alacer_core::TextWriteRecord {
+                    action: tier,
+                    outcome: alacer_core::TextWriteOutcome::Delivered,
+                    replaced: Some(replaced),
+                    inserted: Some(utf16::len_utf16(&self.text)),
+                    requested: None,
+                    selection: TextSelection::new(self.anchor_utf16, self.caret_utf16),
+                    target: None,
+                });
                 true
             }
             A11yAction::ReplaceSelectedText(value) => {
+                // The paste-shaped write: the selection's span is the
+                // span the write consumed, the payload's own length
+                // beside it — the caret parks at the insertion's end
+                // with the anchor collapsed onto it (the edit funnel's
+                // own rule, ADR-0021).
+                let (from, to) = self.selection_span();
+                let replaced = to - from;
                 self.insert(&value);
+                alacer_core::text_write::note_text_write(alacer_core::TextWriteRecord {
+                    action: tier,
+                    outcome: alacer_core::TextWriteOutcome::Delivered,
+                    replaced: Some(replaced),
+                    inserted: Some(utf16::len_utf16(&value)),
+                    requested: None,
+                    selection: TextSelection::new(self.anchor_utf16, self.caret_utf16),
+                    target: None,
+                });
                 true
             }
             A11yAction::SetTextSelection(selection) => {
                 // Forgiving read side: offsets floor to scalar boundaries
                 // and clamp to the value's end, exactly like the IME's.
+                // The ask rides beside the landing (the M44 rule,
+                // ADR-0050, at the text tier): a floor or clamp the
+                // trail could not show is one record's story now, the
+                // write's shape riding the honest absence (a selection
+                // consumes no span, inserts nothing).
                 let len = utf16::len_utf16(&self.text);
                 self.anchor_utf16 = utf16::floor_boundary(&self.text, selection.anchor.min(len));
                 self.caret_utf16 = utf16::floor_boundary(&self.text, selection.focus.min(len));
+                alacer_core::text_write::note_text_write(alacer_core::TextWriteRecord {
+                    action: tier,
+                    outcome: alacer_core::TextWriteOutcome::Delivered,
+                    replaced: None,
+                    inserted: None,
+                    requested: Some(selection),
+                    selection: TextSelection::new(self.anchor_utf16, self.caret_utf16),
+                    target: None,
+                });
                 true
             }
+            // The tier match above routed the rest; unreachable here.
             _ => false,
         }
     }

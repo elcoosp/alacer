@@ -659,14 +659,22 @@ the drivers' records never merge. Since M60
 (ADR-0066) the clipboard chords' field changes stream here too —
 `paste`/`cut` behind the `clipboard` driver, the round trip keeping
 the clipboard trail's fact (one fact per trail, never a
-double-priced edit); the AT's and app's writes ride
-`text_write` — the doors tellable apart on one log.
+double-priced edit); since M62 (ADR-0068) the record names what the
+door answered — the landed edit or the wall's refusal (the routed
+edit key a disabled field ignored, the IME's commit a closed field
+turned away, the ask named by the open door's own match, the window
+the availability tier's own — the M22 eviction bounds it, the
+boundary's post-eviction silence the route's own); the AT's and
+app's writes ride `text_write` — the doors tellable apart on one
+log.
 
 ```json
 {
   "kind": "key_edit",
   "action": "insert",
   "driver": "keyboard",
+  "outcome": "landed",
+  "refusal": null,
   "replaced": 0,
   "inserted": 3,
   "selection": { "anchor": 3, "focus": 3 },
@@ -687,6 +695,17 @@ Fields:
 - `driver` — who drove the edit: `keyboard` (the keyboard's own keys),
   `ime` (the committed composition), `clipboard` (the paste and cut
   chords, M60, ADR-0066) — the M30 attribution rule at the typing tier.
+- `outcome` — what the door answered: `landed` (the edit the shape
+  prices, the M58 record) or `refused` (the closed field's wall,
+  M62, ADR-0068 — the value trail's own refusal vocabulary, ADR-0046,
+  at the typing tier). A refusal prices the *ask*: the action and
+  driver the open door would have answered, the shape priced at
+  nothing, the selection the untouched one — never a munged delivered
+  edit.
+- `refusal` — the refusal's species when the door refused:
+  `unavailable` (the availability tier's wall, M22, ADR-0028 — the
+  tag the AT tier's closed door streams, ADR-0027); `null` on a
+  landing.
 - `replaced` — the span the edit consumed, in UTF-16 units of the
   field's value; `0` on a pure insertion.
 - `inserted` — the payload's own length, in UTF-16 units; `0` on a
@@ -709,7 +728,9 @@ streams beside the doors' facts and the boundary's). The queue behind
 it is bounded (256 facts per thread, oldest-first eviction) and the
 recorder's `key_edit` ring holds 512. The additive event the
 versioning rule admits at version 1 — clients that ignore unknown
-kinds are unaffected.
+kinds are unaffected; the M62 `outcome`/`refusal` fields are
+additive fields on the same event (the protocol's own rule), never a
+new kind.
 
 
 ### `preedit` — a composing state answered ("what is the field showing while the IME composes?")

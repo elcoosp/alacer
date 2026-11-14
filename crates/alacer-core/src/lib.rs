@@ -48,6 +48,7 @@ pub mod history;
 pub mod identity;
 pub mod input;
 pub mod inspect;
+pub mod key_edit;
 pub mod keymap;
 pub mod mask;
 pub mod num;
@@ -78,10 +79,11 @@ pub use input::EventCoalescer;
 pub use inspect::{
     BindingId, ClipboardAction, ClipboardOutcome, ClipboardRecord, ClipboardRefusal, DirtyNode,
     EdgeActivation, FocusRecord, FocusRider, FrameSummary, GesturePhase, GestureRecord, InputKind,
-    InputRecord, InspectEvent, InspectObserver, KeyRecord, PassTiming, RangeBound, RouteDropRecord,
-    RouteDropSpecies, ScrollAction, ScrollOutcome, ScrollRecord, ScrollRefusal, SignalKey,
-    SignalWrite, TextWriteAction, TextWriteOutcome, TextWriteRecord, TextWriteRefusal,
-    TextWriteSource, ValueAction, ValueOutcome, ValueRecord, ValueRefusal,
+    InputRecord, InspectEvent, InspectObserver, KeyEditAction, KeyEditDriver, KeyEditRecord,
+    KeyRecord, PassTiming, RangeBound, RouteDropRecord, RouteDropSpecies, ScrollAction,
+    ScrollOutcome, ScrollRecord, ScrollRefusal, SignalKey, SignalWrite, TextWriteAction,
+    TextWriteOutcome, TextWriteRecord, TextWriteRefusal, TextWriteSource, ValueAction,
+    ValueOutcome, ValueRecord, ValueRefusal,
 };
 pub use keymap::{Chord, Keymap, KeymapConsult, KeymapSeam};
 pub use mask::Change;
@@ -116,8 +118,8 @@ pub mod prelude {
     pub use crate::flux::{Flux, RenderBinding};
     pub use crate::geom::{Point, Rect, Size, Vector};
     pub use crate::inspect::{
-        ClipboardRecord, GestureRecord, InspectEvent, InspectObserver, KeyRecord, ScrollRecord,
-        TextWriteRecord, ValueRecord,
+        ClipboardRecord, GestureRecord, InspectEvent, InspectObserver, KeyEditRecord, KeyRecord,
+        ScrollRecord, TextWriteRecord, ValueRecord,
     };
     pub use crate::keymap::{Chord, Keymap, KeymapConsult, KeymapSeam};
     pub use crate::mask::Change;

@@ -9,6 +9,53 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M59 — the IME's boundary drops join the route-drop vocabulary
+  (ADR-0065)**: ADR-0063's first kill rule cashed — a consumer needs
+  the platform's other silences on the log (an IME event no live
+  field held dropped with only a consumed `Ignored` verdict — "my
+  IME committed; where did the text go" was unanswerable from the
+  log alone) — so the route's own vocabulary grows the species:
+  `RouteDropSpecies::NoFocusedField` (`no_focused_field`) — the
+  event named by its stable tag (`ime_preedit`/`ime_commit`), the
+  aimed id riding its honest absence (the boundary had no aim to
+  name — the drop *is* the missing field), a delivered commit never
+  riding a drop record (the M57 rule's honest absence), no new trail
+  and no new wire kind (the record rides the M57 route-drop trail,
+  the `route_drop` event's species field carrying the new value at
+  version 1, the client's prose rendering the echo unchanged),
+  `examples/route_drops.rs` walking the fourth beat, no new corpus
+  case (the corpus stands at 65), the living documents re-agree
+- **M58 — the typing door's edits join the causal log (ADR-0064)**:
+  ADR-0062's first kill rule cashed — a consumer needs the
+  keyboard's and IME's edits on the log (a trail reader cannot
+  answer "what did the typist change in this field" from the log
+  alone: the journal streamed its depths, the AT's and app's doors
+  their own `TextWriteRecord`s, and the typing door nothing) — so
+  the edit stream grows its own per-change record beside the
+  journal's: one `KeyEditRecord` per typing-door edit — the action
+  named by the field's own editing vocabulary (`insert`,
+  `backspace`, `delete`, `word_delete_back`, `word_delete_forward` —
+  the word chords never munged onto the unit deletes they mirror),
+  the driver named (`keyboard`/`ime`, the M30 rule at the typing
+  tier), the change's shape named by lengths (`replaced`/`inserted`,
+  UTF-16 units — never the payload: a field's value can carry a
+  secret, ADR-0011), the landing selection beside them, and the
+  journal's own fold riding the record — the flood rule the
+  journal's fold: `EditHistory::record` answers whether it
+  coalesced, the trail superseding a coalesced run's record in
+  place (N keystrokes in one pure-append run land as one record,
+  the drivers' records never merging), the clipboard chords riding
+  the clipboard trail (one fact per trail), a no-op door answering
+  no fact, the trail the text-write trail's shape (bounded 256, the
+  tick's start drain after the route-drop drain), the IME route
+  holding the funnel's stamp (the key route's own discipline since
+  M45), the wire carrying the additive `key_edit` event at version
+  1, the embedded client rendering "the keyboard insert (0 replaced
+  by 3) — the selection at 3..3 — the journal folded the run",
+  `examples/key_edits.rs` the consumer demonstration, one new corpus
+  case (`editing/route_100_key_edits_1k` — the corpus stands at 65,
+  the regression gate and the baseline published, the m-suite pins
+  re-agreed), the living documents re-agree
 - **M57 — the boundary's drops join the causal log (ADR-0063)**:
   ADR-0061's third kill rule cashed — a consumer needs the
   platform's defensive drops on the log (a trail reader cannot
@@ -338,7 +385,8 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
   "asked 150, landed 100" as data. `None` is the honest absence: the
   unparsable payload, the door refused before arithmetic, the ask
   itself non-finite (JSON cannot carry it — the species names the
-  wall).- **M42 — the clipboard read names its facts (ADR-0048)**: ADR-0047's
+  wall).
+- **M42 — the clipboard read names its facts (ADR-0048)**: ADR-0047's
   third re-open rule cashed — a consumer needs the read side's facts
   the paste's `None` collapsed (the empty clipboard, the non-text
   payload, the unopenable clipboard) so the seam's read door grows

@@ -48,7 +48,13 @@
 //! journal queues on the calling thread and the dispatching pipeline
 //! drains — the input queue's shape (ADR-0014): push now, the tick
 //! routes, one frame. An action queued with no pipeline anywhere still
-//! terminates: the bound evicts, never the app's memory.
+//! terminates: the bound evicts, never the app's memory. Since M66
+//! (ADR-0072) the echo names its field — ADR-0037's second kill rule
+//! cashed: the record grows the M43 stamp
+//! (`crate::value::ActionTargetGuard`'s own answer, the crate-private
+//! guard), the key route's
+//! and the AT action route's guard filling the field a multi-field log
+//! could not name, the app's direct rides carrying the honest absence.
 
 use crate::inspect::EditRecord;
 use crate::utf16;
@@ -168,11 +174,22 @@ pub(crate) fn set_edit_trail_enabled(enabled: bool) {
 
 /// Notes one journal fact on this thread's trail (the journal's side of
 /// the seam): a no-op while the trail is disabled, an oldest-evicting
-/// push while it rides.
+/// push while it rides. Since M66 (ADR-0072) a record whose `target`
+/// the journal left `None` is stamped with the id the route's guard
+/// held — the field's identity riding beside the event's routing, never
+/// guessed at the note site (the value trail's own stamp, ADR-0049's
+/// rule at the journal tier); a record queued outside any route rides
+/// its honest absence, and a dropped guard leaves no stale identity.
 fn note(record: EditRecord) {
     TRAIL_ENABLED.with(|enabled| {
         if !enabled.get() {
             return;
+        }
+        // The stamp side (M43, ADR-0049; M66, ADR-0072): the route's
+        // guard answers the *who* the journal cannot know.
+        let mut record = record;
+        if record.target.is_none() {
+            record.target = crate::value::action_target();
         }
         tracing::trace!(
             target: "alacer::history",
@@ -277,6 +294,7 @@ impl EditHistory {
             refused: false,
             undo_depth: self.undo.len(),
             redo_depth: 0,
+            target: None,
         });
         coalesced
     }
@@ -313,6 +331,7 @@ impl EditHistory {
                 refused: true,
                 undo_depth: 0,
                 redo_depth: self.redo.len(),
+                target: None,
             });
             return None;
         };
@@ -329,6 +348,7 @@ impl EditHistory {
             refused: false,
             undo_depth: self.undo.len(),
             redo_depth: self.redo.len(),
+            target: None,
         });
         Some(entry.selection_before)
     }
@@ -346,6 +366,7 @@ impl EditHistory {
                 refused: true,
                 undo_depth: self.undo.len(),
                 redo_depth: 0,
+                target: None,
             });
             return None;
         };
@@ -358,6 +379,7 @@ impl EditHistory {
             refused: false,
             undo_depth: self.undo.len(),
             redo_depth: self.redo.len(),
+            target: None,
         });
         Some(entry.selection_after)
     }
@@ -374,6 +396,7 @@ impl EditHistory {
             refused: false,
             undo_depth: 0,
             redo_depth: 0,
+            target: None,
         });
     }
 
@@ -598,6 +621,7 @@ mod tests {
                 refused: false,
                 undo_depth: 1,
                 redo_depth: 0,
+                target: None,
             },
             "the first keystroke opens the step"
         );
@@ -614,11 +638,52 @@ mod tests {
                 refused: false,
                 undo_depth: 0,
                 redo_depth: 1,
+                target: None,
             },
             "the undo names the depth it left"
         );
         assert_eq!(trail[3].action, EditAction::Redo);
         assert_eq!(trail[3].undo_depth, 1, "redo re-pushes the step");
+    }
+
+    /// The stamp side (M66, ADR-0072): the echo the journal queues
+    /// beneath the route's guard names the field the event rode — the
+    /// identity the journal cannot know filled where the route holds
+    /// it, the direct ride beside it carrying the honest absence.
+    #[test]
+    fn the_route_stamp_names_the_field_and_the_absence_holds() {
+        crate::history::set_edit_trail_enabled(true);
+
+        // Beneath a guard: the journal's `None` becomes the routed id.
+        let guard = crate::value::ActionTargetGuard::for_target(Some(0xAB_CDEF));
+        let mut history = EditHistory::new();
+        let mut text = String::new();
+        edit(&mut history, &mut text, 0, 0, "stamped");
+        drop(guard);
+        let trail = crate::history::take_edit_trail();
+        assert_eq!(
+            trail[0].target,
+            Some(0xAB_CDEF),
+            "the fact queued beneath the route names the field the event rode"
+        );
+
+        // Outside a guard: the direct ride's honest absence.
+        let mut direct = EditHistory::new();
+        edit(&mut direct, &mut text, 0, 0, "direct");
+        let trail = crate::history::take_edit_trail();
+        assert_eq!(
+            trail[0].target, None,
+            "a ride no funnel routed carries no field"
+        );
+
+        // A dropped guard leaves no stale identity: the next fact is
+        // unstamped.
+        let guard = crate::value::ActionTargetGuard::for_target(Some(1));
+        drop(guard);
+        edit(&mut history, &mut text, 0, 0, "after");
+        let trail = crate::history::take_edit_trail();
+        assert_eq!(trail[0].target, None, "the guard's drop cleared the stamp");
+        crate::history::set_edit_trail_enabled(false);
     }
 
     #[test]
@@ -660,6 +725,7 @@ mod tests {
                 refused: false,
                 undo_depth: 0,
                 redo_depth: 0,
+                target: None,
             },
             "the reset names the emptied journal"
         );

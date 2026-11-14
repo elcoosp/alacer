@@ -514,12 +514,29 @@ function connect() {
         // "what did the typist change" from the row alone. A
         // coalesced typed run rides one row (the flood rule): the
         // lengths are the run's, the fold named on the record.
-        const who = event.driver === "ime" ? "the IME's commit" : "the keyboard";
+        const who = event.driver === "ime" ? "the IME's commit"
+          : event.driver === "clipboard" ? "the clipboard's chord" : "the keyboard";
         const shape = " (" + event.replaced + " replaced by " + event.inserted + ")";
         const landed = "the selection at " + event.selection.anchor + ".." + event.selection.focus;
         const run = event.coalesced ? " — the journal folded the run" : "";
         addLog("key_edit", "key_edit " + event.action,
           who + " landed" + shape + " — " + landed + run +
+          (event.target != null ? " (at " + event.target + ")" : ""));
+        break;
+      }
+      case "preedit": {
+        // The client renders the preedit echo (M61, ADR-0067): the
+        // composing state lands in the log pane beside the other
+        // trails — the composition's inline shape named by its length
+        // (never the payload: a field's value can carry a secret), the
+        // platform's preedit-local cursor beside it, so a reader
+        // answers "what is the field showing while the IME composes"
+        // from the row alone. A live session rides one row (the flood
+        // rule at the composing tier).
+        const cursor = event.cursor != null ? " — the cursor at " + event.cursor : "";
+        addLog("preedit", "preedit " + event.action,
+          (event.action === "cleared" ? "the composing state cleared (shape 0)"
+            : "the composition shows (shape " + event.shape + ")") + cursor +
           (event.target != null ? " (at " + event.target + ")" : ""));
         break;
       }

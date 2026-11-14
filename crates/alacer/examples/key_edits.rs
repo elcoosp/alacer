@@ -19,8 +19,10 @@
 //! them streaming nothing — the honest absence (the app's write is
 //! the text-write trail's fact, the doors tellable apart). The
 //! clipboard chords ride the clipboard trail — the round trip is that
-//! trail's fact, the typing door streams none. Then the window opens
-//! for live play. `ALACER_SOFTWARE=1` forces the softbuffer path.
+//! trail's fact — and since M60 their field changes name their own
+//! facts beside it (the paste's shape, the cut's span, the chord's
+//! driver; ADR-0066). Then the window opens for live play.
+//! `ALACER_SOFTWARE=1` forces the softbuffer path.
 
 use alacer::pipeline_default;
 use alacer::platform::BackendPreference;
@@ -52,6 +54,7 @@ fn describe(record: alacer_core::KeyEditRecord) -> String {
     let who = match record.driver {
         KeyEditDriver::Keyboard => "the keyboard",
         KeyEditDriver::Ime => "the IME's commit",
+        KeyEditDriver::Clipboard => "the clipboard's chord",
     };
     let fold = if record.coalesced {
         " — the journal folded the run"

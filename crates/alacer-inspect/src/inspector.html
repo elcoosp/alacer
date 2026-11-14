@@ -513,9 +513,19 @@ function connect() {
         // selection and the driver beside it, so a reader answers
         // "what did the typist change" from the row alone. A
         // coalesced typed run rides one row (the flood rule): the
-        // lengths are the run's, the fold named on the record.
+        // lengths are the run's, the fold named on the record. Since
+        // M62 (ADR-0068) the closed field's wall rides the same trail —
+        // the ask the availability tier turned away named by its
+        // action and driver, the species beside the refusal, the
+        // shape priced at nothing (the field's value untouched).
         const who = event.driver === "ime" ? "the IME's commit"
           : event.driver === "clipboard" ? "the clipboard's chord" : "the keyboard";
+        if (event.outcome === "refused") {
+          addLog("key_edit", "key_edit " + event.action,
+            who + " refused — the wall held (" + (event.refusal || "refused") + ")" +
+            (event.target != null ? " (at " + event.target + ")" : ""));
+          break;
+        }
         const shape = " (" + event.replaced + " replaced by " + event.inserted + ")";
         const landed = "the selection at " + event.selection.anchor + ".." + event.selection.focus;
         const run = event.coalesced ? " — the journal folded the run" : "";

@@ -1265,6 +1265,11 @@ pub enum RouteDropSpecies {
     /// The ask was routed to an id no tree node carries — the funnel's
     /// own defensive drop, refused before any widget's door.
     UnknownTarget,
+    /// The event rode no route at all — no field held focus (or the
+    /// focused node has gone), so the ask dropped before any widget's
+    /// door (M59, ADR-0065): the IME's committed composition, the
+    /// platform's other silence, named where the boundary refuses.
+    NoFocusedField,
 }
 
 impl RouteDropSpecies {
@@ -1277,6 +1282,7 @@ impl RouteDropSpecies {
             Self::NoPayload => "no_payload",
             Self::OffTargetSelection => "off_target_selection",
             Self::UnknownTarget => "unknown_target",
+            Self::NoFocusedField => "no_focused_field",
         }
     }
 }
@@ -1304,6 +1310,116 @@ pub struct RouteDropRecord {
     /// client correlates against the tree it believes exists. `None`
     /// when the boundary had no aim to name (an ask with no target at
     /// all).
+    pub target: Option<u64>,
+}
+
+/// Who drove the edit the typing door landed (M58, ADR-0064): the
+/// M30 attribution rule at the editing tier's typing door. The
+/// keyboard's own keys and the IME's commits both ride the field's
+/// one edit funnel, and a trail reader can only price a typed run
+/// against a committed composition when the record names its driver.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KeyEditDriver {
+    /// The keyboard's own keys — a typed character, the editing keys.
+    Keyboard,
+    /// The IME's committed composition — the preedit the field showed
+    /// landing as final text.
+    Ime,
+}
+
+impl KeyEditDriver {
+    /// The driver's name, the wire vocabulary's `snake_case` tag (the
+    /// protocol's stable, documented field values).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Keyboard => "keyboard",
+            Self::Ime => "ime",
+        }
+    }
+}
+
+/// What the typing door did to the field's value (M58, ADR-0064): the
+/// editing actions the keyboard's keys and the IME's commits carry,
+/// named where the edit resolves. Every species is the field's own
+/// edit vocabulary — never a munge onto the AT's action tier (a typed
+/// character is not a `SetValue`, the record is the typing door's, not
+/// the action route's) and never a collapse of the word chords into
+/// the single-unit deletes they mirror.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KeyEditAction {
+    /// Text landed at the caret (or onto the selection it consumed) —
+    /// a typed character, an IME's committed composition.
+    Insert,
+    /// The text before the caret (or the active selection) went — the
+    /// Backspace key, one unit or one scalar value at a time.
+    Backspace,
+    /// The text after the caret (or the active selection) went — the
+    /// forward Delete key.
+    Delete,
+    /// The word run behind the caret went — the Ctrl/Alt+Backspace
+    /// word chord (ADR-0019).
+    WordDeleteBack,
+    /// The word run ahead of the caret went — the Ctrl/Alt+Delete
+    /// word chord, the mirror of [`KeyEditAction::WordDeleteBack`].
+    WordDeleteForward,
+}
+
+impl KeyEditAction {
+    /// The action's name, the wire vocabulary's `snake_case` tag (the
+    /// protocol's stable, documented field values).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Insert => "insert",
+            Self::Backspace => "backspace",
+            Self::Delete => "delete",
+            Self::WordDeleteBack => "word_delete_back",
+            Self::WordDeleteForward => "word_delete_forward",
+        }
+    }
+}
+
+/// One typing-door edit's record (M58, ADR-0064): the causal log's
+/// answer to "what did the typist change in this field". The journal's
+/// own [`EditRecord`] streams the depths the edit left; this record
+/// rides beside it with the change's *shape* — the UTF-16 spans the
+/// edit consumed and inserted, never the payload (a field's value can
+/// carry a secret, the clipboard trail's rule, ADR-0045) — the landing
+/// selection, the driver who wrote it, and whether the journal folded
+/// the edit into its tip. The clipboard chords' edits keep their own
+/// trails (the round trip is the clipboard record's fact, the depths
+/// the journal's) — the typing door was the silence, and this is its
+/// named vocabulary. `Copy` like the records beside it: lengths, a
+/// selection, a driver, an action, a bit, an id.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct KeyEditRecord {
+    /// What the typing door did.
+    pub action: KeyEditAction,
+    /// Who drove the edit — the keyboard's keys or the IME's commit.
+    pub driver: KeyEditDriver,
+    /// The span the edit consumed, in UTF-16 units of the field's
+    /// value — an active selection's span, the deleted unit's run; `0`
+    /// on a pure insertion. The shape named by its size — the payload
+    /// itself never rides the log.
+    pub replaced: usize,
+    /// The payload's own length, in UTF-16 units — the insertion's
+    /// size beside the span it consumed; `0` on a pure deletion.
+    pub inserted: usize,
+    /// The selection the field carries as the edit resolves — the
+    /// caret the edit left, anchor collapsed onto it (the M11 edit
+    /// rule). A field's selection is the tree's own vocabulary the AT
+    /// already reads, never a secret.
+    pub selection: crate::widget::TextSelection,
+    /// Whether the journal folded this edit into its tip (the
+    /// pure-append rule, ADR-0021) — the flood rule's own bit: the
+    /// trail supersedes the run's record so N keystrokes in one
+    /// coalesced run land as one fact, never a per-keystroke flood.
+    pub coalesced: bool,
+    /// The control the edit rode (the funnel's stamp, the M43 rule at
+    /// the typing tier — ADR-0049): the AccessKit-stable id the key
+    /// route held; `None` when the fact rode no route (the app's
+    /// direct mutate seam) or the route holds no stamp.
     pub target: Option<u64>,
 }
 
@@ -1384,6 +1500,15 @@ pub enum InspectEvent {
     /// drain's shape — the fact queues where the route refuses, one
     /// frame after the drop).
     RouteDrop(RouteDropRecord),
+    /// A typing-door edit answered — the key-edit trail (ADR-0064): the
+    /// character the keyboard typed, the composition the IME committed,
+    /// the unit or word a chord deleted — the change's shape named by
+    /// lengths beside the landing selection and the driver who wrote it,
+    /// a coalesced typed run landing as one record (the flood rule).
+    /// Streams with the frame's own records (the tick's start drain, the
+    /// route-drop drain's shape — the fact queues where the edit
+    /// resolves, one frame after the key).
+    KeyEdit(KeyEditRecord),
     /// A frame completed — the frame's causal summary.
     Frame(FrameSummary),
 }

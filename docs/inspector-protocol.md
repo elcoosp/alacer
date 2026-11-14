@@ -590,9 +590,10 @@ The boundary route's own refusal vocabulary (M57, ADR-0063, the price
 ADR-0061's third kill rule pre-registered): the asks the boundary
 dropped before any widget's door — the action no widget contract
 answers, the `SetValue`/`ReplaceSelectedText` whose payload the request
-never carried, the `SetTextSelection` aimed at another node, and the
-dispatch funnel's ask aimed at an id no tree node carries — stream one
-flat record each. A drop never rides a widget-door record (no door ever
+never carried, the `SetTextSelection` aimed at another node, the
+dispatch funnel's ask aimed at an id no tree node carries, and — since
+M59 (ADR-0065) — the IME event no live field held (a committed
+composition with nowhere to land) — stream one flat record each. A drop never rides a widget-door record (no door ever
 answered, and a munged one would be the lie the kill rule refuses): the
 action is named by its stable `snake_case` tag — the platform
 vocabulary's own name for what arrived (`A11yAction::name` answers the
@@ -621,7 +622,11 @@ Fields:
   carry), `off_target_selection` (a `SetTextSelection` aimed at
   another node — the single-node selection contract, ADR-0017),
   `unknown_target` (the dispatch funnel's ask aimed at an id no tree
-  node carries).
+  node carries), `no_focused_field` (M59, ADR-0065: the IME event no
+  live field held — no field has focus, or the focused node has gone;
+  the `action` rides the event's own tag `ime_preedit`/`ime_commit`,
+  and `target` rides its honest absence — the boundary had no aim to
+  name).
 - `target` — the id the request aimed at, verbatim: the identity the
   AT's client correlates against the tree it believes exists; `null`
   when the boundary had no aim to name.
@@ -634,6 +639,74 @@ facts per thread, oldest-first eviction) and the recorder's
 `route_drop` ring holds 512. The additive event the versioning rule
 admits at version 1 — clients that ignore unknown kinds are
 unaffected.
+
+### `key_edit` — a typing-door edit answered
+
+ ("what did the typist change in this field?")
+
+The typing door's own record (M58, ADR-0064, the price ADR-0062's
+first kill rule pre-registered): the edits the keyboard's keys and the
+IME's commits landed at a field — a typed character, the unit the
+backspace consumed, the word the chord took, the composition the IME
+committed — stream one flat record each. The journal's `edit` event
+streams the depths the edit left; this record rides beside it with the
+change's *shape*: named by lengths (`replaced`/`inserted`, UTF-16
+units) — never the payload (a field's value can carry a secret, the
+clipboard trail's rule, ADR-0045) — the landing selection beside it,
+the driver who wrote it, and the journal's own fold. The flood rule is
+the journal's fold: a coalesced typed run lands as one record whose
+shape is the run's (N keystrokes in one pure-append run = one row) —
+an edit the journal kept as its own step pushes its own record, and
+the drivers' records never merge. The clipboard chords' edits ride the
+clipboard trail (one fact per trail); the AT's and app's writes ride
+`text_write` — the doors tellable apart on one log.
+
+```json
+{
+  "kind": "key_edit",
+  "action": "insert",
+  "driver": "keyboard",
+  "replaced": 0,
+  "inserted": 3,
+  "selection": { "anchor": 3, "focus": 3 },
+  "coalesced": true,
+  "target": 3735928559
+}
+```
+
+Fields:
+
+- `action` — what the typing door did: `insert` (a typed character, an
+  IME's committed composition), `backspace` (the unit or selection
+  before the caret), `delete` (the unit or selection after it),
+  `word_delete_back` / `word_delete_forward` (the Ctrl/Alt word
+  chords, ADR-0019 — never a munge onto the unit deletes they mirror).
+- `driver` — who drove the edit: `keyboard` (the keyboard's own keys),
+  `ime` (the committed composition) — the M30 attribution rule at the
+  typing tier.
+- `replaced` — the span the edit consumed, in UTF-16 units of the
+  field's value; `0` on a pure insertion.
+- `inserted` — the payload's own length, in UTF-16 units; `0` on a
+  pure deletion. A coalesced typed run's record carries the run's
+  total.
+- `selection` — the selection the field carries as the edit resolves:
+  the caret the edit left, anchor collapsed onto it (the M11 edit
+  rule).
+- `coalesced` — whether the journal folded the edit into its tip: the
+  flood rule's own bit, the fold named on the record.
+- `target` — the control the edit rode (the funnel's stamp, the M43
+  rule at the typing tier — the key route's and, since M58, the IME
+  route's own guard); `null` when the fact rode no route (the app's
+  direct mutate seam).
+
+The event streams at the tick's start drain — one frame after the
+edit, the route-drop drain's currency, the drain running after the
+route-drop drain (a key edit explains the field the typist changed; it
+streams beside the doors' facts and the boundary's). The queue behind
+it is bounded (256 facts per thread, oldest-first eviction) and the
+recorder's `key_edit` ring holds 512. The additive event the
+versioning rule admits at version 1 — clients that ignore unknown
+kinds are unaffected.
 
 ### `frame` — a completed frame
 

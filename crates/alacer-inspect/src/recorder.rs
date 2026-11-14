@@ -624,6 +624,7 @@ mod tests {
                 refused: false,
                 undo_depth: 1,
                 redo_depth: 0,
+                target: None,
             }));
         }
         let edits = recorder.edits();
@@ -642,6 +643,7 @@ mod tests {
             refused: true,
             undo_depth: 0,
             redo_depth: 0,
+            target: None,
         }));
         let drained = recorder.take_broadcast();
         let last = drained.last().expect("the refusal broadcast");

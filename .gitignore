@@ -1,20 +1,16 @@
 # Build artifacts
 /target
-
 # Editor debris
 *.swp
 *.swo
 .idea/
 .vscode/
 *.orig
-
 # OS debris
 .DS_Store
-
 # Competitor harness build artifacts (standalone projects, ADR-0013)
 benchmarks/competitors/*/target
 __pycache__/
-
 # The operator's local release runner and its generated PR body (never tracked)
 ship.sh
 ship.toml

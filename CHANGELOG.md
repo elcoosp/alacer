@@ -9,6 +9,75 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M57 — the boundary's drops join the causal log (ADR-0063)**:
+  ADR-0061's third kill rule cashed — a consumer needs the
+  platform's defensive drops on the log (a trail reader cannot
+  answer "the AT asked; why did no door ever answer" from the log
+  alone) — so the boundary route grows its own refusal vocabulary:
+  one `RouteDropRecord` per drop — the dropped action named by its
+  stable `snake_case` tag (`A11yAction::name` in core, the
+  boundary's `action_tag` beside it), the species naming why the
+  boundary refused (`unknown_action`, `no_payload`,
+  `off_target_selection`, `unknown_target`), and the aimed id
+  riding verbatim — never re-resolved against the tree (a
+  re-resolved aim would be the funnel's answer, not the AT's ask),
+  and never a munged widget-door fact (no door ever answered —
+  ADR-0016's faithful-mapping rule and ADR-0017's single-node
+  selection contract are the refusals the species name). The four
+  drop sites join the trail: `map_action_request`'s three mapping
+  arms in `alacer-platform` and the dispatch funnel's own
+  unknown-target refusal in `PassPipeline::dispatch_a11y_action`
+  (the consumed `false` verdict the m10 contract pins, byte for
+  byte, beside the fact that now explains it). The trail is the
+  text-write trail's shape (thread-local, bounded at 256,
+  oldest-first eviction, the A7 idle contract — one branch per
+  drop, the drops the cold path outside the frame's hot loops),
+  the facts draining at the tick's start after the text-write
+  drain into `InspectEvent::RouteDrop`. The wire's `route_drop`
+  event carries the record flat at version 1 (clients that ignore
+  unknown kinds unaffected), the embedded client rendering
+  "dropped: unknown_target (aimed at …)" beside the other trails,
+  and `examples/route_drops.rs` is the consumer demonstration (the
+  funnel's drop through the real dispatch route, the delivered ask
+  beside it streaming nothing — the honest absence). No new
+  corpus case — the record rides no measured route and runs
+  outside the frame's hot paths; the corpus stands at 64, the
+  living documents re-agree at the cut (M57, sixty-four decision
+  records).
+- **M56 — the app's text write joins the causal log (ADR-0062)**:
+  ADR-0061's second kill rule cashed — a consumer needs the app's
+  own writes attributed (a trail reader cannot answer "did the
+  screen reader rewrite this field, or did the app" from the log
+  alone — the M30 rule's own question, at the tier whose door the
+  rule held off) — so `TextWriteRecord` grows the additive
+  `source: TextWriteSource` (`AtDoor` / `AppDoor`, the M30
+  attribution rule at the text tier): the AT door's four M55 note
+  sites name `at_door`, and the app's imperative `set_value` — the
+  door the mutate seam calls and the view reconciliation's patches
+  ride — streams its own fact beside the journal's reset echo (the
+  depths the journal's story, the write the door's). One write,
+  one fact: the AT's `SetValue` rides a raw `apply_value` beneath
+  its own note, so the app door's record never double-streams an
+  AT ask, and the app door — riding no funnel route — carries the
+  stamp's honest absence (the trail fills only what the caller
+  cannot know: an identity, never a door, M43's rule). The shape
+  and the privacy rule ride unchanged: the write named by lengths
+  (`replaced` — the value the field carried, `inserted` — the
+  value the app handed over, UTF-16 units) and never the payload
+  (a field's value can carry a secret — the clipboard trail's
+  rule, ADR-0045), the caret the write left beside them, the
+  journal's reset still streaming (ADR-0021's rule — the AT's
+  write is an app write, undo never fights it). The wire's
+  `text_write` event carries the additive `source` field at
+  version 1 (clients that ignore unknown fields unaffected), the
+  embedded client rendering "the app's text write landed (9
+  replaced by 18) — the selection at 18..18" beside the AT door's
+  rows, and `examples/app_text_writes.rs` is the consumer
+  demonstration (the mutate seam's write, the AT's ask, the doors
+  tellable apart on one log). No new corpus case — the record
+  rides the write the app already makes; the corpus stands at 64,
+  the living documents re-agree at the cut (M56, sixty-three
+  decision records).
 - **M55 — the AT's text write joins the causal log (ADR-0061)**:
   ADR-0046's second kill rule cashed — a consumer needs the input
   tier's rides priced (a trail reader cannot answer "did the screen

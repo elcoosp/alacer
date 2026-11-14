@@ -18,6 +18,7 @@
 
 use alacer_core::events::{Key, KeyEvent, KeyState, Modifiers, MouseButton, PointerEvent};
 use alacer_core::geom::Point;
+use alacer_core::inspect::{InspectEvent, InspectObserver};
 use alacer_core::widget::Role;
 use alacer_testing::TestHarness;
 use alacer_widgets::{BoxedWidget as _, Column, Panel, TextInput};
@@ -259,11 +260,68 @@ fn bench_editing_history_route(c: &mut Criterion) {
     group.finish();
 }
 
+/// The observed typing door (M58, ADR-0064): the key-edit trail's
+/// no-op sink — the notes queue, supersede, and drain for real, the
+/// sink just drops them. The bench is the observed route, the same
+/// shape the M50-M57 routes bench: the observation rides beside the
+/// dispatch, never a second walk.
+struct TrailSink;
+
+impl InspectObserver for TrailSink {
+    fn observe(&mut self, _event: InspectEvent) {}
+}
+
+fn bench_editing_key_edit_route(c: &mut Criterion) {
+    let mut group = c.benchmark_group("editing");
+    group.throughput(Throughput::Elements(
+        u64::try_from(EVENTS).expect("non-negative"),
+    ));
+
+    group.bench_function("route_100_key_edits_1k", |b| {
+        let mut harness = TestHarness::new(800.0, 600.0);
+        let root = harness.mount(Column::new().boxed());
+        let node = harness.add_child(root, TextInput::new("Search").boxed());
+        for _ in 0..FILLER {
+            let _ = harness.add_child(
+                root,
+                Panel::new(PANEL_HEIGHT, alacer_widgets::theme::PANEL).boxed(),
+            );
+        }
+        harness.settle();
+        harness.pipeline_mut().request_focus(node);
+        harness.settle();
+        // The observer rides from here on: the key-edit trail notes,
+        // and the tick's start drain streams into the sink — the
+        // observation is part of the routed cost, the contract the
+        // A7 idle contract prices.
+        harness.pipeline_mut().set_observer(Box::new(TrailSink));
+
+        // A typed character alternating with a backspace: every pair
+        // lands one insertion and one deletion — the trail's push and
+        // supersede paths both under load — and the value oscillates
+        // between two states, so every event does real work and none
+        // of them grows the field across iterations.
+        let typed = KeyEvent::char('x');
+        let backspace = KeyEvent::pressed(Key::Backspace);
+        b.iter(|| {
+            for i in 0..EVENTS {
+                let event = if i % 2 == 0 { &typed } else { &backspace };
+                let _ = harness.pipeline_mut().dispatch_key(event);
+            }
+            let report = harness.tick();
+            black_box(report);
+        });
+    });
+
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_editing_caret_route,
     bench_editing_word_route,
     bench_editing_clipboard_route,
-    bench_editing_history_route
+    bench_editing_history_route,
+    bench_editing_key_edit_route
 );
 criterion_main!(benches);

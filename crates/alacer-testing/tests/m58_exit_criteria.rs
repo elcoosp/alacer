@@ -382,4 +382,12 @@ fn m58_the_disabled_field_answers_no_key() {
         key_edits(&observer).is_empty(),
         "the closed door's silence is the availability tier's own answer"
     );
+    // Re-agreed at M62 (ADR-0068): the silence this pin prices is the
+    // *evicted frame's* — the settle above runs the availability tier's
+    // eviction pass, so these keystrokes are the boundary's own (the
+    // key route's fallbacks, the field's door hearing no ask). In the
+    // frame the control becomes unavailable — before the eviction runs
+    // — the held door answers the routed edit key with the wall's own
+    // fact (`KeyEditOutcome::Refused`, the value tier's vocabulary):
+    // the m62 suite prices that window.
 }

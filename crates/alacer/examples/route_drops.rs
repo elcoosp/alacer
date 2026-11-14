@@ -179,6 +179,27 @@ fn run_beats(pipeline: &mut PassPipeline, status_signal: alacer_core::FluxRwSign
         0xCAFE_F00D,
         A11yAction::SetTextSelection(alacer_core::widget::TextSelection::new(0, 4)),
     );
+
+    // Beat four: the IME's committed composition no field held (M59,
+    // ADR-0065) — the route's other silence, the event named by its
+    // stable tag, the aim riding its honest absence (the drop *is*
+    // the missing field).
+    ime_beat(
+        pipeline,
+        "beat 4: an IME commit with no focused field — the route's silence names its drop",
+    );
+}
+
+/// One IME beat routed the real way with no field focused: the
+/// committed composition drops before any widget's door, its fact
+/// streaming from the route-drop trail.
+fn ime_beat(pipeline: &mut PassPipeline, label: &'static str) {
+    let _route =
+        tracing::trace_span!(target: "alacer::route_drops", "beat", label = label).entered();
+    let consumed =
+        pipeline.dispatch_ime(&alacer_core::events::ImeEvent::Commit { text: "よ".into() });
+    settle(pipeline);
+    tracing::info!(target: "alacer::route_drops", ?consumed, "{label}");
 }
 
 fn main() {

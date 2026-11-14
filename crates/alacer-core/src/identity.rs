@@ -19,7 +19,7 @@ pub struct IdPath {
 
 /// Folds a new segment into a prefix hash. Deterministic, allocation-free.
 #[must_use]
-pub fn fold_hash(prefix: u64, segment: u64) -> u64 {
+pub(crate) fn fold_hash(prefix: u64, segment: u64) -> u64 {
     let mut hasher = FxHasher::default();
     hasher.write_u64(prefix ^ segment);
     hasher.finish()

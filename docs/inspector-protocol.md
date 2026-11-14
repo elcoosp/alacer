@@ -640,9 +640,7 @@ facts per thread, oldest-first eviction) and the recorder's
 admits at version 1 — clients that ignore unknown kinds are
 unaffected.
 
-### `key_edit` — a typing-door edit answered
-
- ("what did the typist change in this field?")
+### `key_edit` — a typing-door edit answered ("what did the typist change in this field?")
 
 The typing door's own record (M58, ADR-0064, the price ADR-0062's
 first kill rule pre-registered): the edits the keyboard's keys and the
@@ -657,8 +655,11 @@ the driver who wrote it, and the journal's own fold. The flood rule is
 the journal's fold: a coalesced typed run lands as one record whose
 shape is the run's (N keystrokes in one pure-append run = one row) —
 an edit the journal kept as its own step pushes its own record, and
-the drivers' records never merge. The clipboard chords' edits ride the
-clipboard trail (one fact per trail); the AT's and app's writes ride
+the drivers' records never merge. Since M60
+(ADR-0066) the clipboard chords' field changes stream here too —
+`paste`/`cut` behind the `clipboard` driver, the round trip keeping
+the clipboard trail's fact (one fact per trail, never a
+double-priced edit); the AT's and app's writes ride
 `text_write` — the doors tellable apart on one log.
 
 ```json
@@ -680,10 +681,12 @@ Fields:
   IME's committed composition), `backspace` (the unit or selection
   before the caret), `delete` (the unit or selection after it),
   `word_delete_back` / `word_delete_forward` (the Ctrl/Alt word
-  chords, ADR-0019 — never a munge onto the unit deletes they mirror).
+  chords, ADR-0019 — never a munge onto the unit deletes they mirror),
+  `paste` / `cut` (the clipboard chords' field changes, M60, ADR-0066 —
+  never a munge onto the insert and delete they mirror).
 - `driver` — who drove the edit: `keyboard` (the keyboard's own keys),
-  `ime` (the committed composition) — the M30 attribution rule at the
-  typing tier.
+  `ime` (the committed composition), `clipboard` (the paste and cut
+  chords, M60, ADR-0066) — the M30 attribution rule at the typing tier.
 - `replaced` — the span the edit consumed, in UTF-16 units of the
   field's value; `0` on a pure insertion.
 - `inserted` — the payload's own length, in UTF-16 units; `0` on a
@@ -707,6 +710,50 @@ it is bounded (256 facts per thread, oldest-first eviction) and the
 recorder's `key_edit` ring holds 512. The additive event the
 versioning rule admits at version 1 — clients that ignore unknown
 kinds are unaffected.
+
+
+### `preedit` — a composing state answered ("what is the field showing while the IME composes?")
+
+The composing state's own record (M61, ADR-0067, the price ADR-0064's
+first kill rule pre-registered): the composition the field shows while
+the IME owns the canvas — the inline shape named by its UTF-16 length
+(`shape`) — never the payload (a field's value can carry a secret,
+ADR-0011's rule at the composition tier; the secret-entry field
+suppresses the preedit echo at the platform, the trail keeps the same
+discipline) — the platform's preedit-local cursor beside it
+(`cursor`, a position inside the preedit, never a field offset: the
+composition lands nowhere), and the funnel's stamp. One live session
+rides as one record: N composition frames supersede the session's
+record in place (the flood rule at the composing tier — never an echo
+per composition frame), a cleared state pushes its own fact, and a
+commit's landing rides `key_edit` beside it (one fact per trail —
+the trails tellable apart: a cleared state with no commit beside it
+reads as the cancelled session). A new event kind, additive by the
+protocol's own rule — clients that ignore unknown kinds unaffected
+(ADR-0010). The recorder's `preedit` ring holds 512.
+
+```json
+{
+  "kind": "preedit",
+  "action": "composing",
+  "shape": 3,
+  "cursor": 2,
+  "target": 3735928559
+}
+```
+
+Fields:
+
+- `action` — what the composing door answered: `composing` (the live
+  session's inline shape), `cleared` (the composing state ended with no
+  landing — the honest `0`; the commit would have ridden `key_edit`).
+- `shape` — the composition's inline shape, in UTF-16 units of the
+  preedit text; `0` on a cleared state.
+- `cursor` — the platform's cursor inside the preedit, in UTF-16 units
+  of the preedit text — preedit-local, never a field offset; `null`
+  when the platform named none.
+- `target` — the control the composition rode (the funnel's stamp, the
+  M43 rule at the composing tier); `null` when the fact rode no route.
 
 ### `frame` — a completed frame
 

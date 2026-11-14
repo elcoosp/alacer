@@ -1552,10 +1552,20 @@ impl PassPipeline {
             // is the route's own vocabulary, the event named by its
             // stable tag, the aim riding its honest absence (the
             // boundary had no aim to name — the drop *is* the missing
-            // field).
+            // field). Since M65 (ADR-0071) the silence splits — the
+            // dead focused node's drop prices apart from the
+            // never-focused one (ADR-0065's first kill rule) — and the
+            // record names the route that dropped the ask (the M30
+            // rider rule at the route tier, ADR-0071).
+            let species = if self.focused.is_none() {
+                crate::inspect::RouteDropSpecies::NoFocusedField
+            } else {
+                crate::inspect::RouteDropSpecies::DeadFocus
+            };
             crate::route_drop::note_route_drop(crate::inspect::RouteDropRecord {
                 action: ime_event_tag(event),
-                species: crate::inspect::RouteDropSpecies::NoFocusedField,
+                species,
+                rider: crate::inspect::RouteDropRider::ImeRoute,
                 target: None,
             });
         }
@@ -2969,11 +2979,16 @@ impl PassPipeline {
             // was aimed at an id no tree node carries — no widget's door
             // ever answered, so the route names its own fact instead of
             // a munged widget-door one: the action beside the aimed id,
-            // verbatim, the species the boundary refused with. One
-            // branch when nobody listens (the A7 idle contract).
+            // verbatim, the species the boundary refused with. Since
+            // M65 (ADR-0071) the record names its rider — the funnel
+            // declared where it stands (the M30 attribution rule at the
+            // route tier), the boundary's mapping arms and the IME
+            // route's drops tellable apart on one log. One branch when
+            // nobody listens (the A7 idle contract).
             crate::route_drop::note_route_drop(crate::inspect::RouteDropRecord {
                 action: action.name(),
                 species: crate::inspect::RouteDropSpecies::UnknownTarget,
+                rider: crate::inspect::RouteDropRider::Funnel,
                 target: Some(target),
             });
             return false;

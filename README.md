@@ -46,7 +46,7 @@
 | 50-event pointer storm                                | **1** coalesced dispatch (**41.28×**)           | `input_storm_batching` budget                                                                          |
 | 10k-node churn frame vs egui, same host               | 1.10 ms vs 20.7 ms full frame (**18.8×**)       | 5-run medians, declared rig (`benchmarks/rig.json`)                                                    |
 | …vs Masonry                                           | 1.10 ms vs 4.6 ms full pass pipeline (**4.2×**) | same rig, `scripts/run_comparison.py`                                                                  |
-| All 65 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
+| All 68 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
 
 _Competitor rows compare Alacer's incremental frame against their full frame/pass — every row in
 `benchmarks/comparisons/results.json` is labeled with its scope._
@@ -86,7 +86,7 @@ cargo test --workspace                                          # headless: real
 > `ALACER_SOFTWARE=1` presents through softbuffer — the platform honors it at startup
 > (`BackendPreference::software_env`) whichever backend the app asked for; any other value is
 > refused with a named warning, never guessed. CI and the headless tests already run this path:
-> no mock renderer, no mock event loop. The full 53-example catalog is [below](#examples).
+> no mock renderer, no mock event loop. The full 54-example catalog is [below](#examples).
 
 ## How it works
 
@@ -223,7 +223,11 @@ edits stream their fact too — a typed run, a backspace, a word chord, a commit
 one `KeyEdit` record each, the shape named by lengths, the driver beside it, and the journal's own
 fold bounding a typed run to one record (the flood rule: N keystrokes in one run = one row). Since M59 the route's other silence names its drop too — the IME event no live field held (a committed composition with nowhere to land) rides one `RouteDrop` record with the `no_focused_field` species, the event's tag beside it, the aim riding its honest absence.
  Widget-own doors stay off the value log until a consumer prices them (ADR-0046's
-kill rule); every trail is bounded and silent when nobody listens.
+kill rule); every trail is bounded and silent when nobody listens. Since M63 the log carries a
+provided reader — `TrailLog`, the bounded window the seam grows beside the trait (one installation
+serving many readers, the drain the read's own window, the eviction named, never a silent loss;
+the harness installs it in one call), and since M64 the single observer slot shares — the tee
+fans the recorder's wire out beside the in-process reader, two doors behind one installation.
 
 ## Input & hot reload
 
@@ -283,7 +287,7 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `inspector_demo`                                     | the counter with the Causality inspector at `127.0.0.1:9217`                     |
 | `todo` / `data_table`                                | the canons: a11y tree, record/replay, grid slots, keyboard navigation            |
 
-<details><summary><b>52 examples, grouped (53 ship; recording live in the catalog)</b></summary>
+<details><summary><b>53 examples, grouped (54 ship; recording live in the catalog)</b></summary>
 
 **Start here**
 
@@ -322,6 +326,7 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `edit_refusals` | the M62 wall driven from the consumer side: the routed edit key a held field ignored naming its ask behind the wall's species (the shape priced at nothing, the value untouched), the chords refusing behind their own actions while the engine never runs, the navigation keys riding no wall fact, the IME's commit refused with its own driver, the reopened door landing again |
 | `announcements` | polite and assertive speech acts, the honest refusal, the status line mirroring the live region |
 | `announce_trail` | one `Announce` record per answered act — superseded facts beside the survivor |
+| `trail_reader` | the app reading its own log through the provided `TrailLog` (ADR-0069) — no hand-rolled collector; each *Read the log* press drains the window and names the tip |
 
 **Values & availability**
 
@@ -395,7 +400,7 @@ tree (`query(role).named(..)`, `press`, `find_all`) — never widget internals.
 ## Status
 
 > [!NOTE]
-> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M62 of `docs/architecture.md` are
+> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M64 of `docs/architecture.md` are
 > complete, but the API still moves between minor versions. MSRV **1.99**, edition **2024**.
 
 | Platform            | CI coverage                                                                                                                                                           |
@@ -407,7 +412,7 @@ tree (`query(role).named(..)`, `press`, `find_all`) — never widget internals.
 ## Learn more
 
 - [Architecture](https://github.com/elcoosp/alacer/blob/main/docs/architecture.md) — design axioms, the ten-pass contract, rendering, accessibility, DX, performance, roadmap and kill criteria
-- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — sixty-nine decision records, from workspace discipline to the M62 scope
+- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — seventy-one decision records, from workspace discipline to the M64 scope
 - [Examples catalog](https://github.com/elcoosp/alacer/blob/main/docs/examples.md) — every example with the contract it exercises
 - [Migrating from Iced](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-iced.md) · [from egui](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-egui.md) — mental-model mappings, interop limits stated plainly
 - [Inspector protocol](https://github.com/elcoosp/alacer/blob/main/docs/inspector-protocol.md) — the versioned WebSocket contract behind `alacer-inspect`

@@ -76,6 +76,11 @@ pub const KEY_EDIT_RING_CAP: usize = 512;
 /// oldest evicts (the key-edit ring's own order, §14.3).
 pub const PREEDIT_RING_CAP: usize = 512;
 
+/// The a11y-echo ring's cap: adapter-echo facts carried before the
+/// oldest evicts (the preedit ring's own order, §14.3 — a connect is
+/// rare, the ring stays quiet between connects).
+pub const A11Y_ECHO_RING_CAP: usize = 512;
+
 /// One recorded frame (the wire conversion lives in [`crate::wire`]).
 #[derive(Debug, Clone)]
 pub struct RecordedFrame {
@@ -115,6 +120,10 @@ struct Recording {
     /// The composing-state facts (ADR-0067: the composition's inline
     /// shape, the phases beside it — bounded by [`PREEDIT_RING_CAP`]).
     preedits: VecDeque<alacer_core::inspect::PreeditRecord>,
+    /// The adapter-echo facts (ADR-0073: the tree the activation
+    /// answered, named by its node count — bounded by
+    /// [`A11Y_ECHO_RING_CAP`]).
+    a11y_echoes: VecDeque<alacer_core::inspect::A11yEchoRecord>,
     /// The most recent frame, for "what does the inspector see right now".
     latest: Option<alacer_core::inspect::FrameSummary>,
     /// The wire-shaped events awaiting the server's session drain (push, not
@@ -314,6 +323,16 @@ impl CausalRecorder {
             .unwrap_or_default()
     }
 
+    /// The adapter-echo facts, oldest first (ADR-0073): every tree the
+    /// activation route answered — the connect's full-tree echo, the
+    /// reconnect's beside it — bounded by [`A11Y_ECHO_RING_CAP`].
+    #[must_use]
+    pub fn a11y_echoes(&self) -> Vec<alacer_core::inspect::A11yEchoRecord> {
+        self.try_lock()
+            .map(|recording| recording.a11y_echoes.iter().copied().collect())
+            .unwrap_or_default()
+    }
+
     /// The most recent frame, when any frame was observed.
     #[must_use]
     pub fn latest_frame(&self) -> Option<alacer_core::inspect::FrameSummary> {
@@ -449,6 +468,9 @@ impl InspectObserver for RecorderHandle {
             }
             InspectEvent::Preedit(record) => {
                 push_bounded(&mut recording.preedits, PREEDIT_RING_CAP, record);
+            }
+            InspectEvent::A11yEcho(record) => {
+                push_bounded(&mut recording.a11y_echoes, A11Y_ECHO_RING_CAP, record);
             }
             InspectEvent::Frame(summary) => {
                 self.frames_seen.fetch_add(1, Ordering::Relaxed);

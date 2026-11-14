@@ -52,6 +52,7 @@ pub mod keymap;
 pub mod mask;
 pub mod num;
 pub mod passes;
+pub mod route_drop;
 pub mod scene;
 pub mod scroll;
 pub mod style;
@@ -77,10 +78,10 @@ pub use input::EventCoalescer;
 pub use inspect::{
     BindingId, ClipboardAction, ClipboardOutcome, ClipboardRecord, ClipboardRefusal, DirtyNode,
     EdgeActivation, FocusRecord, FocusRider, FrameSummary, GesturePhase, GestureRecord, InputKind,
-    InputRecord, InspectEvent, InspectObserver, KeyRecord, PassTiming, RangeBound, ScrollAction,
-    ScrollOutcome, ScrollRecord, ScrollRefusal, SignalKey, SignalWrite, TextWriteAction,
-    TextWriteOutcome, TextWriteRecord, TextWriteRefusal, ValueAction, ValueOutcome, ValueRecord,
-    ValueRefusal,
+    InputRecord, InspectEvent, InspectObserver, KeyRecord, PassTiming, RangeBound, RouteDropRecord,
+    RouteDropSpecies, ScrollAction, ScrollOutcome, ScrollRecord, ScrollRefusal, SignalKey,
+    SignalWrite, TextWriteAction, TextWriteOutcome, TextWriteRecord, TextWriteRefusal,
+    TextWriteSource, ValueAction, ValueOutcome, ValueRecord, ValueRefusal,
 };
 pub use keymap::{Chord, Keymap, KeymapConsult, KeymapSeam};
 pub use mask::Change;

@@ -26,7 +26,8 @@ use alacer_core::geom::Point;
 use alacer_core::passes::{A11yDelta, A11ySink, ImePurpose, PassPipeline};
 use alacer_core::widget::Role;
 use alacer_render::SoftwareRenderer;
-use alacer_testing::{TestHarness, glyph_source, pixel_diff_ratio};
+use alacer_testing::{TestHarness, pixel_diff_ratio};
+use alacer_text::ThreadLocalGlyphSource;
 use alacer_widgets::{Button, Label, TextInput};
 use std::sync::Arc;
 
@@ -136,7 +137,13 @@ fn render_full(
     height: u32,
 ) -> tiny_skia::Pixmap {
     SoftwareRenderer::new()
-        .render(scene, width, height, BACKGROUND, &mut glyph_source())
+        .render(
+            scene,
+            width,
+            height,
+            BACKGROUND,
+            &mut ThreadLocalGlyphSource,
+        )
         .expect("full render")
 }
 
@@ -166,7 +173,7 @@ fn render_and_settle(
                     frame,
                     &report.damage,
                     BACKGROUND,
-                    &mut glyph_source(),
+                    &mut ThreadLocalGlyphSource,
                 )
                 .expect("partial render");
         }

@@ -14,7 +14,7 @@
     "cpu_count": "2",
     "fingerprint": "ee37c3efc5995352"
   },
-  "bench_count": 65,
+  "bench_count": 68,
   "benches": {
     "a11y/full_rebuild_1k": {
       "median_ns": 92823.87060866013,
@@ -404,6 +404,24 @@
       "median_ns": 232406.77181818182,
       "mean_ns": 233267.900581868,
       "median_abs_dev_ns": 2784.554733619598,
+      "samples": 100
+    },
+    "trail/reader_announce_100_1k": {
+      "median_ns": 18875489.333333336,
+      "mean_ns": 19180051.256666675,
+      "median_abs_dev_ns": 247922.83859849436,
+      "samples": 100
+    },
+    "trail_ring/fill_drain_1024": {
+      "median_ns": 22590.818542568544,
+      "mean_ns": 22731.11999350449,
+      "median_abs_dev_ns": 110.77574367727892,
+      "samples": 100
+    },
+    "trail/tee_announce_100_1k": {
+      "median_ns": 19017290.0,
+      "mean_ns": 19174422.88,
+      "median_abs_dev_ns": 179192.96321868896,
       "samples": 100
     }
   }

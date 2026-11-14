@@ -88,8 +88,8 @@ pub use inspect::{
     EdgeActivation, FocusRecord, FocusRider, FrameSummary, GesturePhase, GestureRecord, InputKind,
     InputRecord, InspectEvent, InspectObserver, KeyEditAction, KeyEditDriver, KeyEditOutcome,
     KeyEditRecord, KeyEditRefusal, KeyRecord, PassTiming, PreeditAction, PreeditRecord, RangeBound,
-    RouteDropRecord, RouteDropSpecies, ScrollAction, ScrollOutcome, ScrollRecord, ScrollRefusal,
-    SignalKey, SignalWrite, Tee, TextWriteAction, TextWriteOutcome, TextWriteRecord,
+    RouteDropRecord, RouteDropRider, RouteDropSpecies, ScrollAction, ScrollOutcome, ScrollRecord,
+    ScrollRefusal, SignalKey, SignalWrite, Tee, TextWriteAction, TextWriteOutcome, TextWriteRecord,
     TextWriteRefusal, TextWriteSource, ValueAction, ValueOutcome, ValueRecord, ValueRefusal,
 };
 pub use keymap::{Chord, Keymap, KeymapConsult, KeymapSeam};

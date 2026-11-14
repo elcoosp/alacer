@@ -176,6 +176,14 @@ impl AccessKitSink {
     /// update enters the ledger. `None` before the first
     /// [`A11ySink::apply`] (no resolved tree yet — the platform defers to
     /// the first frame, whose init delta covers it).
+    ///
+    /// Since M67 (ADR-0073) the build echoes: the a11y tier notes its own
+    /// fact on the trail ([`alacer_core::a11y_echo::note_a11y_echo`],
+    /// the tree named by its node count — the lengths rule, the payload
+    /// never rides), the fact streaming at the next tick's start drain.
+    /// The note is the trail's one branch while nobody listens (the A7
+    /// idle contract): the build's own purity is unchanged — no
+    /// bookkeeping changes, no update enters the ledger.
     #[must_use]
     pub fn full_tree_update(&self) -> Option<TreeUpdate> {
         let snapshot = self.last_snapshot.as_ref()?;
@@ -183,12 +191,11 @@ impl AccessKitSink {
             initializes: true,
             ..A11yDelta::empty()
         };
-        Some(Self::build_update(
-            snapshot,
-            &delta,
-            true,
-            &mut FxHashSet::default(),
-        ))
+        let update = Self::build_update(snapshot, &delta, true, &mut FxHashSet::default());
+        alacer_core::a11y_echo::note_a11y_echo(alacer_core::A11yEchoRecord {
+            nodes: update.nodes.len(),
+        });
+        Some(update)
     }
 
     /// Builds one [`TreeUpdate`] from a snapshot and its delta — the single

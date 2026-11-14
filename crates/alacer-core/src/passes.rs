@@ -785,8 +785,9 @@ impl PassPipeline {
     /// and the announcement trail (ADR-0039 — the speech acts' facts ride
     /// the doors and the same drain).
     /// Replaces any previous observer. Installing one also enables the
-    /// edit trail and the announcement trail: the journal and the push
-    /// route note their facts on this thread from here on, and the
+    /// edit trail, the announcement trail, and the text-write trail
+    /// (ADR-0061): the journal, the push route, and the AT's editing
+    /// tier note their facts on this thread from here on, and the
     /// disabled paths stay one branch per action.
     pub fn set_observer(&mut self, observer: Box<dyn InspectObserver>) {
         self.observer = Some(observer);
@@ -796,6 +797,7 @@ impl PassPipeline {
         crate::value::set_value_trail_enabled(true);
         crate::gesture::set_gesture_trail_enabled(true);
         crate::scroll::set_scroll_trail_enabled(true);
+        crate::text_write::set_text_write_trail_enabled(true);
     }
 
     /// Enables per-pass wall timing and the overhead ledger (the M1 gate
@@ -1628,6 +1630,21 @@ impl PassPipeline {
         }
     }
 
+    /// Forwards one text-write fact to the observer, when installed
+    /// (§13.3, ADR-0061): the text-write trail — the write the AT's
+    /// editing tier asked, the shape named by lengths beside the
+    /// landing selection, the refusals named. The record is the
+    /// widget's own fact verbatim
+    /// ([`crate::inspect::TextWriteRecord`]), streamed at the tick's
+    /// start drain — one frame after the write, the scroll trail's
+    /// currency. One branch when no observer is installed: the A7 idle
+    /// contract is unchanged.
+    fn notify_text_write(&mut self, record: crate::inspect::TextWriteRecord) {
+        if let Some(observer) = self.observer.as_mut() {
+            observer.observe(InspectEvent::TextWrite(record));
+        }
+    }
+
     /// Forwards one speech-act fact to the observer, when installed
     /// (§13.3, ADR-0039): the announcement trail — the record the
     /// pipeline answered the act with, the politeness beside it. The
@@ -2166,6 +2183,19 @@ impl PassPipeline {
         // reader just never sees it.
         for record in crate::scroll::take_scroll_trail() {
             self.notify_scroll(record);
+        }
+
+        // The text-write drain (§13.3, ADR-0061): the text-write facts
+        // the input's AT door queued on this thread ride the observer at
+        // the tick's start — the scroll trail's shape, one frame after
+        // the write, the drain running after the scroll drain (a text
+        // write explains the field the reader rewrote; it streams beside
+        // the scrolls). Every fact streams (a bounded queue, never
+        // collapsed), and the drain empties the queue whether an
+        // observer listens or not: a fact streams once, an absent
+        // reader just never sees it.
+        for record in crate::text_write::take_text_write_trail() {
+            self.notify_text_write(record);
         }
 
         let mut ledger: Vec<PassRun> = std::mem::take(&mut self.interframe);

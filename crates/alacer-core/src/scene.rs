@@ -128,24 +128,6 @@ impl<'a> PaintCtx<'a> {
         }));
     }
 
-    /// Runs `f` with children clipped to `rect` (absolute) intersected with the
-    /// current clip — the scroll-viewport mechanism.
-    pub fn with_clip(&mut self, rect: Rect, f: impl FnOnce(&mut Self)) {
-        let outer = self.clip;
-        self.clip = Some(match outer {
-            Some(o) => o.intersection(&rect).unwrap_or_default(),
-            None => rect,
-        });
-        f(self);
-        self.clip = outer;
-    }
-
-    /// The absolute clip currently in effect.
-    #[must_use]
-    pub fn clip(&self) -> Option<Rect> {
-        self.clip
-    }
-
     /// This node's absolute origin.
     #[must_use]
     pub fn origin(&self) -> Point {
@@ -296,33 +278,5 @@ mod tests {
             panic!("expected glyph");
         };
         assert_eq!(glyph.position, Point::new(102.0, 58.0));
-    }
-
-    #[test]
-    fn nested_clip_intersects() {
-        let mut sink = Collector::default();
-        let mut ctx = PaintCtx::new(
-            &mut sink,
-            Point::zero(),
-            Size::new(50.0, 50.0),
-            Some(Rect::new(Point::new(0.0, 0.0), Size::new(50.0, 50.0))),
-        );
-
-        let mut inner = None;
-        ctx.with_clip(
-            Rect::new(Point::new(40.0, 40.0), Size::new(50.0, 50.0)),
-            |c| {
-                inner = c.clip();
-            },
-        );
-        assert_eq!(
-            inner,
-            Some(Rect::new(Point::new(40.0, 40.0), Size::new(10.0, 10.0)))
-        );
-        assert_eq!(
-            ctx.clip(),
-            Some(Rect::new(Point::new(0.0, 0.0), Size::new(50.0, 50.0))),
-            "outer clip restored"
-        );
     }
 }

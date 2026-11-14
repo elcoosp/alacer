@@ -9,6 +9,51 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M66 — the journal's echo names its field (ADR-0072)**:
+  ADR-0037's second kill rule cashed — a consumer needs per-field
+  attribution (two inputs, two journals, one log: the depths streamed
+  but the field unnamed left "whose journal moved" unanswerable from
+  the rows alone) — so the record grows the M43 stamp beside the
+  depths ([`EditRecord::target`](crates/alacer-core/src/inspect.rs),
+  the AccessKit-stable id the routed event arrived under, stamped
+  where the echo resolves — the same guard the key route has held
+  since M45 and the AT action route since M43, the identity never
+  guessed at the note site), the app's direct rides carrying the
+  honest absence (the stamp fills only what the route knows, a
+  dropped guard leaving no stale identity), the wire carrying the
+  `target` field additively at version 1 (the route-drop `rider`
+  field's rule), the embedded client rendering "— the field N" beside
+  the depths, `examples/edit_trail.rs` walking the two stamps (one
+  committed composition routed through the real IME route into a live
+  `TextInput`, its echo carrying the field's id beside the direct
+  rides' honest absence), no new corpus case (the field rides the
+  routes the journal already rides — the coordinated rule's no-growth
+  arm, the corpus at 68), the living documents re-agree (the m66
+  suite pins the stamp through the real key and action routes, the
+  absence on the direct rides, and the documents)
+- **M65 — the route drop names its rider and splits its silence (ADR-0071)**: two pre-registered prices cashed — ADR-0063's third
+  kill rule (the drops need their rider: the platform boundary's
+  mapping arms, the dispatch funnel's target resolution, and the IME
+  route's silence all resolve drops, and one collapsed record left a
+  reader asking "which route refused my ask" unanswered) and
+  ADR-0065's first kill rule (the dead focused node's drop priced the
+  same as the never-focused one) — so the record grows
+  [`RouteDropRider`](crates/alacer-core/src/inspect.rs) beside the aim
+  (`boundary`/`funnel`/`ime_route`, the M30 attribution rule at the
+  route tier, the attribution declared where the drop resolves, never
+  guessed from the species) and the silence splits
+  (`no_focused_field` keeping the never-focused half, the focused
+  node's death riding its own `dead_focus` — the composition naming
+  *why* it had nowhere), the wire carrying the rider field and the new
+  species value additively at version 1 (the clipboard `engine`
+  field's rule), the embedded client rendering "the funnel refused it"
+  beside the species, `examples/route_drops.rs` walking the rider
+  beats (the funnel's drop, the boundary's species, the never-focused
+  commit, the composition whose field died mid-session), no new
+  corpus case (the field rides the routes the drops already ride —
+  the M57 precedent, the corpus at 68), the living documents
+  re-agree (the m65 suite pins the three riders through the real
+  dispatch, the split on the real dead focus, and the documents)
 - **M64 — the observer's tee joins the seam (ADR-0070)**: the
   second-door ask the single slot pre-registered cashed — the
   pipeline's observer slot is one (`PassPipeline::set_observer`), and

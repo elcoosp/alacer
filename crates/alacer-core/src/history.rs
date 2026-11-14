@@ -236,6 +236,11 @@ impl EditHistory {
     /// the tip's `selection_after` the new one's `selection_before`
     /// (the user kept typing at the moving caret). Crossing the capacity
     /// evicts the oldest entry.
+    ///
+    /// Answers whether the edit folded into the journal's tip — the
+    /// caller's side of the M58 flood rule (ADR-0064): the key-edit
+    /// trail supersedes a coalesced run's record, so the trail's own
+    /// shape rides the journal's own fold, never a per-keystroke flood.
     pub fn record(
         &mut self,
         at_utf16: usize,
@@ -243,7 +248,7 @@ impl EditHistory {
         inserted: String,
         selection_before: (usize, usize),
         selection_after: (usize, usize),
-    ) {
+    ) -> bool {
         self.redo.clear();
         let coalesced = match self.undo.last_mut() {
             Some(tip) if Self::coalesces(tip, at_utf16, &removed, &inserted, selection_before) => {
@@ -273,6 +278,7 @@ impl EditHistory {
             undo_depth: self.undo.len(),
             redo_depth: 0,
         });
+        coalesced
     }
 
     /// The pure-append coalescing rule: a fresh pure insertion continues

@@ -56,6 +56,11 @@ pub const GESTURE_RING_CAP: usize = 512;
 /// scroll tier's facts at the recorder side, the same order the input,
 /// focus, edit, announce, key, clipboard, value, and gesture rings ride.
 pub const SCROLL_RING_CAP: usize = 512;
+/// The text-write trail ring's cap (oldest dropped first, ADR-0061) —
+/// the editing tier's facts at the recorder side, the same order the
+/// input, focus, edit, announce, key, clipboard, value, gesture, and
+/// scroll rings ride.
+pub const TEXT_WRITE_RING_CAP: usize = 512;
 
 /// One recorded frame (the wire conversion lives in [`crate::wire`]).
 #[derive(Debug, Clone)]
@@ -80,6 +85,10 @@ struct Recording {
     values: VecDeque<alacer_core::inspect::ValueRecord>,
     gestures: VecDeque<alacer_core::inspect::GestureRecord>,
     scrolls: VecDeque<alacer_core::inspect::ScrollRecord>,
+    /// The recorded text writes, oldest first (the door's own facts —
+    /// the whole-value write, the replacement, the selection ask, the
+    /// closed door's refusal — bounded by [`TEXT_WRITE_RING_CAP`]).
+    text_writes: VecDeque<alacer_core::inspect::TextWriteRecord>,
     /// The most recent frame, for "what does the inspector see right now".
     latest: Option<alacer_core::inspect::FrameSummary>,
     /// The wire-shaped events awaiting the server's session drain (push, not
@@ -212,6 +221,15 @@ impl CausalRecorder {
         self.lock().scrolls.iter().copied().collect()
     }
 
+    /// The recorded text-write trail, oldest first (ADR-0061): every
+    /// text write the input's AT door answered — the whole-value write,
+    /// the paste-shaped replacement, the selection ask, and the closed
+    /// door's refusal — bounded by [`TEXT_WRITE_RING_CAP`].
+    #[must_use]
+    pub fn text_writes(&self) -> Vec<alacer_core::inspect::TextWriteRecord> {
+        self.lock().text_writes.iter().copied().collect()
+    }
+
     /// The most recent frame, when any frame was observed.
     #[must_use]
     pub fn latest_frame(&self) -> Option<alacer_core::inspect::FrameSummary> {
@@ -325,6 +343,9 @@ impl InspectObserver for RecorderHandle {
             }
             InspectEvent::Scroll(record) => {
                 push_bounded(&mut recording.scrolls, SCROLL_RING_CAP, record);
+            }
+            InspectEvent::TextWrite(record) => {
+                push_bounded(&mut recording.text_writes, TEXT_WRITE_RING_CAP, record);
             }
             InspectEvent::Frame(summary) => {
                 self.frames_seen.fetch_add(1, Ordering::Relaxed);

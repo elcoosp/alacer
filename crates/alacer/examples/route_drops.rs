@@ -6,7 +6,12 @@
 //! and the unknown target. A drop is never a munged widget-door fact:
 //! the record is the route's own vocabulary, the action named by its
 //! stable tag, the species naming why the boundary refused, the aimed
-//! id riding verbatim.
+//! id riding verbatim. Since M65 (ADR-0071) the record names its rider
+//! too — the route that dropped the ask (the boundary's mapping arms,
+//! the dispatch funnel, the IME route) — and the IME silence splits:
+//! the never-focused drop prices apart from the dead focused node's
+//! ([`alacer_core::RouteDropSpecies::DeadFocus`], ADR-0065's first kill
+//! rule).
 //!
 //! ```sh
 //! RUST_LOG=alacer=info cargo run -p alacer --example route_drops
@@ -20,8 +25,11 @@
 //! `SetTextSelection` aimed at another node, an action no widget
 //! contract answers — each names its fact where the boundary refuses
 //! (pinned by `alacer-platform`'s own unit tests through the real
-//! mapping). Then the window opens for live play.
-//! `ALACER_SOFTWARE=1` forces the softbuffer path.
+//! mapping). Then the route's other silences: an IME commit with no
+//! field focused (`no_focused_field`), and the committed composition
+//! whose field died mid-session (`dead_focus` — the split silence
+//! naming why it had nowhere to land). Then the window opens for live
+//! play. `ALACER_SOFTWARE=1` forces the softbuffer path.
 
 use alacer::pipeline_default;
 use alacer::platform::BackendPreference;
@@ -47,14 +55,23 @@ fn backend_choice() -> BackendPreference {
 }
 
 /// The fact as the trail's reader renders it: the dropped action's tag
-/// beside the species and the aimed id — "the AT asked; why did no door
-/// ever answer" answered from one record.
+/// beside the species, the rider, and the aimed id — "the AT asked; why
+/// did no door ever answer — and which route said no" answered from one
+/// record.
 fn describe(record: alacer_core::RouteDropRecord) -> String {
+    let rider = match record.rider {
+        alacer_core::inspect::RouteDropRider::Boundary => "the boundary",
+        alacer_core::inspect::RouteDropRider::Funnel => "the funnel",
+        alacer_core::inspect::RouteDropRider::ImeRoute => "the IME route",
+    };
     let aim = record
         .target
         .map(|target| format!(" (aimed at {target})"))
         .unwrap_or_default();
-    format!("dropped: {}{aim}", record.species.name())
+    format!(
+        "dropped: {}{aim} — {rider} refused it",
+        record.species.name()
+    )
 }
 
 /// The causal trail the demo shares between the pipeline's observer and
@@ -145,9 +162,14 @@ fn input_id(pipeline: &PassPipeline, name: &str) -> u64 {
 }
 
 /// The beats the demo walks before the window opens: the unknown target
-/// named on the log, the delivered ask beside it riding no drop, and a
-/// second refusal at a different aim — the facts attributable.
-fn run_beats(pipeline: &mut PassPipeline, status_signal: alacer_core::FluxRwSignal<String>) {
+/// named on the log, the delivered ask beside it riding no drop, a
+/// second refusal at a different aim — the facts attributable — and the
+/// IME route's two silences, the split the M65 vocabulary carries.
+fn run_beats(
+    pipeline: &mut PassPipeline,
+    status_signal: alacer_core::FluxRwSignal<String>,
+    field_node: alacer_core::NodeId,
+) {
     // Beat one: an ask aimed at an id no tree node carries — the
     // funnel's own defensive drop, the verdict `false` the m10 contract
     // pins, the fact streaming now.
@@ -188,6 +210,27 @@ fn run_beats(pipeline: &mut PassPipeline, status_signal: alacer_core::FluxRwSign
         pipeline,
         "beat 4: an IME commit with no focused field — the route's silence names its drop",
     );
+
+    // Beat five (M65, ADR-0071): the committed composition whose field
+    // died mid-session — the focused node has gone, and the silence
+    // prices the *why* apart from the never-focused one: `dead_focus`,
+    // never the collapse the old vocabulary munged it into. The rider
+    // names the IME route on both records — the reader answers "which
+    // route refused my ask, and why did it have nowhere" from the rows
+    // alone.
+    let _route = tracing::trace_span!(
+        target: "alacer::route_drops",
+        "beat",
+        label = "beat 5: an IME commit whose field died mid-session — the dead focus names itself"
+    )
+    .entered();
+    pipeline.request_focus(field_node);
+    settle(pipeline);
+    pipeline.arena_mut().remove_subtree(field_node);
+    let consumed =
+        pipeline.dispatch_ime(&alacer_core::events::ImeEvent::Commit { text: "よ".into() });
+    settle(pipeline);
+    tracing::info!(target: "alacer::route_drops", ?consumed, "beat 5: the dead focus prices apart from the never-focused one");
 }
 
 /// One IME beat routed the real way with no field focused: the
@@ -212,7 +255,7 @@ fn main() {
     );
     let mut field = TextInput::new("field");
     field.set_value("hello trail");
-    let _ = pipeline.add_child(root, field.boxed());
+    let field_node = pipeline.add_child(root, field.boxed());
     let _ = pipeline.add_child(
         root,
         Label::new("Live: an ask no door answers names its drop on the log").boxed(),
@@ -253,7 +296,7 @@ fn main() {
     pipeline.set_observer(Box::new(trail.writer()));
 
     settle(&mut pipeline);
-    run_beats(&mut pipeline, status_signal);
+    run_beats(&mut pipeline, status_signal, field_node);
     settle(&mut pipeline);
 
     if let Err(error) = alacer::run_window(
@@ -267,7 +310,8 @@ fn main() {
     }
 
     // The window closed: the trail, read back — every fact the session
-    // streamed, oldest first, the species beside every drop.
+    // streamed, oldest first, the species and the rider beside every
+    // drop.
     let read_back = trail.all();
     tracing::info!(
         target: "alacer::route_drops",
@@ -276,6 +320,10 @@ fn main() {
             .iter()
             .filter(|record| record.species == RouteDropSpecies::UnknownTarget)
             .count(),
-        "the drops streamed as they resolved — the causal log carries the boundary's refusals"
+        dead_focus = read_back
+            .iter()
+            .filter(|record| record.species == RouteDropSpecies::DeadFocus)
+            .count(),
+        "the drops streamed as they resolved — the causal log carries the boundary's refusals, the rider beside every one"
     );
 }

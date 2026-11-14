@@ -156,5 +156,10 @@ mod tests {
             "off_target_selection"
         );
         assert_eq!(RouteDropSpecies::UnknownTarget.name(), "unknown_target");
+        assert_eq!(
+            RouteDropSpecies::NoFocusedField.name(),
+            "no_focused_field",
+            "the route's other silence joins the vocabulary (M59)"
+        );
     }
 }

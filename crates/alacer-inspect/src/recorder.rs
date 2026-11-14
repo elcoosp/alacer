@@ -158,25 +158,33 @@ impl CausalRecorder {
     /// The recorded frames, oldest first (bounded by [`FRAME_RING_CAP`]).
     #[must_use]
     pub fn frames(&self) -> Vec<RecordedFrame> {
-        self.lock().frames.iter().cloned().collect()
+        self.try_lock()
+            .map(|recording| recording.frames.iter().cloned().collect())
+            .unwrap_or_default()
     }
 
     /// The recorded edge activations, oldest first.
     #[must_use]
     pub fn edges(&self) -> Vec<EdgeActivation> {
-        self.lock().edges.iter().cloned().collect()
+        self.try_lock()
+            .map(|recording| recording.edges.iter().cloned().collect())
+            .unwrap_or_default()
     }
 
     /// The recorded provenance writes, oldest first.
     #[must_use]
     pub fn writes(&self) -> Vec<SignalWrite> {
-        self.lock().writes.iter().cloned().collect()
+        self.try_lock()
+            .map(|recording| recording.writes.iter().cloned().collect())
+            .unwrap_or_default()
     }
 
     /// The recorded routed inputs, oldest first.
     #[must_use]
     pub fn inputs(&self) -> Vec<(InputKind, Option<alacer_core::arena::NodeId>)> {
-        self.lock().inputs.iter().copied().collect()
+        self.try_lock()
+            .map(|recording| recording.inputs.iter().copied().collect())
+            .unwrap_or_default()
     }
 
     /// The recorded focus trail, oldest first (ADR-0034): every
@@ -184,7 +192,9 @@ impl CausalRecorder {
     /// refusals alike, bounded by [`FOCUS_RING_CAP`].
     #[must_use]
     pub fn focus(&self) -> Vec<FocusRecord> {
-        self.lock().focus.iter().copied().collect()
+        self.try_lock()
+            .map(|recording| recording.focus.iter().copied().collect())
+            .unwrap_or_default()
     }
 
     /// The recorded edit trail, oldest first (ADR-0037): every journal
@@ -192,7 +202,9 @@ impl CausalRecorder {
     /// chords, the app's resets — bounded by [`EDIT_RING_CAP`].
     #[must_use]
     pub fn edits(&self) -> Vec<EditRecord> {
-        self.lock().edits.iter().copied().collect()
+        self.try_lock()
+            .map(|recording| recording.edits.iter().copied().collect())
+            .unwrap_or_default()
     }
 
     /// The recorded announcement trail, oldest first (ADR-0039): every
@@ -200,7 +212,9 @@ impl CausalRecorder {
     /// acts, the named refusals — bounded by [`ANNOUNCE_RING_CAP`].
     #[must_use]
     pub fn announces(&self) -> Vec<AnnounceRecord> {
-        self.lock().announces.iter().copied().collect()
+        self.try_lock()
+            .map(|recording| recording.announces.iter().copied().collect())
+            .unwrap_or_default()
     }
 
     /// The recorded shortcut trail, oldest first (ADR-0042): every
@@ -209,7 +223,9 @@ impl CausalRecorder {
     /// by [`KEY_RING_CAP`].
     #[must_use]
     pub fn keys(&self) -> Vec<KeyRecord> {
-        self.lock().keys.iter().cloned().collect()
+        self.try_lock()
+            .map(|recording| recording.keys.iter().cloned().collect())
+            .unwrap_or_default()
     }
 
     /// The recorded clipboard trail, oldest first (ADR-0045): every
@@ -218,7 +234,9 @@ impl CausalRecorder {
     /// [`CLIPBOARD_RING_CAP`].
     #[must_use]
     pub fn clipboards(&self) -> Vec<ClipboardRecord> {
-        self.lock().clipboards.iter().copied().collect()
+        self.try_lock()
+            .map(|recording| recording.clipboards.iter().copied().collect())
+            .unwrap_or_default()
     }
 
     /// The recorded value trail, oldest first (ADR-0046): every
@@ -226,7 +244,9 @@ impl CausalRecorder {
     /// refusals — bounded by [`VALUE_RING_CAP`].
     #[must_use]
     pub fn values(&self) -> Vec<alacer_core::inspect::ValueRecord> {
-        self.lock().values.iter().copied().collect()
+        self.try_lock()
+            .map(|recording| recording.values.iter().copied().collect())
+            .unwrap_or_default()
     }
 
     /// The recorded gesture trail, oldest first (ADR-0052): every
@@ -235,7 +255,9 @@ impl CausalRecorder {
     /// by [`GESTURE_RING_CAP`].
     #[must_use]
     pub fn gestures(&self) -> Vec<alacer_core::inspect::GestureRecord> {
-        self.lock().gestures.iter().copied().collect()
+        self.try_lock()
+            .map(|recording| recording.gestures.iter().copied().collect())
+            .unwrap_or_default()
     }
 
     /// The recorded scroll trail, oldest first (ADR-0056): every scroll
@@ -244,7 +266,9 @@ impl CausalRecorder {
     /// bounded by [`SCROLL_RING_CAP`].
     #[must_use]
     pub fn scrolls(&self) -> Vec<alacer_core::inspect::ScrollRecord> {
-        self.lock().scrolls.iter().copied().collect()
+        self.try_lock()
+            .map(|recording| recording.scrolls.iter().copied().collect())
+            .unwrap_or_default()
     }
 
     /// The recorded text-write trail, oldest first (ADR-0061): every
@@ -253,7 +277,9 @@ impl CausalRecorder {
     /// door's refusal — bounded by [`TEXT_WRITE_RING_CAP`].
     #[must_use]
     pub fn text_writes(&self) -> Vec<alacer_core::inspect::TextWriteRecord> {
-        self.lock().text_writes.iter().copied().collect()
+        self.try_lock()
+            .map(|recording| recording.text_writes.iter().copied().collect())
+            .unwrap_or_default()
     }
 
     /// The recorded route-drop trail, oldest first (ADR-0063): every
@@ -262,7 +288,9 @@ impl CausalRecorder {
     /// unknown target — bounded by [`ROUTE_DROP_RING_CAP`].
     #[must_use]
     pub fn route_drops(&self) -> Vec<alacer_core::inspect::RouteDropRecord> {
-        self.lock().route_drops.iter().copied().collect()
+        self.try_lock()
+            .map(|recording| recording.route_drops.iter().copied().collect())
+            .unwrap_or_default()
     }
 
     /// The recorded key-edit trail, oldest first (ADR-0064): every edit
@@ -271,7 +299,9 @@ impl CausalRecorder {
     /// by [`KEY_EDIT_RING_CAP`].
     #[must_use]
     pub fn key_edits(&self) -> Vec<alacer_core::inspect::KeyEditRecord> {
-        self.lock().key_edits.iter().copied().collect()
+        self.try_lock()
+            .map(|recording| recording.key_edits.iter().copied().collect())
+            .unwrap_or_default()
     }
 
     /// The composing-state facts, oldest first (ADR-0067): every fact
@@ -279,13 +309,16 @@ impl CausalRecorder {
     /// the cleared state beside it — bounded by [`PREEDIT_RING_CAP`].
     #[must_use]
     pub fn preedits(&self) -> Vec<alacer_core::inspect::PreeditRecord> {
-        self.lock().preedits.iter().copied().collect()
+        self.try_lock()
+            .map(|recording| recording.preedits.iter().copied().collect())
+            .unwrap_or_default()
     }
 
     /// The most recent frame, when any frame was observed.
     #[must_use]
     pub fn latest_frame(&self) -> Option<alacer_core::inspect::FrameSummary> {
-        self.lock().latest.clone()
+        self.try_lock()
+            .and_then(|recording| recording.latest.clone())
     }
 
     /// Total frames observed (never evicted — the honest count).
@@ -328,13 +361,18 @@ impl CausalRecorder {
     /// The app name (the greeting's `app` field).
     #[must_use]
     pub fn app(&self) -> String {
-        self.lock().app.clone()
+        self.try_lock()
+            .map(|recording| recording.app.clone())
+            .unwrap_or_default()
     }
 
-    fn lock(&self) -> std::sync::MutexGuard<'_, Recording> {
-        self.recording
-            .lock()
-            .expect("causal recorder lock poisoned")
+    /// The recording behind a graceful lock (the observer half's own
+    /// degradation): a poisoned mutex — an observer that panicked
+    /// mid-callback — answers `None`, the readers' empty honest
+    /// absence, never a panic of their own (the data survives the
+    /// poison; the rings drain whole beside it).
+    fn try_lock(&self) -> Option<std::sync::MutexGuard<'_, Recording>> {
+        self.recording.lock().ok()
     }
 }
 
@@ -468,6 +506,37 @@ mod tests {
         let drained = recorder.take_broadcast();
         assert_eq!(drained.len(), super::BROADCAST_RING_CAP, "bounded");
         assert!(recorder.take_broadcast().is_empty(), "drained empty");
+    }
+
+    /// A poisoned mutex — an observer that panicked mid-callback —
+    /// degrades, never cascades: the readers answer their honest
+    /// absence (empty rings, no latest frame, no broadcast), the same
+    /// shape `observe` and `take_broadcast` already answered before the
+    /// readers joined them (the graceful degradation the panicking
+    /// helper pre-registered as debt).
+    #[test]
+    fn a_poisoned_mutex_degrades_instead_of_panicking() {
+        let recorder = CausalRecorder::new("poisoned");
+        let mut handle = recorder.clone_handle();
+        handle.observe(InspectEvent::Input(alacer_core::inspect::InputRecord {
+            kind: InputKind::Key,
+            target: None,
+        }));
+        // Poison the mutex the way a panicking observer would: hold it
+        // and unwind inside the thread.
+        let poison = std::sync::Arc::clone(&recorder.recording);
+        let _ = std::thread::spawn(move || {
+            let _guard = poison.lock();
+            panic!("the observer panicked mid-callback");
+        })
+        .join();
+        // The data survived the poison; the readers answer empty
+        // instead of panicking with it.
+        assert!(recorder.frames().is_empty(), "the ring reads empty");
+        assert!(recorder.inputs().is_empty(), "the ring reads empty");
+        assert!(recorder.latest_frame().is_none(), "no latest to answer");
+        assert!(recorder.take_broadcast().is_empty(), "no broadcast");
+        assert_eq!(recorder.app(), "", "the greeting answers its absence");
     }
 
     #[test]

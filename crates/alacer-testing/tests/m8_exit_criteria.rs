@@ -285,12 +285,12 @@ fn m8_the_corpus_pin_agrees_with_the_published_data() {
     // its gates grew 63 → 64 with it — these pins re-agree at the cut.
     assert_eq!(
         benches.len(),
-        64,
+        65,
         "the corpus is 64: the M46 drag route joins the M35 keymap route, the M18 route, the M20 capture case, the M21 value-write route, the M22 refused route, and the M24/M25/M26/M27 focus routes riding together"
     );
     assert_eq!(
         regressions.len(),
-        64,
+        65,
         "every bench carries a regression gate"
     );
     for id in ["input/storm_50_moves_queued", "input/storm_50_moves_direct"] {

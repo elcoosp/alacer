@@ -64,6 +64,16 @@ fn describe(record: alacer_core::KeyEditRecord) -> String {
         .target
         .map(|target| format!(" (at {target})"))
         .unwrap_or_default();
+    if let alacer_core::KeyEditOutcome::Refused(refusal) = record.outcome {
+        // The wall's row (M62, and since M68 the read's species beside
+        // it): the ask the door turned away, the value untouched — the
+        // shape priced at nothing, never a landed shape behind it.
+        return format!(
+            "{who} {} — refused: {} (the value untouched){control}",
+            record.action.name(),
+            refusal.name(),
+        );
+    }
     format!(
         "{who} {} ({} replaced by {}) — the selection at {}..{}{fold}{control}",
         record.action.name(),
@@ -302,6 +312,23 @@ fn main() {
     pipeline.request_focus(field_node);
     settle(&mut pipeline);
     run_beats(&mut pipeline, status_signal, &store, field_node);
+    settle(&mut pipeline);
+
+    // The read-refusal beat (M68, ADR-0074): the payloadless copy —
+    // the chord arrives with no selection, the open door names the
+    // read it found (`empty_selection`, the wall grown beside the
+    // door's), the round trip keeping its own `NoSelection` fact — one
+    // fact per trail, the delivered chord's two-fact shape mirrored at
+    // the wall.
+    pipeline.dispatch_key(&KeyEvent {
+        key: Key::Char('c'),
+        state: KeyState::Pressed,
+        modifiers: Modifiers {
+            control: true,
+            ..Modifiers::default()
+        },
+        text: None,
+    });
     settle(&mut pipeline);
 
     if let Err(error) = alacer::run_window(

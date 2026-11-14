@@ -24,6 +24,7 @@ use alacer_core::events::{EventCtx, MouseButton, PointerEvent};
 use alacer_core::flux::Flux;
 use alacer_core::geom::{Point, Rect, Size};
 use alacer_core::passes::PassPipeline;
+use alacer_core::trail::TrailLog;
 use alacer_core::widget::{A11yAction, Role, Widget};
 use alacer_layout::LayoutHost;
 use alacer_render::{SceneJournalImpl, SoftwareRenderer};
@@ -79,6 +80,29 @@ impl TestHarness {
     #[must_use]
     pub const fn pipeline_mut(&mut self) -> &mut PassPipeline {
         &mut self.pipeline
+    }
+
+    /// Installs the trail's provided reader (§13.3, ADR-0069): the
+    /// [`TrailLog`] becomes the pipeline's observer and a reading handle
+    /// is returned — the m-suite's collector shape, provided once beside
+    /// the seam instead of hand-rolled per test. The ring is bounded
+    /// (the A7 window discipline): a trail nobody drains evicts its
+    /// oldest and counts the eviction, never a leak.
+    #[must_use]
+    pub fn trail(&mut self) -> TrailLog {
+        let trail = TrailLog::new();
+        self.pipeline.set_observer(Box::new(trail.clone()));
+        trail
+    }
+
+    /// The trail door at a named cap — the reader's window priced in
+    /// events (the ring evicts its oldest once the cap is exceeded, the
+    /// eviction counted on the handle).
+    #[must_use]
+    pub fn trail_with_cap(&mut self, cap: usize) -> TrailLog {
+        let trail = TrailLog::with_cap(cap);
+        self.pipeline.set_observer(Box::new(trail.clone()));
+        trail
     }
 
     /// Mounts the root widget.
@@ -539,22 +563,6 @@ pub fn pixel_diff_ratio(a: &Pixmap, b: &Pixmap) -> f32 {
         .filter(|(p, q)| p.iter().zip(q.iter()).any(|(x, y)| x.abs_diff(*y) > 8))
         .count();
     alacer_core::num::usize_to_f32(differing) / alacer_core::num::usize_to_f32(total)
-}
-
-/// A test widget trait extension: build boxes for compositions.
-pub trait WidgetBoxExt: Widget + Sized + 'static {
-    /// Boxes the widget.
-    fn boxed(self) -> Box<dyn Widget> {
-        Box::new(self)
-    }
-}
-
-impl<W: Widget> WidgetBoxExt for W {}
-
-/// Verifies the glyph rasterization seam end-to-end through the harness.
-#[must_use]
-pub fn glyph_source() -> ThreadLocalGlyphSource {
-    ThreadLocalGlyphSource
 }
 
 /// The a11y query builder (§11.5): the official query API, in plural form.

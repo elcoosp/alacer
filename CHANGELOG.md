@@ -9,6 +9,50 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M64 — the observer's tee joins the seam (ADR-0070)**: the
+  second-door ask the single slot pre-registered cashed — the
+  pipeline's observer slot is one (`PassPipeline::set_observer`), and
+  two devtools at once (the inspector's recorder on the wire beside
+  the trail's provided reader in-process, M63's) needed either a
+  hand-rolled wrapper (the benches' own `Share` shape, again) or one
+  door silently losing the other — so the seam grows
+  [`Tee`](crates/alacer-core/src/inspect.rs) beside `InspectObserver`:
+  two boxed observers behind one, each event forwarded first to
+  `first` then to `second` (the arrival order the causal reads rely
+  on), a third reader nesting (`Tee::new(a, Tee::new(b, c))`), the
+  fan-out priced not assumed (`trail/tee_announce_100_1k` under the
+  `trail_tee_overhead` budget ≤ 2.5× the unobserved announce route and
+  its own same-host regression gate, the corpus at 68, the m5/m6 pins
+  re-agreeing beside M63's), `examples/inspector_demo.rs` wiring the
+  recorder and the reader behind one tee (the recorder keeps the wire,
+  the app holds the in-process reading handle), no wire change (the
+  slot's single `None` branch unchanged — the A7 idle contract), the
+  living documents re-agree (the m64 suite prices the doors' order,
+  both doors fed, the recorder+reader share, and the nested tee)
+- **M63 — the trail's provided reader joins the seam (ADR-0069)**: the
+  collector ask the m-suite pre-registered cashed — every gate file and
+  every trail example hand-rolled the same shape (the
+  `Rc<RefCell<VecDeque>>` behind a one-method observer, 33 files over;
+  the benches' `Share` wrapper beside it) — so the seam grows
+  [`TrailLog`](crates/alacer-core/src/trail.rs) beside
+  `InspectObserver` (the clipboard seam's provided `MemoryClipboard`
+  precedent, clonable, `Arc<Mutex>`-backed so one installation serves
+  many readers), the drain the reader's own window (the held events
+  handed back oldest-first, the window emptied behind them), the look
+  reading without disturbing, the tip named, the eviction counted
+  (`dropped` — the named-refusal rule at the reader's own tier, never
+  a silent loss), the window bounded (`TRAIL_RING_CAP` = 1,024,
+  `with_cap` pricing a reader's own, a `0` cap refused with the
+  house's honest panic), the harness growing the one-call door
+  (`TestHarness::trail` / `trail_with_cap` — one line where every
+  suite wrote eleven), the corpus growing by the coordinated rule
+  (`trail/reader_announce_100_1k` + `trail_ring/fill_drain_1024` under
+  the `trail_reader_overhead` budget ≤ 2× the unobserved announce
+  route, the pins re-agreeing to 68), `examples/trail_reader.rs`
+  walking the beats, no wire change (the reader holds the events the
+  routes already stream), the living documents re-agree (the m63 suite
+  prices the typing route, the announce route, the ring's arithmetic,
+  the drain's window, and the undrained trail's bound)
 - **M62 — the typing door's refusals join the causal log
   (ADR-0068)**: ADR-0064's second kill rule cashed — a consumer
   prices the closed field's wall on the log (the M58 record named

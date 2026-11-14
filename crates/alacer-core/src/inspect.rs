@@ -258,6 +258,14 @@ pub struct EditRecord {
     pub undo_depth: usize,
     /// The redo branch's depth when the fact streamed.
     pub redo_depth: usize,
+    /// The field the journal serves (M66, ADR-0072 — the M43 stamp rule
+    /// at the journal tier): the AccessKit-stable id the routed event
+    /// arrived under, stamped where the echo resolves — the key route's
+    /// and the AT action route's guard filling what the widget cannot
+    /// know. `None` when the journal answered outside any route (the
+    /// app's direct rides — the honest absence, the M43 rule's own
+    /// word).
+    pub target: Option<u64>,
 }
 
 /// Why one speech act did not land on the reserved live region (§13.3,
@@ -1265,11 +1273,21 @@ pub enum RouteDropSpecies {
     /// The ask was routed to an id no tree node carries — the funnel's
     /// own defensive drop, refused before any widget's door.
     UnknownTarget,
-    /// The event rode no route at all — no field held focus (or the
-    /// focused node has gone), so the ask dropped before any widget's
-    /// door (M59, ADR-0065): the IME's committed composition, the
-    /// platform's other silence, named where the boundary refuses.
+    /// The event rode no route at all — no field has focus, so the ask
+    /// dropped before any widget's door (M59, ADR-0065): the IME's
+    /// committed composition, the platform's other silence, named where
+    /// the boundary refuses. Since M65 (ADR-0071) this is the
+    /// *never-focused* half of the silence — the focused node's death
+    /// rides its own species beside it ([`RouteDropSpecies::DeadFocus`],
+    /// the split the kill rule pre-registered).
     NoFocusedField,
+    /// The field that held focus has gone — the focused node died, and
+    /// the event addressed a door the tree no longer carries (M65,
+    /// ADR-0071, ADR-0065's first kill rule): a committed composition
+    /// with nowhere to land prices the *why* apart from the
+    /// never-focused one. The aim rides its honest absence either way —
+    /// the drop *is* the missing field.
+    DeadFocus,
 }
 
 impl RouteDropSpecies {
@@ -1283,6 +1301,42 @@ impl RouteDropSpecies {
             Self::OffTargetSelection => "off_target_selection",
             Self::UnknownTarget => "unknown_target",
             Self::NoFocusedField => "no_focused_field",
+            Self::DeadFocus => "dead_focus",
+        }
+    }
+}
+
+/// Which route dropped the ask (M65, ADR-0071 — the M30 rider rule at
+/// the route-drop tier): the boundary's mapping arms, the dispatch
+/// funnel's own refusal, and the IME route's silence all resolve drops,
+/// and a trail reader asking "which route refused my ask" reads them
+/// apart from the record alone. The attribution is declared where the
+/// drop resolves — the note site knows its own tier, the record never
+/// guesses it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RouteDropRider {
+    /// The platform boundary's mapping arms — the ask never became a
+    /// core action (the unknown action, the payloadless write, the
+    /// off-target selection; ADR-0063's original four).
+    Boundary,
+    /// The dispatch funnel's own refusal — the ask routed into the
+    /// pipeline and was refused there, before any widget's door (the
+    /// unknown target; ADR-0063).
+    Funnel,
+    /// The IME route — the composing event no live field held (M59,
+    /// ADR-0065; the split silence rides the same rider, M65).
+    ImeRoute,
+}
+
+impl RouteDropRider {
+    /// The rider's name, the wire vocabulary's `snake_case` tag (the
+    /// protocol's stable, documented field values).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Boundary => "boundary",
+            Self::Funnel => "funnel",
+            Self::ImeRoute => "ime_route",
         }
     }
 }
@@ -1296,8 +1350,10 @@ impl RouteDropSpecies {
 /// species naming why the boundary refused beside it, and the aimed id
 /// riding verbatim — the boundary's aim, never re-resolved against the
 /// tree (a re-resolved aim would be the funnel's answer, not the AT's
-/// ask). `Copy` like the records beside it: two strings' lengths, an
-/// id, a species.
+/// ask). Since M65 (ADR-0071) the record names its rider too — the
+/// route that dropped the ask, the M30 attribution rule at the route
+/// tier. `Copy` like the records beside it: two strings' lengths, an
+/// id, a species, a rider.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RouteDropRecord {
     /// The dropped action's stable tag (`set_value`, `focus`, …) — the
@@ -1306,6 +1362,11 @@ pub struct RouteDropRecord {
     pub action: &'static str,
     /// Why the boundary dropped the ask.
     pub species: RouteDropSpecies,
+    /// Which route dropped the ask (M65, ADR-0071): the platform
+    /// boundary's mapping arms, the dispatch funnel's refusal, or the
+    /// IME route's silence — declared where the drop resolves, never
+    /// guessed from the species.
+    pub rider: RouteDropRider,
     /// The id the request aimed at, verbatim — the identity the AT's
     /// client correlates against the tree it believes exists. `None`
     /// when the boundary had no aim to name (an ask with no target at

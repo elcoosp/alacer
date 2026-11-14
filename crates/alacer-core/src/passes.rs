@@ -796,10 +796,11 @@ impl PassPipeline {
     /// and the announcement trail (ADR-0039 — the speech acts' facts ride
     /// the doors and the same drain).
     /// Replaces any previous observer. Installing one also enables the
-    /// edit trail, the announcement trail, and the text-write trail
-    /// (ADR-0061): the journal, the push route, and the AT's editing
-    /// tier note their facts on this thread from here on, and the
-    /// disabled paths stay one branch per action.
+    /// edit trail, the announcement trail, the text-write trail
+    /// (ADR-0061), and the preedit trail (ADR-0067): the journal, the
+    /// push route, the AT's editing tier, and the composing tier note
+    /// their facts on this thread from here on, and the disabled paths
+    /// stay one branch per action.
     pub fn set_observer(&mut self, observer: Box<dyn InspectObserver>) {
         self.observer = Some(observer);
         crate::history::set_edit_trail_enabled(true);
@@ -811,6 +812,7 @@ impl PassPipeline {
         crate::text_write::set_text_write_trail_enabled(true);
         crate::route_drop::set_route_drop_trail_enabled(true);
         crate::key_edit::set_key_edit_trail_enabled(true);
+        crate::preedit::set_preedit_trail_enabled(true);
     }
 
     /// Enables per-pass wall timing and the overhead ledger (the M1 gate
@@ -1712,6 +1714,18 @@ impl PassPipeline {
         }
     }
 
+    /// Forwards one composing-state fact to the observer, when
+    /// installed (§13.3, ADR-0067): the preedit trail's fact — the
+    /// composition's inline shape named by lengths beside the
+    /// platform's cursor, one live session riding as one record (the
+    /// flood rule at the composing tier). One branch when no observer
+    /// is installed: the A7 idle contract is unchanged.
+    fn notify_preedit(&mut self, record: crate::inspect::PreeditRecord) {
+        if let Some(observer) = self.observer.as_mut() {
+            observer.observe(InspectEvent::Preedit(record));
+        }
+    }
+
     /// Forwards one speech-act fact to the observer, when installed
     /// (§13.3, ADR-0039): the announcement trail — the record the
     /// pipeline answered the act with, the politeness beside it. The
@@ -2291,6 +2305,21 @@ impl PassPipeline {
         // fact streams once, an absent reader just never sees it.
         for record in crate::key_edit::take_key_edit_trail() {
             self.notify_key_edit(record);
+        }
+
+        // The preedit drain (§13.3, ADR-0067): the composing-state facts
+        // the IME route queued on this thread ride the observer at the
+        // tick's start — the key-edit trail's shape, one frame after the
+        // preedit, the drain running after the key-edit drain (a
+        // composition's shape explains the field the IME is composing
+        // into; it streams beside the commit's own key-edit fact, the
+        // trails tellable apart). Every fact streams (a bounded queue,
+        // never collapsed — the session's own supersede bounds a live
+        // composition to one record), and the drain empties the queue
+        // whether an observer listens or not: a fact streams once, an
+        // absent reader just never sees it.
+        for record in crate::preedit::take_preedit_trail() {
+            self.notify_preedit(record);
         }
 
         let mut ledger: Vec<PassRun> = std::mem::take(&mut self.interframe);

@@ -408,6 +408,31 @@ pub enum WireEvent {
         /// AccessKit-stable id the AT action routed; `null` when the
         /// fact rode no route.
         target: Option<u64>,
+        /// The door the write rode (M56, ADR-0062 — the M30
+        /// attribution rule at the text tier): `at_door` for the AT's
+        /// ask, `app_door` for the app's own write (the imperative
+        /// door the view reconciliation's patches ride) — the trail
+        /// reader's answer to "did the screen reader rewrite this
+        /// field, or did the app?".
+        source: String,
+    },
+    /// An ask was dropped before any widget's door — the route-drop
+    /// trail (M57, ADR-0063): the unknown action, the payloadless
+    /// write, the off-target selection, the unknown target. The
+    /// record rides flat (the additive rule ADR-0010 names): the
+    /// dropped action's stable tag beside the drop's species and the
+    /// aimed id — clients that ignore unknown kinds are unaffected.
+    RouteDrop {
+        /// The dropped action's stable tag (`set_value`, `focus`, …)
+        /// — the platform vocabulary's own name for what arrived.
+        action: String,
+        /// Why the boundary dropped the ask (`unknown_action`,
+        /// `no_payload`, `off_target_selection`, `unknown_target`).
+        species: String,
+        /// The id the request aimed at, verbatim — the identity the
+        /// AT's client correlates against the tree it believes
+        /// exists; `null` when the boundary had no aim to name.
+        target: Option<u64>,
     },
     /// A completed frame — the ledger + the mask heatmap.
     Frame {
@@ -814,6 +839,19 @@ pub fn wire_text_write(record: &alacer_core::inspect::TextWriteRecord) -> WireEv
             anchor: record.selection.anchor,
             focus: record.selection.focus,
         },
+        target: record.target,
+        source: record.source.name().to_string(),
+    }
+}
+
+/// The route-drop record, flat on the wire (M57, ADR-0063): the
+/// dropped action's stable tag beside the drop's species and the aimed
+/// id — the boundary's own answer, never a munged widget-door fact.
+#[must_use]
+pub fn wire_route_drop(record: &alacer_core::inspect::RouteDropRecord) -> WireEvent {
+    WireEvent::RouteDrop {
+        action: record.action.to_string(),
+        species: record.species.name().to_string(),
         target: record.target,
     }
 }
@@ -1736,7 +1774,9 @@ mod tests {
     /// beside it.
     #[test]
     fn text_write_events_carry_the_write_shape() {
-        use alacer_core::inspect::{TextWriteAction, TextWriteOutcome, TextWriteRecord};
+        use alacer_core::inspect::{
+            TextWriteAction, TextWriteOutcome, TextWriteRecord, TextWriteSource,
+        };
         use alacer_core::widget::TextSelection;
         let rewrite = TextWriteRecord {
             action: TextWriteAction::SetValue,
@@ -1746,6 +1786,7 @@ mod tests {
             requested: None,
             selection: TextSelection::new(21, 21),
             target: Some(0xAB_CD),
+            source: TextWriteSource::AtDoor,
         };
         let WireEvent::TextWrite {
             action,
@@ -1756,6 +1797,7 @@ mod tests {
             requested,
             selection,
             target,
+            source,
         } = wire_text_write(&rewrite)
         else {
             panic!("text_write event");
@@ -1786,6 +1828,10 @@ mod tests {
             "the caret the write left rides beside the shape"
         );
         assert_eq!(target, Some(0xAB_CD), "the stamp names the control");
+        assert_eq!(
+            source, "at_door",
+            "the door the write rode rides beside the shape (M56)"
+        );
     }
 
     /// M55 (ADR-0061, this cut): the selection ask rides the wire with
@@ -1793,7 +1839,9 @@ mod tests {
     /// data, the write's shape riding the honest absence.
     #[test]
     fn text_write_events_carry_the_ask_beside_the_landing() {
-        use alacer_core::inspect::{TextWriteAction, TextWriteOutcome, TextWriteRecord};
+        use alacer_core::inspect::{
+            TextWriteAction, TextWriteOutcome, TextWriteRecord, TextWriteSource,
+        };
         use alacer_core::widget::TextSelection;
         let clamped = TextWriteRecord {
             action: TextWriteAction::SetSelection,
@@ -1803,6 +1851,7 @@ mod tests {
             requested: Some(TextSelection::new(2, 100)),
             selection: TextSelection::new(2, 11),
             target: Some(0xAB_CD),
+            source: TextWriteSource::AtDoor,
         };
         let WireEvent::TextWrite {
             action,
@@ -1840,7 +1889,7 @@ mod tests {
     #[test]
     fn text_write_events_carry_the_closed_doors_species() {
         use alacer_core::inspect::{
-            TextWriteAction, TextWriteOutcome, TextWriteRecord, TextWriteRefusal,
+            TextWriteAction, TextWriteOutcome, TextWriteRecord, TextWriteRefusal, TextWriteSource,
         };
         use alacer_core::widget::TextSelection;
         let refused = TextWriteRecord {
@@ -1851,6 +1900,7 @@ mod tests {
             requested: None,
             selection: TextSelection::new(0, 0),
             target: Some(0xAB_CD),
+            source: TextWriteSource::AtDoor,
         };
         let WireEvent::TextWrite {
             action,
@@ -1868,6 +1918,87 @@ mod tests {
             Some("unavailable"),
             "the closed door's species rides the way the value tier names it"
         );
+    }
+
+    /// M56 (ADR-0062, this cut): the app door's write rides the same
+    /// flat event, `source` naming the door — the attribution the
+    /// trail reader prices, never reconstructed.
+    #[test]
+    fn text_write_events_carry_the_app_doors_source() {
+        use alacer_core::inspect::{
+            TextWriteAction, TextWriteOutcome, TextWriteRecord, TextWriteSource,
+        };
+        use alacer_core::widget::TextSelection;
+        let app_write = TextWriteRecord {
+            action: TextWriteAction::SetValue,
+            outcome: TextWriteOutcome::Delivered,
+            replaced: Some(9),
+            inserted: Some(18),
+            requested: None,
+            selection: TextSelection::new(18, 18),
+            target: None,
+            source: TextWriteSource::AppDoor,
+        };
+        let WireEvent::TextWrite {
+            source,
+            target,
+            replaced,
+            ..
+        } = wire_text_write(&app_write)
+        else {
+            panic!("text_write event");
+        };
+        assert_eq!(source, "app_door", "the app door names itself");
+        assert_eq!(
+            target, None,
+            "the app door rode no funnel route — the honest absence"
+        );
+        assert_eq!(
+            replaced,
+            Some(9),
+            "the write's shape rides beside the source"
+        );
+    }
+
+    /// M57 (ADR-0063, this cut): the boundary's drop rides its own
+    /// flat event — the action's tag beside the species and the aimed
+    /// id, never a munged widget-door fact.
+    #[test]
+    fn route_drop_events_carry_the_boundarys_fact() {
+        use alacer_core::inspect::{RouteDropRecord, RouteDropSpecies};
+        let aimed_nowhere = RouteDropRecord {
+            action: "set_value",
+            species: RouteDropSpecies::UnknownTarget,
+            target: Some(0xDEAD_BEEF),
+        };
+        let WireEvent::RouteDrop {
+            action,
+            species,
+            target,
+        } = wire_route_drop(&aimed_nowhere)
+        else {
+            panic!("route_drop event");
+        };
+        assert_eq!(action, "set_value", "the dropped action's own tag");
+        assert_eq!(
+            species, "unknown_target",
+            "the species names why the boundary refused"
+        );
+        assert_eq!(
+            target,
+            Some(0xDEAD_BEEF),
+            "the aim the boundary refused, verbatim"
+        );
+
+        let payloadless = RouteDropRecord {
+            action: "replace_selected_text",
+            species: RouteDropSpecies::NoPayload,
+            target: Some(0xAB_CD),
+        };
+        let WireEvent::RouteDrop { species, .. } = wire_route_drop(&payloadless) else {
+            panic!("route_drop event");
+        };
+        assert_eq!(species, "no_payload");
     }
 
     #[test]

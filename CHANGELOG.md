@@ -9,6 +9,48 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M60 — the clipboard chords' field changes join the key-edit
+  vocabulary (ADR-0066)**: ADR-0064's third kill rule cashed — a
+  consumer prices the chords' edits at the field on the log (the
+  paste's shape, the cut's span were answerable only by re-pricing
+  the round trip's counts against the journal's) — so the record's
+  action vocabulary grows the chords: `KeyEditAction::Paste`/`Cut`
+  and `KeyEditDriver::Clipboard` (never munged onto the insert and
+  delete they mirror — a cut that streamed a delete fact and a cut
+  fact would double the edit, the round trip's own rule), the note
+  sites standing where the chord resolves (the round trip's fact
+  first, the causal order clipboard → edit), one fact per trail (the
+  round trip keeps the clipboard trail's, the journal the depths),
+  the refused paste and the copy answering no fact (the honest
+  absence), the chords never riding the flood rule (one fact per
+  chord, the supersede staying the typed run's), the wire carrying
+  the new `action`/`driver` values at version 1 (no new kind), the
+  client naming the chord's door, `examples/paste_edits.rs` walking
+  the beats, no new corpus case (the note rides the route the
+  clipboard bench already prices, the corpus stands at 65), the
+  living documents re-agree (the M58 suite's clipboard-chord pin
+  re-agrees to the priced chord)
+- **M61 — the field's composing state joins the causal log
+  (ADR-0067)**: ADR-0064's first kill rule cashed — a consumer
+  prices the preedit's own trail, the composition's inline shape (a
+  committed composition streamed its `KeyEditRecord`, the composing
+  state itself was traced and gone) — so the IME tier grows its own
+  record beside the commit's: one `PreeditRecord` per composing fact
+  (the phase `composing`/`cleared`, the shape named by its UTF-16
+  length — never the payload, ADR-0011's rule at the composition
+  tier — the preedit-local cursor beside it, the funnel's stamp
+  riding the IME route's guard), the flood rule the session's own
+  supersede (one live session = one growing record, never a
+  default-on echo of every composition frame), the preedit landing
+  nowhere (the commit's key-edit fact riding beside it — one fact
+  per trail; the spurious clear answering no fact), the preedit
+  trail the key-edit trail's shape (`PREEDIT_TRAIL_CAP` = 256, the
+  tick's start drain after the key-edit drain), the wire carrying
+  the flat `preedit` event at version 1, the client rendering "the
+  composition shows (shape 3) — the cursor at 2",
+  `examples/preedit_trail.rs` walking the beats, no new corpus case
+  (the note rides the route the IME events already take, the corpus
+  stands at 65), the living documents re-agree
 - **M59 — the IME's boundary drops join the route-drop vocabulary
   (ADR-0065)**: ADR-0063's first kill rule cashed — a consumer needs
   the platform's other silences on the log (an IME event no live

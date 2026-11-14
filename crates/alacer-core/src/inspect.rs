@@ -1052,7 +1052,7 @@ pub struct ScrollRecord {
     pub lines: Option<f32>,
 }
 
-/// The AT text-write action vocabulary (M55, ADR-0061): the three
+/// The text-write action vocabulary (M55, ADR-0061): the three
 /// asks a screen reader can make at a field's write door. The names
 /// are the wire's stable tags ([`TextWriteAction::name`], the
 /// protocol's `snake_case` rule).
@@ -1079,6 +1079,43 @@ impl TextWriteAction {
             Self::SetValue => "set_value",
             Self::ReplaceSelection => "replace_selection",
             Self::SetSelection => "set_selection",
+        }
+    }
+}
+
+/// Who made the write (M56, ADR-0062): the attribution every
+/// [`TextWriteRecord`] carries beside its action — the M30 rule at the
+/// text tier. One write vocabulary, two doors: a trail reader can
+/// answer "did the screen reader rewrite this field, or did the app?"
+/// from the record alone, the way the focus trail answers "did the
+/// user navigate, or did the app?" from its rider
+/// ([`FocusRider`], ADR-0036). The door is the route's name, not a
+/// second channel: the write behind the doors is the field's own
+/// whole-value rule, and the wire carries the source's
+/// [`TextWriteSource::name`] beside the action (the protocol's
+/// additive rule, ADR-0010).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TextWriteSource {
+    /// The AT's ask at the input's action door — the dispatch funnel
+    /// routed it (M55, ADR-0061; the stamp beside the source names the
+    /// control the ask arrived under).
+    AtDoor,
+    /// The app's own write — the imperative `set_value` door (the
+    /// mutate seam) and the view reconciliation's patches, which ride
+    /// the same door. No funnel route held the stamp: the identity is
+    /// the write's own absence, honest the way the widget doors'
+    /// always were.
+    AppDoor,
+}
+
+impl TextWriteSource {
+    /// The source's name, the wire vocabulary's `snake_case` tag (the
+    /// protocol's stable, documented field values).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::AtDoor => "at_door",
+            Self::AppDoor => "app_door",
         }
     }
 }
@@ -1195,6 +1232,79 @@ pub struct TextWriteRecord {
     /// outside a routed action (the honest absence, the stamp's own
     /// rule).
     pub target: Option<u64>,
+    /// The door the write rode (M56, ADR-0062 — the M30 attribution
+    /// rule at the text tier): the AT's ask at the action door
+    /// ([`TextWriteSource::AtDoor`]) or the app's own write at the
+    /// imperative door the view reconciliation's patches ride
+    /// ([`TextWriteSource::AppDoor`]) — the trail reader's answer to
+    /// "did the screen reader rewrite this field, or did the app?",
+    /// named where the record is built, never reconstructed.
+    pub source: TextWriteSource,
+}
+
+/// Why the boundary dropped an ask before any widget's door (M57,
+/// ADR-0063): the route's own refusal species. A drop is never a
+/// munged widget-door fact — no door ever answered — so the route
+/// names its own answers, the way the value tier named its four
+/// (ADR-0046's rhythm at the boundary tier).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RouteDropSpecies {
+    /// The action has no consumer in the framework's vocabulary —
+    /// mapping it onto a press would be a correctness bug (the
+    /// boundary's own rule, ADR-0016), so it drops.
+    UnknownAction,
+    /// The ask needs a payload the request did not carry — a
+    /// `SetValue` or `ReplaceSelectedText` with no `Value` data. A
+    /// mapping without the payload would be a munge; the ask drops.
+    NoPayload,
+    /// The `SetTextSelection` was aimed at another node — Alacer's
+    /// editable nodes carry their own value, the character indexes
+    /// cannot be honored here, and the ask drops (the single-node
+    /// selection contract, ADR-0017).
+    OffTargetSelection,
+    /// The ask was routed to an id no tree node carries — the funnel's
+    /// own defensive drop, refused before any widget's door.
+    UnknownTarget,
+}
+
+impl RouteDropSpecies {
+    /// The species' name, the wire vocabulary's `snake_case` tag (the
+    /// protocol's stable, documented field values).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::UnknownAction => "unknown_action",
+            Self::NoPayload => "no_payload",
+            Self::OffTargetSelection => "off_target_selection",
+            Self::UnknownTarget => "unknown_target",
+        }
+    }
+}
+
+/// One boundary drop's record (M57, ADR-0063): the causal log's answer
+/// to "the AT asked — why did no door ever answer". The record is the
+/// route's own fact, queued where the drop resolves — the platform
+/// boundary's mapping arms and the dispatch funnel's unknown-target
+/// refusal — and never at a widget's door. The action is named by its
+/// stable `snake_case` tag (the protocol's field-value rule), the
+/// species naming why the boundary refused beside it, and the aimed id
+/// riding verbatim — the boundary's aim, never re-resolved against the
+/// tree (a re-resolved aim would be the funnel's answer, not the AT's
+/// ask). `Copy` like the records beside it: two strings' lengths, an
+/// id, a species.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RouteDropRecord {
+    /// The dropped action's stable tag (`set_value`, `focus`, …) — the
+    /// platform vocabulary's own name for what arrived, never a munge
+    /// onto the core action it did not become.
+    pub action: &'static str,
+    /// Why the boundary dropped the ask.
+    pub species: RouteDropSpecies,
+    /// The id the request aimed at, verbatim — the identity the AT's
+    /// client correlates against the tree it believes exists. `None`
+    /// when the boundary had no aim to name (an ask with no target at
+    /// all).
+    pub target: Option<u64>,
 }
 
 /// One observation: what the pipeline and the flux surface to devtools.
@@ -1262,8 +1372,18 @@ pub enum InspectEvent {
     /// named by lengths beside the landing selection, the refusals
     /// named. Streams with the frame's own records (the tick's start
     /// drain, the scroll drain's shape — the fact queues where the
-    /// door resolves, one frame after the write).
+    /// door resolves, one frame after the write). Since M56 (ADR-0062)
+    /// the record names the door the write rode — the AT's ask or the
+    /// app's own write.
     TextWrite(TextWriteRecord),
+    /// An ask was dropped before any widget's door — the route-drop
+    /// trail (ADR-0063): the unknown action, the payloadless write,
+    /// the off-target selection, the unknown target — the boundary's
+    /// defensive refusals, named where the drop resolves. Streams with
+    /// the frame's own records (the tick's start drain, the text-write
+    /// drain's shape — the fact queues where the route refuses, one
+    /// frame after the drop).
+    RouteDrop(RouteDropRecord),
     /// A frame completed — the frame's causal summary.
     Frame(FrameSummary),
 }

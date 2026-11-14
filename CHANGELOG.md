@@ -9,6 +9,43 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M62 — the typing door's refusals join the causal log
+  (ADR-0068)**: ADR-0064's second kill rule cashed — a consumer
+  prices the closed field's wall on the log (the M58 record named
+  every edit that landed; the wall was pure silence, a typed run
+  beside a wall indistinguishable from an honest gap) — so the record
+  grows its outcome beside the landed shape
+  (`KeyEditOutcome::Landed` on every delivered edit — the M58 shape
+  named additively; `Refused(KeyEditRefusal::Unavailable)` on the
+  wall — the availability tier's species in the value tier's own
+  word, ADR-0027's `unavailable` tag, one refusal vocabulary across
+  the tiers), the ask named by the door's own match (`refused_action`
+  — the classify half of `edit_key`'s match: a character, a unit or
+  word delete, and the chords name themselves, while the caret's
+  walk, the submit's Enter, and the copy and journal chords ride
+  none — the wall prices edit asks, never every routed keystroke; a
+  release names no ask), the chords' refusals riding behind their own
+  actions (`paste`/`cut` under the `clipboard` driver — ADR-0066's
+  third kill rule cashing beside; the engine never ran, one fact per
+  trail), the shape priced at nothing and the selection the untouched
+  one (never a munged delivered edit; an open door's no-op staying
+  silent — the M20 rule's own word), the window the availability
+  tier's own (the M22 eviction is the frame's pass, not the door —
+  the wall answers the frame it is held down in; the boundary's
+  post-eviction silence the route's own vocabulary — the key route's
+  fallbacks, the IME route's `no_focused_field` drop, M59 — never a
+  munged typing-door fact; the M58 pin re-agrees with the boundary
+  named), the supersede staying the delivered run's fold (a refusal
+  at the trail's tip supersedes nothing — the outcome guard, the
+  refusal never riding the fold), the wire carrying the additive
+  `outcome`/`refusal` fields at version 1 (no new kind), the client
+  rendering "the keyboard refused — the wall held (unavailable)",
+  `examples/edit_refusals.rs` walking the beats, no new corpus case
+  and no new bench case (the record rides the route the keys already
+  take and the editing bench already prices — the wall off the
+  delivered hot path; the corpus stands at 65), the living documents
+  re-agree (the M58 suite's disabled-field pin re-agrees to the
+  priced window)
 - **M60 — the clipboard chords' field changes join the key-edit
   vocabulary (ADR-0066)**: ADR-0064's third kill rule cashed — a
   consumer prices the chords' edits at the field on the log (the

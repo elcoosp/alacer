@@ -227,7 +227,7 @@ kill rule); every trail is bounded and silent when nobody listens. Since M63 the
 provided reader — `TrailLog`, the bounded window the seam grows beside the trait (one installation
 serving many readers, the drain the read's own window, the eviction named, never a silent loss;
 the harness installs it in one call), and since M64 the single observer slot shares — the tee
-fans the recorder's wire out beside the in-process reader, two doors behind one installation. Since M65 the drops name the route that dropped them too — the boundary's mapping arms, the dispatch funnel, and the IME route tellable apart on one record (the M30 rider rule at the route tier) — and the IME's silence splits: the committed composition whose focused field died mid-session names `dead_focus`, never the never-focused one the old collapse munged it into. Since M66 the journal's echo names its field too — the depths riding the M43 stamp, two fields tellable apart on one log, the app's direct rides carrying the honest absence.
+fans the recorder's wire out beside the in-process reader, two doors behind one installation. Since M65 the drops name the route that dropped them too — the boundary's mapping arms, the dispatch funnel, and the IME route tellable apart on one record (the M30 rider rule at the route tier) — and the IME's silence splits: the committed composition whose focused field died mid-session names `dead_focus`, never the never-focused one the old collapse munged it into. Since M66 the journal's echo names its field too — the depths riding the M43 stamp, two fields tellable apart on one log, the app's direct rides carrying the honest absence. Since M67 the adapter's echo streams its fact too — the AT connected or reconnected and the sink answered with the whole resolved tree, the tree named by its node count, one fact per build, the log quiet between connects. Since M68 the payloadless chord names its read too — the copy or cut whose selection is empty answering `empty_selection` beside the round trip's own fact, one per trail.
 
 ## Input & hot reload
 
@@ -321,12 +321,13 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `app_text_writes` | the M56 app door driven from the consumer side: the mutate seam's whole-value write beside the AT's ask on one log, the doors tellable apart by the record's `source`, the journal's reset streaming beneath the write |
 | `route_drops` | the M57 boundary driven from the consumer side: the ask aimed at an unknown target names its drop (the species beside the aimed id), the delivered ask beside it streaming nothing — the honest absence, the committed composition no field held naming its own drop (the M59 beat), and the M65 beats beside them: every record names the route that refused it (`boundary`/`funnel`/`ime_route`), the composition whose field died mid-session naming `dead_focus` — the split silence |
 | `key_edits` | the M58 typing door driven from the consumer side: the typed run named as one fact (the flood rule), the backspace's span, the word chord's species, the IME's commit named by its driver, the app door's write beside them streaming nothing — the honest absence |
-| `paste_edits` | the M60 chords driven from the consumer side: the paste named by its driver and shape (the payload priced by lengths, never carried), the paste over a selection pricing both spans, the cut's span, the refused paste streaming nothing — the honest absence, the copy editing nothing beside it |
+| `paste_edits` | the M60 chords driven from the consumer side: the paste named by its driver and shape (the payload priced by lengths, never carried), the paste over a selection pricing both spans, the cut's span, the refused paste streaming nothing — the honest absence, the copy editing nothing beside it — and the M68 beat beside them: the payloadless copy naming its read (`empty_selection`, the wall grown beside the door's) |
 | `preedit_trail` | the M61 composing door driven from the consumer side: one session composing in three frames riding one growing record (never an echo per frame), the cleared composition naming its own end, the commit landing beside it on the key-edit trail, the spurious clear streaming none |
 | `edit_refusals` | the M62 wall driven from the consumer side: the routed edit key a held field ignored naming its ask behind the wall's species (the shape priced at nothing, the value untouched), the chords refusing behind their own actions while the engine never runs, the navigation keys riding no wall fact, the IME's commit refused with its own driver, the reopened door landing again |
 | `announcements` | polite and assertive speech acts, the honest refusal, the status line mirroring the live region |
 | `announce_trail` | one `Announce` record per answered act — superseded facts beside the survivor |
-| `trail_reader` | the app reading its own log through the provided `TrailLog` (ADR-0069) — no hand-rolled collector; each *Read the log* press drains the window and names the tip |
+| `trail_reader` |
+| `a11y_echo` | the adapter's echo driven from the consumer side: the activation route rides — the erased sink downcast, the full-tree build — and the *trail* label mirrors what the log streamed ("the AT answered with the full tree (N nodes)"), the reconnect beat beside it streaming a second echo, one fact per build (the flood rule at a tier whose events are rare), the M64 tee carrying the label and the in-process reader behind one slot | the app reading its own log through the provided `TrailLog` (ADR-0069) — no hand-rolled collector; each *Read the log* press drains the window and names the tip |
 
 **Values & availability**
 
@@ -400,7 +401,7 @@ tree (`query(role).named(..)`, `press`, `find_all`) — never widget internals.
 ## Status
 
 > [!NOTE]
-> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M66 of `docs/architecture.md` are
+> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M68 of `docs/architecture.md` are
 > complete, but the API still moves between minor versions. MSRV **1.99**, edition **2024**.
 
 | Platform            | CI coverage                                                                                                                                                           |
@@ -412,7 +413,7 @@ tree (`query(role).named(..)`, `press`, `find_all`) — never widget internals.
 ## Learn more
 
 - [Architecture](https://github.com/elcoosp/alacer/blob/main/docs/architecture.md) — design axioms, the ten-pass contract, rendering, accessibility, DX, performance, roadmap and kill criteria
-- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — seventy-three decision records, from workspace discipline to the M66 scope
+- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — seventy-five decision records, from workspace discipline to the M68 scope
 - [Examples catalog](https://github.com/elcoosp/alacer/blob/main/docs/examples.md) — every example with the contract it exercises
 - [Migrating from Iced](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-iced.md) · [from egui](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-egui.md) — mental-model mappings, interop limits stated plainly
 - [Inspector protocol](https://github.com/elcoosp/alacer/blob/main/docs/inspector-protocol.md) — the versioned WebSocket contract behind `alacer-inspect`

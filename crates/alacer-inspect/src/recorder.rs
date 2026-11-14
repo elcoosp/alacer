@@ -72,6 +72,10 @@ pub const ROUTE_DROP_RING_CAP: usize = 512;
 /// scroll, text-write, and route-drop rings ride.
 pub const KEY_EDIT_RING_CAP: usize = 512;
 
+/// The preedit ring's cap: composing-state facts carried before the
+/// oldest evicts (the key-edit ring's own order, §14.3).
+pub const PREEDIT_RING_CAP: usize = 512;
+
 /// One recorded frame (the wire conversion lives in [`crate::wire`]).
 #[derive(Debug, Clone)]
 pub struct RecordedFrame {
@@ -108,6 +112,9 @@ struct Recording {
     /// facts — the typed run folded to one record, the IME commit,
     /// the unit and word deletes — bounded by [`KEY_EDIT_RING_CAP`]).
     key_edits: VecDeque<alacer_core::inspect::KeyEditRecord>,
+    /// The composing-state facts (ADR-0067: the composition's inline
+    /// shape, the phases beside it — bounded by [`PREEDIT_RING_CAP`]).
+    preedits: VecDeque<alacer_core::inspect::PreeditRecord>,
     /// The most recent frame, for "what does the inspector see right now".
     latest: Option<alacer_core::inspect::FrameSummary>,
     /// The wire-shaped events awaiting the server's session drain (push, not
@@ -267,6 +274,14 @@ impl CausalRecorder {
         self.lock().key_edits.iter().copied().collect()
     }
 
+    /// The composing-state facts, oldest first (ADR-0067): every fact
+    /// the composing door answered — the live session's growing shape,
+    /// the cleared state beside it — bounded by [`PREEDIT_RING_CAP`].
+    #[must_use]
+    pub fn preedits(&self) -> Vec<alacer_core::inspect::PreeditRecord> {
+        self.lock().preedits.iter().copied().collect()
+    }
+
     /// The most recent frame, when any frame was observed.
     #[must_use]
     pub fn latest_frame(&self) -> Option<alacer_core::inspect::FrameSummary> {
@@ -297,6 +312,7 @@ impl CausalRecorder {
             recording.text_writes.clear();
             recording.route_drops.clear();
             recording.key_edits.clear();
+            recording.preedits.clear();
         }
     }
 
@@ -392,6 +408,9 @@ impl InspectObserver for RecorderHandle {
             }
             InspectEvent::KeyEdit(record) => {
                 push_bounded(&mut recording.key_edits, KEY_EDIT_RING_CAP, record);
+            }
+            InspectEvent::Preedit(record) => {
+                push_bounded(&mut recording.preedits, PREEDIT_RING_CAP, record);
             }
             InspectEvent::Frame(summary) => {
                 self.frames_seen.fetch_add(1, Ordering::Relaxed);

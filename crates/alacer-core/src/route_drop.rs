@@ -20,6 +20,17 @@
 //! rides the record verbatim, never re-resolved against the tree (a
 //! re-resolved aim would be the funnel's answer, not the AT's ask).
 //!
+//! Since M65 (ADR-0071) the record names its rider — which route
+//! dropped the ask ([`crate::inspect::RouteDropRider`]: the platform
+//! boundary, the dispatch funnel, the IME route; the M30 attribution
+//! rule at the route-drop tier, the attribution declared where the drop
+//! resolves) — and the silence splits: the IME event no live field held
+//! prices the *never-focused* drop ([`crate::inspect::RouteDropSpecies::
+//! NoFocusedField`]) apart from the *dead focused node's* drop
+//! ([`crate::inspect::RouteDropSpecies::DeadFocus`], ADR-0065's first
+//! kill rule) — a committed composition with nowhere to land names why
+//! it had nowhere.
+//!
 //! ```text
 //! // The boundary (platform) and the funnel (core) both queue:
 //! use alacer_core::route_drop::note_route_drop;
@@ -62,12 +73,14 @@ pub(crate) fn set_route_drop_trail_enabled(enabled: bool) {
 /// side of the trail, ADR-0063): a no-op while the trail is disabled,
 /// an oldest-evicting push while it rides. The drop sites — the
 /// platform boundary's mapping arms, the dispatch funnel's
-/// unknown-target refusal — call this at the exact place the drop
-/// resolves, so a status line, an inspector trail, or a test reads the
-/// boundary without re-implementing the observation at the refusal
-/// site. The record rides as built: the aimed id is the aim the
-/// boundary refused, verbatim — the trail never re-resolves it against
-/// the tree (the record is the route's answer, not the tree's).
+/// unknown-target refusal, the IME route's silence — call this at the
+/// exact place the drop resolves, so a status line, an inspector trail,
+/// or a test reads the boundary without re-implementing the observation
+/// at the refusal site. The record rides as built: the aimed id is the
+/// aim the boundary refused, verbatim — the trail never re-resolves it
+/// against the tree — and the rider is the route's own answer, declared
+/// where the drop resolved (the trail never guesses the tier from the
+/// species, M65's rule beside the aim's).
 pub fn note_route_drop(record: crate::inspect::RouteDropRecord) {
     TRAIL_ENABLED.with(|enabled| {
         if !enabled.get() {
@@ -101,7 +114,7 @@ pub(crate) fn take_route_drop_trail() -> Vec<crate::inspect::RouteDropRecord> {
 #[cfg(test)]
 mod tests {
     use super::{ROUTE_DROP_TRAIL_CAP, note_route_drop, take_route_drop_trail};
-    use crate::inspect::{RouteDropRecord, RouteDropSpecies};
+    use crate::inspect::{RouteDropRecord, RouteDropRider, RouteDropSpecies};
 
     /// The disabled trail is a no-op: nothing queues, the drain answers
     /// empty (the A7 idle contract, the value trail's own test).
@@ -110,6 +123,7 @@ mod tests {
         note_route_drop(RouteDropRecord {
             action: "set_value",
             species: RouteDropSpecies::UnknownTarget,
+            rider: RouteDropRider::Funnel,
             target: Some(0xDEAD_BEEF),
         });
         assert!(
@@ -120,7 +134,8 @@ mod tests {
 
     /// The enabled trail queues bounded, oldest-first eviction, and the
     /// drain clears whole: a fact streams once. The record rides as
-    /// built — the aim the caller named is the aim the trail carries.
+    /// built — the aim the caller named is the aim the trail carries,
+    /// the rider the note site declared is the rider the trail carries.
     #[test]
     fn the_enabled_trail_queues_bounded_and_drains_once() {
         crate::route_drop::set_route_drop_trail_enabled(true);
@@ -128,6 +143,7 @@ mod tests {
             note_route_drop(RouteDropRecord {
                 action: "set_value",
                 species: RouteDropSpecies::UnknownTarget,
+                rider: RouteDropRider::Funnel,
                 target: Some(index as u64),
             });
         }
@@ -138,6 +154,11 @@ mod tests {
             "the cap bounds the trail"
         );
         assert_eq!(drained[0].target, Some(8), "the oldest evicted first");
+        assert_eq!(
+            drained[0].rider,
+            RouteDropRider::Funnel,
+            "the rider rides as the note site declared it"
+        );
         assert!(
             take_route_drop_trail().is_empty(),
             "the drain clears whole — a fact streams once"
@@ -145,10 +166,45 @@ mod tests {
         crate::route_drop::set_route_drop_trail_enabled(false);
     }
 
-    /// Every species carries its stable tag — the wire vocabulary's
-    /// `snake_case` rule, the names the protocol document pins.
+    /// The trail never guesses the rider: a fact queued with the IME
+    /// route's rider carries it verbatim — the attribution is the note
+    /// site's own declaration, never reconstructed from the species.
     #[test]
-    fn the_species_carry_their_stable_tags() {
+    fn the_record_rides_the_rider_its_note_site_declared() {
+        crate::route_drop::set_route_drop_trail_enabled(true);
+        note_route_drop(RouteDropRecord {
+            action: "ime_commit",
+            species: RouteDropSpecies::NoFocusedField,
+            rider: RouteDropRider::ImeRoute,
+            target: None,
+        });
+        note_route_drop(RouteDropRecord {
+            action: "set_value",
+            species: RouteDropSpecies::NoPayload,
+            rider: RouteDropRider::Boundary,
+            target: Some(0xAB_CD),
+        });
+        let drained = take_route_drop_trail();
+        assert_eq!(
+            drained[0].rider,
+            RouteDropRider::ImeRoute,
+            "the IME route's silence names the IME route"
+        );
+        assert_eq!(
+            drained[1].rider,
+            RouteDropRider::Boundary,
+            "the boundary's mapping arms name the boundary"
+        );
+        crate::route_drop::set_route_drop_trail_enabled(false);
+    }
+
+    /// Every species and rider carries its stable tag — the wire
+    /// vocabulary's `snake_case` rule, the names the protocol document
+    /// pins. The split silence (M65, ADR-0071): the dead focus names
+    /// itself, never the never-focused one the old collapse munged it
+    /// into.
+    #[test]
+    fn the_species_and_riders_carry_their_stable_tags() {
         assert_eq!(RouteDropSpecies::UnknownAction.name(), "unknown_action");
         assert_eq!(RouteDropSpecies::NoPayload.name(), "no_payload");
         assert_eq!(
@@ -160,6 +216,18 @@ mod tests {
             RouteDropSpecies::NoFocusedField.name(),
             "no_focused_field",
             "the route's other silence joins the vocabulary (M59)"
+        );
+        assert_eq!(
+            RouteDropSpecies::DeadFocus.name(),
+            "dead_focus",
+            "the dead focused node's drop prices apart (M65, ADR-0071)"
+        );
+        assert_eq!(RouteDropRider::Boundary.name(), "boundary");
+        assert_eq!(RouteDropRider::Funnel.name(), "funnel");
+        assert_eq!(
+            RouteDropRider::ImeRoute.name(),
+            "ime_route",
+            "the riders name the route that dropped the ask (M65)"
         );
     }
 }

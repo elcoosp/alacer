@@ -258,13 +258,17 @@ function connect() {
         // edit trail lands in the log pane beside the focus trail — the
         // action and the depths named, the refusal rendered the way the
         // walk's refusals are, so a reader answers "what did this
-        // field's journal do" from the log alone.
+        // field's journal do" from the log alone. Since M66 (ADR-0072)
+        // the echo names its field beside the depths (the M43 stamp
+        // rule at the journal tier) — two journals tellable apart on
+        // one log, `null` on the app's direct rides.
+        const field = event.target != null ? " — the field " + event.target : "";
         const depths = " (undo " + event.undo_depth + " · redo " + event.redo_depth + ")";
         const answer = event.refused
-          ? "refused: the journal was " + (event.action === "undo" ? "exhausted" : "empty") + depths
+          ? "refused: the journal was " + (event.action === "undo" ? "exhausted" : "empty") + depths + field
           : (event.action === "record"
-            ? (event.coalesced ? "coalesced into the tip" : "opened a step") + depths
-            : "answered" + depths);
+            ? (event.coalesced ? "coalesced into the tip" : "opened a step") + depths + field
+            : "answered" + depths + field);
         addLog("edit", "edit " + event.action, answer);
         break;
       }
@@ -494,15 +498,18 @@ function connect() {
       case "route_drop": {
         // The client renders the route-drop echo (M57, ADR-0063): the
         // boundary's defensive drops land in the log pane beside the
-        // other trails — the dropped action's tag beside the species
-        // and the aimed id, so a reader answers "the AT asked; why did
-        // no door ever answer" from the row alone. A drop is never a
-        // munged widget-door fact: the row is the route's own
-        // vocabulary, the aim riding verbatim (null when the boundary
-        // had no aim to name).
+        // other trails — the dropped action's tag beside the species,
+        // the rider, and the aimed id, so a reader answers "the AT
+        // asked; why did no door ever answer — and which route said no"
+        // from the row alone (M65, ADR-0071). A drop is never a munged
+        // widget-door fact: the row is the route's own vocabulary, the
+        // aim riding verbatim (null when the boundary had no aim to
+        // name), the rider naming the route that refused the ask.
+        const rider = event.rider === "boundary" ? "the boundary"
+          : event.rider === "funnel" ? "the funnel" : "the IME route";
         const target = event.target != null ? " (aimed at " + event.target + ")" : "";
         addLog("route_drop", "route_drop " + event.action,
-          "dropped: " + event.species + target);
+          "dropped: " + event.species + target + " — " + rider + " refused it");
         break;
       }
       case "key_edit": {

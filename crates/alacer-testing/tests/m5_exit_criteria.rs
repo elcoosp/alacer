@@ -32,7 +32,7 @@ use std::path::PathBuf;
 /// mixed route — ADR-0041). Growing the corpus is the coordinated bench +
 /// contracts.json + baseline-regeneration rule, reviewed here and by the
 /// M6–M12 suites (which assert this pin agrees with their own).
-const EXPECTED_BENCH_COUNT: usize = 64;
+const EXPECTED_BENCH_COUNT: usize = 65;
 
 /// The one criterion-expressible architecture budget in M5's contract set:
 /// the W1 gate (§18 M2, ADR-0008).

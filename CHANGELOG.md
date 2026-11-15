@@ -9,6 +9,37 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M72 — the view's patch joins the causal log (ADR-0078)**:
+  the view tier's own kill rule cashed — a consumer cannot answer
+  "what did my re-render change — and how much?" from the log the
+  causal trail streams: the view reconciliation, the tier every
+  re-render rides, answered a
+  [`PatchReport`](crates/alacer-view/src/mount.rs) the imperative
+  caller read and dropped (the mount's build streamed nothing at
+  all), no record on the log — so the view grows its own named fact
+  ([`ViewPatchRecord`](crates/alacer-core/src/inspect.rs) — the
+  reconciler's four counts beside each other, named by its lengths,
+  the props never riding — in
+  [`InspectEvent::ViewPatch`](crates/alacer-core/src/inspect.rs) at
+  the tick's start drain, the route-drop trail's shape, one frame
+  after the re-render that asked for it; the thread trail bounded
+  256, the recorder's ring 512), the note sites the exact places the
+  patch resolves (the reconciler's mount for the build — the tree
+  named by its element count — and the update for the diff, the
+  counts verbatim, gated on the diff moving something — the
+  idle-frame property), one fact per patch that moved something,
+  never per frame (the frames that re-render nothing stream none,
+  and the no-op re-render streams none too — the m32 canon's own
+  pre-registered rule, the flood rule at the view tier shipped at
+  this cut), the record beside the door's
+  own `PatchReport` (the door's contract unchanged), the wire's flat
+  `view_patch` event at version 1, the embedded client rendering the
+  counts' row, and
+  [`examples/patch_trail.rs`](crates/alacer/examples/patch_trail.rs)
+  walking the beat; the corpus grows 71 → 73 by the coordinated rule
+  (`view_patch/note_disabled`, `view_patch/note_enabled_bounded` —
+  bench, gate, and baseline in the same cut — and the M71 cut's
+  promised `frame_refusal` baselines publishing in the same run)
 - **M71 — the frame's refusals join the causal log (ADR-0077)**:
   the frame tier's own kill rule cashed — a consumer cannot answer
   "why did nothing paint?" from the log the causal trail streams: the

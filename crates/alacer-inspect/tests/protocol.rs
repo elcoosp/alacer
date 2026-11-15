@@ -353,22 +353,31 @@ fn setting_events_carry_the_documented_flat_shape() {
     // the dark-mode fact beside the kind — the documented `setting`
     // shape (ADR-0080), a new event kind at version 1 (the additive
     // rule: clients that ignore unknown kinds unaffected). The bool is
-    // the fact — the payload rule at the setting tier has nothing to
-    // strip.
+    // the fact; since M76 (ADR-0082) the broadcast's node count rides
+    // beside it — the additive field the versioning rule admits at
+    // version 1, the lengths rule's shape (the ids never ride).
     use alacer_core::inspect::SettingRecord;
     use alacer_inspect::wire::wire_setting;
 
-    let flip = wire_setting(&SettingRecord { dark: true });
+    let flip = wire_setting(&SettingRecord {
+        dark: true,
+        repainted: 7,
+    });
     let json = serde_json::to_string(&flip).expect("flip json");
     assert!(
-        json.contains(r#""kind":"setting""#) && json.contains(r#""dark":true"#),
-        "the flip's fact is the fact — the bool named plain: {json}"
+        json.contains(r#""kind":"setting""#)
+            && json.contains(r#""dark":true"#)
+            && json.contains(r#""repainted":7"#),
+        "the flip's fact and its reach, named plain: {json}"
     );
-    let flip = wire_setting(&SettingRecord { dark: false });
+    let flip = wire_setting(&SettingRecord {
+        dark: false,
+        repainted: 0,
+    });
     let json = serde_json::to_string(&flip).expect("flip json");
     assert!(
-        json.contains(r#""dark":false"#),
-        "the light flip names its own fact: {json}"
+        json.contains(r#""dark":false"#) && json.contains(r#""repainted":0"#),
+        "the light flip names its own fact and reach: {json}"
     );
 }
 

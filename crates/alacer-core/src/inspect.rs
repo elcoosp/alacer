@@ -1941,6 +1941,26 @@ pub struct ViewPatchRecord {
     pub moved: usize,
 }
 
+/// One theme swap's fact (§7.2 pass 8, ADR-0079): the theme tier's own
+/// record — the palette's tag beside the door that landed it, the
+/// route-drop trail's shape (ADR-0063) at the theme tier. The tag is
+/// the seam's own [`alacer_core::theme::ThemeSeam::name`] (the wire
+/// vocabulary's stable, documented field values), never the palette's
+/// colors: the payload rule's shape — the log names the palette, the
+/// paint pass resolves it. The record rides *beside* the door's `bool`
+/// answer — the door still answers whether the swap landed — never
+/// instead of it; a swap that lands where the palette already is
+/// queues no record (the idle-frame property, the m32 canon's own
+/// rule). One fact per swap, never per frame: the frames that paint
+/// the new palette stream no theme fact of their own.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ThemeRecord {
+    /// The palette's tag — the installed [`alacer_core::theme::ThemeSeam`]
+    /// 's own `name()` (`"canon"`, `"midnight"`, `"high_contrast"`), the
+    /// log answering "which palette is live now" from the row alone.
+    pub palette: String,
+}
+
 /// One observation: what the pipeline and the flux surface to devtools.
 #[derive(Debug, Clone)]
 pub enum InspectEvent {
@@ -2066,6 +2086,12 @@ pub enum InspectEvent {
     /// start drain — a patch queues where it resolves, one frame
     /// after the re-render that asked for it).
     ViewPatch(ViewPatchRecord),
+    /// A theme swap landed — the theme tier's own trail (ADR-0079):
+    /// the palette's tag beside the door, one fact per swap that
+    /// landed, the no-op swap streaming none. Streams with the frame's
+    /// own records (the tick's start drain — a swap queues where it
+    /// lands, one frame after the door answered).
+    Theme(ThemeRecord),
     /// A frame completed — the frame's causal summary.
     Frame(FrameSummary),
 }

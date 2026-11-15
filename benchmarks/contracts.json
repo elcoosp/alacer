@@ -414,6 +414,21 @@
       "id": "view_patch_note_enabled_bounded",
       "baseline": "view_patch/note_enabled_bounded",
       "scope": "same-host"
+    },
+    {
+      "id": "theme_note_disabled",
+      "baseline": "theme/note_disabled",
+      "scope": "same-host"
+    },
+    {
+      "id": "theme_note_enabled_bounded",
+      "baseline": "theme/note_enabled_bounded",
+      "scope": "same-host"
+    },
+    {
+      "id": "theme_door_no_op_swap",
+      "baseline": "theme/door_no_op_swap",
+      "scope": "same-host"
     }
   ],
   "test_enforced_gates": [

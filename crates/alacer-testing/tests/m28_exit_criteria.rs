@@ -55,8 +55,8 @@ impl InspectObserver for TrailObserver {
                 self.focus.push_back(record);
             }
             // A refusal is not a frame completion — the frame
-            // counter prices the frames that painted (ADR-0077).
-            InspectEvent::FrameRefusal(_) => {}
+            // counter prices the frames that painted (ADR-0077) —
+            // and every other tier's fact is this suite's silence.
             InspectEvent::Frame(_) => self.frames += 1,
             _ => {}
         }
@@ -453,13 +453,13 @@ fn m28_the_surface_rides_the_same_cut() {
     );
     let readme = std::fs::read_to_string(root.join("README.md")).expect("README");
     assert!(
-        readme.contains("M0 through M71") && readme.contains("seventy-eight decision records"),
+        readme.contains("M0 through M72") && readme.contains("seventy-nine decision records"),
         "the README's status block and ADR count re-agree at M28"
     );
     let architecture = std::fs::read_to_string(root.join("docs/architecture.md"))
         .expect("the architecture document");
     assert!(
-        architecture.contains("78 decision records"),
+        architecture.contains("79 decision records"),
         "the architecture register re-agrees at 45 decision records"
     );
 
@@ -469,7 +469,7 @@ fn m28_the_surface_rides_the_same_cut() {
     let m5 = std::fs::read_to_string(root.join("crates/alacer-testing/tests/m5_exit_criteria.rs"))
         .expect("the m5 suite");
     assert!(
-        m5.contains("const EXPECTED_BENCH_COUNT: usize = 71;"),
+        m5.contains("const EXPECTED_BENCH_COUNT: usize = 73;"),
         "the m5 suite's corpus pin moved to 62"
     );
     let contracts =

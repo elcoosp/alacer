@@ -41,7 +41,7 @@ use std::sync::Arc;
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, StartCause, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy};
-use winit::window::{Window, WindowId};
+use winit::window::{Theme, Window, WindowId};
 
 /// User events flowing through the loop: AccessKit's messages plus our own
 /// redraw nudge (the adapter's activation handler uses the proxy).
@@ -879,6 +879,42 @@ fn map_action_request(
     }
 }
 
+/// The OS setting adapter (§7.2 pass 8, ADR-0080): the platform's own
+/// [`alacer_core::settings::SettingSeam`] — the dark-mode fact winit
+/// reports for the window, the adapter the platform owns (ADR-0009,
+/// the clipboard engine's precedent). The app installs an OS palette
+/// itself when it wants palette-following; the adapter's job is the
+/// fact alone: the window's opening `theme()` and every
+/// `ThemeChanged` event push the fact through
+/// [`alacer_core::passes::PassPipeline::set_settings`], the door
+/// broadcasts `Change::PAINT` and streams the record — the vocabulary
+/// never polls.
+#[derive(Debug, Clone, Copy)]
+pub struct WinitSettings {
+    /// The OS's dark-mode fact, captured where the platform knows it —
+    /// never re-read per frame, never polled.
+    dark: bool,
+}
+
+impl WinitSettings {
+    /// The adapter for the window's reported fact — `None` when the
+    /// platform reports no fact (the honest absence: nothing is
+    /// installed, the canon light resolves, and a flip can never
+    /// silently re-paint an app on a platform that cannot answer).
+    #[must_use]
+    pub fn from_theme(theme: Option<Theme>) -> Option<Self> {
+        theme.map(|theme| Self {
+            dark: theme == Theme::Dark,
+        })
+    }
+}
+
+impl alacer_core::settings::SettingSeam for WinitSettings {
+    fn dark_mode(&self) -> bool {
+        self.dark
+    }
+}
+
 impl ApplicationHandler<PlatformEvent> for AlacerApp {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let attrs = Window::default_attributes()
@@ -905,6 +941,17 @@ impl ApplicationHandler<PlatformEvent> for AlacerApp {
         }
         window.set_visible(true);
         self.window = Some(window);
+        // ADR-0080: the OS's opening fact rides the setting seam — the
+        // adapter the platform owns, pushed through the door before the
+        // first frame resolves it. A platform that reports no fact
+        // installs nothing: the canon light resolves, the corpus's own.
+        if let Some(settings) = self
+            .window
+            .as_deref()
+            .and_then(|window| WinitSettings::from_theme(window.theme()))
+        {
+            self.pipeline.set_settings(Box::new(settings));
+        }
         if let Err(error) = self.ensure_backend(event_loop) {
             tracing::error!("backend startup failed: {error}");
             return;
@@ -954,6 +1001,19 @@ impl ApplicationHandler<PlatformEvent> for AlacerApp {
             }
             WindowEvent::RedrawRequested => {
                 self.render_frame();
+            }
+            WindowEvent::ThemeChanged(theme) => {
+                // ADR-0080: the OS moved the fact — the adapter pushes
+                // it through the door, the broadcast repaints the tree,
+                // the record streams the tick after the door answered.
+                let dark = theme == Theme::Dark;
+                let landed = self.pipeline.set_settings(Box::new(WinitSettings { dark }));
+                tracing::debug!(
+                    target: "alacer::settings",
+                    dark,
+                    landed,
+                    "the OS's theme change routed through the setting door"
+                );
             }
             WindowEvent::CursorMoved { position, .. } => {
                 self.cursor = Point::new(
@@ -1190,12 +1250,31 @@ fn instance_descriptor() -> wgpu::InstanceDescriptor {
 
 #[cfg(test)]
 mod tests {
+    use super::WinitSettings;
     use super::wheel_delta;
     use alacer_a11y::AccessKitSink;
     use alacer_core::Flux;
     use alacer_core::geom::{Point, Vector};
     use alacer_core::passes::{A11yDelta, A11ySink, PassPipeline};
+    use alacer_core::settings::SettingSeam as _;
     use winit::event::MouseScrollDelta;
+    use winit::window::Theme;
+
+    // ------------------------------------------------------------------
+    // M74 (ADR-0080): the OS setting adapter — the window's `Theme`
+    // mapped onto the seam's fact, the honest absence when the platform
+    // reports none.
+    #[test]
+    fn the_os_setting_adapter_maps_the_window_theme() {
+        let dark = WinitSettings::from_theme(Some(Theme::Dark)).expect("dark answers");
+        assert!(dark.dark_mode(), "the dark fact rides the adapter");
+        let light = WinitSettings::from_theme(Some(Theme::Light)).expect("light answers");
+        assert!(!light.dark_mode(), "the light fact rides the adapter");
+        assert!(
+            WinitSettings::from_theme(None).is_none(),
+            "no fact installs nothing — the canon light resolves"
+        );
+    }
 
     #[test]
     fn line_deltas_map_both_axes_with_the_line_height() {

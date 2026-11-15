@@ -21,8 +21,12 @@ pub struct Checkbox {
     enabled: bool,
     on_toggle: Option<Box<dyn FnMut(bool)>>,
     focused: bool,
-    accent: Color,
-    text_color: Color,
+    /// The app's accent override; `None` borrows the theme's accent
+    /// role at paint time (ADR-0079).
+    accent: Option<Color>,
+    /// The app's text-color override; `None` borrows the theme's text
+    /// role at paint time (ADR-0079).
+    text_color: Option<Color>,
     font_size: f32,
     style: Style,
 }
@@ -37,8 +41,8 @@ impl Checkbox {
             enabled: true,
             on_toggle: None,
             focused: false,
-            accent: crate::theme::ACCENT,
-            text_color: crate::theme::TEXT,
+            accent: None,
+            text_color: None,
             font_size: crate::theme::FONT_SIZE,
             style: Style::default(),
         }
@@ -68,17 +72,19 @@ impl Checkbox {
         self
     }
 
-    /// Accent color of the box and its check mark.
+    /// Accent color of the box and its check mark. Without it the box
+    /// borrows the theme's accent role at paint time (ADR-0079).
     #[must_use]
     pub fn accent(mut self, accent: Color) -> Self {
-        self.accent = accent;
+        self.accent = Some(accent);
         self
     }
 
-    /// Text color of the label.
+    /// Text color of the label. Without it the label borrows the
+    /// theme's text role at paint time (ADR-0079).
     #[must_use]
     pub fn text_color(mut self, color: Color) -> Self {
-        self.text_color = color;
+        self.text_color = Some(color);
         self
     }
 
@@ -196,17 +202,20 @@ impl Widget for Checkbox {
         let size = ctx.size();
         let box_side = 18.0_f32.min(size.height);
         let box_top = (size.height - box_side) * 0.5;
-        // The look tells the truth the tree carries (M22, ADR-0028): an
-        // unavailable checkbox paints the muted rail and the muted label.
+        // The borrowed roles resolve per paint pass (ADR-0079); the
+        // look still tells the truth the tree carries (M22, ADR-0028):
+        // an unavailable checkbox paints the muted rail and the muted
+        // label — the border and muted roles the disabled state borrows.
+        let palette = ctx.palette();
         let accent = if self.enabled {
-            self.accent
+            self.accent.unwrap_or(palette.accent)
         } else {
-            crate::theme::BORDER
+            palette.border
         };
         let label_color = if self.enabled {
-            self.text_color
+            self.text_color.unwrap_or(palette.text)
         } else {
-            crate::theme::TEXT_MUTED
+            palette.text_muted
         };
 
         // The track: an outlined square; filled with the accent when checked.
@@ -215,13 +224,9 @@ impl Widget for Checkbox {
                 Point::new(0.0, box_top),
                 alacer_core::geom::Size::new(box_side, box_side),
             ),
-            color: if self.checked { accent } else { Color::WHITE },
+            color: if self.checked { accent } else { palette.panel },
             corner_radius: 4.0,
-            border_color: if self.focused {
-                accent
-            } else {
-                crate::theme::BORDER
-            },
+            border_color: if self.focused { accent } else { palette.border },
             border_width: if self.focused { 2.0 } else { 1.5 },
             clip: None,
         });

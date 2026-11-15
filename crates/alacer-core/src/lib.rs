@@ -42,7 +42,10 @@
 //!   (`PassPipeline::set_settings`), resolved once per paint pass into
 //!   [`scene::PaintCtx`] beside the palette, the flip riding
 //!   `Change::PAINT` on the tree and one [`inspect::SettingRecord`] on
-//!   the causal log (§7.2 pass 8, ADR-0080).
+//!   the causal log (§7.2 pass 8, ADR-0080); since M75 the composition
+//!   door rides beside it — the palette the OS's fact resolves into,
+//!   installed as one [`SettingComposer`] (`PassPipeline::set_composer`,
+//!   ADR-0081) and re-swapped on every flip that lands.
 //! - [`flux`] — the mask bridge over `reactive_graph`: effects never mutate widgets;
 //!   every effect drain ends by queuing `Change` masks (architecture §5.2).
 //! - [`passes`] — the pass contract: `event` → `update_focusable` →
@@ -131,7 +134,7 @@ pub use scene::{
     primitives_extent,
 };
 pub use settings::SETTING_TRAIL_CAP;
-pub use settings::{CanonSettings, SettingSeam};
+pub use settings::{CanonComposer, CanonSettings, SettingComposer, SettingSeam};
 pub use style::{
     CrossAxisAlignment, Display, MainAxisAlignment, MeasureFn, MeasureSpec, Style, TextSpec,
 };
@@ -162,7 +165,7 @@ pub mod prelude {
     pub use crate::keymap::{Chord, Keymap, KeymapConsult, KeymapSeam};
     pub use crate::mask::Change;
     pub use crate::passes::{PassKind, PassPipeline};
-    pub use crate::settings::{CanonSettings, SettingSeam};
+    pub use crate::settings::{CanonComposer, CanonSettings, SettingComposer, SettingSeam};
     pub use crate::style::{CrossAxisAlignment, Display, MainAxisAlignment, Style};
     pub use crate::theme::{CanonPalette, Palette, ThemeSeam};
     pub use crate::trail::{TRAIL_RING_CAP, TrailLog};

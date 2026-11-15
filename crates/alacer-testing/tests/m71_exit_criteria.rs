@@ -80,6 +80,39 @@ impl GateLayout {
     }
 }
 
+/// One subtree laid out top-down: fixed-size widgets take their size
+/// clamped to the viewport, everything else fills the width at zero
+/// height — the gate's non-failing path, hoisted to the module so the
+/// method's body stays statements (the pedantic gate's rule).
+fn layout_subtree(
+    arena: &mut alacer_core::arena::Arena,
+    node: NodeId,
+    origin: alacer_core::geom::Point,
+    viewport: Size,
+) {
+    let size = arena
+        .widget(node)
+        .measure_spec()
+        .and_then(|spec| match spec {
+            alacer_core::style::MeasureSpec::Fixed(size) => Some(size),
+            alacer_core::style::MeasureSpec::Text(_) => None,
+        })
+        .map_or(Size::new(viewport.width, 0.0), |s| {
+            Size::new(s.width.min(viewport.width), s.height)
+        });
+    arena.update_bounds(node, alacer_core::geom::Rect::new(origin, size));
+    let mut y = origin.y;
+    for child in arena.children(node).to_vec() {
+        layout_subtree(
+            arena,
+            child,
+            alacer_core::geom::Point::new(origin.x, y),
+            viewport,
+        );
+        y = arena.bounds(child).map_or(y, |b| b.max_y());
+    }
+}
+
 impl LayoutEngine for GateLayout {
     fn sync_and_layout(
         &mut self,
@@ -94,34 +127,6 @@ impl LayoutEngine for GateLayout {
                 message: "the gate refused the frame — the M71 beat's honest refusal".to_string(),
                 node: Some(root),
             });
-        }
-        fn layout_subtree(
-            arena: &mut alacer_core::arena::Arena,
-            node: NodeId,
-            origin: alacer_core::geom::Point,
-            viewport: Size,
-        ) {
-            let size = arena
-                .widget(node)
-                .measure_spec()
-                .and_then(|spec| match spec {
-                    alacer_core::style::MeasureSpec::Fixed(size) => Some(size),
-                    _ => None,
-                })
-                .map_or(Size::new(viewport.width, 0.0), |s| {
-                    Size::new(s.width.min(viewport.width), s.height)
-                });
-            arena.update_bounds(node, alacer_core::geom::Rect::new(origin, size));
-            let mut y = origin.y;
-            for child in arena.children(node).to_vec() {
-                layout_subtree(
-                    arena,
-                    child,
-                    alacer_core::geom::Point::new(origin.x, y),
-                    viewport,
-                );
-                y = arena.bounds(child).map_or(y, |b| b.max_y());
-            }
         }
         layout_subtree(arena, root, alacer_core::geom::Point::zero(), viewport);
         Ok(())
@@ -360,8 +365,8 @@ fn m71_the_frame_refusals_carry_their_stable_tags() {
 fn m71_the_living_documents_re_agree() {
     let readme = read_workspace_file("README.md");
     for fragment in [
-        "M0 through M71",
-        "seventy-eight decision records",
+        "M0 through M72",
+        "seventy-nine decision records",
         "Since M71 the frame's refusals answer on the log too",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
@@ -370,7 +375,7 @@ fn m71_the_living_documents_re_agree() {
     let architecture = read_workspace_file("docs/architecture.md");
     for fragment in [
         "ADR-0077",
-        "78 decision records",
+        "79 decision records",
         "the frame's refusals join the causal log",
     ] {
         assert!(
@@ -400,7 +405,7 @@ fn m71_the_living_documents_re_agree() {
     // The sibling suites' pins ride the same cut (one sweep, no drift).
     let m70 = read_workspace_file("crates/alacer-testing/tests/m70_exit_criteria.rs");
     assert!(
-        m70.contains("M0 through M71"),
+        m70.contains("M0 through M72"),
         "the m70 suite's pins moved with the documents"
     );
 }

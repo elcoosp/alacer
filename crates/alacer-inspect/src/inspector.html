@@ -626,6 +626,17 @@ function connect() {
           "the palette is now " + event.palette);
         break;
       }
+      case "setting": {
+        // The client renders the setting tier's own fact (M74,
+        // ADR-0080): the dark-mode fact beside the door that landed it
+        // — the bool *is* the fact, the payload rule at the setting
+        // tier has nothing to strip — so a reader answers "what does
+        // the vocabulary consult now, and when did the OS move it?"
+        // from the row alone.
+        addLog("setting", "setting " + (event.dark ? "dark" : "light"),
+          "the OS fact is now " + (event.dark ? "dark" : "light"));
+        break;
+      }
       case "frame":
         renderFrame(event);
         addLog("frame", "frame " + event.number,

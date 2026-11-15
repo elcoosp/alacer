@@ -570,6 +570,26 @@ function connect() {
           "the AT answered with the full tree (" + event.nodes + " nodes)");
         break;
       }
+      case "action": {
+        // The client renders the activation ask (M69, ADR-0075): the
+        // action tier's own fact lands in the log pane beside the
+        // other trails — the press aimed at a control, the landing or
+        // the named refusal species beside the aim, so a reader
+        // answers "did the press land — or why not" from the row
+        // alone. The two honest walls render their own species: the
+        // availability tier's `unavailable` and the doorless target's
+        // `no_door` — the collapsed `false` split. Since M70
+        // (ADR-0076) the row names its rider too (the M30 attribution
+        // rule at the activation tier): the AT's action route and the
+        // keyboard's Space/Enter tellable apart on one log.
+        const target = event.target != null ? " (control " + event.target + ")" : "";
+        const who = event.rider === "keyboard" ? "the keyboard's press" : "the AT's press";
+        const answer = event.outcome === "refused"
+          ? "refused: " + (event.refusal || "refused") + target
+          : who + " landed" + target;
+        addLog("action", "action " + event.ask, answer);
+        break;
+      }
       case "frame":
         renderFrame(event);
         addLog("frame", "frame " + event.number,

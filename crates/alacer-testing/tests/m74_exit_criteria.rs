@@ -444,19 +444,21 @@ fn m74_the_disabled_trail_still_flips() {
     );
 }
 
-/// The living documents re-agree at the M74 cut: the README's status
-/// block names the milestone, the corpus count rides the settings
-/// tier's pricing, and the architecture carries the decision.
+/// The living documents re-agree at the M75 cut (the pins ride the
+/// living cut, the m75 suite pinning the M75 row itself): the README's
+/// status block names the milestone, the corpus count rides the
+/// settings tier's pricing and the composition tier's beside it, and
+/// the architecture carries the decision.
 #[test]
 fn m74_the_living_documents_re_agree() {
     let readme = read_workspace_file("README.md");
     assert!(
-        readme.contains("M0 through M74"),
+        readme.contains("M0 through M76"),
         "the README status reflects the living cut — the chain cannot drift"
     );
     assert!(
-        readme.contains("All 79 criterion cases"),
-        "the README quotes the baselines.json bench_count the settings tier grew"
+        readme.contains("All 82 criterion cases"),
+        "the README quotes the baselines.json bench_count the composition tier grew"
     );
     let architecture = read_workspace_file("docs/architecture.md");
     assert!(
@@ -464,16 +466,16 @@ fn m74_the_living_documents_re_agree() {
         "the architecture carries the setting seam's decision"
     );
     assert!(
-        architecture.contains("81 decision records"),
-        "the register grew the M73 row it was missing and the M74 row"
+        architecture.contains("83 decision records"),
+        "the register grew the M75 row the count rides"
     );
     let baselines = serde_json::from_str::<serde_json::Value>(&read_workspace_file(
         "benchmarks/baselines/baselines.json",
     ))
     .expect("the baselines parse");
     assert_eq!(
-        baselines["bench_count"], 79,
-        "the published corpus carries the settings tier's pricing"
+        baselines["bench_count"], 82,
+        "the published corpus carries the composition tier's pricing"
     );
 }
 

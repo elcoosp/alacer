@@ -429,6 +429,21 @@
       "id": "theme_door_no_op_swap",
       "baseline": "theme/door_no_op_swap",
       "scope": "same-host"
+    },
+    {
+      "id": "settings_note_disabled",
+      "baseline": "settings/note_disabled",
+      "scope": "same-host"
+    },
+    {
+      "id": "settings_note_enabled_bounded",
+      "baseline": "settings/note_enabled_bounded",
+      "scope": "same-host"
+    },
+    {
+      "id": "settings_door_no_op_flip",
+      "baseline": "settings/door_no_op_flip",
+      "scope": "same-host"
     }
   ],
   "test_enforced_gates": [

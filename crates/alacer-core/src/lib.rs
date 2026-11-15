@@ -41,6 +41,7 @@
 //! The layering is a DAG: this crate depends on no other Alacer crate.
 
 pub mod a11y_echo;
+pub mod action;
 pub mod announce;
 pub mod arena;
 pub mod clipboard;
@@ -72,6 +73,7 @@ pub mod value;
 pub mod widget;
 
 pub use a11y_echo::A11Y_ECHO_TRAIL_CAP;
+pub use action::ACTION_TRAIL_CAP;
 pub use announce::{ANNOUNCEMENT_NODE_HASH, Announcement, Politeness};
 pub use arena::{Arena, NodeId, WidgetMut};
 pub use color::Color;
@@ -86,14 +88,14 @@ pub use flux::{Flux, FluxCounters, FluxRwSignal, FluxWriter, RenderBinding};
 pub use geom::{Point, Rect, Size, Vector};
 pub use input::EventCoalescer;
 pub use inspect::{
-    A11yEchoRecord, BindingId, ClipboardAction, ClipboardOutcome, ClipboardRecord,
-    ClipboardRefusal, DirtyNode, EdgeActivation, FocusRecord, FocusRider, FrameSummary,
-    GesturePhase, GestureRecord, InputKind, InputRecord, InspectEvent, InspectObserver,
-    KeyEditAction, KeyEditDriver, KeyEditOutcome, KeyEditRecord, KeyEditRefusal, KeyRecord,
-    PassTiming, PreeditAction, PreeditRecord, RangeBound, RouteDropRecord, RouteDropRider,
-    RouteDropSpecies, ScrollAction, ScrollOutcome, ScrollRecord, ScrollRefusal, SignalKey,
-    SignalWrite, Tee, TextWriteAction, TextWriteOutcome, TextWriteRecord, TextWriteRefusal,
-    TextWriteSource, ValueAction, ValueOutcome, ValueRecord, ValueRefusal,
+    A11yEchoRecord, ActionAsk, ActionOutcome, ActionRecord, ActionRefusal, ActionRider, BindingId,
+    ClipboardAction, ClipboardOutcome, ClipboardRecord, ClipboardRefusal, DirtyNode,
+    EdgeActivation, FocusRecord, FocusRider, FrameSummary, GesturePhase, GestureRecord, InputKind,
+    InputRecord, InspectEvent, InspectObserver, KeyEditAction, KeyEditDriver, KeyEditOutcome,
+    KeyEditRecord, KeyEditRefusal, KeyRecord, PassTiming, PreeditAction, PreeditRecord, RangeBound,
+    RouteDropRecord, RouteDropRider, RouteDropSpecies, ScrollAction, ScrollOutcome, ScrollRecord,
+    ScrollRefusal, SignalKey, SignalWrite, Tee, TextWriteAction, TextWriteOutcome, TextWriteRecord,
+    TextWriteRefusal, TextWriteSource, ValueAction, ValueOutcome, ValueRecord, ValueRefusal,
 };
 pub use keymap::{Chord, Keymap, KeymapConsult, KeymapSeam};
 pub use mask::Change;
@@ -129,8 +131,8 @@ pub mod prelude {
     pub use crate::flux::{Flux, RenderBinding};
     pub use crate::geom::{Point, Rect, Size, Vector};
     pub use crate::inspect::{
-        ClipboardRecord, GestureRecord, InspectEvent, InspectObserver, KeyEditOutcome,
-        KeyEditRecord, KeyEditRefusal, KeyRecord, PreeditRecord, ScrollRecord, Tee,
+        ActionRecord, ClipboardRecord, GestureRecord, InspectEvent, InspectObserver,
+        KeyEditOutcome, KeyEditRecord, KeyEditRefusal, KeyRecord, PreeditRecord, ScrollRecord, Tee,
         TextWriteRecord, ValueRecord,
     };
     pub use crate::keymap::{Chord, Keymap, KeymapConsult, KeymapSeam};

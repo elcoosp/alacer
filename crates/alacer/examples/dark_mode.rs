@@ -53,6 +53,13 @@ impl SettingSeam for SimulatedOs {
     fn dark_mode(&self) -> bool {
         self.dark
     }
+
+    /// The simulated OS reports no motion preference — the demo flips
+    /// the dark fact alone, the honest absence the winit adapter
+    /// answers too (ADR-0083).
+    fn reduced_motion(&self) -> bool {
+        false
+    }
 }
 
 /// A probe that paints its whole bounds from the resolved *fact* —

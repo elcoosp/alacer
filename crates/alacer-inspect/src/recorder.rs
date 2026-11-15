@@ -81,6 +81,10 @@ pub const PREEDIT_RING_CAP: usize = 512;
 /// rare, the ring stays quiet between connects).
 pub const A11Y_ECHO_RING_CAP: usize = 512;
 
+/// The action ring's cap: activation-ask facts carried before the
+/// oldest evicts (the a11y-echo ring's own order, §14.3).
+pub const ACTION_RING_CAP: usize = 512;
+
 /// One recorded frame (the wire conversion lives in [`crate::wire`]).
 #[derive(Debug, Clone)]
 pub struct RecordedFrame {
@@ -124,6 +128,10 @@ struct Recording {
     /// answered, named by its node count — bounded by
     /// [`A11Y_ECHO_RING_CAP`]).
     a11y_echoes: VecDeque<alacer_core::inspect::A11yEchoRecord>,
+    /// The activation-ask facts (ADR-0075: the press the AT's action
+    /// route aimed at a control, the landing or the named refusal
+    /// beside the aim — bounded by [`ACTION_RING_CAP`]).
+    actions: VecDeque<alacer_core::inspect::ActionRecord>,
     /// The most recent frame, for "what does the inspector see right now".
     latest: Option<alacer_core::inspect::FrameSummary>,
     /// The wire-shaped events awaiting the server's session drain (push, not
@@ -333,6 +341,16 @@ impl CausalRecorder {
             .unwrap_or_default()
     }
 
+    /// The recorded activation asks, oldest first (the funnel's own
+    /// facts — the landed press, the wall's refusal, the doorless
+    /// silence — bounded by [`ACTION_RING_CAP`]).
+    #[must_use]
+    pub fn actions(&self) -> Vec<alacer_core::inspect::ActionRecord> {
+        self.try_lock()
+            .map(|recording| recording.actions.iter().copied().collect())
+            .unwrap_or_default()
+    }
+
     /// The most recent frame, when any frame was observed.
     #[must_use]
     pub fn latest_frame(&self) -> Option<alacer_core::inspect::FrameSummary> {
@@ -471,6 +489,9 @@ impl InspectObserver for RecorderHandle {
             }
             InspectEvent::A11yEcho(record) => {
                 push_bounded(&mut recording.a11y_echoes, A11Y_ECHO_RING_CAP, record);
+            }
+            InspectEvent::Action(record) => {
+                push_bounded(&mut recording.actions, ACTION_RING_CAP, record);
             }
             InspectEvent::Frame(summary) => {
                 self.frames_seen.fetch_add(1, Ordering::Relaxed);

@@ -170,6 +170,7 @@ dependencies = [
  "alacer-view",
  "alacer-widgets",
  "reactive_graph",
+ "rustc-hash 2.1.3",
  "subsecond",
  "tracing",
 ]
@@ -277,6 +278,7 @@ dependencies = [
  "alacer-widgets",
  "criterion",
  "reactive_graph",
+ "rustc-hash 2.1.3",
  "serde",
  "serde_json",
  "tiny-skia 0.12.0",

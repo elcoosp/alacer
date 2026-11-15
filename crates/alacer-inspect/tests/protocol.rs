@@ -348,6 +348,31 @@ fn theme_events_carry_the_documented_flat_shape() {
 }
 
 #[test]
+fn setting_events_carry_the_documented_flat_shape() {
+    // The wire conversion is pinned here (the client codes against it):
+    // the dark-mode fact beside the kind — the documented `setting`
+    // shape (ADR-0080), a new event kind at version 1 (the additive
+    // rule: clients that ignore unknown kinds unaffected). The bool is
+    // the fact — the payload rule at the setting tier has nothing to
+    // strip.
+    use alacer_core::inspect::SettingRecord;
+    use alacer_inspect::wire::wire_setting;
+
+    let flip = wire_setting(&SettingRecord { dark: true });
+    let json = serde_json::to_string(&flip).expect("flip json");
+    assert!(
+        json.contains(r#""kind":"setting""#) && json.contains(r#""dark":true"#),
+        "the flip's fact is the fact — the bool named plain: {json}"
+    );
+    let flip = wire_setting(&SettingRecord { dark: false });
+    let json = serde_json::to_string(&flip).expect("flip json");
+    assert!(
+        json.contains(r#""dark":false"#),
+        "the light flip names its own fact: {json}"
+    );
+}
+
+#[test]
 fn focus_events_carry_the_documented_flat_shape() {
     // The wire conversion is pinned here (the client codes against it):
     // a landing's endpoints and wrap, a refusal's species, node, and

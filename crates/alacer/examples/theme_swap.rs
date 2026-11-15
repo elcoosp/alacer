@@ -191,7 +191,8 @@ fn main() {
         tracing::info!(
             target: "alacer::theme_swap",
             palette = %record.palette,
-            "the trail streamed this palette's swap"
+            repainted = record.repainted,
+            "the trail streamed this palette's swap — the tag beside the reach it repainted (ADR-0084)"
         );
     }
 

@@ -27,7 +27,11 @@ pub use wgpu_backend::{BackendError, WgpuRenderer};
 use accesskit_winit::{Adapter, Event as AccessKitEvent, WindowEvent as AccessKitWindowEvent};
 use alacer_a11y::AccessKitSink;
 use alacer_core::events::{ImeEvent, KeyEvent, PointerEvent};
+#[cfg(any(feature = "backend-wgpu", feature = "backend-softbuffer"))]
+use alacer_core::frame_refusal::note_frame_refusal;
 use alacer_core::geom::{Point, Size};
+#[cfg(any(feature = "backend-wgpu", feature = "backend-softbuffer"))]
+use alacer_core::inspect::{FrameRefusalRecord, FrameRefusalSpecies};
 use alacer_core::passes::{FrameReport, ImeRequest, PassPipeline};
 use alacer_core::widget::EventResponse;
 #[cfg(any(feature = "backend-wgpu", feature = "backend-softbuffer"))]
@@ -488,6 +492,19 @@ impl AlacerApp {
         };
         if let Err(error) = result {
             tracing::error!("wgpu render failed: {error}");
+            // The frame tier's fact (ADR-0077): the stage that refused
+            // names itself — the full path's draw or the partial
+            // repaint, the record beside the log line, never a munge
+            // of the two into one collapsed species.
+            let species = if damage.is_full() {
+                FrameRefusalSpecies::RenderFailed
+            } else {
+                FrameRefusalSpecies::PartialRepaintFailed
+            };
+            note_frame_refusal(FrameRefusalRecord {
+                species,
+                node: None,
+            });
         }
     }
 
@@ -524,6 +541,12 @@ impl AlacerApp {
                 &mut self.glyph_source,
             ) else {
                 tracing::error!("framebuffer allocation failed");
+                // The frame tier's fact (ADR-0077): no backing store,
+                // no frame — the ladder's own stage names the loss.
+                note_frame_refusal(FrameRefusalRecord {
+                    species: FrameRefusalSpecies::FramebufferLost,
+                    node: None,
+                });
                 return;
             };
             self.framebuffer = Some(pixmap);
@@ -532,6 +555,10 @@ impl AlacerApp {
             };
             if let Err(error) = presenter.present(frame) {
                 tracing::error!("present failed: {error}");
+                note_frame_refusal(FrameRefusalRecord {
+                    species: FrameRefusalSpecies::PresentFailed,
+                    node: None,
+                });
             }
             return;
         };
@@ -546,6 +573,17 @@ impl AlacerApp {
             );
             if let Some(pixmap) = fresh {
                 *frame = pixmap;
+            } else {
+                // The frame tier's fact (ADR-0077): the full
+                // re-rasterization refused — the stale framebuffer
+                // stands, the refused draw named, never swallowed
+                // silently (the ladder's one silent arm, named at
+                // the same cut).
+                tracing::error!("full re-rasterization failed");
+                note_frame_refusal(FrameRefusalRecord {
+                    species: FrameRefusalSpecies::RenderFailed,
+                    node: None,
+                });
             }
         } else if renderer
             .render_partial(
@@ -558,9 +596,17 @@ impl AlacerApp {
             .is_none()
         {
             tracing::error!("partial repaint failed");
+            note_frame_refusal(FrameRefusalRecord {
+                species: FrameRefusalSpecies::PartialRepaintFailed,
+                node: None,
+            });
         }
         if let Err(error) = presenter.present(frame) {
             tracing::error!("present failed: {error}");
+            note_frame_refusal(FrameRefusalRecord {
+                species: FrameRefusalSpecies::PresentFailed,
+                node: None,
+            });
         }
     }
 

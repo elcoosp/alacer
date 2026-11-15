@@ -34,6 +34,11 @@ alacer-platform.workspace = true
 alacer-inspect.workspace = true
 reactive_graph.workspace = true
 alacer-testing.workspace = true
+# The layout seam's dirty-map type (`LayoutEngine::sync_and_layout`'s
+# parameter) — the assembly site's examples implement the injected
+# engine against the trait's own signature, so the map's crate rides
+# the facade (ADR-9: adopted cores are named where they are used).
+rustc-hash.workspace = true
 subsecond = { workspace = true, optional = true }
 
 [dev-dependencies]

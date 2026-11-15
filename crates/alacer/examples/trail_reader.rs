@@ -74,6 +74,9 @@ fn describe(event: &InspectEvent) -> String {
             "a view patch resolved — created {}, removed {}, patched {}, moved {}",
             record.created, record.removed, record.patched, record.moved
         ),
+        InspectEvent::Theme(record) => {
+            format!("a theme swap landed — palette {}", record.palette)
+        }
         InspectEvent::Frame(_) => "a frame completed".to_string(),
     }
 }

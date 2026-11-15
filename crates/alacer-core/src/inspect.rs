@@ -1947,33 +1947,51 @@ pub struct ViewPatchRecord {
 /// the seam's own [`alacer_core::theme::ThemeSeam::name`] (the wire
 /// vocabulary's stable, documented field values), never the palette's
 /// colors: the payload rule's shape — the log names the palette, the
-/// paint pass resolves it. The record rides *beside* the door's `bool`
-/// answer — the door still answers whether the swap landed — never
-/// instead of it; a swap that lands where the palette already is
-/// queues no record (the idle-frame property, the m32 canon's own
-/// rule). One fact per swap, never per frame: the frames that paint
-/// the new palette stream no theme fact of their own.
+/// paint pass resolves it. Since M78 (ADR-0084, ADR-0082's second
+/// pre-registered re-open rule reaching the theme tier) the record
+/// grows the broadcast's node count beside the tag — the lengths rule
+/// (the count is the swap's reach, the ids never ride), the count
+/// computed where the swap's broadcast resolves, never re-counted at
+/// the reader, and the composed swap naming the same reach the flip's
+/// broadcast resolved (one flip, one count). The record rides *beside*
+/// the door's `bool` answer — the door still answers whether the swap
+/// landed — never instead of it; a swap that lands where the palette
+/// already is queues no record (the idle-frame property, the m32
+/// canon's own rule). One fact per swap, never per frame: the frames
+/// that paint the new palette stream no theme fact of their own.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ThemeRecord {
     /// The palette's tag — the installed [`alacer_core::theme::ThemeSeam`]
     /// 's own `name()` (`"canon"`, `"midnight"`, `"high_contrast"`), the
     /// log answering "which palette is live now" from the row alone.
     pub palette: String,
+    /// The broadcast's node count — how many nodes the swap's
+    /// `Change::PAINT` merge touched (ADR-0084): the lengths rule's
+    /// shape, the count naming the swap's reach, the ids never riding
+    /// (the payload rule — a count is not an identity). The count is
+    /// the fact of the swap's own moment: a tree that grows later
+    /// never rewrites a queued record, and a composed swap names the
+    /// same reach the flip's broadcast resolved — one flip, one count.
+    pub repainted: usize,
 }
 
 /// One OS setting flip's fact (§7.2 pass 8, ADR-0080): the setting
-/// tier's own record — the dark-mode fact beside the door that landed
-/// it, the theme trail's shape (ADR-0079) at the setting tier. The
-/// bool *is* the fact; since M76 (ADR-0082, ADR-0080's second
+/// tier's own record — the OS facts beside the door that landed
+/// them, the theme trail's shape (ADR-0079) at the setting tier. The
+/// bools *are* the facts; since M76 (ADR-0082, ADR-0080's second
 /// pre-registered re-open rule) the record grows the broadcast's node
-/// count beside it — the lengths rule (the count is the flip's reach,
+/// count beside them — the lengths rule (the count is the flip's reach,
 /// the ids never ride), the count computed where the broadcast
-/// resolves, never re-counted at the reader. The record rides *beside*
+/// resolves, never re-counted at the reader. Since M77 (ADR-0083,
+/// ADR-0080's first pre-registered re-open rule) the record grows the
+/// reduced-motion fact beside the dark fact — one record per seam, the
+/// facts the vocabulary consults riding beside each other, never a
+/// second seam or event per fact. The record rides *beside*
 /// the door's `bool` answer — the door still answers whether the flip
-/// landed — never instead of it; a flip that lands where the fact
-/// already is queues no record (the idle-frame property, A1's rule at
+/// landed — never instead of it; a flip that lands where the facts
+/// already are queues no record (the idle-frame property, A1's rule at
 /// the setting tier). One fact per flip, never per frame: the frames
-/// that paint under the fact stream no setting fact of their own.
+/// that paint under the facts stream no setting fact of their own.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SettingRecord {
     /// The OS's dark-mode fact — the installed
@@ -1981,6 +1999,12 @@ pub struct SettingRecord {
     /// once per paint pass into `PaintCtx` (the palette the roles
     /// borrow resolved beside it).
     pub dark: bool,
+    /// The OS's reduced-motion fact (ADR-0083) — the same seam's
+    /// answer, resolved once per paint pass into `PaintCtx` beside the
+    /// dark fact: the role-independent decision the vocabulary consults
+    /// when motion itself is the question (a spinner's spin, a
+    /// thumbnail's autoplay), never a second seam per fact.
+    pub reduced_motion: bool,
     /// The broadcast's node count — how many nodes the flip's
     /// `Change::PAINT` merge touched (ADR-0082): the lengths rule's
     /// shape, the count naming the flip's reach, the ids never riding

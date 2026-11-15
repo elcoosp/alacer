@@ -319,7 +319,7 @@ fn m8_the_corpus_pin_agrees_with_the_published_data() {
     ] {
         let source = read_workspace_file(&format!("crates/alacer-testing/tests/{suite}"));
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 76;"),
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 79;"),
             "{suite} must pin the 76-case corpus"
         );
     }

@@ -339,11 +339,14 @@ fn theme_events_carry_the_documented_flat_shape() {
 
     let swap = wire_theme(&ThemeRecord {
         palette: "midnight".to_string(),
+        repainted: 9,
     });
     let json = serde_json::to_string(&swap).expect("swap json");
     assert!(
-        json.contains(r#""kind":"theme""#) && json.contains(r#""palette":"midnight""#),
-        "the swap's tag is the fact — the palette named, never its colors: {json}"
+        json.contains(r#""kind":"theme""#)
+            && json.contains(r#""palette":"midnight""#)
+            && json.contains(r#""repainted":9"#),
+        "the swap's tag is the fact — the palette named, never its colors, the reach beside it: {json}"
     );
 }
 
@@ -352,32 +355,39 @@ fn setting_events_carry_the_documented_flat_shape() {
     // The wire conversion is pinned here (the client codes against it):
     // the dark-mode fact beside the kind — the documented `setting`
     // shape (ADR-0080), a new event kind at version 1 (the additive
-    // rule: clients that ignore unknown kinds unaffected). The bool is
-    // the fact; since M76 (ADR-0082) the broadcast's node count rides
-    // beside it — the additive field the versioning rule admits at
-    // version 1, the lengths rule's shape (the ids never ride).
+    // rule: clients that ignore unknown kinds unaffected). The bools
+    // are the facts; since M76 (ADR-0082) the broadcast's node count
+    // rides beside them, and since M77 (ADR-0083) the reduced-motion
+    // fact rides beside the dark one — the additive fields the
+    // versioning rule admits at version 1, the lengths rule's shape
+    // (the ids never ride).
     use alacer_core::inspect::SettingRecord;
     use alacer_inspect::wire::wire_setting;
 
     let flip = wire_setting(&SettingRecord {
         dark: true,
+        reduced_motion: false,
         repainted: 7,
     });
     let json = serde_json::to_string(&flip).expect("flip json");
     assert!(
         json.contains(r#""kind":"setting""#)
             && json.contains(r#""dark":true"#)
+            && json.contains(r#""reduced_motion":false"#)
             && json.contains(r#""repainted":7"#),
-        "the flip's fact and its reach, named plain: {json}"
+        "the flip's facts and its reach, named plain: {json}"
     );
     let flip = wire_setting(&SettingRecord {
         dark: false,
+        reduced_motion: true,
         repainted: 0,
     });
     let json = serde_json::to_string(&flip).expect("flip json");
     assert!(
-        json.contains(r#""dark":false"#) && json.contains(r#""repainted":0"#),
-        "the light flip names its own fact and reach: {json}"
+        json.contains(r#""dark":false"#)
+            && json.contains(r#""reduced_motion":true"#)
+            && json.contains(r#""repainted":0"#),
+        "the light flip names its own facts and reach: {json}"
     );
 }
 

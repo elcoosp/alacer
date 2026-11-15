@@ -9,6 +9,59 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M78 — the swap names its repaint count (ADR-0084)**: ADR-0082's
+  second pre-registered re-open rule reaches the theme tier — through
+  M77 a swap's [`ThemeRecord`](crates/alacer-core/src/inspect.rs)
+  named the tag alone while the flip's `SettingRecord` beside it
+  carried its count (the asymmetry the two doors' rows show side by
+  side on one log) — so the theme record grows the broadcast's node
+  count beside the tag (`repainted` — the lengths rule at the theme
+  tier: the count computed where the swap's broadcast resolves,
+  `PassPipeline::set_theme`'s own pre-order walk, the ids never
+  riding), the composed swap naming the same reach the flip's
+  broadcast resolved (one flip, one count, however many palettes the
+  composition resolved; the install path walking its own broadcast and
+  naming that walk's length), the no-op swap streaming no record
+  (there is no count to name, the idle-frame property unchanged), the
+  wire growing additively at version 1 (`theme` — the tag beside its
+  reach), the embedded client rendering the count in the row's detail
+  line, the corpus growing 83 → 84 by the coordinated rule
+  (`theme/door_swap_counted` — the counted swap read end to end, the
+  real reader the lengths rule priced), and
+  [`examples/theme_swap.rs`](crates/alacer/examples/theme_swap.rs)'s
+  exit read-back names the reach beside the tag.
+- **M77 — the setting seam grows the motion fact (ADR-0083)**:
+  ADR-0080's first pre-registered re-open rule cashes — through M76 a
+  widget that wanted the OS's reduced-motion fact guessed or polled,
+  the fact the vocabulary consults when motion itself is the question
+  (a spinner's spin, a thumbnail's autoplay) existing nowhere in the
+  pipeline — so the fact rides the seam the dark fact already has:
+  [`SettingSeam::reduced_motion`](crates/alacer-core/src/settings.rs)
+  beside `dark_mode` (required — one seam, one door, never a second
+  seam per fact), [`CanonSettings`](crates/alacer-core/src/settings.rs)
+  answering the canon absence (light, motion allowed), the platform's
+  [`WinitSettings`](crates/alacer-platform/src/lib.rs) answering the
+  honest absence where winit reports no read (a platform that reports
+  no fact answers the absence, never a guess),
+  [`PassPipeline::set_settings`](crates/alacer-core/src/passes.rs)'s
+  equality check comparing both facts (the M74 check would have
+  swallowed a motion-only flip — the fact moved, the door answered
+  `false`, the vocabulary never saw it), a landed flip broadcasting
+  `Change::PAINT` on the tree and resolving the fact once per paint
+  pass into [`PaintCtx`](crates/alacer-core/src/scene.rs) beside the
+  palette and dark (one dynamic call per pass, never per node), the
+  record growing the fact beside the facts it already names
+  (`SettingRecord { dark, reduced_motion, repainted }` — one record
+  per flip), the wire growing additively at version 1 (`setting` — the
+  fact beside the facts), the embedded client rendering the fact in
+  the row's headline and detail line, the corpus growing 82 → 83 by
+  the coordinated rule (`settings/door_flip_motion` — the motion-only
+  flip landing where the dark fact is still, the real reader naming
+  the motion fact), and
+  [`examples/reduced_motion.rs`](crates/alacer/examples/reduced_motion.rs)
+  drives the fact from the consumer side (the canon build, the
+  motion-only landing, the honest no-op, the fact restored beside a
+  dark flip).
 - **M76 — the flip names its repaint count (ADR-0082)**: ADR-0080's
   second pre-registered re-open rule cashes — a consumer asking "how
   much did the OS flip repaint?" had to re-derive it, the record

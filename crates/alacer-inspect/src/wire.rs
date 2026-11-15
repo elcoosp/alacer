@@ -548,6 +548,42 @@ pub enum WireEvent {
         /// it (the honest absence).
         nodes: usize,
     },
+    /// An activation ask answered — the action trail (M69, ADR-0075):
+    /// the press the AT's action route aimed at a control, the landing
+    /// or the named refusal species beside the aimed id. The record
+    /// rides flat (the additive rule ADR-0010 names — a new event kind,
+    /// version 1, clients that ignore unknown kinds unaffected): the
+    /// ask's own vocabulary beside the outcome, the species named on a
+    /// refusal and `null` on a landing. Since M70 (ADR-0076) the event
+    /// names its rider too (the M30 attribution rule at the activation
+    /// tier) — the additive field the versioning rule admits at
+    /// version 1.
+    Action {
+        /// The activation ask (`press` — the default accessibility
+        /// action, the door the keyboard's Space/Enter answers like a
+        /// click, the M10 contract's faithful routing).
+        ask: String,
+        /// The control the ask arrived under — the AccessKit-stable id
+        /// the route resolved (the funnel's stamp, the M43 rule at the
+        /// activation tier); the funnel's own note site always names
+        /// it, and the keyboard's activation rides the key route's
+        /// stamp (M45).
+        target: Option<u64>,
+        /// What the tier answered (`delivered`, or `refused` with the
+        /// species beside it — the two honest walls the collapsed
+        /// `false` split: the availability tier's `unavailable`, the
+        /// doorless target's `no_door`).
+        outcome: String,
+        /// The refusal's species (`unavailable` — the availability
+        /// tier's wall; `no_door` — the target grew no door that
+        /// answers the ask) when the ask was refused; `null` on a
+        /// landing.
+        refusal: Option<String>,
+        /// Who rode the ask (M70, ADR-0076): `action_route` (the AT's
+        /// activation ask the dispatch funnel routed) or `keyboard`
+        /// (the focused control's Space/Enter, answered like a click).
+        rider: String,
+    },
     /// A completed frame — the ledger + the mask heatmap.
     Frame {
         /// Monotonic frame number.
@@ -1036,6 +1072,30 @@ pub fn wire_preedit(record: &alacer_core::inspect::PreeditRecord) -> WireEvent {
 pub fn wire_a11y_echo(record: &alacer_core::inspect::A11yEchoRecord) -> WireEvent {
     WireEvent::A11yEcho {
         nodes: record.nodes,
+    }
+}
+
+/// The action record, flat on the wire (M69, ADR-0075): the activation
+/// ask named by its own vocabulary beside the outcome — the landing, or
+/// the species beside the refusal (`null` beside a landing), the aimed
+/// id riding verbatim. The route's own answer, never a munged
+/// widget-door fact: the collapsed `false` the door's `bool` answered
+/// with is split where both facts live. Since M70 (ADR-0076) the rider
+/// rides beside the ask — the route that routed it (the M30 attribution
+/// rule at the activation tier).
+#[must_use]
+pub fn wire_action(record: &alacer_core::inspect::ActionRecord) -> WireEvent {
+    WireEvent::Action {
+        ask: record.ask.name().to_string(),
+        target: record.target,
+        outcome: record.outcome.name().to_string(),
+        refusal: match record.outcome {
+            alacer_core::inspect::ActionOutcome::Delivered => None,
+            alacer_core::inspect::ActionOutcome::Refused(refusal) => {
+                Some(refusal.name().to_string())
+            }
+        },
+        rider: record.rider.name().to_string(),
     }
 }
 
@@ -2183,6 +2243,93 @@ mod tests {
         assert_eq!(
             nodes, 1_024,
             "the echo names the tree's size — the count, never the payload"
+        );
+    }
+
+    /// M69 (ADR-0075, this cut): the activation ask rides its own flat
+    /// event — the ask's vocabulary beside the outcome, the species on
+    /// a refusal and `null` on a landing, the aimed id verbatim. The
+    /// two honest walls ride their own tags: the availability tier's
+    /// wall and the doorless silence, the collapsed `false` split.
+    /// Since M70 (ADR-0076) the rider rides beside the ask — the AT's
+    /// action route on the funnel's notes, the keyboard's activation
+    /// naming itself at the widget's door.
+    #[test]
+    fn action_events_carry_the_activation_asks_answer() {
+        use alacer_core::inspect::{
+            ActionAsk, ActionOutcome, ActionRecord, ActionRefusal, ActionRider,
+        };
+        let delivered = ActionRecord {
+            ask: ActionAsk::Press,
+            target: Some(0xAB_CDEF),
+            outcome: ActionOutcome::Delivered,
+            rider: ActionRider::ActionRoute,
+        };
+        let WireEvent::Action {
+            ask,
+            target,
+            outcome,
+            refusal,
+            rider,
+        } = wire_action(&delivered)
+        else {
+            panic!("action event");
+        };
+        assert_eq!(ask, "press", "the ask's own tag");
+        assert_eq!(target, Some(0xAB_CDEF), "the aim rides verbatim");
+        assert_eq!(outcome, "delivered", "the landing is the door's answer");
+        assert_eq!(refusal, None, "a landing names no refusal");
+        assert_eq!(
+            rider, "action_route",
+            "the funnel's notes are the AT route's"
+        );
+
+        let walled = ActionRecord {
+            ask: ActionAsk::Press,
+            target: Some(1),
+            outcome: ActionOutcome::Refused(ActionRefusal::Unavailable),
+            rider: ActionRider::ActionRoute,
+        };
+        let WireEvent::Action {
+            outcome, refusal, ..
+        } = wire_action(&walled)
+        else {
+            panic!("action event");
+        };
+        assert_eq!(outcome, "refused");
+        assert_eq!(
+            refusal.as_deref(),
+            Some("unavailable"),
+            "the wall's species beside the verdict"
+        );
+
+        let doorless = ActionRecord {
+            ask: ActionAsk::Press,
+            target: Some(2),
+            outcome: ActionOutcome::Refused(ActionRefusal::NoDoor),
+            rider: ActionRider::ActionRoute,
+        };
+        let WireEvent::Action { refusal, .. } = wire_action(&doorless) else {
+            panic!("action event");
+        };
+        assert_eq!(
+            refusal.as_deref(),
+            Some("no_door"),
+            "the doorless silence's species beside the verdict"
+        );
+
+        let keyboard = ActionRecord {
+            ask: ActionAsk::Press,
+            target: Some(3),
+            outcome: ActionOutcome::Delivered,
+            rider: ActionRider::Keyboard,
+        };
+        let WireEvent::Action { rider, .. } = wire_action(&keyboard) else {
+            panic!("action event");
+        };
+        assert_eq!(
+            rider, "keyboard",
+            "the keyboard's activation names its own rider"
         );
     }
 

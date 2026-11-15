@@ -70,6 +70,10 @@ fn describe(event: &InspectEvent) -> String {
         InspectEvent::A11yEcho(_) => "an adapter's full-tree echo answered".to_string(),
         InspectEvent::Action(_) => "an activation ask answered".to_string(),
         InspectEvent::FrameRefusal(_) => "a frame refused to paint".to_string(),
+        InspectEvent::ViewPatch(record) => format!(
+            "a view patch resolved — created {}, removed {}, patched {}, moved {}",
+            record.created, record.removed, record.patched, record.moved
+        ),
         InspectEvent::Frame(_) => "a frame completed".to_string(),
     }
 }

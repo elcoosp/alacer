@@ -620,15 +620,21 @@ pub enum WireEvent {
     /// An OS setting flip landed — the setting tier's own trail (M74,
     /// ADR-0080): a new event kind at version 1, clients that ignore
     /// unknown kinds unaffected (the additive rule). The dark-mode fact
-    /// beside the door that landed it — the bool *is* the fact, the
-    /// payload rule at the setting tier has nothing to strip. Streams
-    /// ahead of the theme facts (the flip is the fact the palette
-    /// resolves beside).
+    /// beside the door that landed it — the bool *is* the fact. Since
+    /// M76 (ADR-0082) the event grows the broadcast's node count beside
+    /// the fact — the additive field the versioning rule admits at
+    /// version 1, the lengths rule's shape (a count is not an
+    /// identity: the ids never ride). Streams ahead of the theme facts
+    /// (the flip is the fact the palette resolves beside).
     Setting {
         /// The OS's dark-mode fact — the installed setting seam's own
         /// answer, the stable, documented field value the protocol
         /// document pins.
         dark: bool,
+        /// The broadcast's node count — how many nodes the flip's
+        /// `Change::PAINT` merge touched (ADR-0082, the lengths rule),
+        /// the flip's reach named on the wire.
+        repainted: usize,
     },
     /// A theme swap landed — the theme tier's own trail (M73,
     /// ADR-0079): a new event kind at version 1, clients that ignore
@@ -1202,13 +1208,17 @@ pub fn wire_theme(record: &alacer_core::inspect::ThemeRecord) -> WireEvent {
 
 /// The setting-flip record, flat on the wire (M74, ADR-0080): the
 /// dark-mode fact beside the door that landed it — the bool *is* the
-/// fact, the payload rule at the setting tier has nothing to strip.
+/// fact. Since M76 (ADR-0082) the event carries the broadcast's node
+/// count beside the fact — the lengths rule, the ids never riding.
 /// The setting tier's own answer, never a silent repaint: the flips
 /// the whole window rode are named facts now, one per flip that
 /// landed.
 #[must_use]
 pub fn wire_setting(record: &alacer_core::inspect::SettingRecord) -> WireEvent {
-    WireEvent::Setting { dark: record.dark }
+    WireEvent::Setting {
+        dark: record.dark,
+        repainted: record.repainted,
+    }
 }
 
 /// The chord's key, named for the wire ([`KeyRecord`]'s `key` field):

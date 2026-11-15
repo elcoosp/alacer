@@ -286,6 +286,47 @@ fn frame_refusal_events_carry_the_documented_flat_shape() {
 }
 
 #[test]
+fn view_patch_events_carry_the_documented_flat_shape() {
+    // The wire conversion is pinned here (the client codes against it):
+    // the reconciler's four counts, flat beside the kind — the
+    // documented `view_patch` shape (ADR-0078), a new event kind at
+    // version 1 (the additive rule: clients that ignore unknown kinds
+    // unaffected). The counts are the fact — the props a patch applied
+    // never ride (the payload rule's shape).
+    use alacer_core::inspect::ViewPatchRecord;
+    use alacer_inspect::wire::wire_view_patch;
+
+    let patch = wire_view_patch(&ViewPatchRecord {
+        created: 2,
+        removed: 1,
+        patched: 5,
+        moved: 3,
+    });
+    let json = serde_json::to_string(&patch).expect("patch json");
+    for fragment in [
+        r#""kind":"view_patch""#,
+        r#""created":2"#,
+        r#""removed":1"#,
+        r#""patched":5"#,
+        r#""moved":3"#,
+    ] {
+        assert!(json.contains(fragment), "missing {fragment} in {json}");
+    }
+
+    let noop = wire_view_patch(&ViewPatchRecord {
+        created: 0,
+        removed: 0,
+        patched: 0,
+        moved: 0,
+    });
+    let json = serde_json::to_string(&noop).expect("noop json");
+    assert!(
+        json.contains(r#""kind":"view_patch""#) && json.contains(r#""moved":0"#),
+        "the no-op re-render's zeros are the fact — nothing moved, and the wire says so: {json}"
+    );
+}
+
+#[test]
 fn focus_events_carry_the_documented_flat_shape() {
     // The wire conversion is pinned here (the client codes against it):
     // a landing's endpoints and wrap, a refusal's species, node, and

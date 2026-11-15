@@ -35,8 +35,12 @@ pub struct Progress {
     min: f32,
     max: f32,
     source: ProgressValue,
-    fill: Color,
-    text_color: Color,
+    /// The app's fill override; `None` borrows the theme's accent role
+    /// at paint time (ADR-0079).
+    fill: Option<Color>,
+    /// The app's text-color override; `None` borrows the theme's text
+    /// role at paint time (ADR-0079).
+    text_color: Option<Color>,
     font_size: f32,
     style: Style,
 }
@@ -75,8 +79,8 @@ impl Progress {
             min,
             max,
             source: ProgressValue::Fixed(min),
-            fill: crate::theme::ACCENT,
-            text_color: crate::theme::TEXT,
+            fill: None,
+            text_color: None,
             font_size: crate::theme::FONT_SIZE,
             style: Style::default(),
         }
@@ -111,17 +115,19 @@ impl Progress {
         self
     }
 
-    /// The fill's color (the reported span of the bar).
+    /// The fill's color (the reported span of the bar). Without it the
+    /// bar borrows the theme's accent role at paint time (ADR-0079).
     #[must_use]
     pub fn fill(mut self, fill: Color) -> Self {
-        self.fill = fill;
+        self.fill = Some(fill);
         self
     }
 
-    /// Text color of the label.
+    /// Text color of the label. Without it the label borrows the
+    /// theme's text role at paint time (ADR-0079).
     #[must_use]
     pub fn text_color(mut self, color: Color) -> Self {
-        self.text_color = color;
+        self.text_color = Some(color);
         self
     }
 
@@ -239,13 +245,17 @@ impl Widget for Progress {
     fn paint(&self, ctx: &mut PaintCtx<'_>) {
         let width = ctx.size().width;
         let ratio = self.ratio();
+        // The borrowed roles resolve per paint pass (ADR-0079).
+        let palette = ctx.palette();
+        let fill = self.fill.unwrap_or(palette.accent);
+        let text_color = self.text_color.unwrap_or(palette.text);
 
         // The track: a rounded rail the full width.
         ctx.push_quad(alacer_core::scene::Quad {
             rect: Rect::new(Point::new(0.0, 0.0), Size::new(width, Self::BAR_HEIGHT)),
-            color: crate::theme::BORDER,
+            color: palette.border,
             corner_radius: Self::BAR_HEIGHT * 0.5,
-            border_color: crate::theme::BORDER,
+            border_color: palette.border,
             border_width: 0.0,
             clip: None,
         });
@@ -257,9 +267,9 @@ impl Widget for Progress {
                 Point::new(0.0, 0.0),
                 Size::new(fill_width, Self::BAR_HEIGHT),
             ),
-            color: self.fill,
+            color: fill,
             corner_radius: Self::BAR_HEIGHT * 0.5,
-            border_color: self.fill,
+            border_color: fill,
             border_width: 0.0,
             clip: None,
         });
@@ -272,7 +282,7 @@ impl Widget for Progress {
                 ctx.push_glyph(alacer_core::scene::Glyph {
                     position: Point::new(text_origin.x + glyph.x, text_origin.y + glyph.y),
                     size: glyph.size,
-                    color: self.text_color,
+                    color: text_color,
                     font_id: glyph.font_id,
                     glyph_id: glyph.glyph_id,
                     clip: None,

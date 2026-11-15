@@ -622,15 +622,21 @@ pub enum WireEvent {
     /// unknown kinds unaffected (the additive rule). The dark-mode fact
     /// beside the door that landed it — the bool *is* the fact. Since
     /// M76 (ADR-0082) the event grows the broadcast's node count beside
-    /// the fact — the additive field the versioning rule admits at
-    /// version 1, the lengths rule's shape (a count is not an
-    /// identity: the ids never ride). Streams ahead of the theme facts
-    /// (the flip is the fact the palette resolves beside).
+    /// the fact, and since M77 (ADR-0083) the reduced-motion fact
+    /// beside the dark one — the additive fields the versioning rule
+    /// admits at version 1, the lengths rule's shape (a count is not an
+    /// identity: the ids never ride), never a second event per fact.
+    /// Streams ahead of the theme facts (the flip is the fact the
+    /// palette resolves beside).
     Setting {
         /// The OS's dark-mode fact — the installed setting seam's own
         /// answer, the stable, documented field value the protocol
         /// document pins.
         dark: bool,
+        /// The OS's reduced-motion fact (ADR-0083) — the same seam's
+        /// answer beside the dark one, the stable, documented field
+        /// value the protocol document pins.
+        reduced_motion: bool,
         /// The broadcast's node count — how many nodes the flip's
         /// `Change::PAINT` merge touched (ADR-0082, the lengths rule),
         /// the flip's reach named on the wire.
@@ -641,12 +647,19 @@ pub enum WireEvent {
     /// unknown kinds unaffected (the additive rule). The palette's tag
     /// beside the door that landed it — the log names the palette, the
     /// paint pass resolves it; the palette's colors never ride the
-    /// wire (the payload rule's shape).
+    /// wire (the payload rule's shape). Since M78 (ADR-0084) the event
+    /// grows the broadcast's node count beside the tag — the additive
+    /// field the versioning rule admits at version 1, the lengths
+    /// rule's shape (a count is not an identity: the ids never ride).
     Theme {
         /// The installed palette's tag — the seam's own `name()`
         /// (`"canon"`, `"midnight"`, `"high_contrast"`), the stable,
         /// documented field value the protocol document pins.
         palette: String,
+        /// The broadcast's node count — how many nodes the swap's
+        /// `Change::PAINT` merge touched (ADR-0084, the lengths rule),
+        /// the swap's reach named on the wire.
+        repainted: usize,
     },
     /// A completed frame — the ledger + the mask heatmap.
     Frame {
@@ -1196,20 +1209,24 @@ pub fn wire_view_patch(record: &alacer_core::inspect::ViewPatchRecord) -> WireEv
 
 /// The theme-swap record, flat on the wire (M73, ADR-0079): the
 /// palette's tag beside the door that landed it — the log names the
-/// palette, the paint pass resolves it. The theme tier's own answer,
-/// never a silent repaint: the swaps the whole window rode are named
-/// facts now, one per swap that landed.
+/// palette, the paint pass resolves it. Since M78 (ADR-0084) the event
+/// carries the broadcast's node count beside the tag — the lengths
+/// rule, the ids never riding, never the colors. The theme tier's own
+/// answer, never a silent repaint: the swaps the whole window rode are
+/// named facts now, one per swap that landed.
 #[must_use]
 pub fn wire_theme(record: &alacer_core::inspect::ThemeRecord) -> WireEvent {
     WireEvent::Theme {
         palette: record.palette.clone(),
+        repainted: record.repainted,
     }
 }
 
 /// The setting-flip record, flat on the wire (M74, ADR-0080): the
 /// dark-mode fact beside the door that landed it — the bool *is* the
 /// fact. Since M76 (ADR-0082) the event carries the broadcast's node
-/// count beside the fact — the lengths rule, the ids never riding.
+/// count beside the fact, and since M77 (ADR-0083) the reduced-motion
+/// fact beside the dark one — the lengths rule, the ids never riding.
 /// The setting tier's own answer, never a silent repaint: the flips
 /// the whole window rode are named facts now, one per flip that
 /// landed.
@@ -1217,6 +1234,7 @@ pub fn wire_theme(record: &alacer_core::inspect::ThemeRecord) -> WireEvent {
 pub fn wire_setting(record: &alacer_core::inspect::SettingRecord) -> WireEvent {
     WireEvent::Setting {
         dark: record.dark,
+        reduced_motion: record.reduced_motion,
         repainted: record.repainted,
     }
 }
@@ -2971,6 +2989,47 @@ mod client_tests {
             assert!(
                 page.contains(fragment),
                 "the embedded client renders the pinned wall: {fragment}"
+            );
+        }
+    }
+
+    /// M77 (ADR-0083, this cut): the embedded standalone client renders
+    /// the setting tier's motion fact — the additive `reduced_motion`
+    /// field lands beside the dark fact in the row's headline and its
+    /// detail line, one event carrying the facts the vocabulary
+    /// consults (never a second event per fact). The pin rides the
+    /// file's own fragments (the M30 route).
+    #[test]
+    fn the_client_renders_the_settings_motion_fact() {
+        let page = include_str!("inspector.html");
+        for fragment in [
+            "event.reduced_motion",
+            "case \"setting\":",
+            "The client renders the setting tier's own fact (M74,",
+        ] {
+            assert!(
+                page.contains(fragment),
+                "the embedded client renders the motion fact: {fragment}"
+            );
+        }
+    }
+
+    /// M78 (ADR-0084, this cut): the embedded standalone client renders
+    /// the theme tier's counted swap — the additive `repainted` field
+    /// lands in the row's detail line beside the palette's tag, the
+    /// colors never riding the wire (the payload rule's shape). The pin
+    /// rides the file's own fragments (the M30 route).
+    #[test]
+    fn the_client_renders_the_swaps_count() {
+        let page = include_str!("inspector.html");
+        for fragment in [
+            "case \"theme\":",
+            "the swap repainted \" + event.repainted + \" nodes",
+            "The client renders the theme tier's own fact (M73, ADR-0079)",
+        ] {
+            assert!(
+                page.contains(fragment),
+                "the embedded client renders the swap's count: {fragment}"
             );
         }
     }

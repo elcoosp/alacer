@@ -404,6 +404,16 @@
       "id": "frame_refusal_note_enabled_bounded",
       "baseline": "frame_refusal/note_enabled_bounded",
       "scope": "same-host"
+    },
+    {
+      "id": "view_patch_note_disabled",
+      "baseline": "view_patch/note_disabled",
+      "scope": "same-host"
+    },
+    {
+      "id": "view_patch_note_enabled_bounded",
+      "baseline": "view_patch/note_enabled_bounded",
+      "scope": "same-host"
     }
   ],
   "test_enforced_gates": [

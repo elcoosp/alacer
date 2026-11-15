@@ -1964,15 +1964,16 @@ pub struct ThemeRecord {
 /// One OS setting flip's fact (§7.2 pass 8, ADR-0080): the setting
 /// tier's own record — the dark-mode fact beside the door that landed
 /// it, the theme trail's shape (ADR-0079) at the setting tier. The
-/// bool *is* the fact: the payload rule at the setting tier has
-/// nothing to strip — a record that names whether the OS went dark,
-/// the log answering "what does the vocabulary consult now" from the
-/// row alone. The record rides *beside* the door's `bool` answer — the
-/// door still answers whether the flip landed — never instead of it; a
-/// flip that lands where the fact already is queues no record (the
-/// idle-frame property, A1's rule at the setting tier). One fact per
-/// flip, never per frame: the frames that paint under the fact stream
-/// no setting fact of their own.
+/// bool *is* the fact; since M76 (ADR-0082, ADR-0080's second
+/// pre-registered re-open rule) the record grows the broadcast's node
+/// count beside it — the lengths rule (the count is the flip's reach,
+/// the ids never ride), the count computed where the broadcast
+/// resolves, never re-counted at the reader. The record rides *beside*
+/// the door's `bool` answer — the door still answers whether the flip
+/// landed — never instead of it; a flip that lands where the fact
+/// already is queues no record (the idle-frame property, A1's rule at
+/// the setting tier). One fact per flip, never per frame: the frames
+/// that paint under the fact stream no setting fact of their own.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SettingRecord {
     /// The OS's dark-mode fact — the installed
@@ -1980,6 +1981,13 @@ pub struct SettingRecord {
     /// once per paint pass into `PaintCtx` (the palette the roles
     /// borrow resolved beside it).
     pub dark: bool,
+    /// The broadcast's node count — how many nodes the flip's
+    /// `Change::PAINT` merge touched (ADR-0082): the lengths rule's
+    /// shape, the count naming the flip's reach, the ids never riding
+    /// (the payload rule — a count is not an identity). The count is
+    /// the fact of the flip's own moment: a tree that grows later
+    /// never rewrites a queued record.
+    pub repainted: usize,
 }
 
 /// One observation: what the pipeline and the flux surface to devtools.

@@ -584,6 +584,22 @@ pub enum WireEvent {
         /// (the focused control's Space/Enter, answered like a click).
         rider: String,
     },
+    /// A frame refused to paint — the frame tier's own trail
+    /// (M71, ADR-0077): a new event kind at version 1, clients that
+    /// ignore unknown kinds unaffected (the additive rule). The ladder
+    /// stage's species beside the failing node when one is the fact
+    /// (`null` when the window, not a widget, is the fact).
+    FrameRefusal {
+        /// Which stage refused (`layout_refused`, `render_failed`,
+        /// `partial_repaint_failed`, `framebuffer_lost`,
+        /// `present_failed`) — the ladder's own name for what went
+        /// missing, never a collapsed `false`.
+        species: String,
+        /// The node the refusal is about — the engine-named arena id,
+        /// verbatim (ADR-0023's vocabulary); `null` when the frame had
+        /// no node to name.
+        node: Option<u64>,
+    },
     /// A completed frame — the ledger + the mask heatmap.
     Frame {
         /// Monotonic frame number.
@@ -1096,6 +1112,20 @@ pub fn wire_action(record: &alacer_core::inspect::ActionRecord) -> WireEvent {
             }
         },
         rider: record.rider.name().to_string(),
+    }
+}
+
+/// The frame-refusal record, flat on the wire (M71, ADR-0077): the
+/// ladder stage's species beside the failing node when one is the fact
+/// (`null` when the window, not a widget, is the fact — a present-tier
+/// failure carries no node). The frame tier's own answer, never a
+/// munged log line: the skipped frames the platform's ladder used to
+/// log-and-move-on about are named facts now.
+#[must_use]
+pub fn wire_frame_refusal(record: &alacer_core::inspect::FrameRefusalRecord) -> WireEvent {
+    WireEvent::FrameRefusal {
+        species: record.species.name().to_string(),
+        node: record.node,
     }
 }
 

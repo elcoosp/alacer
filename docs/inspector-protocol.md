@@ -834,6 +834,23 @@ between connects (the flood rule at a tier whose events are rare). The
 additive event the versioning rule admits at version 1 — clients that
 ignore unknown kinds are unaffected.
 
+### `action` — an activation ask answered
+
+ ("did the AT's press land — or why not, and who pressed?")
+
+```json
+{
+  "kind":"action",
+  "ask":"press",
+  "target":42,
+  "outcome":"refused",
+  "refusal":"unavailable",
+  "rider":"action_route"
+}
+```
+
+The action tier's own fact (M69, ADR-0075, the tier's own kill rule): the press — the default accessibility action the platform's action route aims at a control — answered the dispatch funnel's bare `bool`, whose `false` collapsed the two facts a trail reader wants apart. The record names the ask's answer: `delivered`, or `refused` with the species beside it — `unavailable` when the availability tier's wall held the control down (the tree's one `enabled` truth, computed at the route, never guessed at a widget-private call site), `no_door` when no door answered the ask. The aimed id rides verbatim; a landing carries `refusal: null`. Since M70 (ADR-0076) the record names its rider: `action_route` for the AT's ask (the funnel's own note site) or `keyboard` for the focused control's Space/Enter activation (the M10 parity — the button's GTK release rule, the checkbox's toggle-on-press), the additive field the versioning rule admits at version 1. One fact per trail: the asks whose tiers already price themselves — the value tier's writes, the scroll tier's asks, the text-write tier's rewrites — stream no action fact. The event streams at the tick's start drain (the preedit drain's shape), one frame after the ask resolved; the queue behind it is bounded (256 facts per thread, oldest-first eviction) and the recorder's `action` ring holds 512. The additive event the versioning rule admits at version 1 — clients that ignore unknown kinds are unaffected.
+
 ### `frame` — a completed frame
 
  ("why is this frame slow?", "what did this mask touch?")
@@ -901,8 +918,8 @@ malformed text frame is treated as `bye`.
 - The recorder's rings are bounded (frames 256, edges 1 024, writes 1 024,
   inputs 512, focus 512, edits 512, announces 512, keys 512,
   clipboards 512, values 512, gestures 512, scrolls 512, text_writes 512,
-  route_drops 512, key_edits 512, preedits 512, a11y_echoes 512); `clear`
-  empties them.
+  route_drops 512, key_edits 512, preedits 512, a11y_echoes 512, actions
+  512); `clear` empties them.
 - Recording is opt-in: the pipeline forwards only when an observer is
   installed, and the flux records activations and provenance only when
   `Flux::set_causal_capture(true)`. With both off, the framework's default

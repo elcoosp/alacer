@@ -34,9 +34,11 @@
 //! actionable controls answer, the focus walk the keyboard's Tab fallback
 //! and the app's code ride (tree-order and directional, unscoped and
 //! scoped, ADR-0030/ADR-0031/ADR-0032), the frame's ledger the scene
-//! journal reports, the two render backends, the Causality inspector, the
-//! headless testing harness, and the examples catalog that demonstrates
-//! each seam.
+//! journal reports, the runtime theme seam the paint roles borrow
+//! (ADR-0079), the OS setting seam the dark-mode fact rides (ADR-0080),
+//! the two render backends, the Causality inspector, the headless
+//! testing harness, and the examples catalog that demonstrates each
+//! seam.
 
 #![doc = include_str!("../../../README.md")]
 

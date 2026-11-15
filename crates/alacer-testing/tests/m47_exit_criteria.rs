@@ -281,11 +281,11 @@ fn m47_the_living_documents_re_agree_at_the_cut() {
     // m-suite pins move across the chain together — the workspace's
     // one-milestone-per-minor rule counting the cut's entries).
     assert!(
-        readme.contains("M0 through M68") && readme.contains("seventy-five decision records"),
+        readme.contains("M0 through M70") && readme.contains("seventy-seven decision records"),
         "the README's status block and count re-agree at the cut"
     );
     assert!(
-        architecture.contains("75 decision records"),
+        architecture.contains("77 decision records"),
         "the architecture register re-agrees at 64 decision records"
     );
     // The protocol document carries the bound species (the wire's

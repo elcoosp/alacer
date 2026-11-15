@@ -53,6 +53,16 @@ use alacer_core::color::Color;
 use alacer_core::scene::PaintCtx;
 
 /// The shared color constants and type sizes every widget reads.
+///
+/// Since M73 (ADR-0079) these are the **canon pin**, not the paint
+/// source: a widget's un-overridden paint roles resolve from the
+/// installed [`alacer_core::theme::ThemeSeam`] at paint time
+/// ([`alacer_core::theme::Palette::CANON`] pins these exact values, so
+/// a default build paints what 0.16 painted), while an app-set color —
+/// a builder prop or a `set_*` write — stays the override it was.
+/// What remains here are the canon constants themselves and the font
+/// metrics (the seam is paint-color-only; runtime font metrics are a
+/// pre-registered re-open rule).
 pub mod theme {
     use super::Color;
 
@@ -113,5 +123,29 @@ mod tests {
         const {
             assert!(theme::FONT_SIZE > 0.0);
         }
+    }
+
+    #[test]
+    fn the_canon_palette_pins_the_widget_constants() {
+        // ADR-0079's pin: the seam's canon palette is byte-identical to
+        // the constants this crate shipped through 0.16 — a default
+        // build paints what the blessed corpus was blessed with.
+        assert_eq!(alacer_core::theme::Palette::CANON.surface, theme::SURFACE);
+        assert_eq!(alacer_core::theme::Palette::CANON.panel, theme::PANEL);
+        assert_eq!(alacer_core::theme::Palette::CANON.accent, theme::ACCENT);
+        assert_eq!(
+            alacer_core::theme::Palette::CANON.accent_pressed,
+            theme::ACCENT_PRESSED
+        );
+        assert_eq!(
+            alacer_core::theme::Palette::CANON.selection,
+            theme::SELECTION
+        );
+        assert_eq!(alacer_core::theme::Palette::CANON.text, theme::TEXT);
+        assert_eq!(
+            alacer_core::theme::Palette::CANON.text_muted,
+            theme::TEXT_MUTED
+        );
+        assert_eq!(alacer_core::theme::Palette::CANON.border, theme::BORDER);
     }
 }

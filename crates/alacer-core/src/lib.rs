@@ -31,6 +31,12 @@
 //!   ([`keymap::KeymapConsult`]) and one [`inspect::KeyRecord`] streamed
 //!   per funnel consult — the fired binding's prose name riding the
 //!   record since M37 (§10.3, ADR-0041, ADR-0042, ADR-0043).
+//! - [`theme`] — the runtime theme seam: the palette the widgets borrow
+//!   for their un-overridden paint roles, installed as one
+//!   [`ThemeSeam`] (`PassPipeline::set_theme`), resolved once per paint
+//!   pass into [`scene::PaintCtx`], the swap riding `Change::PAINT` on
+//!   the tree and one [`inspect::ThemeRecord`] on the causal log
+//!   (§7.2 pass 8, ADR-0079).
 //! - [`flux`] — the mask bridge over `reactive_graph`: effects never mutate widgets;
 //!   every effect drain ends by queuing `Change` masks (architecture §5.2).
 //! - [`passes`] — the pass contract: `event` → `update_focusable` →
@@ -68,6 +74,7 @@ pub mod scroll;
 pub mod style;
 pub mod text_seam;
 pub mod text_write;
+pub mod theme;
 pub mod trail;
 pub mod utf16;
 pub mod value;
@@ -85,6 +92,7 @@ pub use events::{
 };
 pub use flux::{Flux, FluxCounters, FluxRwSignal, FluxWriter, RenderBinding};
 pub use frame_refusal::FRAME_REFUSAL_TRAIL_CAP;
+pub use theme::THEME_TRAIL_CAP;
 pub use view_patch::VIEW_PATCH_TRAIL_CAP;
 // The reactive trait seam: the framework's signal handles are
 // `reactive_graph`'s, so its read/write traits ride the same re-export
@@ -100,7 +108,8 @@ pub use inspect::{
     PassTiming, PreeditAction, PreeditRecord, RangeBound, RouteDropRecord, RouteDropRider,
     RouteDropSpecies, ScrollAction, ScrollOutcome, ScrollRecord, ScrollRefusal, SignalKey,
     SignalWrite, Tee, TextWriteAction, TextWriteOutcome, TextWriteRecord, TextWriteRefusal,
-    TextWriteSource, ValueAction, ValueOutcome, ValueRecord, ValueRefusal, ViewPatchRecord,
+    TextWriteSource, ThemeRecord, ValueAction, ValueOutcome, ValueRecord, ValueRefusal,
+    ViewPatchRecord,
 };
 pub use keymap::{Chord, Keymap, KeymapConsult, KeymapSeam};
 pub use mask::Change;
@@ -118,6 +127,7 @@ pub use style::{
     CrossAxisAlignment, Display, MainAxisAlignment, MeasureFn, MeasureSpec, Style, TextSpec,
 };
 pub use text_seam::{GlyphRun, PlacedGlyph, TextSeam};
+pub use theme::{CanonPalette, Palette, ThemeSeam};
 pub use trail::{TRAIL_RING_CAP, TrailLog};
 pub use widget::{
     A11yAction, EventResponse, LabelSource, Role, ScrollUnit, TableSlot, TextSelection,
@@ -138,12 +148,13 @@ pub mod prelude {
     pub use crate::inspect::{
         ActionRecord, ClipboardRecord, GestureRecord, InspectEvent, InspectObserver,
         KeyEditOutcome, KeyEditRecord, KeyEditRefusal, KeyRecord, PreeditRecord, ScrollRecord, Tee,
-        TextWriteRecord, ValueRecord,
+        TextWriteRecord, ThemeRecord, ValueRecord,
     };
     pub use crate::keymap::{Chord, Keymap, KeymapConsult, KeymapSeam};
     pub use crate::mask::Change;
     pub use crate::passes::{PassKind, PassPipeline};
     pub use crate::style::{CrossAxisAlignment, Display, MainAxisAlignment, Style};
+    pub use crate::theme::{CanonPalette, Palette, ThemeSeam};
     pub use crate::trail::{TRAIL_RING_CAP, TrailLog};
     pub use crate::widget::{
         EventResponse, LabelSource, Role, TableSlot, TextSelection, ToggleState, Widget,

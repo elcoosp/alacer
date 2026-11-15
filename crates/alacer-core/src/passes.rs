@@ -798,11 +798,12 @@ impl PassPipeline {
     /// Replaces any previous observer. Installing one also enables the
     /// edit trail, the announcement trail, the text-write trail
     /// (ADR-0061), the preedit trail (ADR-0067), the a11y-echo
-    /// trail (ADR-0073), and the action trail (ADR-0075): the journal,
+    /// trail (ADR-0073), the action trail (ADR-0075), and the
+    /// frame-refusal trail (ADR-0077): the journal,
     /// the push route, the AT's editing tier, the composing tier, the
-    /// adapter tier, and the activation tier note their facts
-    /// on this thread from here on, and the disabled paths stay one
-    /// branch per action.
+    /// adapter tier, the activation tier, and the frame tier note their
+    /// facts on this thread from here on, and the disabled paths stay
+    /// one branch per action.
     pub fn set_observer(&mut self, observer: Box<dyn InspectObserver>) {
         self.observer = Some(observer);
         crate::history::set_edit_trail_enabled(true);
@@ -817,6 +818,7 @@ impl PassPipeline {
         crate::preedit::set_preedit_trail_enabled(true);
         crate::a11y_echo::set_a11y_echo_trail_enabled(true);
         crate::action::set_action_trail_enabled(true);
+        crate::frame_refusal::set_frame_refusal_trail_enabled(true);
     }
 
     /// Enables per-pass wall timing and the overhead ledger (the M1 gate
@@ -1767,6 +1769,20 @@ impl PassPipeline {
         }
     }
 
+    /// Forwards one frame-refusal fact to the observer, when installed
+    /// (§13.3, ADR-0077): the frame tier's trail — the refusal the
+    /// tick's layout stage or the present ladder's stage answered with,
+    /// the species beside the failing node when one is the fact
+    /// ([`crate::inspect::FrameRefusalRecord`]), streamed at the tick's
+    /// start drain, one frame after the frame that refused. One branch
+    /// when no observer is installed: the A7 idle contract is
+    /// unchanged.
+    fn notify_frame_refusal(&mut self, record: crate::inspect::FrameRefusalRecord) {
+        if let Some(observer) = self.observer.as_mut() {
+            observer.observe(InspectEvent::FrameRefusal(record));
+        }
+    }
+
     /// Forwards one speech-act fact to the observer, when installed
     /// (§13.3, ADR-0039): the announcement trail — the record the
     /// pipeline answered the act with, the politeness beside it. The
@@ -2389,6 +2405,19 @@ impl PassPipeline {
             self.notify_action(record);
         }
 
+        // The frame-refusal drain (§13.3, ADR-0077): the facts the
+        // tick's layout stage and the present ladder's stages queued on
+        // this thread ride the observer at the tick's start — one frame
+        // after the frame that refused (a fact queues where the
+        // refusal resolves, the record beside the door that still
+        // answers `Err`, never instead of it). Every fact streams (a
+        // bounded queue, never collapsed), and the drain empties the
+        // queue whether an observer listens or not: a fact streams
+        // once, an absent reader just never sees it.
+        for record in crate::frame_refusal::take_frame_refusal_trail() {
+            self.notify_frame_refusal(record);
+        }
+
         let mut ledger: Vec<PassRun> = std::mem::take(&mut self.interframe);
 
         // Flux drain: the mask bridge lands masks in the arena (A1). Bookkeeping
@@ -2465,6 +2494,14 @@ impl PassPipeline {
             // logging the refusal and skipping the frame it cannot lay
             // out.
             let Some(root) = root else {
+                // The frame tier's own fact (ADR-0077): the refusal
+                // queues where it resolves — the wiring bug the log
+                // names, one frame later, beside the `Err` the door
+                // still answers.
+                crate::frame_refusal::note_frame_refusal(crate::inspect::FrameRefusalRecord {
+                    species: crate::inspect::FrameRefusalSpecies::LayoutRefused,
+                    node: None,
+                });
                 return Err(LayoutError {
                     message: "layout ran with no root mounted — masks outlived their tree; \
                               mount a root before the first frame"
@@ -2473,8 +2510,21 @@ impl PassPipeline {
                 });
             };
             let start = self.timings.then(std::time::Instant::now);
-            self.layout
-                .sync_and_layout(&mut self.arena, root, &dirty, viewport)?;
+            // The engine seam's own failure (ADR-0023's error shape):
+            // the same note site the no-root bug rides — the species is
+            // the stage's, the node the engine named, verbatim. The
+            // `?`'s propagation is spelled out so the fact queues
+            // exactly where the refusal resolves, never one arm later.
+            if let Err(error) = self
+                .layout
+                .sync_and_layout(&mut self.arena, root, &dirty, viewport)
+            {
+                crate::frame_refusal::note_frame_refusal(crate::inspect::FrameRefusalRecord {
+                    species: crate::inspect::FrameRefusalSpecies::LayoutRefused,
+                    node: error.node.map(crate::NodeId::raw),
+                });
+                return Err(error);
+            }
             layout_work = start.map_or(0, |t| crate::num::u128_to_u64(t.elapsed().as_nanos()));
             self.counters.layout_runs += 1;
         }

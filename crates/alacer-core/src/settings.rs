@@ -34,12 +34,15 @@
 //! the composition door the pipeline grew (ADR-0081).
 //!
 //! The flip answers on the causal log: one
-//! [`crate::inspect::SettingRecord`] per flip that landed — the bool
-//! *is* the fact, and since M76 (ADR-0082) the broadcast's node count
-//! rides beside it (the lengths rule — the count names the flip's
-//! reach, the ids never riding) — the theme trail's shape (ADR-0079),
-//! bounded, drained at the tick's start, silent while nobody listens
-//! (the A7 idle contract).
+//! [`crate::inspect::SettingRecord`] per flip that landed — the bools
+//! *are* the facts, and since M76 (ADR-0082) the broadcast's node count
+//! rides beside them (the lengths rule — the count names the flip's
+//! reach, the ids never riding). Since M77 (ADR-0083, ADR-0080's first
+//! pre-registered re-open rule) the seam and the record grow the OS's
+//! reduced-motion fact beside the dark one — one seam, one door, one
+//! record per flip, never a second seam per fact — the theme trail's
+//! shape (ADR-0079), bounded, drained at the tick's start, silent while
+//! nobody listens (the A7 idle contract).
 //!
 //! ```text
 //! // The adapter's door (core-only dependency):
@@ -73,26 +76,44 @@ pub const SETTING_TRAIL_CAP: usize = 256;
 /// The trait's contract is total and per-flip: every read answers the
 /// fact the adapter holds *now*. The adapter pushes the OS's flip
 /// through the door (the event the platform owns); the vocabulary
-/// never polls — the seam is the fact's one installed source.
+/// never polls — the seam is the fact's one installed source. Since
+/// M77 (ADR-0083, ADR-0080's pre-registered re-open rule) the trait
+/// carries the OS's reduced-motion fact beside the dark fact — one
+/// seam, the facts the vocabulary consults riding beside each other,
+/// never a second seam per fact.
 pub trait SettingSeam: Send + Sync + 'static {
     /// The OS's dark-mode fact, re-read once per paint pass — one
     /// dynamic call per frame, never per node, the palette
     /// resolution's shape.
     fn dark_mode(&self) -> bool;
+
+    /// The OS's reduced-motion fact, re-read beside `dark_mode` once
+    /// per paint pass (ADR-0083) — the same one dynamic call per frame,
+    /// the vocabulary consulting it when motion itself is the question
+    /// (a spinner's spin, a thumbnail's autoplay). A setting that
+    /// cannot answer the fact is a setting that cannot consult it: the
+    /// method is required, the adapter answering the absence when its
+    /// platform reports no motion fact (`false` — motion allowed).
+    fn reduced_motion(&self) -> bool;
 }
 
 /// The provided canon setting (§13.3, the provided-implementation rule
 /// beside every seam — [`crate::theme::CanonPalette`]'s precedent):
-/// light, always — the fact the blessed snapshot corpus was blessed
-/// with, installable by name so a consumer that swapped away can swap
-/// back through the same door it swapped in. Installing it where
-/// nothing is installed (or where light is installed) is the no-op the
-/// door answers `false` on: the default build already resolves light.
+/// light, motion allowed, always — the facts the blessed snapshot
+/// corpus was blessed with, installable by name so a consumer that
+/// swapped away can swap back through the same door it swapped in.
+/// Installing it where nothing is installed (or where the canon facts
+/// are installed) is the no-op the door answers `false` on: the
+/// default build already resolves them.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct CanonSettings;
 
 impl SettingSeam for CanonSettings {
     fn dark_mode(&self) -> bool {
+        false
+    }
+
+    fn reduced_motion(&self) -> bool {
         false
     }
 }
@@ -231,6 +252,7 @@ pub fn note_setting(record: SettingRecord) {
         tracing::trace!(
             target: "alacer::settings",
             dark = record.dark,
+            reduced_motion = record.reduced_motion,
             repainted = record.repainted,
             "setting flip queued for the next tick"
         );
@@ -259,12 +281,13 @@ mod tests {
         take_setting_trail,
     };
 
-    /// The canon setting pins light — the fact the blessed snapshot
-    /// corpus was blessed with, byte for byte, the corpus's green
-    /// depends on it.
+    /// The canon setting pins the canon facts — light, motion allowed
+    /// — the facts the blessed snapshot corpus was blessed with, byte
+    /// for byte, the corpus's green depends on it.
     #[test]
-    fn the_canon_setting_pins_light() {
+    fn the_canon_setting_pins_the_canon_facts() {
         assert!(!CanonSettings.dark_mode());
+        assert!(!CanonSettings.reduced_motion());
     }
 
     /// The disabled trail is a no-op: nothing queues, the drain answers
@@ -273,6 +296,7 @@ mod tests {
     fn the_disabled_trail_notes_nothing() {
         note_setting(SettingRecord {
             dark: true,
+            reduced_motion: false,
             repainted: 0,
         });
         assert!(
@@ -289,6 +313,7 @@ mod tests {
         for i in 0..(SETTING_TRAIL_CAP + 8) {
             note_setting(SettingRecord {
                 dark: i % 2 == 0,
+                reduced_motion: i % 3 == 0,
                 repainted: 1,
             });
         }
@@ -297,6 +322,10 @@ mod tests {
         assert!(
             drained[0].dark,
             "the oldest evicted first (the ninth flip's fact — i=8 is dark)"
+        );
+        assert!(
+            !drained[0].reduced_motion,
+            "both facts ride the same record (i=8 allows motion — 8 % 3 != 0)"
         );
         assert!(
             take_setting_trail().is_empty(),

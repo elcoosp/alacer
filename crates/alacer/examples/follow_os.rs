@@ -40,7 +40,7 @@ use alacer_core::passes::PassPipeline;
 use alacer_core::scene::{PaintCtx, Quad};
 use alacer_core::settings::{CanonSettings, SettingComposer, SettingSeam};
 use alacer_core::style::{Size2, Style};
-use alacer_core::theme::{Palette, ThemeSeam};
+use alacer_core::theme::Palette;
 use alacer_core::widget::{LabelSource, Role, Widget};
 use alacer_layout::LayoutHost;
 use alacer_text::ThreadLocalMeasurer;
@@ -61,6 +61,13 @@ struct SimulatedOs {
 impl SettingSeam for SimulatedOs {
     fn dark_mode(&self) -> bool {
         self.dark
+    }
+
+    /// The simulated OS reports no motion preference — the demo flips
+    /// the dark fact alone, the honest absence the winit adapter
+    /// answers too (ADR-0083).
+    fn reduced_motion(&self) -> bool {
+        false
     }
 }
 

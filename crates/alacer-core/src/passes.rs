@@ -819,6 +819,7 @@ impl PassPipeline {
         crate::a11y_echo::set_a11y_echo_trail_enabled(true);
         crate::action::set_action_trail_enabled(true);
         crate::frame_refusal::set_frame_refusal_trail_enabled(true);
+        crate::view_patch::set_view_patch_trail_enabled(true);
     }
 
     /// Enables per-pass wall timing and the overhead ledger (the M1 gate
@@ -1783,6 +1784,20 @@ impl PassPipeline {
         }
     }
 
+    /// Forwards one view-patch fact to the observer, when installed
+    /// (§13.3, ADR-0078): the view tier's trail — the reconciler's
+    /// four counts beside each other, the mount's build and every
+    /// re-render's diff named by its lengths
+    /// ([`crate::inspect::ViewPatchRecord`]), streamed at the tick's
+    /// start drain, one frame after the re-render that asked for it.
+    /// One branch when no observer is installed: the A7 idle contract
+    /// is unchanged.
+    fn notify_view_patch(&mut self, record: crate::inspect::ViewPatchRecord) {
+        if let Some(observer) = self.observer.as_mut() {
+            observer.observe(InspectEvent::ViewPatch(record));
+        }
+    }
+
     /// Forwards one speech-act fact to the observer, when installed
     /// (§13.3, ADR-0039): the announcement trail — the record the
     /// pipeline answered the act with, the politeness beside it. The
@@ -2416,6 +2431,19 @@ impl PassPipeline {
         // once, an absent reader just never sees it.
         for record in crate::frame_refusal::take_frame_refusal_trail() {
             self.notify_frame_refusal(record);
+        }
+
+        // The view-patch drain (§13.3, ADR-0078): the facts the view
+        // reconciliation queued on this thread — the mount's build, the
+        // re-render's diff — ride the observer at the tick's start, one
+        // frame after the re-render that asked for the patch (a fact
+        // queues where the patch resolves, the record beside the
+        // `PatchReport` the door still answers, never instead of it).
+        // Every fact streams (a bounded queue, never collapsed), and the
+        // drain empties the queue whether an observer listens or not: a
+        // fact streams once, an absent reader just never sees it.
+        for record in crate::view_patch::take_view_patch_trail() {
+            self.notify_view_patch(record);
         }
 
         let mut ledger: Vec<PassRun> = std::mem::take(&mut self.interframe);

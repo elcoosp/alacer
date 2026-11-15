@@ -68,6 +68,7 @@ fn describe(event: &InspectEvent) -> String {
         InspectEvent::KeyEdit(_) => "a typing-door edit answered".to_string(),
         InspectEvent::Preedit(_) => "a composing state answered".to_string(),
         InspectEvent::A11yEcho(_) => "an adapter's full-tree echo answered".to_string(),
+        InspectEvent::Action(_) => "an activation ask answered".to_string(),
         InspectEvent::Frame(_) => "a frame completed".to_string(),
     }
 }

@@ -107,6 +107,14 @@ pub struct ViewRoot {
     registry: WidgetRegistry,
 }
 
+/// Counts the elements one [`ViewNode`] tree declares (the build
+/// fact's length: the view-patch trail names the mount by the tree it
+/// created, ADR-0078's lengths rule — the nodes themselves never
+/// ride).
+fn count_elements(view: &ViewNode) -> usize {
+    1 + view.children.iter().map(count_elements).sum::<usize>()
+}
+
 impl ViewRoot {
     /// Mounts `view` as the pipeline's root element.
     ///
@@ -118,6 +126,17 @@ impl ViewRoot {
     pub fn mount(view: &ViewNode, pipeline: &mut PassPipeline, registry: WidgetRegistry) -> Self {
         let root_id = pipeline.mount_root(registry.create(view));
         let children = Self::mount_children(view, root_id, pipeline, &registry);
+        // The view tier's own fact (ADR-0078): the build queues where
+        // it resolves — the mount's tree, named by its element count
+        // (the lengths rule; the payload rule keeps the nodes and their
+        // props off the log). The record rides beside the mount's own
+        // work, never instead of it: the root mounts either way.
+        alacer_core::view_patch::note_view_patch(alacer_core::ViewPatchRecord {
+            created: count_elements(view),
+            removed: 0,
+            patched: 0,
+            moved: 0,
+        });
         Self {
             root_id,
             mounted: MountedView {
@@ -150,6 +169,23 @@ impl ViewRoot {
         let mut report = PatchReport::default();
         let old = std::mem::replace(&mut self.mounted, MountedView::hollow(self.root_id));
         self.mounted = self.diff(old, new, pipeline, &mut report);
+        // The view tier's own fact (ADR-0078): the patch queues where
+        // it resolves — the diff's four counts, verbatim (the lengths
+        // rule; the payload rule keeps the props off the log). One
+        // fact per patch that moved something, never per frame: a
+        // no-op re-render streams nothing (the idle-frame property,
+        // the m32 canon's own rule — a write that lands where the
+        // value already is queues no masks and no facts). The record
+        // rides beside the report the door still answers, never
+        // instead of it.
+        if report.created + report.removed + report.patched + report.moved > 0 {
+            alacer_core::view_patch::note_view_patch(alacer_core::ViewPatchRecord {
+                created: report.created,
+                removed: report.removed,
+                patched: report.patched,
+                moved: report.moved,
+            });
+        }
         report
     }
 

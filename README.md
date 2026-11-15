@@ -46,7 +46,7 @@
 | 50-event pointer storm                                | **1** coalesced dispatch (**41.28×**)           | `input_storm_batching` budget                                                                          |
 | 10k-node churn frame vs egui, same host               | 1.10 ms vs 20.7 ms full frame (**18.8×**)       | 5-run medians, declared rig (`benchmarks/rig.json`)                                                    |
 | …vs Masonry                                           | 1.10 ms vs 4.6 ms full pass pipeline (**4.2×**) | same rig, `scripts/run_comparison.py`                                                                  |
-| All 73 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
+| All 76 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
 
 _Competitor rows compare Alacer's incremental frame against their full frame/pass — every row in
 `benchmarks/comparisons/results.json` is labeled with its scope._
@@ -86,7 +86,7 @@ cargo test --workspace                                          # headless: real
 > `ALACER_SOFTWARE=1` presents through softbuffer — the platform honors it at startup
 > (`BackendPreference::software_env`) whichever backend the app asked for; any other value is
 > refused with a named warning, never guessed. CI and the headless tests already run this path:
-> no mock renderer, no mock event loop. The full 57-example catalog is [below](#examples).
+> no mock renderer, no mock event loop. The full 60-example catalog is [below](#examples).
 
 ## How it works
 
@@ -207,6 +207,7 @@ the same trail — one record per _fact_, never per event:
 | **Action** (M69/M70)        | activation ask the action route aimed at a control — the AT's press, or the keyboard's Space/Enter | the landing beside the aim, or the named refusal — the availability wall's `unavailable` and the doorless `no_door` (the collapsed `false` split), the rider naming who pressed                                                                                                                                                                                            | 0075/0076           |
 | **Frame refusal** (M71)     | frame that answered with no pixels — the layout stage, or the present ladder's stage             | the species naming the stage that refused (`layout_refused`/`render_failed`/`partial_repaint_failed`/`framebuffer_lost`/`present_failed`), the failing node beside it when a widget is the fact, one fact per refusal — the frames that painted stream none (the flood rule at the frame tier)                                                                             | 0077                |
 | **View patch** (M72)       | re-render that asked the reconciler for a diff — the mount's build, and every update   | the four counts beside each other (`created`/`removed`/`patched`/`moved` — named by its lengths, the props never riding), one fact per patch that moved something — the frames that re-render nothing stream none, and the no-op re-render streams none too (the m32 canon's idle-frame property, the flood rule at the view tier) | 0078                |
+| **Theme** (M73)             | app swap that repainted the whole tree — the palette the widgets borrow | the installed palette's tag beside the door (`PassPipeline::set_theme`), the colors never riding (the payload rule: the log names the palette, the paint pass resolves it), one fact per swap that landed, the no-op swap streaming none (the idle-frame property at the theme tier) | 0079                |
 | **Key edit** (M58)          | edit the typing door landed — the keyboard's keys, the IME's commit | the change's shape named by **lengths** (`replaced`/`inserted`, UTF-16 units — never the payload), the landing selection, the driver (`keyboard`/`ime`), the journal's fold — a coalesced typed run landing as **one** record (the flood rule), the clipboard chords riding their own trail | 0064                |
 
 The trail's growth, milestone by milestone: Since M50 the scroll answers on the log too — the
@@ -230,7 +231,7 @@ kill rule); every trail is bounded and silent when nobody listens. Since M63 the
 provided reader — `TrailLog`, the bounded window the seam grows beside the trait (one installation
 serving many readers, the drain the read's own window, the eviction named, never a silent loss;
 the harness installs it in one call), and since M64 the single observer slot shares — the tee
-fans the recorder's wire out beside the in-process reader, two doors behind one installation. Since M65 the drops name the route that dropped them too — the boundary's mapping arms, the dispatch funnel, and the IME route tellable apart on one record (the M30 rider rule at the route tier) — and the IME's silence splits: the committed composition whose focused field died mid-session names `dead_focus`, never the never-focused one the old collapse munged it into. Since M66 the journal's echo names its field too — the depths riding the M43 stamp, two fields tellable apart on one log, the app's direct rides carrying the honest absence. Since M67 the adapter's echo streams its fact too — the AT connected or reconnected and the sink answered with the whole resolved tree, the tree named by its node count, one fact per build, the log quiet between connects. Since M68 the payloadless chord names its read too — the copy or cut whose selection is empty answering `empty_selection` beside the round trip's own fact, one per trail. Since M69 the activation ask answers on the log too — the AT's press, the availability wall it met, and the doorless silence it found streaming one `Action` record each, the species beside the aim, the collapsed `false` split at last. Since M70 the activation names its rider too — the AT's action route and the keyboard's Space/Enter tellable apart on one record (the M30 rider rule at the activation tier), the key route's stamp riding the keyboard's facts. Since M71 the frame's refusals answer on the log too — the tick's layout stage and the present ladder's stages streaming one `FrameRefusal` record each, the species naming the stage that refused, the failing node beside it when a widget is the fact, so "why did nothing paint?" is answerable from the log alone. Since M72 the view's patches answer on the log too — the reconciler's mount and update streaming one `ViewPatch` record each, the four counts beside each other, and the no-op re-render streaming none (the idle-frame property, the m32 canon's own rule), so "what did my re-render change — and how much?" is answerable from the log alone.
+fans the recorder's wire out beside the in-process reader, two doors behind one installation. Since M65 the drops name the route that dropped them too — the boundary's mapping arms, the dispatch funnel, and the IME route tellable apart on one record (the M30 rider rule at the route tier) — and the IME's silence splits: the committed composition whose focused field died mid-session names `dead_focus`, never the never-focused one the old collapse munged it into. Since M66 the journal's echo names its field too — the depths riding the M43 stamp, two fields tellable apart on one log, the app's direct rides carrying the honest absence. Since M67 the adapter's echo streams its fact too — the AT connected or reconnected and the sink answered with the whole resolved tree, the tree named by its node count, one fact per build, the log quiet between connects. Since M68 the payloadless chord names its read too — the copy or cut whose selection is empty answering `empty_selection` beside the round trip's own fact, one per trail. Since M69 the activation ask answers on the log too — the AT's press, the availability wall it met, and the doorless silence it found streaming one `Action` record each, the species beside the aim, the collapsed `false` split at last. Since M70 the activation names its rider too — the AT's action route and the keyboard's Space/Enter tellable apart on one record (the M30 rider rule at the activation tier), the key route's stamp riding the keyboard's facts. Since M71 the frame's refusals answer on the log too — the tick's layout stage and the present ladder's stages streaming one `FrameRefusal` record each, the species naming the stage that refused, the failing node beside it when a widget is the fact, so "why did nothing paint?" is answerable from the log alone. Since M72 the view's patches answer on the log too — the reconciler's mount and update streaming one `ViewPatch` record each, the four counts beside each other, and the no-op re-render streaming none (the idle-frame property, the m32 canon's own rule), so "what did my re-render change — and how much?" is answerable from the log alone. Since M73 the theme's swaps answer on the log too — the app's `set_theme` door streaming one `Theme` record each, the palette's tag beside it, the no-op swap streaming none — so "which palette is live now, and when did the whole window repaint?" is answerable from the log alone.
 
 ## Input & hot reload
 
@@ -288,9 +289,10 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `focus_traversal` / `focus_trap` / `focus_direction` | the walk: Tab, the modal's scope, the geometry's reading                         |
 | `shortcut_map`                                       | window shortcuts that rebind live, wherever focus sits                           |
 | `inspector_demo`                                     | the counter with the Causality inspector at `127.0.0.1:9217`                     |
+| `theme_swap`                                         | one app, three palettes: the runtime theme seam swaps live, the log answers     |
 | `todo` / `data_table`                                | the canons: a11y tree, record/replay, grid slots, keyboard navigation            |
 
-<details><summary><b>56 examples, grouped (57 ship; recording live in the catalog)</b></summary>
+<details><summary><b>59 examples, grouped (60 ship; recording live in the catalog)</b></summary>
 
 **Start here**
 
@@ -313,6 +315,7 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `drag_capture` | press and drag past the panel's edge — the log keeps counting; release rides back |
 | `frame_ledger` | one write batch re-commits exactly one journal layer; the static layer replays untouched |
 | `frame_refusals` | the M71 frame tier driven from the consumer side: the refusing layout engine's `Err` beside the streamed `FrameRefusal` record — the species beside the failing node, one fact per refused frame, the recovered frames streaming none |
+| `theme_swap` | the M73 theme seam driven from the consumer side: the palette the widgets borrow swaps through the app's own door — *Canon*, *Midnight*, *High contrast* — the status line reading the palette's tag back, the *trail* label mirroring the streamed `Theme` record (the no-op swap's honest absence beside it) |
 | `patch_trail` | the M72 view tier driven from the consumer side: the *Add row* button's keyed mount, the no-op re-render's honest silence (the idle frame on the log), and the *Remove row* press beside the streamed `ViewPatch` records — the four counts on each row, the *trail* label mirroring what the log streamed |
 
 **Editing & speech**
@@ -407,7 +410,7 @@ tree (`query(role).named(..)`, `press`, `find_all`) — never widget internals.
 ## Status
 
 > [!NOTE]
-> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M72 of `docs/architecture.md` are
+> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M73 of `docs/architecture.md` are
 > complete, but the API still moves between minor versions. MSRV **1.99**, edition **2024**.
 
 | Platform            | CI coverage                                                                                                                                                           |
@@ -419,7 +422,7 @@ tree (`query(role).named(..)`, `press`, `find_all`) — never widget internals.
 ## Learn more
 
 - [Architecture](https://github.com/elcoosp/alacer/blob/main/docs/architecture.md) — design axioms, the ten-pass contract, rendering, accessibility, DX, performance, roadmap and kill criteria
-- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — seventy-nine decision records, from workspace discipline to the M72 scope
+- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — eighty decision records, from workspace discipline to the M73 scope
 - [Examples catalog](https://github.com/elcoosp/alacer/blob/main/docs/examples.md) — every example with the contract it exercises
 - [Migrating from Iced](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-iced.md) · [from egui](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-egui.md) — mental-model mappings, interop limits stated plainly
 - [Inspector protocol](https://github.com/elcoosp/alacer/blob/main/docs/inspector-protocol.md) — the versioned WebSocket contract behind `alacer-inspect`

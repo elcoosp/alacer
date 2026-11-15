@@ -63,8 +63,12 @@ impl MountedView {
                 .any(|(a, b)| a.0 != b.0 || a.1 != b.1)
     }
 
-    /// Whether any *visual* (non-handler) prop value differs — the mask and
-    /// accounting hint: handler churn repaints nothing.
+    /// Whether any *visual* (non-handler, non-binding) prop value
+    /// differs — the mask and accounting hint: handler churn repaints
+    /// nothing, and a binding re-hang is the patcher's own no-op (the
+    /// bound label's rule at the value tier, ADR-0038 — the value a
+    /// binding carries rides the flux bridge's masks, never the
+    /// re-render that re-hung it).
     fn visual_props_changed(&self, new: &ViewNode) -> bool {
         self.props.len() != new.props.len()
             || self.props.iter().zip(new.props.iter()).any(|(a, b)| {
@@ -75,6 +79,8 @@ impl MountedView {
                             | crate::view::PropValue::TextHandler(_)
                             | crate::view::PropValue::FlagHandler(_)
                             | crate::view::PropValue::NumberHandler(_)
+                            | crate::view::PropValue::Binding(_)
+                            | crate::view::PropValue::NumberBinding(_)
                     )
                     && !matches!(
                         b.1,
@@ -82,6 +88,8 @@ impl MountedView {
                             | crate::view::PropValue::TextHandler(_)
                             | crate::view::PropValue::FlagHandler(_)
                             | crate::view::PropValue::NumberHandler(_)
+                            | crate::view::PropValue::Binding(_)
+                            | crate::view::PropValue::NumberBinding(_)
                     )
             })
     }

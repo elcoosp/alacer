@@ -85,6 +85,11 @@ pub const A11Y_ECHO_RING_CAP: usize = 512;
 /// oldest evicts (the a11y-echo ring's own order, §14.3).
 pub const ACTION_RING_CAP: usize = 512;
 
+/// The frame-refusal ring's cap: the frame tier's own facts — the
+/// ladder stages' species, bounded and named like every other tier's
+/// ring (ADR-0077).
+pub const FRAME_REFUSAL_RING_CAP: usize = 512;
+
 /// One recorded frame (the wire conversion lives in [`crate::wire`]).
 #[derive(Debug, Clone)]
 pub struct RecordedFrame {
@@ -132,6 +137,10 @@ struct Recording {
     /// route aimed at a control, the landing or the named refusal
     /// beside the aim — bounded by [`ACTION_RING_CAP`]).
     actions: VecDeque<alacer_core::inspect::ActionRecord>,
+    /// The frame-refusal facts (ADR-0077: the ladder stage's species,
+    /// the failing node beside it when one is the fact — bounded by
+    /// [`FRAME_REFUSAL_RING_CAP`]).
+    frame_refusals: VecDeque<alacer_core::inspect::FrameRefusalRecord>,
     /// The most recent frame, for "what does the inspector see right now".
     latest: Option<alacer_core::inspect::FrameSummary>,
     /// The wire-shaped events awaiting the server's session drain (push, not
@@ -146,6 +155,10 @@ struct Recording {
 pub struct CausalRecorder {
     recording: Arc<Mutex<Recording>>,
     frames_seen: Arc<AtomicU64>,
+    /// The loss counter the handle shares: every fact the observer
+    /// could not record (the poisoned-mutex drop), named for the
+    /// reader — the loss never silent.
+    dropped: Arc<AtomicU64>,
 }
 
 impl CausalRecorder {
@@ -158,6 +171,7 @@ impl CausalRecorder {
                 ..Recording::default()
             })),
             frames_seen: Arc::new(AtomicU64::new(0)),
+            dropped: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -169,7 +183,17 @@ impl CausalRecorder {
         RecorderHandle {
             recording: Arc::clone(&self.recording),
             frames_seen: Arc::clone(&self.frames_seen),
+            dropped: Arc::clone(&self.dropped),
         }
+    }
+
+    /// The facts the observer could not record (the poisoned-mutex
+    /// drop): the loss the rings cannot carry, priced here — the
+    /// named-eviction rule the trail reader rides, never a silent
+    /// swallow.
+    #[must_use]
+    pub fn dropped(&self) -> u64 {
+        self.dropped.load(Ordering::Relaxed)
     }
 
     /// The recorded frames, oldest first (bounded by [`FRAME_RING_CAP`]).
@@ -351,6 +375,16 @@ impl CausalRecorder {
             .unwrap_or_default()
     }
 
+    /// The recorded frame refusals, oldest first (ADR-0077: the ladder
+    /// stage's species, the failing node beside it when one is the
+    /// fact — bounded by [`FRAME_REFUSAL_RING_CAP`]).
+    #[must_use]
+    pub fn frame_refusals(&self) -> Vec<alacer_core::inspect::FrameRefusalRecord> {
+        self.try_lock()
+            .map(|recording| recording.frame_refusals.iter().copied().collect())
+            .unwrap_or_default()
+    }
+
     /// The most recent frame, when any frame was observed.
     #[must_use]
     pub fn latest_frame(&self) -> Option<alacer_core::inspect::FrameSummary> {
@@ -418,6 +452,12 @@ impl CausalRecorder {
 pub struct RecorderHandle {
     recording: Arc<Mutex<Recording>>,
     frames_seen: Arc<AtomicU64>,
+    /// The facts the handle could not record — a poisoned mutex (an
+    /// observer that panicked mid-callback) is a named loss, never a
+    /// silent one: the counter answers what the trail reader's own
+    /// `TrailLog::dropped` answers on the read side (the loss named,
+    /// the reader pricing the absence beside the data).
+    dropped: Arc<AtomicU64>,
 }
 
 /// Pushes into a bounded ring: evicts the oldest when at capacity (§14.3).
@@ -431,6 +471,11 @@ fn push_bounded<T>(ring: &mut VecDeque<T>, cap: usize, value: T) {
 impl InspectObserver for RecorderHandle {
     fn observe(&mut self, event: InspectEvent) {
         let Ok(mut recording) = self.recording.lock() else {
+            // The named loss (the trail reader's own rule — the
+            // eviction named, never a silent drop): a poisoned mutex
+            // is the one place a fact cannot ride a ring, and the
+            // counter is where the loss stays readable.
+            self.dropped.fetch_add(1, Ordering::Relaxed);
             return;
         };
         // The wire serialization happens on the observing thread: the
@@ -493,6 +538,13 @@ impl InspectObserver for RecorderHandle {
             InspectEvent::Action(record) => {
                 push_bounded(&mut recording.actions, ACTION_RING_CAP, record);
             }
+            InspectEvent::FrameRefusal(record) => {
+                push_bounded(
+                    &mut recording.frame_refusals,
+                    FRAME_REFUSAL_RING_CAP,
+                    record,
+                );
+            }
             InspectEvent::Frame(summary) => {
                 self.frames_seen.fetch_add(1, Ordering::Relaxed);
                 recording.latest = Some(summary.clone());
@@ -510,6 +562,39 @@ impl InspectObserver for RecorderHandle {
 mod tests {
     use super::CausalRecorder;
     use alacer_core::inspect::{EdgeActivation, InputKind, InspectEvent, InspectObserver};
+
+    /// The poisoned lock names its loss: an observer that panicked
+    /// mid-callback poisons the shared mutex, the handle's next fact
+    /// cannot ride a ring — and the counter answers, the named loss
+    /// the read side prices, never a silent swallow.
+    #[test]
+    fn the_poisoned_lock_names_its_loss() {
+        let recorder = CausalRecorder::new("loss");
+        let mut handle = recorder.clone_handle();
+        assert_eq!(recorder.dropped(), 0, "a clean lock records no loss");
+
+        // The poison: a panic while the lock is held (the observer
+        // that died mid-callback), unwinding through the guard — the
+        // joined handle carries the payload, the mutex stays poisoned.
+        let recording = std::sync::Arc::clone(&handle.recording);
+        let joiner = std::thread::spawn(move || {
+            let _held = recording.lock().expect("clean lock before the poison");
+            panic!("the observer panicked mid-callback");
+        });
+        let _poison = joiner.join();
+
+        handle.observe(InspectEvent::Edge(EdgeActivation {
+            binding: 1,
+            signal: 1,
+            node: alacer_core::arena::NodeId::allocate(),
+            masks: alacer_core::Change::PAINT,
+        }));
+        assert_eq!(
+            recorder.dropped(),
+            1,
+            "the poisoned lock's loss is named, not swallowed"
+        );
+    }
 
     #[test]
     fn rings_evict_the_oldest_and_keep_honest_counts() {

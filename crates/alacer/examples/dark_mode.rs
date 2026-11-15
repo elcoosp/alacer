@@ -205,7 +205,8 @@ fn main() {
         tracing::info!(
             target: "alacer::dark_mode",
             dark = record.dark,
-            "the trail streamed this OS flip"
+            repainted = record.repainted,
+            "the trail streamed this OS flip — the fact beside the reach it repainted (ADR-0082)"
         );
     }
 

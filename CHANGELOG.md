@@ -9,6 +9,37 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M74 — the OS setting seam (ADR-0080)**: ADR-0079's pre-registered
+  re-open rule cashes — the OS's dark-mode fact existed nowhere in the
+  pipeline, a widget that wanted it guessed or polled, and "follow the
+  OS" meant rebuilding the palette by hand — so the fact installs as one
+  [`SettingSeam`](crates/alacer-core/src/settings.rs)
+  (`PassPipeline::set_settings`), the platform's
+  [`WinitSettings`](crates/alacer-platform/src/lib.rs) adapter pushing
+  the window's opening `theme()` and every `ThemeChanged` event through
+  the door (the adapter the platform owns, ADR-0009 — a platform that
+  reports no fact installs nothing), the flip broadcasting `Change::PAINT`
+  on the tree and resolving the fact once per paint pass into
+  [`PaintCtx`](crates/alacer-core/src/scene.rs) beside the palette — the
+  fact never munging the palette: the roles the widgets borrowed
+  re-resolve from the *installed palette* exactly as they were, an app
+  that wants palette-following swapping through the theme door it already
+  owns — and a flip that lands where the fact already is answers `false`
+  and queues nothing (the idle-frame property, A1's rule at the setting
+  tier; the canon light installed where nothing is installed *is* that
+  no-op). The flip streams one
+  [`SettingRecord`](crates/alacer-core/src/inspect.rs) — the bool *is*
+  the fact — in
+  [`InspectEvent::Setting`](crates/alacer-core/src/inspect.rs) at the
+  tick's start drain (the theme trail's shape, one frame after the door
+  answered; the thread trail bounded 256, the recorder's ring 512), the
+  wire grows additively at version 1 (`setting` — the `dark` fact), the
+  embedded client renders the setting row beside the theme's, the corpus
+  grows 76 → 79 by the coordinated rule (`settings/note_disabled`,
+  `settings/note_enabled_bounded`, `settings/door_no_op_flip` — bench,
+  gate, and baseline in the same cut), and
+  [`examples/dark_mode.rs`](crates/alacer/examples/dark_mode.rs) drives
+  the seam from the consumer side.
 - **M73 — the runtime theme seam (ADR-0079)**: the paint tier's own
   seam — the palette every widget borrowed for its un-overridden paint
   roles was ten compile-time constants on

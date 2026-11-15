@@ -235,7 +235,21 @@ fn run_session(
             ClientFrame::Text(text) => {
                 match serde_json::from_str::<ClientMessage>(&text) {
                     Ok(ClientMessage::Clear) => recorder.clear(),
-                    Ok(ClientMessage::Bye) | Err(_) => break,
+                    Ok(ClientMessage::Bye) => break,
+                    Err(error) => {
+                        // A malformed control frame is not a goodbye: the
+                        // session's own discipline reports what it cannot
+                        // parse (the accept loop's rule at the frame tier —
+                        // the operator debugging a silent client has
+                        // something to read), then the session ends — the
+                        // loop keeps serving.
+                        tracing::debug!(
+                            target: "alacer::inspect",
+                            error = %error,
+                            "inspector client sent a control frame that did not parse — closing the session"
+                        );
+                        break;
+                    }
                 }
                 had_work = true;
             }

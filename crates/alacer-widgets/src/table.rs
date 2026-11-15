@@ -24,7 +24,9 @@ pub struct Table {
     columns: usize,
     rows: usize,
     style: Style,
-    header_fill: Color,
+    /// The app's header-fill override; `None` borrows the theme's panel
+    /// role at paint time (ADR-0079).
+    header_fill: Option<Color>,
 }
 
 impl Table {
@@ -39,7 +41,7 @@ impl Table {
                 gap: 2.0,
                 ..Style::column()
             },
-            header_fill: crate::theme::PANEL,
+            header_fill: None,
         }
     }
 
@@ -70,10 +72,11 @@ impl Table {
         self.columns
     }
 
-    /// Header row fill.
+    /// Header row fill. Without it the header borrows the theme's
+    /// panel role at paint time (ADR-0079).
     #[must_use]
     pub fn header_fill(mut self, color: Color) -> Self {
-        self.header_fill = color;
+        self.header_fill = Some(color);
         self
     }
 
@@ -113,12 +116,13 @@ impl Widget for Table {
     fn paint(&self, ctx: &mut PaintCtx<'_>) {
         // The table's own chrome is none; headers carry their fill. Painting
         // a hairline table background keeps rows visually grouped.
+        let palette = ctx.palette();
         crate::paint_background(
             ctx,
             (ctx.size().width, ctx.size().height),
-            self.header_fill,
+            self.header_fill.unwrap_or(palette.panel),
             4.0,
-            (crate::theme::BORDER, 1.0),
+            (palette.border, 1.0),
         );
     }
 }
@@ -181,7 +185,9 @@ impl Widget for TableRow {
 pub struct TableCell {
     text: String,
     slot: (usize, usize),
-    color: Color,
+    /// The app's text-color override; `None` borrows the theme's text
+    /// role at paint time (ADR-0079).
+    color: Option<Color>,
     font_size: f32,
     style: Style,
     strong: bool,
@@ -194,7 +200,7 @@ impl TableCell {
         Self {
             text: text.into(),
             slot: (row, column),
-            color: crate::theme::TEXT,
+            color: None,
             font_size: crate::theme::FONT_SIZE,
             style: Style {
                 padding: 6.0,
@@ -211,10 +217,11 @@ impl TableCell {
         self
     }
 
-    /// Text color.
+    /// Text color. Without it the cell borrows the theme's text role
+    /// at paint time (ADR-0079).
     #[must_use]
     pub fn color(mut self, color: Color) -> Self {
-        self.color = color;
+        self.color = Some(color);
         self
     }
 
@@ -277,6 +284,8 @@ impl Widget for TableCell {
         Some(MeasureSpec::Fixed(self.intrinsic()))
     }
     fn paint(&self, ctx: &mut PaintCtx<'_>) {
+        // The borrowed role resolves per paint pass (ADR-0079).
+        let color = self.color.unwrap_or(ctx.palette().text);
         alacer_core::text_seam::with_seam(|seam| {
             let layout = seam.layout_glyphs(&self.text, self.font_size, None);
             let text_origin = Point::new(6.0, (ctx.size().height - layout.height).max(0.0) * 0.5);
@@ -284,7 +293,7 @@ impl Widget for TableCell {
                 ctx.push_glyph(alacer_core::scene::Glyph {
                     position: Point::new(text_origin.x + glyph.x, text_origin.y + glyph.y),
                     size: glyph.size,
-                    color: self.color,
+                    color,
                     font_id: glyph.font_id,
                     glyph_id: glyph.glyph_id,
                     clip: None,
@@ -298,7 +307,9 @@ impl Widget for TableCell {
 pub struct ColumnHeader {
     text: String,
     column: usize,
-    color: Color,
+    /// The app's text-color override; `None` borrows the theme's muted
+    /// role at paint time (ADR-0079).
+    color: Option<Color>,
     font_size: f32,
     style: Style,
 }
@@ -310,7 +321,7 @@ impl ColumnHeader {
         Self {
             text: text.into(),
             column,
-            color: crate::theme::TEXT_MUTED,
+            color: None,
             font_size: 13.0,
             style: Style {
                 padding: 6.0,
@@ -319,10 +330,11 @@ impl ColumnHeader {
         }
     }
 
-    /// Text color.
+    /// Text color. Without it the header borrows the theme's muted
+    /// role at paint time (ADR-0079).
     #[must_use]
     pub fn color(mut self, color: Color) -> Self {
-        self.color = color;
+        self.color = Some(color);
         self
     }
 
@@ -368,6 +380,8 @@ impl Widget for ColumnHeader {
         Some(MeasureSpec::Fixed(self.intrinsic()))
     }
     fn paint(&self, ctx: &mut PaintCtx<'_>) {
+        // The borrowed role resolves per paint pass (ADR-0079).
+        let color = self.color.unwrap_or(ctx.palette().text_muted);
         alacer_core::text_seam::with_seam(|seam| {
             let layout = seam.layout_glyphs(&self.text, self.font_size, None);
             let text_origin = Point::new(6.0, (ctx.size().height - layout.height).max(0.0) * 0.5);
@@ -375,7 +389,7 @@ impl Widget for ColumnHeader {
                 ctx.push_glyph(alacer_core::scene::Glyph {
                     position: Point::new(text_origin.x + glyph.x, text_origin.y + glyph.y),
                     size: glyph.size,
-                    color: self.color,
+                    color,
                     font_id: glyph.font_id,
                     glyph_id: glyph.glyph_id,
                     clip: None,

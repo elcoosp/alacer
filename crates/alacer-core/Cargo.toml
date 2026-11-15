@@ -60,5 +60,9 @@ name = "theme"
 harness = false
 
 [[bench]]
+name = "settings"
+harness = false
+
+[[bench]]
 name = "w5_signal_graph"
 harness = false

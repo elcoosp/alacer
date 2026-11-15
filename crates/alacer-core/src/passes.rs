@@ -797,9 +797,10 @@ impl PassPipeline {
     /// the doors and the same drain).
     /// Replaces any previous observer. Installing one also enables the
     /// edit trail, the announcement trail, the text-write trail
-    /// (ADR-0061), the preedit trail (ADR-0067), and the a11y-echo
-    /// trail (ADR-0073): the journal, the push route, the AT's editing
-    /// tier, the composing tier, and the adapter tier note their facts
+    /// (ADR-0061), the preedit trail (ADR-0067), the a11y-echo
+    /// trail (ADR-0073), and the action trail (ADR-0075): the journal,
+    /// the push route, the AT's editing tier, the composing tier, the
+    /// adapter tier, and the activation tier note their facts
     /// on this thread from here on, and the disabled paths stay one
     /// branch per action.
     pub fn set_observer(&mut self, observer: Box<dyn InspectObserver>) {
@@ -815,6 +816,7 @@ impl PassPipeline {
         crate::key_edit::set_key_edit_trail_enabled(true);
         crate::preedit::set_preedit_trail_enabled(true);
         crate::a11y_echo::set_a11y_echo_trail_enabled(true);
+        crate::action::set_action_trail_enabled(true);
     }
 
     /// Enables per-pass wall timing and the overhead ledger (the M1 gate
@@ -1752,6 +1754,19 @@ impl PassPipeline {
         }
     }
 
+    /// Forwards one activation-ask fact to the observer, when installed
+    /// (§13.3, ADR-0075): the action trail — the press the AT's action
+    /// route aimed at a control, the landing or the named refusal
+    /// species beside the aim ([`crate::inspect::ActionRecord`]),
+    /// streamed at the tick's start drain, one frame after the ask. One
+    /// branch when no observer is installed: the A7 idle contract is
+    /// unchanged.
+    fn notify_action(&mut self, record: crate::inspect::ActionRecord) {
+        if let Some(observer) = self.observer.as_mut() {
+            observer.observe(InspectEvent::Action(record));
+        }
+    }
+
     /// Forwards one speech-act fact to the observer, when installed
     /// (§13.3, ADR-0039): the announcement trail — the record the
     /// pipeline answered the act with, the politeness beside it. The
@@ -2359,6 +2374,19 @@ impl PassPipeline {
         // absent reader just never sees it.
         for record in crate::preedit::take_preedit_trail() {
             self.notify_preedit(record);
+        }
+
+        // The action-trail drain (§13.3, ADR-0075): the activation-ask
+        // facts the dispatch funnel queued on this thread ride the
+        // observer at the tick's start — the preedit trail's shape, one
+        // frame after the ask, the drain running after the preedit drain
+        // (a press explains the control the AT aimed at; it streams
+        // beside the doors' facts). Every fact streams (a bounded queue,
+        // never collapsed), and the drain empties the queue whether an
+        // observer listens or not: a fact streams once, an absent reader
+        // just never sees it.
+        for record in crate::action::take_action_trail() {
+            self.notify_action(record);
         }
 
         let mut ledger: Vec<PassRun> = std::mem::take(&mut self.interframe);
@@ -3035,11 +3063,49 @@ impl PassPipeline {
         // arrived under, the wheel's stamp discipline beside the
         // action route's own.
         let scroll_stamp = crate::scroll::ScrollTargetGuard::for_target(Some(target));
+        // The activation ask rides the action trail (M69, ADR-0075) —
+        // the ask's tier read before the door consumes the action.
+        let is_press = matches!(action, crate::widget::A11yAction::DefaultPress);
         let consumed = guard.widget_mut().on_a11y_action(action);
-        drop(stamp);
-        drop(scroll_stamp);
         if consumed {
             guard.request(Change::PAINT.union(Change::A11Y));
+        }
+        drop(guard);
+        drop(stamp);
+        drop(scroll_stamp);
+        // The action trail's note site (M69, ADR-0075): the activation
+        // ask answers as data — the landing, or the species computed
+        // where both facts live. The route holds the ask, the aimed id,
+        // the door's answer, and the tree's one `enabled` truth (M22,
+        // ADR-0028): a refused ask names the availability wall when the
+        // flag held it and the doorless silence when nothing did — the
+        // collapsed `false` split, never guessed at a widget-private
+        // call site. Since M70 (ADR-0076) the record names its rider —
+        // the action route's own note site, the keyboard's activation
+        // naming itself at the widget's door (the M30 rider rule at the
+        // activation tier). One fact per trail (the M39 rule at the
+        // activation tier): the asks whose tiers already price
+        // themselves — the value tier's writes, the scroll tier's asks,
+        // the text-write tier's rewrites — stream no action fact; the
+        // funnel notes the activation ask only. An ask the boundary
+        // dropped before this door (no target to resolve) is the
+        // route-drop trail's fact (ADR-0063), never a munged action
+        // record. One branch when nobody listens (the A7 idle
+        // contract).
+        if is_press {
+            let outcome = if consumed {
+                crate::inspect::ActionOutcome::Delivered
+            } else if !self.arena.widget(node).enabled() {
+                crate::inspect::ActionOutcome::Refused(crate::inspect::ActionRefusal::Unavailable)
+            } else {
+                crate::inspect::ActionOutcome::Refused(crate::inspect::ActionRefusal::NoDoor)
+            };
+            crate::action::note_action(crate::inspect::ActionRecord {
+                ask: crate::inspect::ActionAsk::Press,
+                target: Some(target),
+                outcome,
+                rider: crate::inspect::ActionRider::ActionRoute,
+            });
         }
         consumed
     }

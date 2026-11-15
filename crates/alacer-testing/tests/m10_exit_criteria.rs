@@ -233,7 +233,7 @@ fn m10_the_platform_maps_action_requests_instead_of_munging() {
 /// 47 pre-M10 cases plus the route benches every later milestone added by
 /// the coordinated rule. Growing the corpus moves the bench file,
 /// contracts.json, the baseline, and the M-suite pins together.
-const EXPECTED_BENCH_COUNT: usize = 71;
+const EXPECTED_BENCH_COUNT: usize = 73;
 
 #[test]
 fn m10_the_corpus_pin_agrees_with_the_published_data() {
@@ -245,7 +245,7 @@ fn m10_the_corpus_pin_agrees_with_the_published_data() {
     assert_eq!(
         benches.len(),
         EXPECTED_BENCH_COUNT,
-        "the corpus grew by the action-route bench"
+        "the corpus grew by the note-cost gates"
     );
     assert_eq!(regressions.len(), EXPECTED_BENCH_COUNT);
     let id = "a11y_action/route_100_actions_1k";
@@ -267,7 +267,7 @@ fn m10_the_corpus_pin_agrees_with_the_published_data() {
     ] {
         let source = read_workspace_file(&format!("crates/alacer-testing/tests/{suite}"));
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 71;"),
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 73;"),
             "{suite} must pin the 71-case corpus"
         );
     }

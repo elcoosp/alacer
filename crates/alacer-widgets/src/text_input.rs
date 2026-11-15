@@ -1070,14 +1070,15 @@ impl TextInput {
 
     /// The painted run: committed text with the preedit spliced in at the
     /// caret — what the user sees and what the IME anchors to.
-    /// The field's text color: the muted constant when the field is
+    /// The field's text color: the muted role when the field is
     /// unavailable (M22, ADR-0028) or showing the placeholder, the text
-    /// color once real content or a composition rides.
-    fn field_text_color(&self, has_preedit: bool) -> Color {
+    /// role once real content or a composition rides — the roles the
+    /// installed palette resolves per paint pass (ADR-0079).
+    fn field_text_color(&self, has_preedit: bool, palette: alacer_core::theme::Palette) -> Color {
         if !self.enabled || (self.text.is_empty() && !has_preedit) {
-            crate::theme::TEXT_MUTED
+            palette.text_muted
         } else {
-            crate::theme::TEXT
+            palette.text
         }
     }
 
@@ -1296,15 +1297,17 @@ impl Widget for TextInput {
 
     fn paint(&self, ctx: &mut PaintCtx<'_>) {
         let (width, height) = (ctx.size().width, ctx.size().height);
+        // The borrowed roles resolve per paint pass (ADR-0079).
+        let palette = ctx.palette();
         let border_color = if self.focused {
-            crate::theme::ACCENT
+            palette.accent
         } else {
-            crate::theme::BORDER
+            palette.border
         };
         crate::paint_background(
             ctx,
             (width, height),
-            crate::theme::PANEL,
+            palette.panel,
             6.0,
             (border_color, if self.focused { 2.0 } else { 1.0 }),
         );
@@ -1312,7 +1315,7 @@ impl Widget for TextInput {
         let (before, preedit, after) = self.display_parts();
 
         alacer_core::text_seam::with_seam(|seam| {
-            let text_color = self.field_text_color(preedit.is_some());
+            let text_color = self.field_text_color(preedit.is_some(), palette);
 
             // The selection highlight (M11, ADR-0017): one quad behind the
             // selected committed range, from the prefix widths the seam
@@ -1335,7 +1338,7 @@ impl Widget for TextInput {
                         Point::new(TEXT_INSET + left, top),
                         alacer_core::geom::Size::new(right - left, self.font_size),
                     ),
-                    crate::theme::SELECTION,
+                    palette.selection,
                 ));
             }
 
@@ -1386,7 +1389,7 @@ impl Widget for TextInput {
                         Point::new(TEXT_INSET + caret_x, caret_top),
                         alacer_core::geom::Size::new(2.0, self.font_size),
                     ),
-                    crate::theme::ACCENT,
+                    palette.accent,
                 ));
                 // The preedit underline: composing text is visually distinct.
                 if preedit.is_some() {
@@ -1402,7 +1405,7 @@ impl Widget for TextInput {
                             ),
                             alacer_core::geom::Size::new(preedit_width, 1.5),
                         ),
-                        crate::theme::ACCENT,
+                        palette.accent,
                     ));
                 }
             }

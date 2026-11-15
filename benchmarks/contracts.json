@@ -56,6 +56,11 @@
       "scope": "same-host"
     },
     {
+      "id": "a11y_action_route_100_presses_1k",
+      "baseline": "a11y_action/route_100_presses_1k",
+      "scope": "same-host"
+    },
+    {
       "id": "a11y_action_route_100_setvalue_1k",
       "baseline": "a11y_action/route_100_setvalue_1k",
       "scope": "same-host"

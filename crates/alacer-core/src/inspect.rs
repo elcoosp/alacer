@@ -19,6 +19,7 @@
 //! | "Why did the live region speak — or refuse?" | [`InspectEvent::Announce`] — the announcement trail: one record per speech act, streamed the moment the pipeline answers it (ADR-0039) |
 //! | "Did a shortcut take this key — or why not?" | [`InspectEvent::Key`] — the keymap consult's answer: one record per funnel consult (the chord beside the species), streamed the moment the consult resolves (ADR-0042) |
 //! | "Why did the drag move the value — where did it start, where did it land?" | [`InspectEvent::Gesture`] — the drag's own story: one per-gesture record per phase (the beginning, the end), streamed the moment the gesture's door resolves (ADR-0052) |
+//! | "Did the AT's press land — or why not?" | [`InspectEvent::Action`] — the action trail: one record per activation ask the funnel routes (the landing or the named refusal species beside the aim), streamed the tick after the ask resolves (ADR-0075) |
 
 use crate::announce::Politeness;
 use crate::arena::NodeId;
@@ -1682,6 +1683,163 @@ pub struct A11yEchoRecord {
     pub nodes: usize,
 }
 
+/// The activation ask's vocabulary (§13.3, ADR-0075): the asks the
+/// action trail prices, one [`ActionRecord`] per ask. The names are the
+/// wire's stable tags ([`ActionAsk::name`], the protocol's
+/// `snake_case` rule).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActionAsk {
+    /// The default accessibility action — "press" for buttons, "toggle"
+    /// for checkboxes: the AT's activation ask, the door the keyboard's
+    /// Space/Enter answers like a click (the M10 contract's faithful
+    /// routing, ADR-0016).
+    Press,
+}
+
+impl ActionAsk {
+    /// The ask's name, the wire vocabulary's `snake_case` tag (the
+    /// protocol's stable, documented field values).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Press => "press",
+        }
+    }
+}
+
+/// Why one activation ask moved nothing (§13.3, ADR-0075): the two
+/// honest refusals the action tier names — the collapsed `false` the
+/// door's `bool` answered with, split where both facts live. The
+/// refusal streams too — the fact a trail reader wants is exactly the
+/// ask that never landed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActionRefusal {
+    /// The target grew no door that answers the ask — a press aimed at
+    /// a heading, an increment aimed at a button: the ask fell outside
+    /// every tier the target answers, and no widget door ever consumed
+    /// it (the M10 route's honest refusal, now a named fact).
+    NoDoor,
+    /// The availability tier holds the control down (M22, ADR-0028) —
+    /// every door refuses before the request is even parsed, and the
+    /// tree keeps the state the app wrote. The route computes the
+    /// species from the tree's one `enabled` truth, never from a
+    /// widget-private guess.
+    Unavailable,
+}
+
+impl ActionRefusal {
+    /// The refusal's name, the wire vocabulary's `snake_case` tag
+    /// (the protocol's stable, documented field values).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::NoDoor => "no_door",
+            Self::Unavailable => "unavailable",
+        }
+    }
+}
+
+/// What the action tier answered one activation ask (§13.3, ADR-0075):
+/// the record is the route's own outcome ([`ClipboardOutcome`]'s shape
+/// at the activation tier) — the ask landed at the target's door, or
+/// the ask was refused with its named species.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActionOutcome {
+    /// The ask landed: the target's door consumed it (the press the
+    /// button answered, the toggle the checkbox answered).
+    Delivered,
+    /// The ask moved nothing — [`ActionRefusal`] names the species.
+    Refused(ActionRefusal),
+}
+
+impl ActionOutcome {
+    /// The outcome's name, the wire vocabulary's `snake_case` tag
+    /// (the protocol's stable, documented field values).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Delivered => "delivered",
+            Self::Refused(_) => "refused",
+        }
+    }
+}
+
+/// Who rode the activation ask (M70, ADR-0076): the attribution every
+/// [`ActionRecord`] carries beside its ask — the M30 rider rule at the
+/// activation tier. The press has two doors: the platform's action
+/// route (the AT's activation ask, the dispatch funnel the AccessKit
+/// adapter drives) and the keyboard's own (the focused control's
+/// Space/Enter, the M10 parity the widget answers like a click). Until
+/// the record named its rider, a trail reader could not answer "did the
+/// screen reader press it, or did the user hit Space". The rider is the
+/// route's name, not a second channel: the doors behind the riders are
+/// untouched, and the wire carries the rider's [`ActionRider::name`]
+/// beside the ask (the protocol's additive rule, ADR-0010).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActionRider {
+    /// The platform's action route — the AT's activation ask the
+    /// dispatch funnel routed (the door `PassPipeline::dispatch_a11y_action`
+    /// is; the M10 contract's faithful routing).
+    ActionRoute,
+    /// The keyboard's own activation — the focused control's
+    /// Space/Enter answered like a click (the M10 parity, §10.3; the
+    /// button's GTK release rule, the checkbox's toggle-on-press).
+    Keyboard,
+}
+
+impl ActionRider {
+    /// The rider's name, the wire vocabulary's `snake_case` tag
+    /// ([`ActionAsk::name`] for asks, this for riders — the protocol's
+    /// stable, documented field values).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::ActionRoute => "action_route",
+            Self::Keyboard => "keyboard",
+        }
+    }
+}
+
+/// One activation ask's record (§13.3, ADR-0075): the causal log's
+/// answer to "did the AT's press land — or why not". The action tier's
+/// most common ask — the default accessibility action the platform's
+/// action route aims at a control — answered the funnel's own `bool`,
+/// whose `false` collapsed the availability wall and the doorless
+/// silence into one indistinguishable answer, and the ride the
+/// M31/M33/M36/M39/M57 rhythm prices records the ask: every activation
+/// ask the funnel routes streams one fact, the refused asks included.
+/// The species is computed where both facts live — the route holds the
+/// ask, the aimed id, the door's answer, and the tree's one `enabled`
+/// truth (M22, ADR-0028) — never guessed at a widget-private call site.
+/// One fact per trail (the M39 rule at the activation tier): the asks
+/// whose tiers already price themselves — the value tier's writes, the
+/// scroll tier's asks, the text-write tier's rewrites — stream no
+/// action fact; the action trail prices the activation ask only. Since
+/// M70 (ADR-0076, ADR-0075's own kill rule) the record names its rider
+/// beside the ask — the AT's action route or the keyboard's own
+/// activation, the attribution declared where the route is known. The
+/// fields are the additive wire rule's shape (ADR-0010).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ActionRecord {
+    /// The activation ask the route routed.
+    pub ask: ActionAsk,
+    /// The control the ask arrived under — the AccessKit-stable id the
+    /// route resolved (the M43 rule's vocabulary at the activation
+    /// tier); `None` never rides from the funnel's own note site (the
+    /// route notes only the asks it resolved a target for — an ask no
+    /// target answered at all is the route-drop trail's fact,
+    /// ADR-0063's species, not this one's), and the keyboard's own
+    /// activation rides the key route's stamp (M45, ADR-0051 — the
+    /// focused control's id, the guard the key visit holds).
+    pub target: Option<u64>,
+    /// What the tier answered — the landing or the named refusal.
+    pub outcome: ActionOutcome,
+    /// Who rode the ask (M70, ADR-0076) — the AT's action route or the
+    /// keyboard's own activation, the attribution declared where the
+    /// route is known (the M30 rider rule at the activation tier).
+    pub rider: ActionRider,
+}
+
 /// One observation: what the pipeline and the flux surface to devtools.
 #[derive(Debug, Clone)]
 pub enum InspectEvent {
@@ -1786,6 +1944,13 @@ pub enum InspectEvent {
     /// drain (a connect predates the asks the frame carries, the echo
     /// explains the tree those asks answer into).
     A11yEcho(A11yEchoRecord),
+    /// An activation ask answered — the action trail (ADR-0075): the
+    /// press the AT's action route aimed at a control, the landing or
+    /// the named refusal species beside the aimed id. Streams with the
+    /// frame's own records (the tick's start drain, the preedit drain's
+    /// shape — the fact queues where the ask resolves, one frame after
+    /// the ask).
+    Action(ActionRecord),
     /// A frame completed — the frame's causal summary.
     Frame(FrameSummary),
 }

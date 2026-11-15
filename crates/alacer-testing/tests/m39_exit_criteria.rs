@@ -76,6 +76,7 @@ impl InspectObserver for TrailObserver {
             InspectEvent::Focus(_) => self.push("focus"),
             InspectEvent::Input(_) => self.push("input"),
             InspectEvent::Action(_) => self.push("action"),
+            InspectEvent::FrameRefusal(_) => self.push("frame_refusal"),
             InspectEvent::Frame(_) => self.push("frame"),
             _ => {}
         }
@@ -403,11 +404,11 @@ fn m39_the_living_documents_re_agree_at_m39() {
     // pins moving M41 → M43 and 48 → 50 across the chain — M42 and
     // M43 landing in one cut).
     assert!(
-        readme.contains("M0 through M70") && readme.contains("seventy-seven decision records"),
+        readme.contains("M0 through M71") && readme.contains("seventy-eight decision records"),
         "the README's status block and count re-agree at M39"
     );
     assert!(
-        architecture.contains("77 decision records"),
+        architecture.contains("78 decision records"),
         "the architecture register re-agrees at 46 decision records"
     );
     // The protocol document carries the clipboard event (the wire's

@@ -100,6 +100,11 @@ pub const VIEW_PATCH_RING_CAP: usize = 512;
 /// (ADR-0079).
 pub const THEME_RING_CAP: usize = 512;
 
+/// The setting ring's cap: the setting tier's own facts — the OS
+/// flips' dark-mode facts, bounded and named like every other tier's
+/// ring (ADR-0080, the theme ring's shape).
+pub const SETTING_RING_CAP: usize = 512;
+
 /// One recorded frame (the wire conversion lives in [`crate::wire`]).
 #[derive(Debug, Clone)]
 pub struct RecordedFrame {
@@ -158,6 +163,9 @@ struct Recording {
     /// The theme facts (ADR-0079: the swaps' palette tags beside the
     /// door — bounded by [`THEME_RING_CAP`]).
     themes: VecDeque<alacer_core::inspect::ThemeRecord>,
+    /// The setting facts (ADR-0080: the flips' dark-mode facts beside
+    /// the door — bounded by [`SETTING_RING_CAP`]).
+    settings: VecDeque<alacer_core::inspect::SettingRecord>,
     /// The most recent frame, for "what does the inspector see right now".
     latest: Option<alacer_core::inspect::FrameSummary>,
     /// The wire-shaped events awaiting the server's session drain (push, not
@@ -422,6 +430,16 @@ impl CausalRecorder {
             .unwrap_or_default()
     }
 
+    /// The recorded setting flips, oldest first (ADR-0080: the
+    /// dark-mode fact beside the door — bounded by
+    /// [`SETTING_RING_CAP`]).
+    #[must_use]
+    pub fn settings(&self) -> Vec<alacer_core::inspect::SettingRecord> {
+        self.try_lock()
+            .map(|recording| recording.settings.iter().copied().collect())
+            .unwrap_or_default()
+    }
+
     /// The most recent frame, when any frame was observed.
     #[must_use]
     pub fn latest_frame(&self) -> Option<alacer_core::inspect::FrameSummary> {
@@ -587,6 +605,9 @@ impl InspectObserver for RecorderHandle {
             }
             InspectEvent::Theme(record) => {
                 push_bounded(&mut recording.themes, THEME_RING_CAP, record);
+            }
+            InspectEvent::Setting(record) => {
+                push_bounded(&mut recording.settings, SETTING_RING_CAP, record);
             }
             InspectEvent::Frame(summary) => {
                 self.frames_seen.fetch_add(1, Ordering::Relaxed);

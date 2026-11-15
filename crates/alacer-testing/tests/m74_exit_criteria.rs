@@ -44,6 +44,12 @@ impl SettingSeam for FixedSettings {
     fn dark_mode(&self) -> bool {
         self.dark
     }
+
+    /// The m74 suite flips the dark fact alone — the canon absence the
+    /// fact's own growth answers (ADR-0083).
+    fn reduced_motion(&self) -> bool {
+        false
+    }
 }
 
 /// The midnight palette (the m73 suite's own): every role distinct
@@ -453,11 +459,11 @@ fn m74_the_disabled_trail_still_flips() {
 fn m74_the_living_documents_re_agree() {
     let readme = read_workspace_file("README.md");
     assert!(
-        readme.contains("M0 through M76"),
+        readme.contains("M0 through M78"),
         "the README status reflects the living cut — the chain cannot drift"
     );
     assert!(
-        readme.contains("All 82 criterion cases"),
+        readme.contains("All 84 criterion cases"),
         "the README quotes the baselines.json bench_count the composition tier grew"
     );
     let architecture = read_workspace_file("docs/architecture.md");
@@ -466,7 +472,7 @@ fn m74_the_living_documents_re_agree() {
         "the architecture carries the setting seam's decision"
     );
     assert!(
-        architecture.contains("83 decision records"),
+        architecture.contains("85 decision records"),
         "the register grew the M75 row the count rides"
     );
     let baselines = serde_json::from_str::<serde_json::Value>(&read_workspace_file(

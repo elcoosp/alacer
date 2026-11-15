@@ -35,6 +35,12 @@ impl SettingSeam for FixedSettings {
     fn dark_mode(&self) -> bool {
         self.dark
     }
+
+    /// The m76 suite flips the dark fact alone — the canon absence the
+    /// fact's own growth answers (ADR-0083).
+    fn reduced_motion(&self) -> bool {
+        false
+    }
 }
 
 /// A probe that paints its whole bounds from the resolved *fact* —
@@ -255,7 +261,7 @@ fn m76_the_no_op_names_nothing() {
 /// naming the same reach the flip broadcast.
 #[test]
 fn m76_the_composed_flip_names_one_count() {
-    use alacer_core::settings::{CanonComposer, SettingComposer};
+    use alacer_core::settings::SettingComposer;
     use alacer_core::theme::Palette;
 
     /// A composer whose two answers are distinct palettes (the m75
@@ -300,7 +306,6 @@ fn m76_the_composed_flip_names_one_count() {
         facts[0].repainted, 1,
         "the composed flip names the same broadcast the bare flip names"
     );
-    let _ = CanonComposer; // the provided composition rides the same record shape
 }
 
 /// The wire names the count: the setting event's flat record carries
@@ -311,6 +316,7 @@ fn m76_the_composed_flip_names_one_count() {
 fn m76_the_wire_names_the_count() {
     let record = SettingRecord {
         dark: true,
+        reduced_motion: false,
         repainted: 42,
     };
     let event = alacer_inspect::wire::wire_setting(&record);
@@ -405,11 +411,11 @@ fn m76_the_disabled_trail_still_counts() {
 fn m76_the_living_documents_re_agree() {
     let readme = read_workspace_file("README.md");
     assert!(
-        readme.contains("M0 through M76"),
+        readme.contains("M0 through M78"),
         "the README status reflects the living cut — the chain cannot drift"
     );
     assert!(
-        readme.contains("All 82 criterion cases"),
+        readme.contains("All 84 criterion cases"),
         "the README quotes the baselines.json bench_count the count tier grew"
     );
     let architecture = read_workspace_file("docs/architecture.md");
@@ -418,7 +424,7 @@ fn m76_the_living_documents_re_agree() {
         "the architecture carries the count's decision"
     );
     assert!(
-        architecture.contains("83 decision records"),
+        architecture.contains("85 decision records"),
         "the register grew the M76 row"
     );
     let baselines = serde_json::from_str::<serde_json::Value>(&read_workspace_file(

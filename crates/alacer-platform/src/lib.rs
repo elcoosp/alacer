@@ -913,6 +913,16 @@ impl alacer_core::settings::SettingSeam for WinitSettings {
     fn dark_mode(&self) -> bool {
         self.dark
     }
+
+    /// winit reports no reduced-motion fact — the OS's motion
+    /// preference lives below the windowing layer's vocabulary — so the
+    /// adapter answers the honest absence (ADR-0083's adapter rule: a
+    /// platform that reports no fact answers the absence, never a
+    /// guess). An app that reads the fact through its own channels
+    /// installs its own seam through the same door.
+    fn reduced_motion(&self) -> bool {
+        false
+    }
 }
 
 impl ApplicationHandler<PlatformEvent> for AlacerApp {

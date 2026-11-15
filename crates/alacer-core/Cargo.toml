@@ -48,5 +48,9 @@ name = "keymap"
 harness = false
 
 [[bench]]
+name = "frame_refusal"
+harness = false
+
+[[bench]]
 name = "w5_signal_graph"
 harness = false

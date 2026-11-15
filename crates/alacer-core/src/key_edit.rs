@@ -469,7 +469,9 @@ mod tests {
 
     /// The outcome vocabulary carries its stable tags too (M62,
     /// ADR-0068) — the wall's species the value tier's own word, the
-    /// protocol document pins.
+    /// protocol document pins. The read's species rides the same pin
+    /// (M68, ADR-0074): the payloadless chord's `empty_selection`,
+    /// named at the unit tier beside the wire test's pin.
     #[test]
     fn the_outcomes_carry_their_stable_tags() {
         use crate::inspect::KeyEditRefusal;
@@ -478,7 +480,12 @@ mod tests {
             KeyEditOutcome::Refused(KeyEditRefusal::Unavailable).name(),
             "refused"
         );
+        assert_eq!(
+            KeyEditOutcome::Refused(KeyEditRefusal::EmptySelection).name(),
+            "refused"
+        );
         assert_eq!(KeyEditRefusal::Unavailable.name(), "unavailable");
+        assert_eq!(KeyEditRefusal::EmptySelection.name(), "empty_selection");
     }
 
     /// The wall's fact is its own fact (M62, ADR-0068): a refusal at

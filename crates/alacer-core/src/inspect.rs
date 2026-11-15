@@ -1915,6 +1915,32 @@ pub struct FrameRefusalRecord {
     pub node: Option<u64>,
 }
 
+/// One view patch's fact (§13.3, ADR-0078): the view tier's own
+/// record, the route-drop trail's shape (ADR-0063) at the view tier —
+/// the reconciler's four counts computed where the patch resolves
+/// ([`alacer_view::ViewRoot::mount`]'s build,
+/// [`alacer_view::ViewRoot::update`]'s diff), named by its lengths
+/// (the payload rule's shape: a fact, not a message — the props a
+/// patch applied never ride, the text they carry can). The record
+/// rides *beside* the door's own `PatchReport` — `update` still
+/// answers the report it always answered — never instead of it. One
+/// fact per patch that moved something, never per frame: the frames
+/// that re-render nothing stream none, and the no-op re-render — a
+/// diff that moved nothing — streams none too (the idle-frame
+/// property, the m32 canon's own rule; the flood rule at the view
+/// tier). The fields are the additive wire rule's shape (ADR-0010).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ViewPatchRecord {
+    /// Elements created (subtree mounts) — the build's opening count.
+    pub created: usize,
+    /// Subtrees removed.
+    pub removed: usize,
+    /// Elements patched in place (a visual prop applied).
+    pub patched: usize,
+    /// Keyed children moved (LIS non-members, §6.2).
+    pub moved: usize,
+}
+
 /// One observation: what the pipeline and the flux surface to devtools.
 #[derive(Debug, Clone)]
 pub enum InspectEvent {
@@ -2032,6 +2058,14 @@ pub enum InspectEvent {
     /// own records (the tick's start drain — a refusal queues where it
     /// resolves, one frame after the frame that refused).
     FrameRefusal(FrameRefusalRecord),
+    /// A view patch resolved — the view tier's own trail (ADR-0078):
+    /// the reconciler's four counts beside each other (created,
+    /// removed, patched, moved — the mount's build and every
+    /// re-render's diff, named by its lengths, the payload never
+    /// riding). Streams with the frame's own records (the tick's
+    /// start drain — a patch queues where it resolves, one frame
+    /// after the re-render that asked for it).
+    ViewPatch(ViewPatchRecord),
     /// A frame completed — the frame's causal summary.
     Frame(FrameSummary),
 }

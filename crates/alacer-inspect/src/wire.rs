@@ -600,6 +600,23 @@ pub enum WireEvent {
         /// no node to name.
         node: Option<u64>,
     },
+    /// A view patch resolved — the view tier's own trail (M72,
+    /// ADR-0078): a new event kind at version 1, clients that ignore
+    /// unknown kinds unaffected (the additive rule). The reconciler's
+    /// four counts beside each other — the mount's build and every
+    /// re-render's diff, named by its lengths (the payload rule's
+    /// shape: the props a patch applied never ride).
+    ViewPatch {
+        /// Elements created (subtree mounts) — the build's opening
+        /// count.
+        created: usize,
+        /// Subtrees removed.
+        removed: usize,
+        /// Elements patched in place (a visual prop applied).
+        patched: usize,
+        /// Keyed children moved (LIS non-members).
+        moved: usize,
+    },
     /// A completed frame — the ledger + the mask heatmap.
     Frame {
         /// Monotonic frame number.
@@ -1126,6 +1143,23 @@ pub fn wire_frame_refusal(record: &alacer_core::inspect::FrameRefusalRecord) -> 
     WireEvent::FrameRefusal {
         species: record.species.name().to_string(),
         node: record.node,
+    }
+}
+
+/// The view-patch record, flat on the wire (M72, ADR-0078): the
+/// reconciler's four counts beside each other — the mount's build and
+/// every re-render's diff, named by its lengths (the payload rule's
+/// shape: the props a patch applied never ride, the text they carry
+/// can). The view tier's own answer, never a swallowed report: the
+/// `PatchReport`s the imperative caller read and dropped are named
+/// facts now.
+#[must_use]
+pub fn wire_view_patch(record: &alacer_core::inspect::ViewPatchRecord) -> WireEvent {
+    WireEvent::ViewPatch {
+        created: record.created,
+        removed: record.removed,
+        patched: record.patched,
+        moved: record.moved,
     }
 }
 

@@ -80,27 +80,38 @@ pub trait PaintSink {
 ///
 /// Coordinates are local: the pass adds the node's absolute origin when
 /// recording, and applies the clip stack (scroll viewports clip children).
+///
+/// The context also carries the frame's resolved palette (ADR-0079): the
+/// pass resolves the installed [`crate::theme::ThemeSeam`] once per paint
+/// pass — one dynamic call per frame, never per node — and every widget
+/// paints the roles its app did not override from the copy it holds.
 pub struct PaintCtx<'a> {
     sink: &'a mut dyn PaintSink,
     origin: Point,
     size: crate::geom::Size,
     clip: Option<Rect>,
+    palette: crate::theme::Palette,
 }
 
 impl<'a> PaintCtx<'a> {
-    /// Creates a context painting at `origin` over `size`, with an optional clip.
+    /// Creates a context painting at `origin` over `size`, with an optional
+    /// clip, resolving paint roles from `palette` (the paint pass resolves
+    /// the installed theme once per pass; direct callers without a theme
+    /// resolve the canon palette).
     #[must_use]
     pub fn new(
         sink: &'a mut dyn PaintSink,
         origin: Point,
         size: crate::geom::Size,
         clip: Option<Rect>,
+        palette: crate::theme::Palette,
     ) -> Self {
         Self {
             sink,
             origin,
             size,
             clip,
+            palette,
         }
     }
 
@@ -108,6 +119,15 @@ impl<'a> PaintCtx<'a> {
     #[must_use]
     pub const fn size(&self) -> crate::geom::Size {
         self.size
+    }
+
+    /// The frame's resolved palette (ADR-0079): the roles a widget
+    /// paints for every visual its app did not override. `Copy` — the
+    /// read is the pass's own per-frame resolution, never a per-node
+    /// dynamic call.
+    #[must_use]
+    pub const fn palette(&self) -> crate::theme::Palette {
+        self.palette
     }
 
     /// Records one quad, translated to absolute coordinates.
@@ -253,7 +273,13 @@ mod tests {
     fn paint_ctx_translates_to_absolute_coordinates() {
         let mut sink = Collector::default();
         let origin = Point::new(100.0, 50.0);
-        let mut ctx = PaintCtx::new(&mut sink, origin, crate::geom::Size::new(10.0, 10.0), None);
+        let mut ctx = PaintCtx::new(
+            &mut sink,
+            origin,
+            crate::geom::Size::new(10.0, 10.0),
+            None,
+            crate::theme::Palette::CANON,
+        );
 
         ctx.push_quad(Quad::filled(
             Rect::new(Point::new(0.0, 0.0), Size::new(10.0, 10.0)),

@@ -869,15 +869,20 @@ impl PassPipeline {
         {
             return false;
         }
-        crate::theme::note_theme(crate::inspect::ThemeRecord {
-            palette: theme.name().to_string(),
-        });
-        self.theme = Some(theme);
         // The broadcast: every node repaints — the palette the whole tree
         // borrowed moved. Collected first (`for_each_pre_order` borrows
-        // the arena immutably), merged after.
+        // the arena immutably), merged after; the walk's length *is* the
+        // swap's reach, the record's count computed here where the
+        // broadcast resolves, never re-counted at the reader (ADR-0084 —
+        // the lengths rule, the ids never riding).
         let mut nodes = Vec::new();
         self.arena.for_each_pre_order(&mut |id, _| nodes.push(id));
+        let repainted = nodes.len();
+        crate::theme::note_theme(crate::inspect::ThemeRecord {
+            palette: theme.name().to_string(),
+            repainted,
+        });
+        self.theme = Some(theme);
         for node in nodes {
             self.arena.merge_mask(node, Change::PAINT);
         }
@@ -885,23 +890,26 @@ impl PassPipeline {
     }
 
     /// Installs the setting seam (§7.2 pass 8, ADR-0080): the OS's
-    /// dark-mode fact the platform adapter pushes through the door —
+    /// facts the platform adapter pushes through the door —
     /// on winit, the window's opening fact and the `ThemeChanged`
-    /// event. The next paint pass resolves the fact once and repaints
+    /// event. The next paint pass resolves the facts once and repaints
     /// every node — the flip broadcasts `Change::PAINT` on the tree,
     /// the mask's own documented semantics ("a color change repaints
     /// this node only"), never a private repaint channel — and the
     /// flip streams one [`InspectEvent::Setting`] the tick after it
     /// lands (the theme trail's door-side note, ADR-0079's shape).
+    /// Since M77 (ADR-0083) the seam carries the OS's reduced-motion
+    /// fact beside the dark one — one seam, one door, the flip landing
+    /// when *either* fact moves.
     ///
-    /// The fact never munges the palette: the roles the widgets
+    /// The facts never munge the palette: the roles the widgets
     /// borrowed re-resolve from the *installed palette* exactly as
     /// they were — an app that wants palette-following installs the
     /// composition door ([`Self::set_composer`], ADR-0081), the
     /// pipeline resolving the composed palette on this door's landed
     /// flips.
     ///
-    /// Answers `false` on a flip that lands where the fact already is
+    /// Answers `false` on a flip that lands where the facts already are
     /// — including the canon light installed where nothing is (the
     /// default build resolves light): no broadcast, no record, no
     /// facts (the idle-frame property, A1's rule at the setting tier —
@@ -909,14 +917,17 @@ impl PassPipeline {
     /// Answers `true` when the flip landed.
     pub fn set_settings(&mut self, settings: Box<dyn crate::settings::SettingSeam>) -> bool {
         let dark = settings.dark_mode();
-        let installed = self
+        let reduced_motion = settings.reduced_motion();
+        let (installed_dark, installed_motion) = self
             .settings
             .as_deref()
-            .is_some_and(crate::settings::SettingSeam::dark_mode);
-        if installed == dark {
+            .map_or((false, false), |installed| {
+                (installed.dark_mode(), installed.reduced_motion())
+            });
+        if installed_dark == dark && installed_motion == reduced_motion {
             return false;
         }
-        // The broadcast: every node repaints — the fact the whole tree
+        // The broadcast: every node repaints — the facts the whole tree
         // consulted moved. Collected first (`for_each_pre_order` borrows
         // the arena immutably), merged after; the walk's length *is* the
         // flip's reach, the record's count computed here where the
@@ -925,7 +936,11 @@ impl PassPipeline {
         let mut nodes = Vec::new();
         self.arena.for_each_pre_order(&mut |id, _| nodes.push(id));
         let repainted = nodes.len();
-        crate::settings::note_setting(crate::inspect::SettingRecord { dark, repainted });
+        crate::settings::note_setting(crate::inspect::SettingRecord {
+            dark,
+            reduced_motion,
+            repainted,
+        });
         self.settings = Some(settings);
         for node in nodes {
             self.arena.merge_mask(node, Change::PAINT);
@@ -935,11 +950,14 @@ impl PassPipeline {
         // re-swapped the way `set_theme` swaps (the equality check, the
         // theme fact tagged with the composer's name). The swap rides
         // the flip's own broadcast — the whole tree repaints either
-        // way, no second walk over the arena. A flip that composes the
-        // palette already installed re-swaps nothing — the swap half of
-        // the door is the no-op (the idle rule at the theme tier), the
-        // flip itself still landed (the fact moved).
-        self.compose_from(dark, false);
+        // way, no second walk over the arena — and the composed swap's
+        // record names the same reach the flip broadcast (ADR-0084: one
+        // flip, one count, however many palettes the composition
+        // resolved). A flip that composes the palette already installed
+        // re-swaps nothing — the swap half of the door is the no-op
+        // (the idle rule at the theme tier), the flip itself still
+        // landed (the fact moved).
+        self.compose_from(dark, false, repainted);
         true
     }
 
@@ -976,7 +994,10 @@ impl PassPipeline {
             .as_deref()
             .is_some_and(crate::settings::SettingSeam::dark_mode);
         self.composer = Some(composer);
-        let landed = self.compose_from(dark, true);
+        // The install path walks its own broadcast — no flip reach to
+        // name, the count resolved where the install's walk runs
+        // (ADR-0084's shape at the composition door).
+        let landed = self.compose_from(dark, true, 0);
         if !landed {
             tracing::trace!(
                 target: "alacer::settings",
@@ -994,8 +1015,11 @@ impl PassPipeline {
     /// installed (or no composer at all) is the no-op. `broadcast`
     /// merges the repaint currency itself — the install path carries
     /// it, the flip path skips it (the flip's own broadcast already
-    /// walked the tree).
-    fn compose_from(&mut self, dark: bool, broadcast: bool) -> bool {
+    /// walked the tree). `flip_reach` is the count the flip's own
+    /// broadcast resolved: the composed swap's record names it on the
+    /// flip path (ADR-0084 — one flip, one count), while the install
+    /// path walks its own broadcast and names that walk's length.
+    fn compose_from(&mut self, dark: bool, broadcast: bool, flip_reach: usize) -> bool {
         let Some(resolved) = self
             .composer
             .as_deref()
@@ -1017,8 +1041,24 @@ impl PassPipeline {
         if installed == palette {
             return false;
         }
+        // The install path's own broadcast (`set_composer` reaches this
+        // door outside a flip): the palette the whole tree borrowed
+        // moved, the currency's own rule. Collected first
+        // (`for_each_pre_order` borrows the arena immutably), merged
+        // after — `set_theme`'s shape, the walk's length the count
+        // (ADR-0084). The flip path skips the walk: the flip's own
+        // broadcast already walked the tree, the count it resolved
+        // riding the composed swap's record unchanged.
+        let mut nodes = Vec::new();
+        let repainted = if broadcast {
+            self.arena.for_each_pre_order(&mut |id, _| nodes.push(id));
+            nodes.len()
+        } else {
+            flip_reach
+        };
         crate::theme::note_theme(crate::inspect::ThemeRecord {
             palette: name.to_string(),
+            repainted,
         });
         self.theme = Some(Box::new(crate::settings::ComposedPalette::new(
             palette, name,
@@ -1026,13 +1066,6 @@ impl PassPipeline {
         if !broadcast {
             return true;
         }
-        // The install path's own broadcast (`set_composer` reaches this
-        // door outside a flip): the palette the whole tree borrowed
-        // moved, the currency's own rule. Collected first
-        // (`for_each_pre_order` borrows the arena immutably), merged
-        // after — `set_theme`'s shape.
-        let mut nodes = Vec::new();
-        self.arena.for_each_pre_order(&mut |id, _| nodes.push(id));
         for node in nodes {
             self.arena.merge_mask(node, Change::PAINT);
         }
@@ -3222,16 +3255,21 @@ impl PassPipeline {
             crate::theme::Palette::CANON,
             crate::theme::ThemeSeam::palette,
         );
-        // The frame's OS fact, resolved once per paint pass (ADR-0080):
-        // one dynamic call per frame — the installed seam's dark-mode
-        // answer, or the canon light fact when nothing is installed —
-        // handed to every node's context beside the palette. Never per
-        // node: the resolution rides the palette's own once-per-pass
-        // overhead, priced by the pass-overhead contract.
+        // The frame's OS facts, resolved once per paint pass
+        // (ADR-0080, ADR-0083): one dynamic call per fact per frame —
+        // the installed seam's dark-mode and reduced-motion answers, or
+        // the canon facts when nothing is installed — handed to every
+        // node's context beside the palette. Never per node: the
+        // resolutions ride the palette's own once-per-pass overhead,
+        // priced by the pass-overhead contract.
         let dark = self
             .settings
             .as_deref()
             .is_some_and(crate::settings::SettingSeam::dark_mode);
+        let reduced_motion = self
+            .settings
+            .as_deref()
+            .is_some_and(crate::settings::SettingSeam::reduced_motion);
         for node in targets {
             // The old layer's extent is damage too — a moved/resized widget
             // must erase where it *was*, not only paint where it is. An
@@ -3253,7 +3291,7 @@ impl PassPipeline {
                     crate::scene::PAINT_DAMAGE_MARGIN,
                 ));
             }
-            let primitives = self.paint_node(node, palette, dark);
+            let primitives = self.paint_node(node, palette, dark, reduced_motion);
             if let Some(extent) = crate::scene::primitives_extent(&primitives) {
                 damage.add(extent);
             }
@@ -3299,6 +3337,7 @@ impl PassPipeline {
         node: NodeId,
         palette: crate::theme::Palette,
         dark: bool,
+        reduced_motion: bool,
     ) -> Vec<Primitive> {
         struct JournalVec<'a> {
             out: &'a mut Vec<Primitive>,
@@ -3315,7 +3354,8 @@ impl PassPipeline {
         let mut out = Vec::new();
         {
             let mut sink = JournalVec { out: &mut out };
-            let mut ctx = PaintCtx::new(&mut sink, origin, size, clip, palette, dark);
+            let mut ctx =
+                PaintCtx::new(&mut sink, origin, size, clip, palette, dark, reduced_motion);
             let widget = &self.arena.slot(node).widget;
             widget.paint(&mut ctx);
         }

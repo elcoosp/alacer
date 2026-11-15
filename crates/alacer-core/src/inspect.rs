@@ -1840,6 +1840,81 @@ pub struct ActionRecord {
     pub rider: ActionRider,
 }
 
+/// Why one frame answered with no pixels (§13.3, ADR-0077): the frame
+/// tier's honest refusals, named where each resolves. Every other tier
+/// already prices itself on the log — but the frame itself, the tier
+/// every other tier's work rides, answered nothing when it went
+/// unpainted: the platform's present ladder logged and moved on, and
+/// "why did nothing paint?" was unanswerable from the log alone. The
+/// species are the ladder's own stages — the stage that refused is the
+/// fact, never a collapsed `false`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FrameRefusalSpecies {
+    /// The tick's layout stage refused ([`crate::passes::LayoutError`],
+    /// ADR-0023's error shape): the engine seam's own failure, or the
+    /// no-root wiring bug — masks outlived their tree. The frame never
+    /// composed; the record carries the failing node's id when the
+    /// engine named one.
+    LayoutRefused,
+    /// The backend's renderer refused a draw the frame asked for — the
+    /// full-frame path (or the wgpu surface draw) failed, the window's
+    /// pixels stale.
+    RenderFailed,
+    /// A partial repaint refused (§9.3): the damage regions' scissored
+    /// draw failed — the framebuffer survives, the repaired regions
+    /// stay stale until a full frame.
+    PartialRepaintFailed,
+    /// The software path's persistent framebuffer could not be built
+    /// (§9.3): no backing store, no frame — the present is skipped
+    /// until one allocates.
+    FramebufferLost,
+    /// The backend refused to surface the frame: the pixels were drawn
+    /// and the present returned an error — the frame the user never
+    /// saw.
+    PresentFailed,
+}
+
+impl FrameRefusalSpecies {
+    /// The species' name, the wire vocabulary's `snake_case` tag (the
+    /// protocol's stable, documented field values).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::LayoutRefused => "layout_refused",
+            Self::RenderFailed => "render_failed",
+            Self::PartialRepaintFailed => "partial_repaint_failed",
+            Self::FramebufferLost => "framebuffer_lost",
+            Self::PresentFailed => "present_failed",
+        }
+    }
+}
+
+/// One frame refusal's fact (§13.3, ADR-0077): the frame tier's own
+/// record, the route-drop trail's shape (ADR-0063) at the frame tier —
+/// the species computed where the refusal resolves (the tick's layout
+/// block, the backends' present ladder), the failing node's id riding
+/// verbatim when a node is the fact (`Arena`'s own vocabulary — the id
+/// a consumer resolves against its arena, ADR-0023's rule), the honest
+/// absence when the frame had no node to name. The record rides
+/// *beside* the refusal's own door — the tick still answers
+/// `Err(LayoutError)`, the platform still skips the frame it cannot
+/// lay out — never instead of it; payloads never ride (the engines'
+/// prose summaries stay on the error types and the trail's trace
+/// lines, the payload rule's shape). The fields are the additive wire
+/// rule's shape (ADR-0010).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FrameRefusalRecord {
+    /// Which stage of the frame refused — the ladder's own name for
+    /// what went missing.
+    pub species: FrameRefusalSpecies,
+    /// The node the refusal is about, verbatim ([`crate::arena::NodeId`]
+    /// 's raw id, ADR-0023's vocabulary — the engine named it, the
+    /// consumer resolves it against its own arena); `None` when the
+    /// frame had no node to name — a present-tier failure is the
+    /// window's fact, not a widget's.
+    pub node: Option<u64>,
+}
+
 /// One observation: what the pipeline and the flux surface to devtools.
 #[derive(Debug, Clone)]
 pub enum InspectEvent {
@@ -1951,6 +2026,12 @@ pub enum InspectEvent {
     /// shape — the fact queues where the ask resolves, one frame after
     /// the ask).
     Action(ActionRecord),
+    /// A frame refused to paint — the frame tier's own trail
+    /// (ADR-0077): the species the present ladder's stage named beside
+    /// the failing node when one is the fact. Streams with the frame's
+    /// own records (the tick's start drain — a refusal queues where it
+    /// resolves, one frame after the frame that refused).
+    FrameRefusal(FrameRefusalRecord),
     /// A frame completed — the frame's causal summary.
     Frame(FrameSummary),
 }

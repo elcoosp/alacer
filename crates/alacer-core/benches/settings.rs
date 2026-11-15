@@ -7,23 +7,33 @@
 //! state the theme trail rides (ADR-0079's own corpus). A flip is not
 //! rare in a following the OS app — but it is once per door answer,
 //! never per frame, and the per-note cost is what a flip pays when one
-//! lands, never a frame-budget liability.
+//! lands, never a frame-budget liability. Since M75 the composition
+//! door's own costs join the corpus (ADR-0081): the install's
+//! resolution (`composer_install_no_op` — the composer call beside the
+//! effective-palette equality, the no-op install's whole cost) and the
+//! composed flip end to end (`door_flip_composed` — the fact that
+//! lands, the composer's resolution, the composed palette's mount).
 
 use alacer_core::flux::Flux;
 use alacer_core::inspect::SettingRecord;
 use alacer_core::passes::{A11yDelta, A11ySink, PassPipeline, SceneJournal, TreeSnapshot};
 use alacer_core::scene::{Primitive, SceneSnapshot};
-use alacer_core::settings::{SETTING_TRAIL_CAP, SettingSeam};
+use alacer_core::settings::{SETTING_TRAIL_CAP, SettingComposer, SettingSeam};
+use alacer_core::theme::Palette;
 use alacer_core::trail::TrailLog;
 use criterion::{Criterion, criterion_group, criterion_main};
 use rustc_hash::FxHashMap;
 use std::hint::black_box;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 /// The record one flip carries: the dark-mode fact, verbatim (the
 /// payload rule at the setting tier — the bool is the fact).
 fn flip() -> SettingRecord {
-    SettingRecord { dark: true }
+    SettingRecord {
+        dark: true,
+        repainted: 1,
+    }
 }
 
 struct NullJournal;
@@ -82,6 +92,36 @@ struct FixedSettings {
 impl SettingSeam for FixedSettings {
     fn dark_mode(&self) -> bool {
         self.dark
+    }
+}
+
+/// The composed dark palette the bench composer answers — every role
+/// distinct from the canon's, so the flip's composition resolves a
+/// swap every measured iteration (never the idle equality).
+const DUET_DARK: Palette = Palette {
+    surface: alacer_core::Color::rgb(16, 18, 24),
+    panel: alacer_core::Color::rgb(28, 31, 40),
+    accent: alacer_core::Color::rgb(255, 176, 64),
+    accent_pressed: alacer_core::Color::rgb(226, 152, 44),
+    selection: alacer_core::Color::rgb(255, 176, 64).with_alpha(72),
+    text: alacer_core::Color::rgb(226, 230, 238),
+    text_muted: alacer_core::Color::rgb(142, 150, 168),
+    border: alacer_core::Color::rgb(56, 62, 80),
+    on_accent: alacer_core::Color::rgb(24, 16, 6),
+};
+
+/// The bench composer (ADR-0081): the canon palette for light, the
+/// duet dark beside it — the shape any app composition rides, two
+/// palettes resolved by the fact.
+struct DuetComposer;
+
+impl SettingComposer for DuetComposer {
+    fn palette(&self, dark: bool) -> Palette {
+        if dark { DUET_DARK } else { Palette::CANON }
+    }
+
+    fn name(&self) -> &'static str {
+        "duet"
     }
 }
 
@@ -144,6 +184,81 @@ fn bench_settings(c: &mut Criterion) {
         assert!(pipeline.set_settings(Box::new(FixedSettings { dark: true })));
         b.iter(|| {
             black_box(pipeline.set_settings(Box::new(FixedSettings { dark: true })));
+        });
+    });
+
+    // The composition install's own steady state, priced beside the
+    // door (ADR-0081): the composer's resolution and the effective-
+    // palette equality — the no-op install's whole cost (the canon
+    // composition over the canon default resolves nothing). An app
+    // installing its composition mid-session pays this once, every
+    // later flip riding `door_flip_composed` instead.
+    group.bench_function("composer_install_no_op", |b| {
+        let mut pipeline = PassPipeline::new(
+            Flux::new(),
+            Box::new(NoopLayout),
+            Box::new(NullJournal),
+            Box::new(NullA11y),
+        );
+        b.iter(|| {
+            black_box(pipeline.set_composer(Box::new(DuetComposer)));
+        });
+    });
+
+    // The composed flip, priced beside the door (ADR-0081): the fact
+    // that lands, the composition's resolution, the composed palette's
+    // mount — the flip that moves the palette end to end, the real
+    // reader the re-open rule priced. Each measured iteration toggles
+    // the fact, so every flip lands and composes the other palette —
+    // the swap half never idles here, the equality check answered once
+    // per flip against the palette the previous flip composed.
+    group.bench_function("door_flip_composed", |b| {
+        let mut pipeline = PassPipeline::new(
+            Flux::new(),
+            Box::new(NoopLayout),
+            Box::new(NullJournal),
+            Box::new(NullA11y),
+        );
+        pipeline.set_composer(Box::new(DuetComposer));
+        let dark = AtomicBool::new(false);
+        b.iter(|| {
+            let fact = dark.fetch_xor(true, Ordering::Relaxed);
+            black_box(pipeline.set_settings(Box::new(FixedSettings { dark: fact })));
+        });
+    });
+
+    // The counted flip, read end to end (ADR-0082): the fact that
+    // lands with its broadcast count, the tick's start drain streaming
+    // it into the trail reader, the reader filtering the setting tier
+    // and naming the count — the real reader the lengths rule priced.
+    // Each measured iteration toggles the fact so every flip lands and
+    // streams.
+    group.bench_function("door_flip_counted", |b| {
+        let mut pipeline = PassPipeline::new(
+            Flux::new(),
+            Box::new(NoopLayout),
+            Box::new(NullJournal),
+            Box::new(NullA11y),
+        );
+        let reader = TrailLog::new();
+        pipeline.set_observer(Box::new(reader.clone()));
+        pipeline.set_settings(Box::new(FixedSettings { dark: false }));
+        let dark = AtomicBool::new(false);
+        b.iter(|| {
+            let fact = dark.fetch_xor(true, Ordering::Relaxed);
+            black_box(pipeline.set_settings(Box::new(FixedSettings { dark: fact })));
+            pipeline
+                .tick(alacer_core::geom::Size::new(320.0, 240.0))
+                .expect("the counted-flip bench's frames lay out");
+            let count = reader
+                .look()
+                .into_iter()
+                .filter_map(|event| match event {
+                    alacer_core::inspect::InspectEvent::Setting(record) => Some(record.repainted),
+                    _ => None,
+                })
+                .last();
+            black_box(count);
         });
     });
 

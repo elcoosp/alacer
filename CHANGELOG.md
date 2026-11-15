@@ -9,6 +9,55 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M73 — the runtime theme seam (ADR-0079)**: the paint tier's own
+  seam — the palette every widget borrowed for its un-overridden paint
+  roles was ten compile-time constants on
+  [`alacer_widgets::theme`](crates/alacer-widgets/src/lib.rs), "make it
+  dark" meant rebuilding every widget, and no door answered the ask at
+  all — so the palette installs as one
+  [`ThemeSeam`](crates/alacer-core/src/theme.rs)
+  (`PassPipeline::set_theme`), resolves once per paint pass into
+  [`PaintCtx`](crates/alacer-core/src/scene.rs) (one dynamic call per
+  frame, never per node), the swap broadcasting `Change::PAINT` on the
+  tree — the mask's own documented semantics, never a private repaint
+  channel — and a swap that lands where the palette already is answers
+  `false` and queues nothing (the idle-frame property, A1's rule at the
+  theme tier). The swap streams one
+  [`ThemeRecord`](crates/alacer-core/src/inspect.rs) — the palette's
+  tag beside the door, never its colors (the payload rule's shape) — in
+  [`InspectEvent::Theme`](crates/alacer-core/src/inspect.rs) at the
+  tick's start drain (the route-drop trail's shape, one frame after the
+  door answered; the thread trail bounded 256, the recorder's ring 512),
+  the wire growing additively at version 1 (the `theme` event, the
+  client rendering the palette's row), and the canon palette pinning the
+  constants the blessed snapshot corpus was blessed with byte for byte
+  (`CanonPalette`, the provided implementation beside the trait). The
+  corpus grows 73 → 76 (`theme/note_disabled`, `theme/note_enabled_bounded`,
+  `theme/door_no_op_swap` — bench, gate, and baseline in the same cut).
+
+### Fixed
+
+- **The view reconciler counts a binding re-hang as a visual patch
+  no more** ([`alacer-view/src/mount.rs`](crates/alacer-view/src/mount.rs)):
+  `visual_props_changed` excluded handler churn but still counted the
+  `binding:`/`binding:`-value re-hang the patcher itself calls a no-op
+  ("re-hanging the same binding is a no-op, never a visual change",
+  ADR-0038) — so every identical rebuild carrying a binding streamed a
+  `ViewPatch` fact and queued `LAYOUT | PAINT`, and the m32 canon's own
+  idle-frame rule ("the no-op re-render streams none", the M72 gate)
+  failed against the M72 record. The re-hang is the patcher's own
+  no-op; the value a binding carries rides the flux bridge's masks.
+  The m4 suite's patched-generation count re-agrees (2 → 1).
+- **The performance dashboard re-publishes the M71/M72 baselines**
+  ([`benchmarks/dashboard/index.html`](benchmarks/dashboard/index.html)):
+  the dashboard's last render predates the frame-refusal and view-patch
+  baselines — the m5 suite's dashboard test failed on the stale render
+  (`scripts/perf_dashboard.py` re-run, the 76-baseline corpus
+  published).
+
+
+### Added
+
 - **M72 — the view's patch joins the causal log (ADR-0078)**:
   the view tier's own kill rule cashed — a consumer cannot answer
   "what did my re-render change — and how much?" from the log the

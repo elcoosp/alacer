@@ -9,6 +9,70 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M70 — the activation names its rider (ADR-0076)**:
+  ADR-0075's own kill rule cashed — a consumer cannot tell the AT's
+  press from the keyboard's Space/Enter activation on the log the
+  action trail streams (the record answered "did the press land — or
+  why not", never "who pressed") — so the record grows the rider
+  beside the ask
+  ([`ActionRider`](crates/alacer-core/src/inspect.rs), the M30
+  attribution rule at the activation tier: `ActionRoute` — the AT's
+  ask the dispatch funnel routed, the funnel's own note site;
+  `Keyboard` — the focused control's Space/Enter, the M10 parity the
+  widgets answer like a click, the button's GTK release rule and the
+  checkbox's toggle-on-press, named where the route is known), the
+  keyboard's ride carrying the key route's stamp (M45, ADR-0051 — the
+  focused control's AccessKit-stable id, the guard the key visit
+  holds, never guessed at the note site), one fact per activation (the
+  pressed phase arming nothing on the log, the release where the
+  button's door answered — the flood rule at the activation tier), the
+  wire carrying the additive `rider` field at version 1
+  (`action_route`/`keyboard`, `ActionRider::name` the single source),
+  the embedded client rendering "the AT's press landed" and "the
+  keyboard's press landed" on one log, `examples/action_trail.rs`
+  walking the rider beat beside the activation beats, no new corpus
+  case (the keyboard's activation rides the published routes — the
+  coordinated rule's no-growth arm, the corpus at 69), the living
+  documents re-agree (the m70 suite pins both riders through the real
+  routes, the pressed phase's absence, the checkbox's toggle, and the
+  documents)
+- **M69 — the activation ask answers on the log (ADR-0075)**:
+  the action tier's own kill rule cashed — a consumer prices the AT's
+  press (the default accessibility action the platform's action route
+  aims at a control: the ask arrived, the target's door answered, and
+  the answer was a bare `bool` whose `false` collapsed the two facts a
+  trail reader wants apart — the availability tier's wall and the
+  doorless target's silence; "did the AT's press land — or why not"
+  unanswerable from the log alone) — so the action tier grows its own
+  trail ([`ActionRecord`](crates/alacer-core/src/inspect.rs) — `ask`,
+  `target`, `outcome` — in
+  [`InspectEvent::Action`](crates/alacer-core/src/inspect.rs) at the
+  tick's start drain, the preedit drain's shape, one frame after the
+  ask; the thread trail bounded 256, the recorder's ring 512), the
+  note site the exact place the ask resolves — the dispatch funnel
+  (`PassPipeline::dispatch_a11y_action`, the route-drop trail's shape,
+  ADR-0063) — the species computed where both facts live (the route
+  holds the ask, the aimed id, the door's answer, and the tree's one
+  `enabled` truth, M22/ADR-0028:
+  [`ActionRefusal::Unavailable`](crates/alacer-core/src/inspect.rs)
+  when the wall held the control,
+  [`ActionRefusal::NoDoor`](crates/alacer-core/src/inspect.rs) when
+  nothing did — the collapsed `false` split, never guessed at a
+  widget-private call site), one fact per trail (the value tier's
+  writes, the scroll tier's asks, and the text-write tier's rewrites
+  stream no action fact — the M39 rule at the activation tier), the
+  mask-queueing `bool` contract of record unchanged (the trail rides
+  beside it, never instead of it), the wire carrying the flat `action`
+  event at version 1, the embedded client rendering the row the other
+  trails render, the corpus growing by the coordinated rule
+  (`a11y_action/route_100_presses_1k` — the worst-case walk, the
+  door's refusal, the trail's one disabled branch under the A7
+  contract — bench, gate, and baseline in the same cut, the corpus
+  pins moving 68 → 69), `examples/action_trail.rs` walking the
+  activation beat, the living documents re-agree (the m69 suite pins
+  the landing, the wall, the doorless silence, the tiered asks'
+  absence, and the documents)
+
 - **M68 — the payloadless chord names its read (ADR-0074)**:
   ADR-0068's second kill rule cashed — a consumer prices the
   payloadless chord (the copy or cut whose selection is empty: the

@@ -211,6 +211,44 @@ fn bench_a11y_action_route(c: &mut Criterion) {
         });
     });
 
+    // The activation route alone (M69, ADR-0075): 100 press asks at the
+    // worst-case target — the walk, the door's refusal, and the trail's
+    // one disabled branch (no observer installed, the A7 idle contract).
+    // The route must stay the mixed route's order of cost as the action
+    // tier answers on the log, never a priced observation.
+    group.bench_function("route_100_presses_1k", |b| {
+        let mut pipeline = PassPipeline::new(
+            Flux::new(),
+            Box::new(StackLayout),
+            Box::new(NullJournal),
+            Box::new(NullA11y),
+        );
+        let root = pipeline.mount_root(Box::new(FixedBox {
+            size: Size::new(800.0, 0.0),
+        }));
+        let mut last_child = root;
+        for _ in 0..1000 {
+            last_child = pipeline.add_child(
+                root,
+                Box::new(FixedBox {
+                    size: Size::new(20.0, 0.4),
+                }),
+            );
+        }
+        pipeline.tick(VIEWPORT).expect("bench layout");
+        let target = deepest_target(root, last_child);
+
+        b.iter(|| {
+            let mut consumed = 0;
+            for _ in 0..ACTIONS {
+                if pipeline.dispatch_a11y_action(target, black_box(A11yAction::DefaultPress)) {
+                    consumed += 1;
+                }
+            }
+            black_box(consumed);
+        });
+    });
+
     group.finish();
 }
 

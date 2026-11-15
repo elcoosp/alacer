@@ -327,6 +327,27 @@ fn view_patch_events_carry_the_documented_flat_shape() {
 }
 
 #[test]
+fn theme_events_carry_the_documented_flat_shape() {
+    // The wire conversion is pinned here (the client codes against it):
+    // the palette's tag beside the kind — the documented `theme` shape
+    // (ADR-0079), a new event kind at version 1 (the additive rule:
+    // clients that ignore unknown kinds unaffected). The tag is the
+    // fact — the palette's colors never ride (the payload rule's
+    // shape: the log names the palette, the paint pass resolves it).
+    use alacer_core::inspect::ThemeRecord;
+    use alacer_inspect::wire::wire_theme;
+
+    let swap = wire_theme(&ThemeRecord {
+        palette: "midnight".to_string(),
+    });
+    let json = serde_json::to_string(&swap).expect("swap json");
+    assert!(
+        json.contains(r#""kind":"theme""#) && json.contains(r#""palette":"midnight""#),
+        "the swap's tag is the fact — the palette named, never its colors: {json}"
+    );
+}
+
+#[test]
 fn focus_events_carry_the_documented_flat_shape() {
     // The wire conversion is pinned here (the client codes against it):
     // a landing's endpoints and wrap, a refusal's species, node, and

@@ -56,5 +56,9 @@ name = "view_patch"
 harness = false
 
 [[bench]]
+name = "theme"
+harness = false
+
+[[bench]]
 name = "w5_signal_graph"
 harness = false

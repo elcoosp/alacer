@@ -247,6 +247,45 @@ fn frames_carry_the_full_documented_shape() {
 }
 
 #[test]
+fn frame_refusal_events_carry_the_documented_flat_shape() {
+    // The wire conversion is pinned here (the client codes against it):
+    // the ladder stage's species beside the failing node when one is
+    // the fact, the honest absence when the window is — the documented
+    // `frame_refusal` shape (ADR-0077), a new event kind at version 1
+    // (the additive rule: clients that ignore unknown kinds unaffected).
+    use alacer_core::inspect::{FrameRefusalRecord, FrameRefusalSpecies};
+    use alacer_inspect::wire::wire_frame_refusal;
+
+    let refused = wire_frame_refusal(&FrameRefusalRecord {
+        species: FrameRefusalSpecies::LayoutRefused,
+        node: Some(4_294_967_294),
+    });
+    let json = serde_json::to_string(&refused).expect("refusal json");
+    for fragment in [
+        r#""kind":"frame_refusal""#,
+        r#""species":"layout_refused""#,
+        r#""node":4294967294"#,
+    ] {
+        assert!(json.contains(fragment), "missing {fragment} in {json}");
+    }
+
+    let window_fact = wire_frame_refusal(&FrameRefusalRecord {
+        species: FrameRefusalSpecies::PresentFailed,
+        node: None,
+    });
+    let json = serde_json::to_string(&window_fact).expect("present json");
+    assert!(
+        json.contains(r#""kind":"frame_refusal""#)
+            && json.contains(r#""species":"present_failed""#),
+        "the present stage's species, beside the kind: {json}"
+    );
+    assert!(
+        json.contains(r#""node":null"#),
+        "a present-tier failure is the window's fact, not a widget's: {json}"
+    );
+}
+
+#[test]
 fn focus_events_carry_the_documented_flat_shape() {
     // The wire conversion is pinned here (the client codes against it):
     // a landing's endpoints and wrap, a refusal's species, node, and

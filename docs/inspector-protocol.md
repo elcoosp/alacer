@@ -881,6 +881,19 @@ The frame tier's own fact (M71, ADR-0077, the tier's own kill rule): the frame i
 
 The view tier's own fact (M72, ADR-0078, the tier's own kill rule): the view reconciliation — the tier every re-render rides — answered a `PatchReport` the imperative caller read and dropped (the mount's build streamed nothing at all), and the log carried no fact. The record carries the reconciler's four counts beside each other: `created` (subtree mounts — the build's opening count), `removed`, `patched` (a visual prop applied), `moved` (LIS non-members, §6.2). The counts are the fact, named by their lengths — the payload rule's shape: the props a patch applied never ride, the text they carry can. One fact per patch that moved something, never per frame: the frames that re-render nothing stream none, and the no-op re-render — a diff that moved nothing — streams none too (the idle-frame property, the m32 canon's own pre-registered rule; the flood rule at the view tier). The record rides *beside* the door's own `PatchReport` — `update` still answers the report it always answered — never instead of it. The event streams at the tick's start drain, one frame after the re-render that asked for the patch; the queue behind it is bounded (256 facts per thread, oldest-first eviction) and the recorder's `view_patch` ring holds 512. The additive event the versioning rule admits at version 1 — clients that ignore unknown kinds are unaffected.
 
+### `setting` — an OS setting flip landed
+
+ ("what does the vocabulary consult now?", "when did the OS move the fact?")
+
+```json
+{
+  "kind":"setting",
+  "dark":true
+}
+```
+
+The setting tier's own fact (M74, ADR-0080, ADR-0079's pre-registered re-open rule): the OS's dark-mode fact existed nowhere in the pipeline — a widget that wanted it guessed or polled — and the fact is a seam now, installed by the platform adapter and pushed through the door. The record carries the dark-mode fact beside the door that landed it: `dark` is the stable, documented field value — the bool *is* the fact, the payload rule at the setting tier has nothing to strip. One fact per flip that landed, never per frame: a flip that lands where the fact already is queues no masks and no facts (the idle-frame property, A1's rule at the setting tier), and the frames that paint under the fact stream no setting fact of their own — the frame summary prices those. The fact never munges the palette: the roles the widgets borrowed re-resolve from the installed palette exactly as they were. The record rides *beside* the door's `bool` answer (`PassPipeline::set_settings` answers whether the flip landed) never instead of it. The event streams at the tick's start drain (the setting drain's arm runs just ahead of the theme drain, so a frame's trail reads the fact the palette resolved beside → the palette that fact painted into), one frame after the door answered; the queue behind it is bounded (256 facts per thread, oldest-first eviction) and the recorder's `setting` ring holds 512. The additive event the versioning rule admits at version 1 — clients that ignore unknown kinds are unaffected.
+
 ### `theme` — a theme swap landed
 
  ("which palette is live now?", "when did the whole window repaint?")

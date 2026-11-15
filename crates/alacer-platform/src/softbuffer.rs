@@ -21,7 +21,10 @@ pub fn pixmap_to_argb(pixmap: &tiny_skia::Pixmap) -> Vec<u32> {
 
 /// The softbuffer-backed software presenter.
 pub struct SoftbufferPresenter {
-    context: ::softbuffer::Context<std::sync::Arc<dyn raw_window_handle::HasDisplayHandle>>,
+    /// The softbuffer context, held only to outlive the surface it
+    /// created — dropping it first would invalidate the surface the
+    /// present path blits through. Never read; the underscore says so.
+    _context: ::softbuffer::Context<std::sync::Arc<dyn raw_window_handle::HasDisplayHandle>>,
     surface: ::softbuffer::Surface<
         std::sync::Arc<dyn raw_window_handle::HasDisplayHandle>,
         std::sync::Arc<dyn raw_window_handle::HasWindowHandle>,
@@ -43,7 +46,7 @@ impl SoftbufferPresenter {
         let context = ::softbuffer::Context::new(display)?;
         let surface = ::softbuffer::Surface::new(&context, window)?;
         Ok(Self {
-            context,
+            _context: context,
             surface,
             width: 1,
             height: 1,
@@ -84,14 +87,6 @@ impl SoftbufferPresenter {
         buffer.copy_from_slice(&argb[..len.min(argb.len())]);
         buffer.present()?;
         Ok(())
-    }
-
-    /// The context (kept alive with the surface).
-    #[must_use]
-    pub const fn context(
-        &self,
-    ) -> &::softbuffer::Context<std::sync::Arc<dyn raw_window_handle::HasDisplayHandle>> {
-        &self.context
     }
 }
 

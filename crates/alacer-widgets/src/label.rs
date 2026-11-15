@@ -11,7 +11,10 @@ use alacer_core::widget::{EventResponse, LabelSource, Role, Widget};
 /// Static text. The accessible name *is* the text.
 pub struct Label {
     text: LabelText,
-    color: Color,
+    /// The app's text color override; `None` borrows the theme's text
+    /// role at paint time (ADR-0079) — the role re-resolves on a
+    /// retheme, the override never does.
+    color: Option<Color>,
     font_size: f32,
     style: Style,
 }
@@ -27,7 +30,7 @@ impl Label {
     pub fn new(text: impl Into<String>) -> Self {
         Self {
             text: LabelText::Fixed(text.into()),
-            color: crate::theme::TEXT,
+            color: None,
             font_size: crate::theme::FONT_SIZE,
             style: Style::default(),
         }
@@ -43,10 +46,11 @@ impl Label {
         }
     }
 
-    /// Text color.
+    /// Text color. Without it the label borrows the theme's text role
+    /// at paint time (ADR-0079).
     #[must_use]
     pub fn color(mut self, color: Color) -> Self {
-        self.color = color;
+        self.color = Some(color);
         self
     }
 
@@ -72,9 +76,10 @@ impl Label {
         }
     }
 
-    /// Sets the text color in place (view reconciliation).
+    /// Sets the text color in place (view reconciliation) — an explicit
+    /// override, immune to rethemes.
     pub fn set_color(&mut self, color: Color) {
-        self.color = color;
+        self.color = Some(color);
     }
 
     /// Sets the font size in place (view reconciliation).
@@ -121,6 +126,10 @@ impl Widget for Label {
         if text.is_empty() {
             return;
         }
+        // The borrowed role resolves per paint pass (ADR-0079): a plain
+        // label follows the installed palette, an overridden one keeps
+        // the color its app set.
+        let color = self.color.unwrap_or(ctx.palette().text);
         // Wrap at the laid-out width — the constraint the measure pass saw,
         // so the painted lines match the node's height (§5.2's wrapped label).
         alacer_core::text_seam::with_seam(|seam| {
@@ -129,7 +138,7 @@ impl Widget for Label {
                 ctx.push_glyph(alacer_core::scene::Glyph {
                     position: Point::new(glyph.x, glyph.y),
                     size: glyph.size,
-                    color: self.color,
+                    color,
                     font_id: glyph.font_id,
                     glyph_id: glyph.glyph_id,
                     clip: None,

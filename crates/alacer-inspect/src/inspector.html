@@ -615,6 +615,17 @@ function connect() {
           "the view's patch — " + shape);
         break;
       }
+      case "theme": {
+        // The client renders the theme tier's own fact (M73, ADR-0079):
+        // the palette's tag beside the door that landed it — the log
+        // names the palette, the paint pass resolves it (the payload
+        // rule's shape: the palette's colors never ride the wire) — so
+        // a reader answers "which palette is live now, and when did it
+        // move?" from the row alone.
+        addLog("theme", "theme " + event.palette,
+          "the palette is now " + event.palette);
+        break;
+      }
       case "frame":
         renderFrame(event);
         addLog("frame", "frame " + event.number,

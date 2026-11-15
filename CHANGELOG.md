@@ -9,6 +9,46 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M71 — the frame's refusals join the causal log (ADR-0077)**:
+  the frame tier's own kill rule cashed — a consumer cannot answer
+  "why did nothing paint?" from the log the causal trail streams: the
+  frame, the tier every other tier's work rides, answered a
+  `tracing::error!` line and a skipped frame when it went unpainted —
+  so the frame grows its own named fact
+  ([`FrameRefusalRecord`](crates/alacer-core/src/inspect.rs) — the
+  species beside the failing node when one is the fact — in
+  [`InspectEvent::FrameRefusal`](crates/alacer-core/src/inspect.rs) at
+  the tick's start drain, the route-drop trail's shape, one frame
+  after the frame that refused; the thread trail bounded 256, the
+  recorder's ring 512), the note sites the exact places the refusals
+  resolve — the tick's layout block for the engine seam's own
+  [`LayoutError`](crates/alacer-core/src/passes.rs) (the `?`'s
+  propagation spelled out, the failing node riding verbatim,
+  ADR-0023's vocabulary) and the present ladder's stages in
+  `alacer-platform` (`render_failed` / `partial_repaint_failed` /
+  `framebuffer_lost` / `present_failed` — the softbuffer ladder's one
+  silent arm, the full re-rasterization whose `None` kept a stale
+  framebuffer without logging anything, named at the same cut), the
+  species the ladder's own stages (`layout_refused`/`render_failed`/
+  `partial_repaint_failed`/`framebuffer_lost`/`present_failed`), one
+  fact per refusal (the frames that painted stream no refusal fact —
+  the flood rule at the frame tier), the record riding *beside* the
+  refusal's own door (the tick still answers `Err(LayoutError)`, the
+  ladder still skips the frame — never instead of it; the engines'
+  prose staying on the error types and the trail's trace lines, the
+  payload rule's shape), the wire carrying the additive
+  `frame_refusal` event at version 1 (`species`/`node`,
+  `FrameRefusalSpecies::name` the single source), the embedded client
+  rendering the refused stage's row on one log,
+  `examples/frame_refusals.rs` walking the beat from the consumer side
+  (a refusing layout engine behind the real pipeline, the `Err` the
+  door still answers, the record beside it), the corpus growing 69 →
+  71 (`frame_refusal/note_disabled` — the A7 contract's one disabled
+  branch per note; `frame_refusal/note_enabled_bounded` — the enabled
+  steady state's bounded push, bench, gate, and baseline in the same
+  cut), and the living documents re-agree (the m71 suite pins the
+  engine-seam refusal through the real pipeline, the recovered frames'
+  honest absence, the stable tags, and the documents)
 - **M70 — the activation names its rider (ADR-0076)**:
   ADR-0075's own kill rule cashed — a consumer cannot tell the AT's
   press from the keyboard's Space/Enter activation on the log the

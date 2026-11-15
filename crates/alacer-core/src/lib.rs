@@ -49,6 +49,7 @@ pub mod color;
 pub mod damage;
 pub mod events;
 pub mod flux;
+pub mod frame_refusal;
 pub mod geom;
 pub mod gesture;
 pub mod history;
@@ -82,6 +83,7 @@ pub use events::{
     EventPhase, ImeEvent, Key, KeyEvent, KeyState, Modifiers, MouseButton, PointerEvent,
 };
 pub use flux::{Flux, FluxCounters, FluxRwSignal, FluxWriter, RenderBinding};
+pub use frame_refusal::FRAME_REFUSAL_TRAIL_CAP;
 // The reactive trait seam: the framework's signal handles are
 // `reactive_graph`'s, so its read/write traits ride the same re-export
 // (call sites never need a direct reactive_graph dependency).
@@ -90,12 +92,13 @@ pub use input::EventCoalescer;
 pub use inspect::{
     A11yEchoRecord, ActionAsk, ActionOutcome, ActionRecord, ActionRefusal, ActionRider, BindingId,
     ClipboardAction, ClipboardOutcome, ClipboardRecord, ClipboardRefusal, DirtyNode,
-    EdgeActivation, FocusRecord, FocusRider, FrameSummary, GesturePhase, GestureRecord, InputKind,
-    InputRecord, InspectEvent, InspectObserver, KeyEditAction, KeyEditDriver, KeyEditOutcome,
-    KeyEditRecord, KeyEditRefusal, KeyRecord, PassTiming, PreeditAction, PreeditRecord, RangeBound,
-    RouteDropRecord, RouteDropRider, RouteDropSpecies, ScrollAction, ScrollOutcome, ScrollRecord,
-    ScrollRefusal, SignalKey, SignalWrite, Tee, TextWriteAction, TextWriteOutcome, TextWriteRecord,
-    TextWriteRefusal, TextWriteSource, ValueAction, ValueOutcome, ValueRecord, ValueRefusal,
+    EdgeActivation, FocusRecord, FocusRider, FrameRefusalRecord, FrameRefusalSpecies, FrameSummary,
+    GesturePhase, GestureRecord, InputKind, InputRecord, InspectEvent, InspectObserver,
+    KeyEditAction, KeyEditDriver, KeyEditOutcome, KeyEditRecord, KeyEditRefusal, KeyRecord,
+    PassTiming, PreeditAction, PreeditRecord, RangeBound, RouteDropRecord, RouteDropRider,
+    RouteDropSpecies, ScrollAction, ScrollOutcome, ScrollRecord, ScrollRefusal, SignalKey,
+    SignalWrite, Tee, TextWriteAction, TextWriteOutcome, TextWriteRecord, TextWriteRefusal,
+    TextWriteSource, ValueAction, ValueOutcome, ValueRecord, ValueRefusal,
 };
 pub use keymap::{Chord, Keymap, KeymapConsult, KeymapSeam};
 pub use mask::Change;

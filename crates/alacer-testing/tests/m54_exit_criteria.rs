@@ -260,8 +260,8 @@ fn m54_the_living_documents_re_agree() {
     // the demonstration.
     let readme = read_workspace_file("README.md");
     for fragment in [
-        "M0 through M70",
-        "seventy-seven decision records",
+        "M0 through M71",
+        "seventy-eight decision records",
         "Since M54 the value steps name their page too",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
@@ -283,7 +283,7 @@ fn m54_the_living_documents_re_agree() {
     let architecture = read_workspace_file("docs/architecture.md");
     for fragment in [
         "ADR-0060",
-        "77 decision records",
+        "78 decision records",
         "the value step's page joins the scroll record",
     ] {
         assert!(
@@ -315,7 +315,7 @@ fn m54_the_living_documents_re_agree() {
             "crates/alacer-testing/tests/{suite}_exit_criteria.rs"
         ));
         assert!(
-            source.contains("M0 through M70"),
+            source.contains("M0 through M71"),
             "the {suite} suite's README pin moved with the documents"
         );
     }
@@ -326,7 +326,7 @@ fn m54_the_living_documents_re_agree() {
             "crates/alacer-testing/tests/{suite}_exit_criteria.rs"
         ));
         assert!(
-            source.contains("77 decision records"),
+            source.contains("78 decision records"),
             "the {suite} suite's architecture pin moved with the register"
         );
     }
@@ -335,7 +335,7 @@ fn m54_the_living_documents_re_agree() {
             "crates/alacer-testing/tests/{suite}_exit_criteria.rs"
         ));
         assert!(
-            source.contains("seventy-seven decision records"),
+            source.contains("seventy-eight decision records"),
             "the {suite} suite's README status pin moved with the documents"
         );
     }

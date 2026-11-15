@@ -394,6 +394,16 @@
       "id": "trail_tee_announce_100_1k",
       "baseline": "trail/tee_announce_100_1k",
       "scope": "same-host"
+    },
+    {
+      "id": "frame_refusal_note_disabled",
+      "baseline": "frame_refusal/note_disabled",
+      "scope": "same-host"
+    },
+    {
+      "id": "frame_refusal_note_enabled_bounded",
+      "baseline": "frame_refusal/note_enabled_bounded",
+      "scope": "same-host"
     }
   ],
   "test_enforced_gates": [

@@ -11,12 +11,9 @@
 # Competitor harness build artifacts (standalone projects, ADR-0013)
 benchmarks/competitors/*/target
 __pycache__/
-# The operator's local release runner and its generated PR body (never tracked)
+# Handoff artifacts (never committed): the operator's local release runner,
+# its ship manifest, and its generated PR body.
 ship.sh
 ship.toml
 .github/pr-body.md
 docs/launch.md
-
-# Handoff artifacts (never committed): the ship manifest and the PR body.
-ship.toml
-.github/pr-body.md

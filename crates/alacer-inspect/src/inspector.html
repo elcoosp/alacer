@@ -602,6 +602,19 @@ function connect() {
           "the frame's " + event.species.replace(/_/g, " ") + where_);
         break;
       }
+      case "view_patch": {
+        // The client renders the view tier's own fact (M72, ADR-0078):
+        // the reconciler's four counts beside each other — the mount's
+        // build and every re-render's diff, named by its lengths, the
+        // props never riding (the payload rule's shape) — so a reader
+        // answers "what did my re-render change — and how much?" from
+        // the row alone.
+        const shape = "created " + event.created + ", removed " + event.removed +
+          ", patched " + event.patched + ", moved " + event.moved;
+        addLog("view_patch", "view_patch " + shape,
+          "the view's patch — " + shape);
+        break;
+      }
       case "frame":
         renderFrame(event);
         addLog("frame", "frame " + event.number,

@@ -13,6 +13,11 @@
 //! effective-palette equality, the no-op install's whole cost) and the
 //! composed flip end to end (`door_flip_composed` — the fact that
 //! lands, the composer's resolution, the composed palette's mount).
+//! Since M77 the grown fact's flip joins the corpus (ADR-0083,
+//! ADR-0080's first re-open rule): `door_flip_motion` — the
+//! motion-only flip landing where the dark fact is still, both facts
+//! resolved, the record streamed, the real reader pricing the fact
+//! tier's growth.
 
 use alacer_core::flux::Flux;
 use alacer_core::inspect::SettingRecord;
@@ -27,11 +32,12 @@ use std::hint::black_box;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-/// The record one flip carries: the dark-mode fact, verbatim (the
-/// payload rule at the setting tier — the bool is the fact).
+/// The record one flip carries: the OS facts, verbatim (the payload
+/// rule at the setting tier — the bools are the facts).
 fn flip() -> SettingRecord {
     SettingRecord {
         dark: true,
+        reduced_motion: false,
         repainted: 1,
     }
 }
@@ -93,6 +99,10 @@ impl SettingSeam for FixedSettings {
     fn dark_mode(&self) -> bool {
         self.dark
     }
+
+    fn reduced_motion(&self) -> bool {
+        false
+    }
 }
 
 /// The composed dark palette the bench composer answers — every role
@@ -122,6 +132,25 @@ impl SettingComposer for DuetComposer {
 
     fn name(&self) -> &'static str {
         "duet"
+    }
+}
+
+/// The bench's motion-bearing seam (ADR-0083): the dark fact stays
+/// fixed, the motion fact answers an atomic the bench handle toggles —
+/// every measured flip is the motion-only landing the grown door check
+/// admits where the dark fact is still, the case the M74 check would
+/// have swallowed.
+struct MotionSettings {
+    motion: std::sync::Arc<AtomicBool>,
+}
+
+impl SettingSeam for MotionSettings {
+    fn dark_mode(&self) -> bool {
+        false
+    }
+
+    fn reduced_motion(&self) -> bool {
+        self.motion.load(Ordering::Relaxed)
     }
 }
 
@@ -169,6 +198,16 @@ fn bench_settings(c: &mut Criterion) {
         });
     });
 
+    group.finish();
+}
+
+/// The setting door's own costs (ADR-0080, ADR-0081, ADR-0082, ADR-0083): the
+/// flip's equality check, the composition's resolution, the counted and
+/// motion-bearing flips read end to end — the real readers the lengths rule
+/// priced.
+fn bench_settings_door(c: &mut Criterion) {
+    let mut group = c.benchmark_group("settings");
+
     // The door's own steady state, priced beside the note: the
     // installed seam's fact re-read and compared — the no-op flip's
     // whole cost (the idle rule: no broadcast, no record, no facts). An
@@ -186,6 +225,14 @@ fn bench_settings(c: &mut Criterion) {
             black_box(pipeline.set_settings(Box::new(FixedSettings { dark: true })));
         });
     });
+
+    group.finish();
+}
+
+/// The composition tier's own costs (ADR-0081): the install's resolution
+/// beside the effective-palette equality, the composed flip end to end.
+fn bench_settings_composition(c: &mut Criterion) {
+    let mut group = c.benchmark_group("settings");
 
     // The composition install's own steady state, priced beside the
     // door (ADR-0081): the composer's resolution and the effective-
@@ -257,13 +304,61 @@ fn bench_settings(c: &mut Criterion) {
                     alacer_core::inspect::InspectEvent::Setting(record) => Some(record.repainted),
                     _ => None,
                 })
-                .last();
+                .next_back();
             black_box(count);
+        });
+    });
+
+    // The motion-only flip, read end to end (ADR-0083): the fact the
+    // M74 door's dark-only check swallowed lands now — both facts
+    // resolved where the broadcast resolves, the record carrying them
+    // beside the count, the tick's start drain streaming it into the
+    // trail reader, the reader naming the motion fact. Each measured
+    // iteration toggles the dark fact so every flip lands (the motion
+    // fact rides beside it unchanged); the motion-only landing itself
+    // is the shape the m77 suite pins.
+    group.bench_function("door_flip_motion", |b| {
+        let mut pipeline = PassPipeline::new(
+            Flux::new(),
+            Box::new(NoopLayout),
+            Box::new(NullJournal),
+            Box::new(NullA11y),
+        );
+        let reader = TrailLog::new();
+        pipeline.set_observer(Box::new(reader.clone()));
+        let motion = Arc::new(AtomicBool::new(false));
+        pipeline.set_settings(Box::new(MotionSettings {
+            motion: Arc::clone(&motion),
+        }));
+        b.iter(|| {
+            let _previous = motion.fetch_xor(true, Ordering::Relaxed);
+            black_box(pipeline.set_settings(Box::new(MotionSettings {
+                motion: Arc::clone(&motion),
+            })));
+            pipeline
+                .tick(alacer_core::geom::Size::new(320.0, 240.0))
+                .expect("the motion-flip bench's frames lay out");
+            let landed = reader
+                .look()
+                .into_iter()
+                .filter_map(|event| match event {
+                    alacer_core::inspect::InspectEvent::Setting(record) => {
+                        Some(record.reduced_motion)
+                    }
+                    _ => None,
+                })
+                .next_back();
+            black_box(landed);
         });
     });
 
     group.finish();
 }
 
-criterion_group!(benches, bench_settings);
+criterion_group!(
+    benches,
+    bench_settings,
+    bench_settings_door,
+    bench_settings_composition
+);
 criterion_main!(benches);

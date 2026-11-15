@@ -318,6 +318,21 @@ impl Widget for Checkbox {
             && event.key == alacer_core::events::Key::Space
         {
             self.toggle(ctx);
+            // The keyboard activation names itself (M70, ADR-0076): the
+            // toggle-on-press ride — the focused checkbox answering
+            // Space like a click — streams one `ActionRecord` with
+            // `Keyboard` beside it, the attribution declared where the
+            // route is known (the M30 rider rule at the activation
+            // tier). The stamp rides the key route's guard (M45,
+            // ADR-0051) — the focused control's id, never guessed at
+            // the note site. One branch when nobody listens (the A7
+            // idle contract).
+            alacer_core::action::note_action(alacer_core::ActionRecord {
+                ask: alacer_core::inspect::ActionAsk::Press,
+                target: None,
+                outcome: alacer_core::inspect::ActionOutcome::Delivered,
+                rider: alacer_core::inspect::ActionRider::Keyboard,
+            });
             return EventResponse::Handled;
         }
         EventResponse::Ignored

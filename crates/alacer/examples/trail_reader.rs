@@ -77,6 +77,13 @@ fn describe(event: &InspectEvent) -> String {
         InspectEvent::Theme(record) => {
             format!("a theme swap landed — palette {}", record.palette)
         }
+        InspectEvent::Setting(record) => {
+            if record.dark {
+                "the OS pushed dark".to_string()
+            } else {
+                "the OS pushed light".to_string()
+            }
+        }
         InspectEvent::Frame(_) => "a frame completed".to_string(),
     }
 }

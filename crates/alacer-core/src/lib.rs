@@ -37,6 +37,12 @@
 //!   pass into [`scene::PaintCtx`], the swap riding `Change::PAINT` on
 //!   the tree and one [`inspect::ThemeRecord`] on the causal log
 //!   (§7.2 pass 8, ADR-0079).
+//! - [`settings`] — the OS setting seam: the dark-mode fact the
+//!   platform adapter installs as one [`SettingSeam`]
+//!   (`PassPipeline::set_settings`), resolved once per paint pass into
+//!   [`scene::PaintCtx`] beside the palette, the flip riding
+//!   `Change::PAINT` on the tree and one [`inspect::SettingRecord`] on
+//!   the causal log (§7.2 pass 8, ADR-0080).
 //! - [`flux`] — the mask bridge over `reactive_graph`: effects never mutate widgets;
 //!   every effect drain ends by queuing `Change` masks (architecture §5.2).
 //! - [`passes`] — the pass contract: `event` → `update_focusable` →
@@ -71,6 +77,7 @@ pub mod preedit;
 pub mod route_drop;
 pub mod scene;
 pub mod scroll;
+pub mod settings;
 pub mod style;
 pub mod text_seam;
 pub mod text_write;
@@ -106,10 +113,10 @@ pub use inspect::{
     GesturePhase, GestureRecord, InputKind, InputRecord, InspectEvent, InspectObserver,
     KeyEditAction, KeyEditDriver, KeyEditOutcome, KeyEditRecord, KeyEditRefusal, KeyRecord,
     PassTiming, PreeditAction, PreeditRecord, RangeBound, RouteDropRecord, RouteDropRider,
-    RouteDropSpecies, ScrollAction, ScrollOutcome, ScrollRecord, ScrollRefusal, SignalKey,
-    SignalWrite, Tee, TextWriteAction, TextWriteOutcome, TextWriteRecord, TextWriteRefusal,
-    TextWriteSource, ThemeRecord, ValueAction, ValueOutcome, ValueRecord, ValueRefusal,
-    ViewPatchRecord,
+    RouteDropSpecies, ScrollAction, ScrollOutcome, ScrollRecord, ScrollRefusal, SettingRecord,
+    SignalKey, SignalWrite, Tee, TextWriteAction, TextWriteOutcome, TextWriteRecord,
+    TextWriteRefusal, TextWriteSource, ThemeRecord, ValueAction, ValueOutcome, ValueRecord,
+    ValueRefusal, ViewPatchRecord,
 };
 pub use keymap::{Chord, Keymap, KeymapConsult, KeymapSeam};
 pub use mask::Change;
@@ -123,6 +130,8 @@ pub use scene::{
     Glyph, GlyphBitmap, GlyphSource, PaintCtx, PaintSink, Primitive, Quad, SceneSnapshot,
     primitives_extent,
 };
+pub use settings::SETTING_TRAIL_CAP;
+pub use settings::{CanonSettings, SettingSeam};
 pub use style::{
     CrossAxisAlignment, Display, MainAxisAlignment, MeasureFn, MeasureSpec, Style, TextSpec,
 };
@@ -147,12 +156,13 @@ pub mod prelude {
     pub use crate::geom::{Point, Rect, Size, Vector};
     pub use crate::inspect::{
         ActionRecord, ClipboardRecord, GestureRecord, InspectEvent, InspectObserver,
-        KeyEditOutcome, KeyEditRecord, KeyEditRefusal, KeyRecord, PreeditRecord, ScrollRecord, Tee,
-        TextWriteRecord, ThemeRecord, ValueRecord,
+        KeyEditOutcome, KeyEditRecord, KeyEditRefusal, KeyRecord, PreeditRecord, ScrollRecord,
+        SettingRecord, Tee, TextWriteRecord, ThemeRecord, ValueRecord,
     };
     pub use crate::keymap::{Chord, Keymap, KeymapConsult, KeymapSeam};
     pub use crate::mask::Change;
     pub use crate::passes::{PassKind, PassPipeline};
+    pub use crate::settings::{CanonSettings, SettingSeam};
     pub use crate::style::{CrossAxisAlignment, Display, MainAxisAlignment, Style};
     pub use crate::theme::{CanonPalette, Palette, ThemeSeam};
     pub use crate::trail::{TRAIL_RING_CAP, TrailLog};

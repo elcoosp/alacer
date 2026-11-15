@@ -619,11 +619,15 @@ function connect() {
         // The client renders the theme tier's own fact (M73, ADR-0079):
         // the palette's tag beside the door that landed it — the log
         // names the palette, the paint pass resolves it (the payload
-        // rule's shape: the palette's colors never ride the wire) — so
-        // a reader answers "which palette is live now, and when did it
-        // move?" from the row alone.
+        // rule's shape: the palette's colors never ride the wire) —
+        // and, since M78 (ADR-0084), the broadcast's node count beside
+        // the tag (the lengths rule: a count is not an identity, the
+        // ids never ride) — so a reader answers "which palette is live
+        // now, when did it move, and how much did the swap repaint?"
+        // from the row alone.
         addLog("theme", "theme " + event.palette,
-          "the palette is now " + event.palette);
+          "the palette is now " + event.palette +
+          " — the swap repainted " + event.repainted + " nodes");
         break;
       }
       case "setting": {
@@ -631,12 +635,15 @@ function connect() {
         // ADR-0080): the dark-mode fact beside the door that landed it
         // — the bool *is* the fact — and, since M76 (ADR-0082), the
         // broadcast's node count beside it (the lengths rule: a count
-        // is not an identity, the ids never ride) — so a reader
-        // answers "what does the vocabulary consult now, when did the
-        // OS move it, and how much did the flip repaint?" from the row
-        // alone.
-        addLog("setting", "setting " + (event.dark ? "dark" : "light"),
-          "the OS fact is now " + (event.dark ? "dark" : "light") +
+        // is not an identity, the ids never ride), and since M77
+        // (ADR-0083) the reduced-motion fact beside the dark one (the
+        // additive field rule: one event, the facts beside each other)
+        // — so a reader answers "what does the vocabulary consult now,
+        // when did the OS move it, and how much did the flip repaint?"
+        // from the row alone.
+        const motion = event.reduced_motion ? ", reduced motion" : "";
+        addLog("setting", "setting " + (event.dark ? "dark" : "light") + motion,
+          "the OS fact is now " + (event.dark ? "dark" : "light") + motion +
           " — the flip repainted " + event.repainted + " nodes");
         break;
       }

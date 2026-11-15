@@ -617,6 +617,18 @@ pub enum WireEvent {
         /// Keyed children moved (LIS non-members).
         moved: usize,
     },
+    /// A theme swap landed — the theme tier's own trail (M73,
+    /// ADR-0079): a new event kind at version 1, clients that ignore
+    /// unknown kinds unaffected (the additive rule). The palette's tag
+    /// beside the door that landed it — the log names the palette, the
+    /// paint pass resolves it; the palette's colors never ride the
+    /// wire (the payload rule's shape).
+    Theme {
+        /// The installed palette's tag — the seam's own `name()`
+        /// (`"canon"`, `"midnight"`, `"high_contrast"`), the stable,
+        /// documented field value the protocol document pins.
+        palette: String,
+    },
     /// A completed frame — the ledger + the mask heatmap.
     Frame {
         /// Monotonic frame number.
@@ -1160,6 +1172,18 @@ pub fn wire_view_patch(record: &alacer_core::inspect::ViewPatchRecord) -> WireEv
         removed: record.removed,
         patched: record.patched,
         moved: record.moved,
+    }
+}
+
+/// The theme-swap record, flat on the wire (M73, ADR-0079): the
+/// palette's tag beside the door that landed it — the log names the
+/// palette, the paint pass resolves it. The theme tier's own answer,
+/// never a silent repaint: the swaps the whole window rode are named
+/// facts now, one per swap that landed.
+#[must_use]
+pub fn wire_theme(record: &alacer_core::inspect::ThemeRecord) -> WireEvent {
+    WireEvent::Theme {
+        palette: record.palette.clone(),
     }
 }
 

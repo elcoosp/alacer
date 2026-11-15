@@ -481,6 +481,7 @@ mod tests {
     use super::default_registry;
     use crate::theme;
     use alacer_core::color::Color;
+    use alacer_core::widget::Widget as _;
     use alacer_view::ViewNode;
 
     /// Downcasts the erased widget to `Checkbox` (the test's introspection).
@@ -778,6 +779,18 @@ mod tests {
             (size.height - 12.0).abs() < f32::EPSILON,
             "panel height prop materialized"
         );
-        let _ = theme::SURFACE;
+        // The absent `color` prop resolves the canon surface (ADR-0079's
+        // pin): the registry default is the palette's own surface role,
+        // byte-identical to what 0.16 painted.
+        assert_eq!(
+            crate::Panel::new(0.0, crate::theme::SURFACE).style(),
+            widget.style(),
+            "the absent color prop's default is the canon surface"
+        );
+        assert_eq!(
+            alacer_core::theme::Palette::CANON.surface,
+            theme::SURFACE,
+            "the canon palette pins the surface the registry borrows"
+        );
     }
 }

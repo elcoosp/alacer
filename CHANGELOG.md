@@ -9,6 +9,55 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M76 — the flip names its repaint count (ADR-0082)**: ADR-0080's
+  second pre-registered re-open rule cashes — a consumer asking "how
+  much did the OS flip repaint?" had to re-derive it, the record
+  naming the fact alone — so
+  [`SettingRecord`](crates/alacer-core/src/inspect.rs) grows the
+  broadcast's node count beside the fact (`repainted` — the lengths
+  rule: the count computed where the broadcast resolves,
+  `PassPipeline::set_settings`'s own pre-order walk, the walk's length
+  *is* the flip's reach, never re-counted at the reader, the ids never
+  riding — a count is not an identity), the count being the fact of the
+  flip's own moment (a tree that grows later never rewrites a queued
+  record), the no-op flip streaming no record (there is no count to
+  name, the idle-frame property unchanged), the wire growing additively
+  at version 1 (`setting` — the fact beside its reach), the embedded
+  client rendering the count in the row's detail line, the composition
+  door's swaps riding the grown record unchanged (one flip, one count,
+  however many palettes the composition resolved), the corpus growing
+  81 → 82 by the coordinated rule (`settings/door_flip_counted` — the
+  counted flip read end to end, the real reader the lengths rule
+  priced), and
+  [`examples/dark_mode.rs`](crates/alacer/examples/dark_mode.rs)'s exit
+  read-back names the reach beside the fact.
+- **M75 — the composition door (ADR-0081)**: ADR-0080's pre-registered
+  re-open rule cashes — through M74 an app that wanted palette-following
+  subscribed to its own OS events and called `set_theme` beside every flip
+  it watched — so the palette the OS's fact resolves into installs as one
+  [`SettingComposer`](crates/alacer-core/src/settings.rs)
+  (`PassPipeline::set_composer`), a pure function reading no platform
+  state — the pipeline hands it the fact, it answers a palette and the
+  tag the theme trail carries — the install resolving against the fact
+  that *is* (the effective-palette equality, one
+  [`ThemeRecord`](crates/alacer-core/src/inspect.rs) tagged with the
+  composer's name, `Change::PAINT` on the tree), every landed flip
+  re-resolving the composition on the flip's own broadcast (no second
+  walk over the arena, no second currency), the composed swap streaming
+  behind the flip's own `Setting` record (the M74 drain ordering — the
+  fact first, the palette that fact painted into second), the manual
+  `set_theme` door winning while the fact is still (the composition
+  owning the palette only when the OS moves),
+  [`CanonComposer`](crates/alacer-core/src/settings.rs) the provided
+  composition that follows nothing (the canon palette for either fact,
+  installable by name so a consumer that composed away can compose back
+  through the same door it composed in), a flip that composes the palette
+  already installed re-swapping nothing (the swap half the no-op, the
+  idle rule at the theme tier), the corpus growing 79 → 81 by the
+  coordinated rule (`settings/composer_install_no_op`,
+  `settings/door_flip_composed` — bench, gate, and baseline in the same
+  cut), and [`examples/follow_os.rs`](crates/alacer/examples/follow_os.rs)
+  drives the door from the consumer side.
 - **M74 — the OS setting seam (ADR-0080)**: ADR-0079's pre-registered
   re-open rule cashes — the OS's dark-mode fact existed nowhere in the
   pipeline, a widget that wanted it guessed or polled, and "follow the

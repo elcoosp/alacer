@@ -741,6 +741,12 @@ pub struct PassPipeline {
     /// `None` in every default path — the paint pass resolves the
     /// canon light fact, the fact the blessed corpus was blessed with.
     settings: Option<Box<dyn crate::settings::SettingSeam>>,
+    /// The installed composition seam (§7.2 pass 8, ADR-0081): the
+    /// palette the OS's fact resolves into — the composition door
+    /// resolves it at install time and on every flip that lands.
+    /// `None` in every default path — the palette follows nothing, the
+    /// app's own theme door the only mover (the M74 shape).
+    composer: Option<Box<dyn crate::settings::SettingComposer>>,
     /// The frame-batched input queue (§10.2, ADR-0014): raw platform
     /// pointer events coalesce here and route at tick start — the same
     /// one-frame currency the flux bridge gives signal writes (A1, ADR-2).
@@ -794,6 +800,7 @@ impl PassPipeline {
             observer: None,
             theme: None,
             settings: None,
+            composer: None,
             input: crate::input::EventCoalescer::new(),
             captured: None,
             announcement: None,
@@ -889,8 +896,10 @@ impl PassPipeline {
     ///
     /// The fact never munges the palette: the roles the widgets
     /// borrowed re-resolve from the *installed palette* exactly as
-    /// they were — an app that wants palette-following swaps its
-    /// palette through the theme door it already owns.
+    /// they were — an app that wants palette-following installs the
+    /// composition door ([`Self::set_composer`], ADR-0081), the
+    /// pipeline resolving the composed palette on this door's landed
+    /// flips.
     ///
     /// Answers `false` on a flip that lands where the fact already is
     /// — including the canon light installed where nothing is (the
@@ -907,11 +916,121 @@ impl PassPipeline {
         if installed == dark {
             return false;
         }
-        crate::settings::note_setting(crate::inspect::SettingRecord { dark });
-        self.settings = Some(settings);
         // The broadcast: every node repaints — the fact the whole tree
         // consulted moved. Collected first (`for_each_pre_order` borrows
-        // the arena immutably), merged after.
+        // the arena immutably), merged after; the walk's length *is* the
+        // flip's reach, the record's count computed here where the
+        // broadcast resolves, never re-counted at the reader (ADR-0082 —
+        // the lengths rule, the ids never riding).
+        let mut nodes = Vec::new();
+        self.arena.for_each_pre_order(&mut |id, _| nodes.push(id));
+        let repainted = nodes.len();
+        crate::settings::note_setting(crate::inspect::SettingRecord { dark, repainted });
+        self.settings = Some(settings);
+        for node in nodes {
+            self.arena.merge_mask(node, Change::PAINT);
+        }
+        // The composition half (§7.2 pass 8, ADR-0081): the flip's own
+        // record resolves the installed composer — the composed palette
+        // re-swapped the way `set_theme` swaps (the equality check, the
+        // theme fact tagged with the composer's name). The swap rides
+        // the flip's own broadcast — the whole tree repaints either
+        // way, no second walk over the arena. A flip that composes the
+        // palette already installed re-swaps nothing — the swap half of
+        // the door is the no-op (the idle rule at the theme tier), the
+        // flip itself still landed (the fact moved).
+        self.compose_from(dark, false);
+        true
+    }
+
+    /// Installs the composition seam (§7.2 pass 8, ADR-0081): the
+    /// palette the OS's fact resolves into — ADR-0080's pre-registered
+    /// re-open rule cashing ("a consumer needs the palette to *follow*
+    /// the OS fact → the pipeline grows the composition door, the
+    /// installed palette re-swapped on the flip's own record, priced by
+    /// a real reader — never a palette that reaches into the platform's
+    /// adapter").
+    ///
+    /// The install resolves *now*: the composer answers its palette for
+    /// the fact that is (the installed setting seam's, or the canon
+    /// light fact where nothing is installed), and the door swaps it in
+    /// the way [`Self::set_theme`] swaps — the `PartialEq` idle check,
+    /// one [`InspectEvent::Theme`] tagged with the composer's own
+    /// [`SettingComposer::name`], `Change::PAINT` on the tree. Every
+    /// later flip that lands through [`Self::set_settings`] re-resolves
+    /// the composition the same way — the palette follows the fact
+    /// while the composer is installed.
+    ///
+    /// Answers `false` on an install that composed the palette already
+    /// live — including the canon composition over the canon default
+    /// (the default build resolves the canon palette): no broadcast, no
+    /// record, the composer still riding for the next flip. Answers
+    /// `true` when the install moved the palette. The app's own
+    /// [`Self::set_theme`] ask lands over the composed answer and holds
+    /// until the next flip — the manual door wins while the fact is
+    /// still, the composition owning the palette only when the OS
+    /// moves.
+    pub fn set_composer(&mut self, composer: Box<dyn crate::settings::SettingComposer>) -> bool {
+        let dark = self
+            .settings
+            .as_deref()
+            .is_some_and(crate::settings::SettingSeam::dark_mode);
+        self.composer = Some(composer);
+        let landed = self.compose_from(dark, true);
+        if !landed {
+            tracing::trace!(
+                target: "alacer::settings",
+                "composer installed where the fact already resolves its palette"
+            );
+        }
+        landed
+    }
+
+    /// The composition's resolution half (ADR-0081): the installed
+    /// composer answers its palette for `dark`, and the answer swaps in
+    /// as the installed theme the roles borrow — the theme door's own
+    /// swap rules, priced where the swap resolves. Answers whether a
+    /// palette moved; a composer resolving the palette already
+    /// installed (or no composer at all) is the no-op. `broadcast`
+    /// merges the repaint currency itself — the install path carries
+    /// it, the flip path skips it (the flip's own broadcast already
+    /// walked the tree).
+    fn compose_from(&mut self, dark: bool, broadcast: bool) -> bool {
+        let Some(resolved) = self
+            .composer
+            .as_deref()
+            .map(|composer| (composer.palette(dark), composer.name()))
+        else {
+            return false;
+        };
+        let (palette, name) = resolved;
+        // The effective palette the tree paints: the installed theme's
+        // roles, or the canon constants where nothing is installed —
+        // the paint pass's own resolution (ADR-0079). A composition
+        // resolving the palette already live is the no-op: the canon
+        // composition over the canon default (the default build's own
+        // answer) composes nothing, the theme tier's idle rule.
+        let installed = self.theme.as_deref().map_or(
+            crate::theme::Palette::CANON,
+            crate::theme::ThemeSeam::palette,
+        );
+        if installed == palette {
+            return false;
+        }
+        crate::theme::note_theme(crate::inspect::ThemeRecord {
+            palette: name.to_string(),
+        });
+        self.theme = Some(Box::new(crate::settings::ComposedPalette::new(
+            palette, name,
+        )));
+        if !broadcast {
+            return true;
+        }
+        // The install path's own broadcast (`set_composer` reaches this
+        // door outside a flip): the palette the whole tree borrowed
+        // moved, the currency's own rule. Collected first
+        // (`for_each_pre_order` borrows the arena immutably), merged
+        // after — `set_theme`'s shape.
         let mut nodes = Vec::new();
         self.arena.for_each_pre_order(&mut |id, _| nodes.push(id));
         for node in nodes {

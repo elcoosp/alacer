@@ -851,6 +851,20 @@ ignore unknown kinds are unaffected.
 
 The action tier's own fact (M69, ADR-0075, the tier's own kill rule): the press — the default accessibility action the platform's action route aims at a control — answered the dispatch funnel's bare `bool`, whose `false` collapsed the two facts a trail reader wants apart. The record names the ask's answer: `delivered`, or `refused` with the species beside it — `unavailable` when the availability tier's wall held the control down (the tree's one `enabled` truth, computed at the route, never guessed at a widget-private call site), `no_door` when no door answered the ask. The aimed id rides verbatim; a landing carries `refusal: null`. Since M70 (ADR-0076) the record names its rider: `action_route` for the AT's ask (the funnel's own note site) or `keyboard` for the focused control's Space/Enter activation (the M10 parity — the button's GTK release rule, the checkbox's toggle-on-press), the additive field the versioning rule admits at version 1. One fact per trail: the asks whose tiers already price themselves — the value tier's writes, the scroll tier's asks, the text-write tier's rewrites — stream no action fact. The event streams at the tick's start drain (the preedit drain's shape), one frame after the ask resolved; the queue behind it is bounded (256 facts per thread, oldest-first eviction) and the recorder's `action` ring holds 512. The additive event the versioning rule admits at version 1 — clients that ignore unknown kinds are unaffected.
 
+### `frame_refusal` — a frame refused to paint
+
+ ("why did nothing paint?")
+
+```json
+{
+  "kind":"frame_refusal",
+  "species":"layout_refused",
+  "node":9
+}
+```
+
+The frame tier's own fact (M71, ADR-0077, the tier's own kill rule): the frame itself — the tier every other tier's work rides — answered a log line and a skipped frame when it went unpainted; "why did nothing paint?" was unanswerable from the log alone. The record names the stage that refused: `layout_refused` (the tick's layout stage answered `LayoutError` — the engine seam's own failure or the no-root wiring bug, ADR-0023's error shape), `render_failed` (the backend's renderer refused a draw the frame asked for), `partial_repaint_failed` (the damage regions' scissored draw failed; the framebuffer survives), `framebuffer_lost` (the software path's persistent framebuffer could not be built), `present_failed` (the pixels were drawn and the present refused — the frame the user never saw). The failing node rides verbatim (the arena's own id vocabulary, ADR-0023's rule — the engine named it, the consumer resolves it against its own arena); a present-tier failure is the window's fact, not a widget's, and carries `node: null`. The record rides *beside* the refusal's own door — the tick still answers `Err(LayoutError)`, the ladder still skips the frame — never instead of it; the engines' prose summaries stay on the error types (the payload rule's shape: a fact, not a message). One fact per refusal, never per frame: the frames that painted stream no refusal fact (the frame summary prices those, the flood rule at the frame tier). The event streams at the tick's start drain, one frame after the frame that refused; the queue behind it is bounded (256 facts per thread, oldest-first eviction) and the recorder's `frame_refusal` ring holds 512. The additive event the versioning rule admits at version 1 — clients that ignore unknown kinds are unaffected.
+
 ### `frame` — a completed frame
 
  ("why is this frame slow?", "what did this mask touch?")

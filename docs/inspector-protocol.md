@@ -865,6 +865,22 @@ The action tier's own fact (M69, ADR-0075, the tier's own kill rule): the press 
 
 The frame tier's own fact (M71, ADR-0077, the tier's own kill rule): the frame itself — the tier every other tier's work rides — answered a log line and a skipped frame when it went unpainted; "why did nothing paint?" was unanswerable from the log alone. The record names the stage that refused: `layout_refused` (the tick's layout stage answered `LayoutError` — the engine seam's own failure or the no-root wiring bug, ADR-0023's error shape), `render_failed` (the backend's renderer refused a draw the frame asked for), `partial_repaint_failed` (the damage regions' scissored draw failed; the framebuffer survives), `framebuffer_lost` (the software path's persistent framebuffer could not be built), `present_failed` (the pixels were drawn and the present refused — the frame the user never saw). The failing node rides verbatim (the arena's own id vocabulary, ADR-0023's rule — the engine named it, the consumer resolves it against its own arena); a present-tier failure is the window's fact, not a widget's, and carries `node: null`. The record rides *beside* the refusal's own door — the tick still answers `Err(LayoutError)`, the ladder still skips the frame — never instead of it; the engines' prose summaries stay on the error types (the payload rule's shape: a fact, not a message). One fact per refusal, never per frame: the frames that painted stream no refusal fact (the frame summary prices those, the flood rule at the frame tier). The event streams at the tick's start drain, one frame after the frame that refused; the queue behind it is bounded (256 facts per thread, oldest-first eviction) and the recorder's `frame_refusal` ring holds 512. The additive event the versioning rule admits at version 1 — clients that ignore unknown kinds are unaffected.
 
+### `view_patch` — a view patch resolved
+
+ ("what did my re-render change — and how much?")
+
+```json
+{
+  "kind":"view_patch",
+  "created":1,
+  "removed":0,
+  "patched":0,
+  "moved":0
+}
+```
+
+The view tier's own fact (M72, ADR-0078, the tier's own kill rule): the view reconciliation — the tier every re-render rides — answered a `PatchReport` the imperative caller read and dropped (the mount's build streamed nothing at all), and the log carried no fact. The record carries the reconciler's four counts beside each other: `created` (subtree mounts — the build's opening count), `removed`, `patched` (a visual prop applied), `moved` (LIS non-members, §6.2). The counts are the fact, named by their lengths — the payload rule's shape: the props a patch applied never ride, the text they carry can. One fact per patch that moved something, never per frame: the frames that re-render nothing stream none, and the no-op re-render — a diff that moved nothing — streams none too (the idle-frame property, the m32 canon's own pre-registered rule; the flood rule at the view tier). The record rides *beside* the door's own `PatchReport` — `update` still answers the report it always answered — never instead of it. The event streams at the tick's start drain, one frame after the re-render that asked for the patch; the queue behind it is bounded (256 facts per thread, oldest-first eviction) and the recorder's `view_patch` ring holds 512. The additive event the versioning rule admits at version 1 — clients that ignore unknown kinds are unaffected.
+
 ### `frame` — a completed frame
 
  ("why is this frame slow?", "what did this mask touch?")

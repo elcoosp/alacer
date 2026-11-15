@@ -21,7 +21,12 @@
 //! The swap answers on the causal log: one
 //! [`crate::inspect::ThemeRecord`] per swap that landed — the
 //! palette's tag, never its colors (the payload rule's shape: the log
-//! names the palette, `PaintCtx` carries it) — the route-drop trail's
+//! names the palette, `PaintCtx` carries it) — and since M78 (ADR-0084,
+//! ADR-0082's second pre-registered re-open rule reaching the theme
+//! tier) the broadcast's node count rides beside the tag (the lengths
+//! rule: the count names the swap's reach, the ids never riding, the
+//! composed swap naming the same reach the flip's broadcast resolved —
+//! one flip, one count) — the route-drop trail's
 //! shape (ADR-0063), bounded, drained at the tick's start, silent
 //! while nobody listens (the A7 idle contract).
 //!
@@ -240,6 +245,7 @@ mod tests {
     fn the_disabled_trail_notes_nothing() {
         note_theme(ThemeRecord {
             palette: "midnight".to_string(),
+            repainted: 0,
         });
         assert!(
             take_theme_trail().is_empty(),
@@ -255,6 +261,7 @@ mod tests {
         for i in 0..(THEME_TRAIL_CAP + 8) {
             note_theme(ThemeRecord {
                 palette: format!("theme-{i}"),
+                repainted: i,
             });
         }
         let drained = take_theme_trail();
@@ -262,6 +269,10 @@ mod tests {
         assert_eq!(
             drained[0].palette, "theme-8",
             "the oldest evicted first (the ninth swap's tag)"
+        );
+        assert_eq!(
+            drained[0].repainted, 8,
+            "the count rides beside the tag — the swap's own reach"
         );
         assert!(
             take_theme_trail().is_empty(),

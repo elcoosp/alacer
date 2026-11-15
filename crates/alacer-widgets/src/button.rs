@@ -13,9 +13,15 @@ pub struct Button {
     label: String,
     pressed: bool,
     enabled: Enabled,
-    fill: Color,
-    fill_pressed: Color,
-    text_color: Color,
+    /// The app's fill override; `None` borrows the theme's accent role
+    /// at paint time (ADR-0079).
+    fill: Option<Color>,
+    /// The app's pressed-fill override; `None` borrows the theme's
+    /// pressed-accent role at paint time (ADR-0079).
+    fill_pressed: Option<Color>,
+    /// The app's text-color override; `None` borrows the theme's
+    /// on-accent role at paint time (ADR-0079).
+    text_color: Option<Color>,
     font_size: f32,
     corner_radius: f32,
     style: Style,
@@ -49,9 +55,9 @@ impl Button {
             label: label.into(),
             pressed: false,
             enabled: Enabled::Fixed(true),
-            fill: crate::theme::ACCENT,
-            fill_pressed: crate::theme::ACCENT_PRESSED,
-            text_color: Color::WHITE,
+            fill: None,
+            fill_pressed: None,
+            text_color: None,
             font_size: crate::theme::FONT_SIZE,
             corner_radius: 6.0,
             style: Style::default(),
@@ -85,18 +91,20 @@ impl Button {
         self
     }
 
-    /// Fill colors `(rest, pressed)`.
+    /// Fill colors `(rest, pressed)`. Without them the button borrows
+    /// the theme's accent roles at paint time (ADR-0079).
     #[must_use]
     pub fn colors(mut self, rest: Color, pressed: Color) -> Self {
-        self.fill = rest;
-        self.fill_pressed = pressed;
+        self.fill = Some(rest);
+        self.fill_pressed = Some(pressed);
         self
     }
 
-    /// Text color.
+    /// Text color. Without it the label borrows the theme's on-accent
+    /// role at paint time (ADR-0079).
     #[must_use]
     pub fn text_color(mut self, color: Color) -> Self {
-        self.text_color = color;
+        self.text_color = Some(color);
         self
     }
 
@@ -150,15 +158,17 @@ impl Button {
         self.label = label.into();
     }
 
-    /// Sets the fill (and pressed fill) in place (view reconciliation).
+    /// Sets the fill (and pressed fill) in place (view reconciliation) —
+    /// an explicit override, immune to rethemes.
     pub fn set_fill(&mut self, fill: Color) {
-        self.fill = fill;
-        self.fill_pressed = fill;
+        self.fill = Some(fill);
+        self.fill_pressed = Some(fill);
     }
 
-    /// Sets the text color in place (view reconciliation).
+    /// Sets the text color in place (view reconciliation) — an explicit
+    /// override, immune to rethemes.
     pub fn set_text_color(&mut self, color: Color) {
-        self.text_color = color;
+        self.text_color = Some(color);
     }
 
     /// Replaces the click handler in place (view reconciliation). `None`
@@ -198,20 +208,24 @@ impl Widget for Button {
         // The laid-out size comes from the pass system; no widget-side caching.
         let size = (ctx.size().width, ctx.size().height);
         let available = self.is_enabled();
+        // The borrowed roles resolve per paint pass (ADR-0079): a plain
+        // button follows the installed palette, an overridden one keeps
+        // the colors its app set.
+        let palette = ctx.palette();
         // The look tells the truth the tree carries (M22, ADR-0028): an
         // unavailable button paints the muted rail and the muted text —
-        // the theme constants the disabled state borrows.
+        // the border and muted roles the disabled state borrows.
         let fill = if !available {
-            crate::theme::BORDER
+            palette.border
         } else if self.pressed {
-            self.fill_pressed
+            self.fill_pressed.unwrap_or(palette.accent_pressed)
         } else {
-            self.fill
+            self.fill.unwrap_or(palette.accent)
         };
         let text_color = if available {
-            self.text_color
+            self.text_color.unwrap_or(palette.on_accent)
         } else {
-            crate::theme::TEXT_MUTED
+            palette.text_muted
         };
         crate::paint_background(
             ctx,

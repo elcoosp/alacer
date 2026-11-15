@@ -395,6 +395,7 @@ pub(crate) fn wire_event_of(event: &alacer_core::inspect::InspectEvent) -> WireE
             wire::wire_frame_refusal(record)
         }
         alacer_core::inspect::InspectEvent::ViewPatch(record) => wire::wire_view_patch(record),
+        alacer_core::inspect::InspectEvent::Theme(record) => wire::wire_theme(record),
         alacer_core::inspect::InspectEvent::Frame(summary) => wire::wire_frame(summary),
     }
 }

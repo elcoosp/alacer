@@ -590,6 +590,18 @@ function connect() {
         addLog("action", "action " + event.ask, answer);
         break;
       }
+      case "frame_refusal": {
+        // The client renders the frame tier's own fact (M71, ADR-0077):
+        // the ladder stage that refused — the species named on the row,
+        // the failing node beside it when a widget is the fact — so a
+        // reader answers "why did nothing paint?" from the log alone.
+        // The five honest stages render their own names, never a
+        // collapsed `false`.
+        const where_ = event.node != null ? " at node " + event.node : "";
+        addLog("frame_refusal", "frame_refusal " + event.species,
+          "the frame's " + event.species.replace(/_/g, " ") + where_);
+        break;
+      }
       case "frame":
         renderFrame(event);
         addLog("frame", "frame " + event.number,

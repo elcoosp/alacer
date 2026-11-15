@@ -95,6 +95,11 @@ pub const FRAME_REFUSAL_RING_CAP: usize = 512;
 /// tier's ring (ADR-0078).
 pub const VIEW_PATCH_RING_CAP: usize = 512;
 
+/// The theme ring's cap: the theme tier's own facts — the swaps'
+/// palette tags, bounded and named like every other tier's ring
+/// (ADR-0079).
+pub const THEME_RING_CAP: usize = 512;
+
 /// One recorded frame (the wire conversion lives in [`crate::wire`]).
 #[derive(Debug, Clone)]
 pub struct RecordedFrame {
@@ -150,6 +155,9 @@ struct Recording {
     /// beside each other, the mount's build and every re-render's
     /// diff — bounded by [`VIEW_PATCH_RING_CAP`]).
     view_patches: VecDeque<alacer_core::inspect::ViewPatchRecord>,
+    /// The theme facts (ADR-0079: the swaps' palette tags beside the
+    /// door — bounded by [`THEME_RING_CAP`]).
+    themes: VecDeque<alacer_core::inspect::ThemeRecord>,
     /// The most recent frame, for "what does the inspector see right now".
     latest: Option<alacer_core::inspect::FrameSummary>,
     /// The wire-shaped events awaiting the server's session drain (push, not
@@ -404,6 +412,16 @@ impl CausalRecorder {
             .unwrap_or_default()
     }
 
+    /// The recorded theme swaps, oldest first (ADR-0079: the
+    /// palette's tag beside the door — bounded by
+    /// [`THEME_RING_CAP`]).
+    #[must_use]
+    pub fn themes(&self) -> Vec<alacer_core::inspect::ThemeRecord> {
+        self.try_lock()
+            .map(|recording| recording.themes.iter().cloned().collect())
+            .unwrap_or_default()
+    }
+
     /// The most recent frame, when any frame was observed.
     #[must_use]
     pub fn latest_frame(&self) -> Option<alacer_core::inspect::FrameSummary> {
@@ -566,6 +584,9 @@ impl InspectObserver for RecorderHandle {
             }
             InspectEvent::ViewPatch(record) => {
                 push_bounded(&mut recording.view_patches, VIEW_PATCH_RING_CAP, record);
+            }
+            InspectEvent::Theme(record) => {
+                push_bounded(&mut recording.themes, THEME_RING_CAP, record);
             }
             InspectEvent::Frame(summary) => {
                 self.frames_seen.fetch_add(1, Ordering::Relaxed);

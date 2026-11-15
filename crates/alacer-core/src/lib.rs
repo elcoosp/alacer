@@ -71,6 +71,7 @@ pub mod text_write;
 pub mod trail;
 pub mod utf16;
 pub mod value;
+pub mod view_patch;
 pub mod widget;
 
 pub use a11y_echo::A11Y_ECHO_TRAIL_CAP;
@@ -84,6 +85,7 @@ pub use events::{
 };
 pub use flux::{Flux, FluxCounters, FluxRwSignal, FluxWriter, RenderBinding};
 pub use frame_refusal::FRAME_REFUSAL_TRAIL_CAP;
+pub use view_patch::VIEW_PATCH_TRAIL_CAP;
 // The reactive trait seam: the framework's signal handles are
 // `reactive_graph`'s, so its read/write traits ride the same re-export
 // (call sites never need a direct reactive_graph dependency).
@@ -98,7 +100,7 @@ pub use inspect::{
     PassTiming, PreeditAction, PreeditRecord, RangeBound, RouteDropRecord, RouteDropRider,
     RouteDropSpecies, ScrollAction, ScrollOutcome, ScrollRecord, ScrollRefusal, SignalKey,
     SignalWrite, Tee, TextWriteAction, TextWriteOutcome, TextWriteRecord, TextWriteRefusal,
-    TextWriteSource, ValueAction, ValueOutcome, ValueRecord, ValueRefusal,
+    TextWriteSource, ValueAction, ValueOutcome, ValueRecord, ValueRefusal, ViewPatchRecord,
 };
 pub use keymap::{Chord, Keymap, KeymapConsult, KeymapSeam};
 pub use mask::Change;

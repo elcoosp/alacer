@@ -881,6 +881,19 @@ The frame tier's own fact (M71, ADR-0077, the tier's own kill rule): the frame i
 
 The view tier's own fact (M72, ADR-0078, the tier's own kill rule): the view reconciliation — the tier every re-render rides — answered a `PatchReport` the imperative caller read and dropped (the mount's build streamed nothing at all), and the log carried no fact. The record carries the reconciler's four counts beside each other: `created` (subtree mounts — the build's opening count), `removed`, `patched` (a visual prop applied), `moved` (LIS non-members, §6.2). The counts are the fact, named by their lengths — the payload rule's shape: the props a patch applied never ride, the text they carry can. One fact per patch that moved something, never per frame: the frames that re-render nothing stream none, and the no-op re-render — a diff that moved nothing — streams none too (the idle-frame property, the m32 canon's own pre-registered rule; the flood rule at the view tier). The record rides *beside* the door's own `PatchReport` — `update` still answers the report it always answered — never instead of it. The event streams at the tick's start drain, one frame after the re-render that asked for the patch; the queue behind it is bounded (256 facts per thread, oldest-first eviction) and the recorder's `view_patch` ring holds 512. The additive event the versioning rule admits at version 1 — clients that ignore unknown kinds are unaffected.
 
+### `theme` — a theme swap landed
+
+ ("which palette is live now?", "when did the whole window repaint?")
+
+```json
+{
+  "kind":"theme",
+  "palette":"midnight"
+}
+```
+
+The theme tier's own fact (M73, ADR-0079): the palette the widgets borrow for their un-overridden paint roles — compile-time constants through 0.16, no door answering "make it dark" at all — is a seam now, and the swap answers on the log. The record carries the installed `ThemeSeam`'s own `name()` tag beside the door that landed it: `palette` is the stable, documented field value (`"canon"` for the provided default, app-defined tags for every custom palette). The tag is the fact — the payload rule's shape: the log names the palette, the paint pass resolves it, the palette's colors never ride the wire. One fact per swap that landed, never per frame: a swap that lands where the palette already is queues no masks and no facts (the idle-frame property, A1's rule at the theme tier), and the frames that paint the new palette stream no theme fact of their own — the frame summary prices those. The record rides *beside* the door's `bool` answer (`PassPipeline::set_theme` answers whether the swap landed) never instead of it. The event streams at the tick's start drain (the theme drain's arm runs after the view-patch drain, so a frame's trail reads routes → tiers → the palette those routes painted into), one frame after the door answered; the queue behind it is bounded (256 facts per thread, oldest-first eviction) and the recorder's `theme` ring holds 512. The additive event the versioning rule admits at version 1 — clients that ignore unknown kinds are unaffected.
+
 ### `frame` — a completed frame
 
  ("why is this frame slow?", "what did this mask touch?")

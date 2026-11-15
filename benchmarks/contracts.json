@@ -444,6 +444,21 @@
       "id": "settings_door_no_op_flip",
       "baseline": "settings/door_no_op_flip",
       "scope": "same-host"
+    },
+    {
+      "id": "settings_composer_install_no_op",
+      "baseline": "settings/composer_install_no_op",
+      "scope": "same-host"
+    },
+    {
+      "id": "settings_door_flip_composed",
+      "baseline": "settings/door_flip_composed",
+      "scope": "same-host"
+    },
+    {
+      "id": "settings_door_flip_counted",
+      "baseline": "settings/door_flip_counted",
+      "scope": "same-host"
     }
   ],
   "test_enforced_gates": [

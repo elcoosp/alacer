@@ -617,6 +617,19 @@ pub enum WireEvent {
         /// Keyed children moved (LIS non-members).
         moved: usize,
     },
+    /// An OS setting flip landed — the setting tier's own trail (M74,
+    /// ADR-0080): a new event kind at version 1, clients that ignore
+    /// unknown kinds unaffected (the additive rule). The dark-mode fact
+    /// beside the door that landed it — the bool *is* the fact, the
+    /// payload rule at the setting tier has nothing to strip. Streams
+    /// ahead of the theme facts (the flip is the fact the palette
+    /// resolves beside).
+    Setting {
+        /// The OS's dark-mode fact — the installed setting seam's own
+        /// answer, the stable, documented field value the protocol
+        /// document pins.
+        dark: bool,
+    },
     /// A theme swap landed — the theme tier's own trail (M73,
     /// ADR-0079): a new event kind at version 1, clients that ignore
     /// unknown kinds unaffected (the additive rule). The palette's tag
@@ -1185,6 +1198,17 @@ pub fn wire_theme(record: &alacer_core::inspect::ThemeRecord) -> WireEvent {
     WireEvent::Theme {
         palette: record.palette.clone(),
     }
+}
+
+/// The setting-flip record, flat on the wire (M74, ADR-0080): the
+/// dark-mode fact beside the door that landed it — the bool *is* the
+/// fact, the payload rule at the setting tier has nothing to strip.
+/// The setting tier's own answer, never a silent repaint: the flips
+/// the whole window rode are named facts now, one per flip that
+/// landed.
+#[must_use]
+pub fn wire_setting(record: &alacer_core::inspect::SettingRecord) -> WireEvent {
+    WireEvent::Setting { dark: record.dark }
 }
 
 /// The chord's key, named for the wire ([`KeyRecord`]'s `key` field):

@@ -736,6 +736,11 @@ pub struct PassPipeline {
     /// and a default build paints the constants the blessed corpus was
     /// blessed with.
     theme: Option<Box<dyn crate::theme::ThemeSeam>>,
+    /// The installed setting seam (§7.2 pass 8, ADR-0080): the OS's
+    /// dark-mode fact the platform adapter pushes through the door.
+    /// `None` in every default path — the paint pass resolves the
+    /// canon light fact, the fact the blessed corpus was blessed with.
+    settings: Option<Box<dyn crate::settings::SettingSeam>>,
     /// The frame-batched input queue (§10.2, ADR-0014): raw platform
     /// pointer events coalesce here and route at tick start — the same
     /// one-frame currency the flux bridge gives signal writes (A1, ADR-2).
@@ -788,6 +793,7 @@ impl PassPipeline {
             last_a11y_ids: None,
             observer: None,
             theme: None,
+            settings: None,
             input: crate::input::EventCoalescer::new(),
             captured: None,
             announcement: None,
@@ -828,6 +834,7 @@ impl PassPipeline {
         crate::frame_refusal::set_frame_refusal_trail_enabled(true);
         crate::view_patch::set_view_patch_trail_enabled(true);
         crate::theme::set_theme_trail_enabled(true);
+        crate::settings::set_setting_trail_enabled(true);
     }
 
     /// Installs the theme seam (§7.2 pass 8, ADR-0079): the palette the
@@ -861,6 +868,49 @@ impl PassPipeline {
         self.theme = Some(theme);
         // The broadcast: every node repaints — the palette the whole tree
         // borrowed moved. Collected first (`for_each_pre_order` borrows
+        // the arena immutably), merged after.
+        let mut nodes = Vec::new();
+        self.arena.for_each_pre_order(&mut |id, _| nodes.push(id));
+        for node in nodes {
+            self.arena.merge_mask(node, Change::PAINT);
+        }
+        true
+    }
+
+    /// Installs the setting seam (§7.2 pass 8, ADR-0080): the OS's
+    /// dark-mode fact the platform adapter pushes through the door —
+    /// on winit, the window's opening fact and the `ThemeChanged`
+    /// event. The next paint pass resolves the fact once and repaints
+    /// every node — the flip broadcasts `Change::PAINT` on the tree,
+    /// the mask's own documented semantics ("a color change repaints
+    /// this node only"), never a private repaint channel — and the
+    /// flip streams one [`InspectEvent::Setting`] the tick after it
+    /// lands (the theme trail's door-side note, ADR-0079's shape).
+    ///
+    /// The fact never munges the palette: the roles the widgets
+    /// borrowed re-resolve from the *installed palette* exactly as
+    /// they were — an app that wants palette-following swaps its
+    /// palette through the theme door it already owns.
+    ///
+    /// Answers `false` on a flip that lands where the fact already is
+    /// — including the canon light installed where nothing is (the
+    /// default build resolves light): no broadcast, no record, no
+    /// facts (the idle-frame property, A1's rule at the setting tier —
+    /// the theme tier's write rule, priced where the write resolves).
+    /// Answers `true` when the flip landed.
+    pub fn set_settings(&mut self, settings: Box<dyn crate::settings::SettingSeam>) -> bool {
+        let dark = settings.dark_mode();
+        let installed = self
+            .settings
+            .as_deref()
+            .is_some_and(crate::settings::SettingSeam::dark_mode);
+        if installed == dark {
+            return false;
+        }
+        crate::settings::note_setting(crate::inspect::SettingRecord { dark });
+        self.settings = Some(settings);
+        // The broadcast: every node repaints — the fact the whole tree
+        // consulted moved. Collected first (`for_each_pre_order` borrows
         // the arena immutably), merged after.
         let mut nodes = Vec::new();
         self.arena.for_each_pre_order(&mut |id, _| nodes.push(id));
@@ -1857,6 +1907,20 @@ impl PassPipeline {
         }
     }
 
+    /// Forwards one setting-flip fact to the observer, when installed
+    /// (§7.2 pass 8, ADR-0080): the setting trail — the dark-mode fact
+    /// beside the door that landed it, one fact per flip, the no-op
+    /// flip streaming none. Streams ahead of the theme trail's facts:
+    /// the flip is the fact the palette resolves beside, the fact
+    /// explaining the repaint the swap's facts answer into. One branch
+    /// when no observer is installed: the A7 idle contract is
+    /// unchanged.
+    fn notify_setting(&mut self, record: crate::inspect::SettingRecord) {
+        if let Some(observer) = self.observer.as_mut() {
+            observer.observe(InspectEvent::Setting(record));
+        }
+    }
+
     /// Forwards one speech-act fact to the observer, when installed
     /// (§13.3, ADR-0039): the announcement trail — the record the
     /// pipeline answered the act with, the politeness beside it. The
@@ -2505,6 +2569,20 @@ impl PassPipeline {
             self.notify_view_patch(record);
         }
 
+        // The setting trail's drain (§7.2 pass 8, ADR-0080): the flip
+        // facts the set_settings door queued on this thread ride the
+        // observer at the tick's start — the theme drain's shape, one
+        // frame after the door answered, the drain running just ahead
+        // of the theme trail's so a frame's trail reads the fact the
+        // palette resolved beside → the palette that fact painted
+        // into. Every fact streams (a bounded queue, never collapsed),
+        // and the drain empties the queue whether an observer listens
+        // or not: a fact streams once, an absent reader just never
+        // sees it.
+        for record in crate::settings::take_setting_trail() {
+            self.notify_setting(record);
+        }
+
         // The theme trail's drain (§7.2 pass 8, ADR-0079): the swap
         // facts the set_theme door queued on this thread ride the
         // observer at the tick's start — the view-patch drain's shape,
@@ -3025,6 +3103,16 @@ impl PassPipeline {
             crate::theme::Palette::CANON,
             crate::theme::ThemeSeam::palette,
         );
+        // The frame's OS fact, resolved once per paint pass (ADR-0080):
+        // one dynamic call per frame — the installed seam's dark-mode
+        // answer, or the canon light fact when nothing is installed —
+        // handed to every node's context beside the palette. Never per
+        // node: the resolution rides the palette's own once-per-pass
+        // overhead, priced by the pass-overhead contract.
+        let dark = self
+            .settings
+            .as_deref()
+            .is_some_and(crate::settings::SettingSeam::dark_mode);
         for node in targets {
             // The old layer's extent is damage too — a moved/resized widget
             // must erase where it *was*, not only paint where it is. An
@@ -3046,7 +3134,7 @@ impl PassPipeline {
                     crate::scene::PAINT_DAMAGE_MARGIN,
                 ));
             }
-            let primitives = self.paint_node(node, palette);
+            let primitives = self.paint_node(node, palette, dark);
             if let Some(extent) = crate::scene::primitives_extent(&primitives) {
                 damage.add(extent);
             }
@@ -3087,7 +3175,12 @@ impl PassPipeline {
         }
     }
 
-    fn paint_node(&mut self, node: NodeId, palette: crate::theme::Palette) -> Vec<Primitive> {
+    fn paint_node(
+        &mut self,
+        node: NodeId,
+        palette: crate::theme::Palette,
+        dark: bool,
+    ) -> Vec<Primitive> {
         struct JournalVec<'a> {
             out: &'a mut Vec<Primitive>,
         }
@@ -3103,7 +3196,7 @@ impl PassPipeline {
         let mut out = Vec::new();
         {
             let mut sink = JournalVec { out: &mut out };
-            let mut ctx = PaintCtx::new(&mut sink, origin, size, clip, palette);
+            let mut ctx = PaintCtx::new(&mut sink, origin, size, clip, palette, dark);
             let widget = &self.arena.slot(node).widget;
             widget.paint(&mut ctx);
         }

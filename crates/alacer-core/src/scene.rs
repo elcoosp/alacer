@@ -85,10 +85,11 @@ pub trait PaintSink {
 /// pass resolves the installed [`crate::theme::ThemeSeam`] once per paint
 /// pass — one dynamic call per frame, never per node — and every widget
 /// paints the roles its app did not override from the copy it holds.
-/// Beside the palette it carries the frame's resolved OS fact
-/// (ADR-0080): the installed [`crate::settings::SettingSeam`]'s
-/// dark-mode answer, resolved the same once-per-pass shape, the
-/// role-independent decision the vocabulary consults.
+/// Beside the palette it carries the frame's resolved OS facts
+/// (ADR-0080, ADR-0083): the installed [`crate::settings::SettingSeam`]'s
+/// dark-mode and reduced-motion answers, resolved the same
+/// once-per-pass shape, the role-independent decisions the vocabulary
+/// consults.
 pub struct PaintCtx<'a> {
     sink: &'a mut dyn PaintSink,
     origin: Point,
@@ -96,14 +97,16 @@ pub struct PaintCtx<'a> {
     clip: Option<Rect>,
     palette: crate::theme::Palette,
     dark: bool,
+    reduced_motion: bool,
 }
 
 impl<'a> PaintCtx<'a> {
     /// Creates a context painting at `origin` over `size`, with an optional
-    /// clip, resolving paint roles from `palette` and the OS's dark-mode
-    /// fact from `dark` (the paint pass resolves the installed seams once
+    /// clip, resolving paint roles from `palette`, the OS's dark-mode
+    /// fact from `dark`, and the OS's reduced-motion fact from
+    /// `reduced_motion` (the paint pass resolves the installed seams once
     /// per pass; direct callers without a theme resolve the canon palette
-    /// and the canon light fact).
+    /// and the canon facts).
     #[must_use]
     pub fn new(
         sink: &'a mut dyn PaintSink,
@@ -112,6 +115,7 @@ impl<'a> PaintCtx<'a> {
         clip: Option<Rect>,
         palette: crate::theme::Palette,
         dark: bool,
+        reduced_motion: bool,
     ) -> Self {
         Self {
             sink,
@@ -120,6 +124,7 @@ impl<'a> PaintCtx<'a> {
             clip,
             palette,
             dark,
+            reduced_motion,
         }
     }
 
@@ -147,6 +152,16 @@ impl<'a> PaintCtx<'a> {
     #[must_use]
     pub const fn dark(&self) -> bool {
         self.dark
+    }
+
+    /// The frame's resolved OS fact beside the dark one (ADR-0083): the
+    /// reduced-motion answer the installed setting seam gave this pass
+    /// — the fact a widget consults when motion itself is the question
+    /// (a spinner's spin, a thumbnail's autoplay), the same
+    /// once-per-pass shape the dark fact rides, never a per-node call.
+    #[must_use]
+    pub const fn reduced_motion(&self) -> bool {
+        self.reduced_motion
     }
 
     /// Records one quad, translated to absolute coordinates.
@@ -298,6 +313,7 @@ mod tests {
             crate::geom::Size::new(10.0, 10.0),
             None,
             crate::theme::Palette::CANON,
+            false,
             false,
         );
 

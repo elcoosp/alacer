@@ -1961,6 +1961,27 @@ pub struct ThemeRecord {
     pub palette: String,
 }
 
+/// One OS setting flip's fact (§7.2 pass 8, ADR-0080): the setting
+/// tier's own record — the dark-mode fact beside the door that landed
+/// it, the theme trail's shape (ADR-0079) at the setting tier. The
+/// bool *is* the fact: the payload rule at the setting tier has
+/// nothing to strip — a record that names whether the OS went dark,
+/// the log answering "what does the vocabulary consult now" from the
+/// row alone. The record rides *beside* the door's `bool` answer — the
+/// door still answers whether the flip landed — never instead of it; a
+/// flip that lands where the fact already is queues no record (the
+/// idle-frame property, A1's rule at the setting tier). One fact per
+/// flip, never per frame: the frames that paint under the fact stream
+/// no setting fact of their own.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SettingRecord {
+    /// The OS's dark-mode fact — the installed
+    /// [`alacer_core::settings::SettingSeam`]'s own answer, resolved
+    /// once per paint pass into `PaintCtx` (the palette the roles
+    /// borrow resolved beside it).
+    pub dark: bool,
+}
+
 /// One observation: what the pipeline and the flux surface to devtools.
 #[derive(Debug, Clone)]
 pub enum InspectEvent {
@@ -2086,6 +2107,13 @@ pub enum InspectEvent {
     /// start drain — a patch queues where it resolves, one frame
     /// after the re-render that asked for it).
     ViewPatch(ViewPatchRecord),
+    /// An OS setting flip landed — the setting tier's own trail
+    /// (ADR-0080): the dark-mode fact the platform adapter pushed
+    /// through the door, beside the door. Streams ahead of the theme
+    /// drain at the tick's start (the fact the palette resolves
+    /// beside, the flip explaining the repaint the swap's facts
+    /// answer into).
+    Setting(SettingRecord),
     /// A theme swap landed — the theme tier's own trail (ADR-0079):
     /// the palette's tag beside the door, one fact per swap that
     /// landed, the no-op swap streaming none. Streams with the frame's

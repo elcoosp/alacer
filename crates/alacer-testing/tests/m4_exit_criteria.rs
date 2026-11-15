@@ -243,10 +243,14 @@ fn a_patched_generation_renders_new_values_with_state_intact() {
     assert_eq!(report.created, 1, "exactly the patched-in widget created");
     assert_eq!(report.removed, 0, "nothing rebuilt");
     assert_eq!(
-        report.patched, 2,
-        "the generation marker's text changed, and the bound label's \
-         binding re-hung (bindings never compare equal by contract — the \
-         patcher re-hangs idempotently)"
+        report.patched, 1,
+        "the generation marker's text changed — the only visual patch. \
+         The bound label's binding re-hung (bindings never compare equal \
+         by contract — the patcher re-hangs idempotently), but a re-hang \
+         is the patcher's own no-op, never a visual change (the bound \
+         label's rule at the value tier, ADR-0038): the value rides the \
+         flux bridge's masks, and the m32 canon's idle frame counts a \
+         re-render that moved nothing as nothing."
     );
     assert_eq!(
         app.hot.root_id(),

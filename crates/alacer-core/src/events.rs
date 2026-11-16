@@ -220,7 +220,8 @@ pub enum Key {
 pub struct Modifiers {
     /// Shift.
     pub shift: bool,
-    /// Control (Linux/Windows) or Control (macOS).
+    /// Control — the physical Control key on every platform; Command
+    /// rides `meta`, the pair `primary` resolves per platform.
     pub control: bool,
     /// Alt / Option.
     pub alt: bool,

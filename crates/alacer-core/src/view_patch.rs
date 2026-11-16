@@ -16,8 +16,8 @@
 //! now ([`crate::inspect::ViewPatchRecord`], carried in
 //! [`crate::inspect`]) and the thread trail below, the route-drop
 //! trail's shape (ADR-0063): the note site is the exact place the
-//! patch resolves — [`alacer_view::ViewRoot::mount`]'s build and
-//! [`alacer_view::ViewRoot::update`]'s diff, where the report the door
+//! patch resolves — the view root's `mount` build and `update` diff (the
+//! `alacer_view` tier's own doors), where the report the door
 //! still answers is computed — and the dispatching pipeline drains it
 //! at the tick's start into
 //! [`crate::inspect::InspectEvent::ViewPatch`], dev-mode and bounded,

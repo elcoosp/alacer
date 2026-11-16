@@ -203,8 +203,8 @@ fn m67_the_living_documents_re_agree() {
     // the demonstration.
     let readme = read_workspace_file("README.md");
     for fragment in [
-        "M0 through M81",
-        "eighty-eight decision records",
+        "M0 through M85",
+        "ninety decision records",
         "Since M67 the adapter's echo streams its fact too",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
@@ -254,7 +254,7 @@ fn m67_the_living_documents_re_agree() {
     // The sibling suites' pins ride the same cut (one sweep, no drift).
     let m66 = read_workspace_file("crates/alacer-testing/tests/m66_exit_criteria.rs");
     assert!(
-        m66.contains("M0 through M81"),
+        m66.contains("M0 through M85"),
         "the m66 suite's pins moved with the documents"
     );
 }

@@ -122,8 +122,8 @@ pub use keymap::{Chord, Keymap, KeymapConsult, KeymapSeam};
 pub use mask::Change;
 pub use passes::{
     A11yDelta, A11ySink, FocusLanding, FocusMoveOutcome, FocusRefusal, FrameReport, ImePurpose,
-    ImeRequest, LayoutEngine, LayoutError, PassKind, PassPipeline, PassRun, SceneJournal, TreeNode,
-    TreeSnapshot,
+    ImeRequest, LayoutEngine, LayoutError, PassKind, PassPipeline, PassRun, SceneJournal,
+    ScrollIntoViewLanding, ScrollIntoViewOutcome, ScrollIntoViewRefusal, TreeNode, TreeSnapshot,
 };
 pub use theme::THEME_TRAIL_CAP;
 pub use view_patch::VIEW_PATCH_TRAIL_CAP;
@@ -147,8 +147,8 @@ pub use text_seam::{GlyphRun, PlacedGlyph, TextSeam};
 pub use theme::{CanonPalette, Palette, ThemeSeam};
 pub use trail::{TRAIL_RING_CAP, TrailLog};
 pub use widget::{
-    A11yAction, EventResponse, LabelSource, Role, ScrollUnit, TableSlot, TextSelection,
-    ToggleState, Widget,
+    A11yAction, EventResponse, LabelSource, Role, ScrollLanding, ScrollUnit, TableSlot,
+    TextSelection, ToggleState, Widget,
 };
 
 /// The Alacer prelude: import this once and the framework vocabulary is in scope.

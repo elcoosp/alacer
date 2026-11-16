@@ -22,7 +22,8 @@ pub struct NodeId(NonZeroU64);
 impl NodeId {
     /// The synthetic id used before a root is mounted.
     ///
-    /// Never held by a live node; the arena's counter starts above it.
+    /// Never held by a live node; the allocation counter starts at 1,
+    /// far below the sentinel — a live id can never collide with it.
     pub const INVALID: Self = Self(NonZeroU64::new(4_294_967_295).expect("non-zero"));
 
     /// Allocates a fresh id from the global counter.

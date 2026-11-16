@@ -17,7 +17,11 @@
 //! ADR-0080's first re-open rule): `door_flip_motion` — the
 //! motion-only flip landing where the dark fact is still, both facts
 //! resolved, the record streamed, the real reader pricing the fact
-//! tier's growth.
+//! tier's growth. Since M79 the second grown fact's flip joins beside
+//! it (ADR-0085, the same rule cashed again): `door_flip_contrast` —
+//! the contrast-only flip landing where the other facts are still, all
+//! three facts resolved, the record streamed, the real reader naming
+//! the contrast fact.
 
 use alacer_core::flux::Flux;
 use alacer_core::inspect::SettingRecord;
@@ -38,6 +42,7 @@ fn flip() -> SettingRecord {
     SettingRecord {
         dark: true,
         reduced_motion: false,
+        high_contrast: false,
         repainted: 1,
     }
 }
@@ -103,6 +108,10 @@ impl SettingSeam for FixedSettings {
     fn reduced_motion(&self) -> bool {
         false
     }
+
+    fn high_contrast(&self) -> bool {
+        false
+    }
 }
 
 /// The composed dark palette the bench composer answers — every role
@@ -126,7 +135,7 @@ const DUET_DARK: Palette = Palette {
 struct DuetComposer;
 
 impl SettingComposer for DuetComposer {
-    fn palette(&self, dark: bool) -> Palette {
+    fn palette(&self, dark: bool, _reduced_motion: bool, _high_contrast: bool) -> Palette {
         if dark { DUET_DARK } else { Palette::CANON }
     }
 
@@ -151,6 +160,33 @@ impl SettingSeam for MotionSettings {
 
     fn reduced_motion(&self) -> bool {
         self.motion.load(Ordering::Relaxed)
+    }
+
+    fn high_contrast(&self) -> bool {
+        false
+    }
+}
+
+/// The bench's contrast-bearing seam (ADR-0085): the dark and motion
+/// facts stay fixed, the contrast fact answers an atomic the bench
+/// handle toggles — every measured flip is the contrast-only landing
+/// the grown door check admits where the other facts are still, the
+/// case the M77 check would have swallowed.
+struct ContrastSettings {
+    contrast: std::sync::Arc<AtomicBool>,
+}
+
+impl SettingSeam for ContrastSettings {
+    fn dark_mode(&self) -> bool {
+        false
+    }
+
+    fn reduced_motion(&self) -> bool {
+        false
+    }
+
+    fn high_contrast(&self) -> bool {
+        self.contrast.load(Ordering::Relaxed)
     }
 }
 
@@ -274,6 +310,17 @@ fn bench_settings_composition(c: &mut Criterion) {
         });
     });
 
+    group.finish();
+}
+
+/// The counted flips' own costs (ADR-0082, ADR-0083, ADR-0085): the
+/// flips whose records name their reach and their facts, each read end
+/// to end through the real reader the lengths rule priced — the tick's
+/// start drain streaming the record into the trail reader, the reader
+/// naming the count or the fact beside it.
+fn bench_settings_counted(c: &mut Criterion) {
+    let mut group = c.benchmark_group("settings");
+
     // The counted flip, read end to end (ADR-0082): the fact that
     // lands with its broadcast count, the tick's start drain streaming
     // it into the trail reader, the reader filtering the setting tier
@@ -352,6 +399,49 @@ fn bench_settings_composition(c: &mut Criterion) {
         });
     });
 
+    // The contrast-only flip, read end to end (ADR-0085): the fact the
+    // M77 door's two-fact check swallowed lands now — all three facts
+    // resolved where the broadcast resolves, the record carrying them
+    // beside the count, the tick's start drain streaming it into the
+    // trail reader, the reader naming the contrast fact. Each measured
+    // iteration toggles the contrast fact so every flip lands (the
+    // dark and motion facts ride beside it unchanged); the
+    // contrast-only landing itself is the shape the m79 suite pins.
+    group.bench_function("door_flip_contrast", |b| {
+        let mut pipeline = PassPipeline::new(
+            Flux::new(),
+            Box::new(NoopLayout),
+            Box::new(NullJournal),
+            Box::new(NullA11y),
+        );
+        let reader = TrailLog::new();
+        pipeline.set_observer(Box::new(reader.clone()));
+        let contrast = Arc::new(AtomicBool::new(false));
+        pipeline.set_settings(Box::new(ContrastSettings {
+            contrast: Arc::clone(&contrast),
+        }));
+        b.iter(|| {
+            let _previous = contrast.fetch_xor(true, Ordering::Relaxed);
+            black_box(pipeline.set_settings(Box::new(ContrastSettings {
+                contrast: Arc::clone(&contrast),
+            })));
+            pipeline
+                .tick(alacer_core::geom::Size::new(320.0, 240.0))
+                .expect("the contrast-flip bench's frames lay out");
+            let landed = reader
+                .look()
+                .into_iter()
+                .filter_map(|event| match event {
+                    alacer_core::inspect::InspectEvent::Setting(record) => {
+                        Some(record.high_contrast)
+                    }
+                    _ => None,
+                })
+                .next_back();
+            black_box(landed);
+        });
+    });
+
     group.finish();
 }
 
@@ -359,6 +449,7 @@ criterion_group!(
     benches,
     bench_settings,
     bench_settings_door,
-    bench_settings_composition
+    bench_settings_composition,
+    bench_settings_counted
 );
 criterion_main!(benches);

@@ -136,7 +136,7 @@ pub use scene::{
     primitives_extent,
 };
 pub use settings::SETTING_TRAIL_CAP;
-pub use settings::{CanonComposer, CanonSettings, SettingComposer, SettingSeam};
+pub use settings::{CanonComposer, CanonSettings, KioskComposer, SettingComposer, SettingSeam};
 pub use style::{
     CrossAxisAlignment, Display, MainAxisAlignment, MeasureFn, MeasureSpec, Style, TextSpec,
 };
@@ -167,7 +167,9 @@ pub mod prelude {
     pub use crate::keymap::{Chord, Keymap, KeymapConsult, KeymapSeam};
     pub use crate::mask::Change;
     pub use crate::passes::{PassKind, PassPipeline};
-    pub use crate::settings::{CanonComposer, CanonSettings, SettingComposer, SettingSeam};
+    pub use crate::settings::{
+        CanonComposer, CanonSettings, KioskComposer, SettingComposer, SettingSeam,
+    };
     pub use crate::style::{CrossAxisAlignment, Display, MainAxisAlignment, Style};
     pub use crate::theme::{CanonPalette, Palette, ThemeSeam};
     pub use crate::trail::{TRAIL_RING_CAP, TrailLog};

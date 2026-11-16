@@ -20,6 +20,10 @@ backend-softbuffer = ["alacer-platform/backend-softbuffer"]
 # Hot reload (ADR-7, §13.2): links `subsecond`, wraps the view generation in
 # `subsecond::call`, and answers binary patches with one scoped re-render.
 hot-reload = ["dep:subsecond"]
+# One switch for CI and curious consumers (ADR-0040's matrix in a word):
+# every non-default shape at once — both backends beside the hot-reload
+# wiring — so `--features ci-bundle` covers what `--all-features` covers.
+ci-bundle = ["backend-wgpu", "backend-softbuffer", "hot-reload"]
 
 [dependencies]
 alacer-core.workspace = true

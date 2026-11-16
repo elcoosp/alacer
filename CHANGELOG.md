@@ -7,6 +7,16 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ## [Unreleased]
 
+### M89 — the two-axis door (ADR-0093)
+
+- The bring-into-view door grew the axis beside the ask: `BringIntoViewAsk` carries both halves, `Widget::bring_into_view` answers each axis by its own declared span, and `ScrollLanding` reports the horizontal axis's own answer beside the vertical fields.
+- The scroll record grew the axis beside the action (ADR-0056's axis rule): one additive `horizontal` fact — outcome, landed offset, ask, wall — beside the vertical story; `None` on the stories with no horizontal half. The wire's scroll event carries the same additive object.
+- `List::two_axis(width, height)` declares the viewport's two axes; the handle's `set_content_width` and `offset_x` carry the horizontal story; the wheel's x run reaches the same clamp arithmetic (positive x scrolls right).
+- The vertical-only container refuses the x half honestly: `no_scrollable_content` against the undeclared span, the ask the geometry priced riding beside the refusal.
+- The corpus grew 94 → 95 by the coordinated rule: `scroll/route_100_horizontal_bring_into_view_1k` — the wide rows re-pin the x half on every landing, the gate holding the two-axis ask in the offset-priced class. The m-suite pins re-agree at 95.
+- `examples/horizontal_scroll.rs` drives the beats from the consumer side: the straddling row landed on both axes, the wheel's x run, and the vertical-only refusal — every silence named.
+
+
 ### Added
 
 - **M88 — the bring-into-view door: the scroll ask priced in nodes (ADR-0092)**:

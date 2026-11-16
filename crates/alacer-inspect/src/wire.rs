@@ -380,6 +380,16 @@ pub enum WireEvent {
         /// additive-field rule the scroll event's own fields ride):
         /// clients that ignore unknown fields are unaffected.
         aimed: Option<u64>,
+        /// The horizontal half of the ask's story (M89, ADR-0093) —
+        /// the axis's own outcome, landed offset, ask, and wall beside
+        /// the vertical fields, the same flat rule per axis; `null` on
+        /// the stories with no horizontal half (the AT's unit scrolls
+        /// and value steps ride their vertical vocabulary untouched,
+        /// the content's clamp is a height's story). Additive at
+        /// version 1 (the additive-field rule the scroll event's own
+        /// fields ride): clients that ignore unknown fields are
+        /// unaffected.
+        horizontal: Option<WireScrollAxis>,
     },
     /// An AT text write answered — the text-write trail (M55,
     /// ADR-0061): the `SetValue`, `ReplaceSelectedText`, or
@@ -1038,12 +1048,41 @@ pub fn wire_gesture(record: &alacer_core::inspect::GestureRecord) -> WireEvent {
     }
 }
 
+/// The horizontal half of one scroll ask's wire story (M89, ADR-0093):
+/// the axis's own answer, the same flat rule the vertical fields ride —
+/// the outcome species beside the refusal, the landed offset beside
+/// both, the ask and the wall beside them.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct WireScrollAxis {
+    /// What the container's clamp answered on the horizontal axis
+    /// (`delivered`, `refused`).
+    pub outcome: String,
+    /// The refusal species (`no_scrollable_content`, `non_finite_ask`)
+    /// on a refused ask; `null` otherwise.
+    pub refusal: Option<String>,
+    /// The offset the container holds on the horizontal axis as the
+    /// event resolves — the clamp's result on a delivery, the
+    /// untouched offset on a refusal.
+    pub offset: f32,
+    /// The finite offset the horizontal ask wanted, before the clamp
+    /// moved it — the ask beside the landing, per axis; `null` when
+    /// the ask never became a finite scalar.
+    pub requested: Option<f32>,
+    /// The wall the clamp pinned the horizontal landing at
+    /// (`min`/`max`) — `null` when the landing is the ask, on every
+    /// landing mid-range, and on every refusal.
+    pub pinned: Option<String>,
+}
+
 /// Converts a core [`alacer_core::inspect::ScrollRecord`] into the
 /// wire event: the scroll ask's answer, flat on the wire (ADR-0056) —
 /// the value event's flat rule, the refusal species carried beside the
 /// outcome and the landed offset beside both, the ask beside the
 /// landing, the wall the clamp pinned beside them (ADR-0055's second
-/// kill rule at the tier whose funnel knows no range).
+/// kill rule at the tier whose funnel knows no range). The horizontal
+/// half rides beside them as one additive object (M89, ADR-0093), the
+/// same flat rule per axis; `null` when the ask rode no horizontal
+/// half.
 #[must_use]
 pub fn wire_scroll(record: &alacer_core::inspect::ScrollRecord) -> WireEvent {
     WireEvent::Scroll {
@@ -1068,6 +1107,21 @@ pub fn wire_scroll(record: &alacer_core::inspect::ScrollRecord) -> WireEvent {
             .map(str::to_string),
         lines: record.lines,
         aimed: record.aimed,
+        horizontal: record.horizontal.map(|axis| WireScrollAxis {
+            outcome: axis.outcome.name().to_string(),
+            refusal: match axis.outcome {
+                alacer_core::inspect::ScrollOutcome::Refused(refusal) => {
+                    Some(refusal.name().to_string())
+                }
+                alacer_core::inspect::ScrollOutcome::Delivered => None,
+            },
+            offset: axis.offset,
+            requested: axis.requested,
+            pinned: axis
+                .pinned
+                .map(alacer_core::inspect::RangeBound::name)
+                .map(str::to_string),
+        }),
     }
 }
 
@@ -1916,6 +1970,7 @@ mod tests {
             unit: None,
             lines: Some(1.0),
             aimed: None,
+            horizontal: None,
         };
         let WireEvent::Scroll {
             action,
@@ -1928,6 +1983,7 @@ mod tests {
             unit,
             lines,
             aimed,
+            ..
         } = wire_scroll(&delivered)
         else {
             panic!("scroll event");
@@ -1974,6 +2030,7 @@ mod tests {
             unit: None,
             lines: None,
             aimed: None,
+            horizontal: None,
         };
         let WireEvent::Scroll {
             outcome, refusal, ..
@@ -2007,6 +2064,7 @@ mod tests {
             unit: None,
             lines: None,
             aimed: Some(0xFE_ED),
+            horizontal: None,
         };
         let WireEvent::Scroll {
             action,
@@ -2050,6 +2108,7 @@ mod tests {
             unit: Some(ScrollUnit::Item),
             lines: None,
             aimed: None,
+            horizontal: None,
         };
         let WireEvent::Scroll { action, unit, .. } = wire_scroll(&item) else {
             panic!("scroll event");
@@ -2071,6 +2130,7 @@ mod tests {
             unit: Some(ScrollUnit::Page),
             lines: None,
             aimed: None,
+            horizontal: None,
         };
         let WireEvent::Scroll { unit, .. } = wire_scroll(&page) else {
             panic!("scroll event");
@@ -2091,6 +2151,7 @@ mod tests {
             unit: Some(ScrollUnit::Page),
             lines: None,
             aimed: None,
+            horizontal: None,
         };
         let WireEvent::Scroll { action, unit, .. } = wire_scroll(&step) else {
             panic!("scroll event");
@@ -2112,6 +2173,7 @@ mod tests {
             unit: None,
             lines: None,
             aimed: None,
+            horizontal: None,
         };
         let WireEvent::Scroll { action, unit, .. } = wire_scroll(&absent) else {
             panic!("scroll event");
@@ -2143,6 +2205,7 @@ mod tests {
             unit: None,
             lines: Some(1.0),
             aimed: None,
+            horizontal: None,
         };
         let WireEvent::Scroll { action, lines, .. } = wire_scroll(&notch) else {
             panic!("scroll event");
@@ -2164,6 +2227,7 @@ mod tests {
             unit: None,
             lines: Some(2.5),
             aimed: None,
+            horizontal: None,
         };
         let WireEvent::Scroll { lines, .. } = wire_scroll(&flick) else {
             panic!("scroll event");
@@ -2184,6 +2248,7 @@ mod tests {
             unit: None,
             lines: None,
             aimed: None,
+            horizontal: None,
         };
         let WireEvent::Scroll { action, lines, .. } = wire_scroll(&step) else {
             panic!("scroll event");
@@ -2213,6 +2278,7 @@ mod tests {
             unit: None,
             lines: None,
             aimed: None,
+            horizontal: None,
         };
         let WireEvent::Scroll {
             action,
@@ -2263,6 +2329,7 @@ mod tests {
             unit: None,
             lines: None,
             aimed: None,
+            horizontal: None,
         };
         let WireEvent::Scroll {
             action,

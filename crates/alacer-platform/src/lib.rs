@@ -923,6 +923,17 @@ impl alacer_core::settings::SettingSeam for WinitSettings {
     fn reduced_motion(&self) -> bool {
         false
     }
+
+    /// winit reports no high-contrast fact — the OS's contrast
+    /// preference lives below the windowing layer's vocabulary, the
+    /// same below-the-vocabulary position the motion fact holds — so
+    /// the adapter answers the honest absence (ADR-0085 rides ADR-0083's
+    /// adapter rule: a platform that reports no fact answers the
+    /// absence, never a guess). An app that reads the fact through its
+    /// own channels installs its own seam through the same door.
+    fn high_contrast(&self) -> bool {
+        false
+    }
 }
 
 impl ApplicationHandler<PlatformEvent> for AlacerApp {

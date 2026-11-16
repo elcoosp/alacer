@@ -15,8 +15,11 @@
 //! - [`wire`] — the versioned JSON vocabulary clients code against; the core
 //!   vocabulary (`alacer_core::inspect`) never leaks onto the wire.
 //!
-//! The intended assembly, from the facade (schematic — the facade owns the
-//! real pipeline assembly):
+//! The assembly those parts imply ships as one door ([`attach_inspector`],
+//! M83): the recorder into the observer slot, the server bound *before*
+//! the observer installs (a refused attach changes nothing), and the
+//! accept loop on its own named thread. The hand-spelled form stays honest
+//! and available (schematic — the facade owns the real pipeline assembly):
 //!
 //! ```text
 //! let recorder = CausalRecorder::new("demo");
@@ -30,10 +33,12 @@
 //! Overhead is opt-in (§13.3): a pipeline without an observer records
 //! nothing, and every buffer is bounded whatever the app does.
 
+pub mod attach;
 pub mod recorder;
 pub mod server;
 pub mod wire;
 
+pub use attach::{InspectorAttachError, InspectorHandle, InspectorOptions, attach_inspector};
 pub use recorder::{CausalRecorder, RecorderHandle};
 pub use server::InspectorServer;
 pub use wire::{PROTOCOL_VERSION, WireEvent};

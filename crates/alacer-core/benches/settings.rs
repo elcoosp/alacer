@@ -21,7 +21,11 @@
 //! it (ADR-0085, the same rule cashed again): `door_flip_contrast` —
 //! the contrast-only flip landing where the other facts are still, all
 //! three facts resolved, the record streamed, the real reader naming
-//! the contrast fact.
+//! the contrast fact. Since M81 the third grown fact's flip joins
+//! beside it (ADR-0087, the same rule cashed a third time):
+//! `door_flip_accent` — the accent-only flip landing where the other
+//! facts are still, all four facts resolved, the record streamed, the
+//! real reader naming the accent fact.
 
 use alacer_core::flux::Flux;
 use alacer_core::inspect::SettingRecord;
@@ -37,12 +41,14 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 /// The record one flip carries: the OS facts, verbatim (the payload
-/// rule at the setting tier — the bools are the facts).
+/// rule at the setting tier — the bools are the facts, the accent
+/// riding its presence).
 fn flip() -> SettingRecord {
     SettingRecord {
         dark: true,
         reduced_motion: false,
         high_contrast: false,
+        accent: None,
         repainted: 1,
     }
 }
@@ -112,6 +118,10 @@ impl SettingSeam for FixedSettings {
     fn high_contrast(&self) -> bool {
         false
     }
+
+    fn accent_color(&self) -> Option<alacer_core::color::Color> {
+        None
+    }
 }
 
 /// The composed dark palette the bench composer answers — every role
@@ -135,7 +145,13 @@ const DUET_DARK: Palette = Palette {
 struct DuetComposer;
 
 impl SettingComposer for DuetComposer {
-    fn palette(&self, dark: bool, _reduced_motion: bool, _high_contrast: bool) -> Palette {
+    fn palette(
+        &self,
+        dark: bool,
+        _reduced_motion: bool,
+        _high_contrast: bool,
+        _accent: Option<alacer_core::color::Color>,
+    ) -> Palette {
         if dark { DUET_DARK } else { Palette::CANON }
     }
 
@@ -165,6 +181,10 @@ impl SettingSeam for MotionSettings {
     fn high_contrast(&self) -> bool {
         false
     }
+
+    fn accent_color(&self) -> Option<alacer_core::color::Color> {
+        None
+    }
 }
 
 /// The bench's contrast-bearing seam (ADR-0085): the dark and motion
@@ -187,6 +207,44 @@ impl SettingSeam for ContrastSettings {
 
     fn high_contrast(&self) -> bool {
         self.contrast.load(Ordering::Relaxed)
+    }
+
+    fn accent_color(&self) -> Option<alacer_core::color::Color> {
+        None
+    }
+}
+
+/// The bench's accent-bearing seam (ADR-0087): the dark, motion, and
+/// contrast facts stay fixed, the accent fact answers an atomic the
+/// bench handle toggles — every measured flip is the accent-only
+/// landing the grown door check admits where the other facts are
+/// still, the case the M79 check would have swallowed.
+struct AccentSettings {
+    accent: std::sync::Arc<AtomicBool>,
+}
+
+impl SettingSeam for AccentSettings {
+    fn dark_mode(&self) -> bool {
+        false
+    }
+
+    fn reduced_motion(&self) -> bool {
+        false
+    }
+
+    fn high_contrast(&self) -> bool {
+        false
+    }
+
+    fn accent_color(&self) -> Option<alacer_core::color::Color> {
+        // The fact rides its presence: the toggled atomic says whether
+        // the OS reports one, the reported color the bench's fixed
+        // answer.
+        if self.accent.load(Ordering::Relaxed) {
+            Some(alacer_core::Color::rgb(255, 94, 58))
+        } else {
+            None
+        }
     }
 }
 
@@ -445,11 +503,65 @@ fn bench_settings_counted(c: &mut Criterion) {
     group.finish();
 }
 
+/// The accent flip's own cost (ADR-0087): the third grown fact's flip
+/// read end to end through the real reader the lengths rule priced —
+/// the tick's start drain streaming the record into the trail reader,
+/// the reader naming the accent fact.
+fn bench_settings_accent(c: &mut Criterion) {
+    let mut group = c.benchmark_group("settings");
+
+    // The accent-only flip, read end to end (ADR-0087): the fact the
+    // M79 door's three-fact check swallowed lands now — all four facts
+    // resolved where the broadcast resolves, the record carrying them
+    // beside the count, the tick's start drain streaming it into the
+    // trail reader, the reader naming the accent fact. Each measured
+    // iteration toggles the accent fact so every flip lands (the dark,
+    // motion, and contrast facts ride beside it unchanged); the
+    // accent-only landing itself is the shape the m81 suite pins.
+    group.bench_function("door_flip_accent", |b| {
+        let mut pipeline = PassPipeline::new(
+            Flux::new(),
+            Box::new(NoopLayout),
+            Box::new(NullJournal),
+            Box::new(NullA11y),
+        );
+        let reader = TrailLog::new();
+        pipeline.set_observer(Box::new(reader.clone()));
+        let accent = Arc::new(AtomicBool::new(false));
+        pipeline.set_settings(Box::new(AccentSettings {
+            accent: Arc::clone(&accent),
+        }));
+        b.iter(|| {
+            let _previous = accent.fetch_xor(true, Ordering::Relaxed);
+            black_box(pipeline.set_settings(Box::new(AccentSettings {
+                accent: Arc::clone(&accent),
+            })));
+            pipeline
+                .tick(alacer_core::geom::Size::new(320.0, 240.0))
+                .expect("the accent-flip bench's frames lay out");
+            let landed = reader
+                .look()
+                .into_iter()
+                .filter_map(|event| match event {
+                    alacer_core::inspect::InspectEvent::Setting(record) => {
+                        Some(record.accent.is_some())
+                    }
+                    _ => None,
+                })
+                .next_back();
+            black_box(landed);
+        });
+    });
+
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_settings,
     bench_settings_door,
     bench_settings_composition,
-    bench_settings_counted
+    bench_settings_counted,
+    bench_settings_accent
 );
 criterion_main!(benches);

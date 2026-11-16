@@ -365,13 +365,14 @@ fn m21_the_living_documents_re_agree() {
         "the CHANGELOG carries the M21 entry"
     );
 
-    // The migration guides re-agree: the 0.12.0 self-description the M16
-    // pattern's remainder left behind names the shipped family again, and
-    // the snapshot counts ride the grown corpus.
+    // The migration guides re-agree: the version self-description names
+    // the shipped family (0.17.0 — the workspace's own version, the pin
+    // that rides the release bump), and the snapshot counts ride the
+    // grown corpus.
     for guide in ["docs/migration/from-iced.md", "docs/migration/from-egui.md"] {
         let guide = read_workspace_file(guide);
         assert!(
-            guide.contains("onto Alacer **0.16.0**"),
+            guide.contains("onto Alacer **0.17.0**"),
             "{guide} names the shipped family"
         );
         assert!(

@@ -862,6 +862,16 @@ pub enum ScrollAction {
     /// (tests, flings, the app's code). No route rides behind it: the
     /// stamp's honest absence.
     ScrollTo,
+    /// The geometry-driven ask (M88, ADR-0092): the pipeline's
+    /// bring-into-view door read the bounds ledger, computed the
+    /// minimal offset that lands the aimed node fully inside the
+    /// nearest scrollable ancestor's viewport, and handed the ask to
+    /// the container's own clamp arithmetic. The record's `target`
+    /// names the container whose offset moved (the route's stamp) and
+    /// the additive `aimed` field names the node the ask was *for*
+    /// (the M30 attribution rule at the scroll tier) — the two ids one
+    /// ask produced, never a munge of either onto the other.
+    BringIntoView,
     /// The content's own story (M51, ADR-0057): the shared handle's
     /// `set_content_height` re-clamping the offset when the content
     /// shrank under it — the door with no ask (the clamp is the
@@ -886,6 +896,7 @@ impl ScrollAction {
             Self::Increment => "increment",
             Self::Decrement => "decrement",
             Self::ScrollTo => "scroll_to",
+            Self::BringIntoView => "bring_into_view",
             Self::ContentClamp => "content_clamp",
         }
     }
@@ -1060,6 +1071,18 @@ pub struct ScrollRecord {
     /// the wall, and a count of a run that never was would be the lie
     /// the M44 rule forbids.
     pub lines: Option<f32>,
+    /// The node the ask was *for* (M88, ADR-0092): the
+    /// AccessKit-stable id of the node the bring-into-view ask aimed
+    /// at — the record's `target` names the container whose offset
+    /// moved, this names the node the ask was for, the two ids one ask
+    /// produced (the M30 attribution rule at the scroll tier, the
+    /// aimed id verbatim the route-drop trail's rule). `None` on every
+    /// ask that rode no aimed node: the wheel, the AT's unit scrolls
+    /// and value steps, the app's raw-offset door, the content's own
+    /// clamp — the absence honest, never a guessed id. Additive at
+    /// version 1 (the additive-field rule the wire's scroll event
+    /// carries): clients that ignore unknown fields are unaffected.
+    pub aimed: Option<u64>,
 }
 
 /// The text-write action vocabulary (M55, ADR-0061): the three

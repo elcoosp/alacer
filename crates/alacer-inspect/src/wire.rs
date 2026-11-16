@@ -307,7 +307,10 @@ pub enum WireEvent {
     Scroll {
         /// The scroll-tier action the ask rode (`wheel`, `scroll_up`,
         /// `scroll_down`, `increment`, `decrement`, `scroll_to`,
-        /// `content_clamp` — the content's own story, M51/ADR-0057).
+        /// `content_clamp` — the content's own story, M51/ADR-0057 —
+        /// and since M88/ADR-0092 `bring_into_view`, the
+        /// geometry-driven ask the pipeline's door prices from the
+        /// bounds ledger).
         action: String,
         /// What the scroll area answered (`delivered`, `refused`).
         outcome: String,
@@ -366,6 +369,17 @@ pub enum WireEvent {
         /// Additive at version 1 (the `lines` field's rule): clients
         /// that ignore unknown fields are unaffected.
         lines: Option<f32>,
+        /// The node the ask was *for* (M88, ADR-0092) — the
+        /// AccessKit-stable id of the node the bring-into-view ask
+        /// aimed at, beside the `bring_into_view` action's `target`
+        /// (the container whose offset moved): the two ids one ask
+        /// produced, the aimed one verbatim (the route-drop trail's
+        /// rule). `null` on every ask that aimed no node — the wheel,
+        /// the AT's unit scrolls and value steps, the app's raw-offset
+        /// door, the content's clamp. Additive at version 1 (the
+        /// additive-field rule the scroll event's own fields ride):
+        /// clients that ignore unknown fields are unaffected.
+        aimed: Option<u64>,
     },
     /// An AT text write answered — the text-write trail (M55,
     /// ADR-0061): the `SetValue`, `ReplaceSelectedText`, or
@@ -1053,6 +1067,7 @@ pub fn wire_scroll(record: &alacer_core::inspect::ScrollRecord) -> WireEvent {
             .map(alacer_core::widget::ScrollUnit::name)
             .map(str::to_string),
         lines: record.lines,
+        aimed: record.aimed,
     }
 }
 
@@ -1900,6 +1915,7 @@ mod tests {
             pinned: Some(alacer_core::inspect::RangeBound::Max),
             unit: None,
             lines: Some(1.0),
+            aimed: None,
         };
         let WireEvent::Scroll {
             action,
@@ -1911,6 +1927,7 @@ mod tests {
             pinned,
             unit,
             lines,
+            aimed,
         } = wire_scroll(&delivered)
         else {
             panic!("scroll event");
@@ -1942,6 +1959,10 @@ mod tests {
             Some(1.0),
             "the run prices its notional lines beside the wheel (M53, ADR-0059)"
         );
+        assert_eq!(
+            aimed, None,
+            "the wheel aimed no node — the honest absence (M88)"
+        );
 
         let refused = ScrollRecord {
             action: ScrollAction::ScrollDown,
@@ -1952,6 +1973,7 @@ mod tests {
             pinned: None,
             unit: None,
             lines: None,
+            aimed: None,
         };
         let WireEvent::Scroll {
             outcome, refusal, ..
@@ -1964,6 +1986,46 @@ mod tests {
             refusal.as_deref(),
             Some("no_scrollable_content"),
             "the refusal's snake_case tag rides the wire"
+        );
+    }
+
+    /// M88 (ADR-0092, this cut): the bring-into-view event names the
+    /// node the ask was *for* beside the container it rode — the two
+    /// ids one ask produced, the aimed one verbatim (the route-drop
+    /// trail's rule). The additive field's rule at version 1: clients
+    /// that ignore unknown fields are unaffected.
+    #[test]
+    fn bring_into_view_events_carry_the_aimed_node() {
+        use alacer_core::inspect::{ScrollAction, ScrollOutcome, ScrollRecord};
+        let brought = ScrollRecord {
+            action: ScrollAction::BringIntoView,
+            outcome: ScrollOutcome::Delivered,
+            offset: 568.0,
+            requested: Some(568.0),
+            target: Some(0xAB_CD),
+            pinned: None,
+            unit: None,
+            lines: None,
+            aimed: Some(0xFE_ED),
+        };
+        let WireEvent::Scroll {
+            action,
+            target,
+            aimed,
+            ..
+        } = wire_scroll(&brought)
+        else {
+            panic!("scroll event");
+        };
+        assert_eq!(
+            action, "bring_into_view",
+            "the new species' snake_case tag rides the wire"
+        );
+        assert_eq!(target, Some(0xAB_CD), "the container's stamp rides");
+        assert_eq!(
+            aimed,
+            Some(0xFE_ED),
+            "the aimed node rides verbatim beside the container (M88)"
         );
     }
 
@@ -1987,6 +2049,7 @@ mod tests {
             pinned: None,
             unit: Some(ScrollUnit::Item),
             lines: None,
+            aimed: None,
         };
         let WireEvent::Scroll { action, unit, .. } = wire_scroll(&item) else {
             panic!("scroll event");
@@ -2007,6 +2070,7 @@ mod tests {
             pinned: None,
             unit: Some(ScrollUnit::Page),
             lines: None,
+            aimed: None,
         };
         let WireEvent::Scroll { unit, .. } = wire_scroll(&page) else {
             panic!("scroll event");
@@ -2026,6 +2090,7 @@ mod tests {
             pinned: None,
             unit: Some(ScrollUnit::Page),
             lines: None,
+            aimed: None,
         };
         let WireEvent::Scroll { action, unit, .. } = wire_scroll(&step) else {
             panic!("scroll event");
@@ -2046,6 +2111,7 @@ mod tests {
             pinned: None,
             unit: None,
             lines: None,
+            aimed: None,
         };
         let WireEvent::Scroll { action, unit, .. } = wire_scroll(&absent) else {
             panic!("scroll event");
@@ -2076,6 +2142,7 @@ mod tests {
             pinned: None,
             unit: None,
             lines: Some(1.0),
+            aimed: None,
         };
         let WireEvent::Scroll { action, lines, .. } = wire_scroll(&notch) else {
             panic!("scroll event");
@@ -2096,6 +2163,7 @@ mod tests {
             pinned: None,
             unit: None,
             lines: Some(2.5),
+            aimed: None,
         };
         let WireEvent::Scroll { lines, .. } = wire_scroll(&flick) else {
             panic!("scroll event");
@@ -2115,6 +2183,7 @@ mod tests {
             pinned: None,
             unit: None,
             lines: None,
+            aimed: None,
         };
         let WireEvent::Scroll { action, lines, .. } = wire_scroll(&step) else {
             panic!("scroll event");
@@ -2143,6 +2212,7 @@ mod tests {
             pinned: Some(alacer_core::inspect::RangeBound::Max),
             unit: None,
             lines: None,
+            aimed: None,
         };
         let WireEvent::Scroll {
             action,
@@ -2192,6 +2262,7 @@ mod tests {
             pinned: None,
             unit: None,
             lines: None,
+            aimed: None,
         };
         let WireEvent::Scroll {
             action,

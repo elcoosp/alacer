@@ -13,7 +13,11 @@
 //! [`crate::passes::PassPipeline::set_composer`] — the pipeline
 //! resolves the composed [`Palette`] against the fact that is, at
 //! install time and on every flip that lands, mounting it as the
-//! installed theme the roles borrow. The fact never munges the palette
+//! installed theme the roles borrow. Since M80 (ADR-0086) the
+//! composition resolves by all three facts — the composer's signature
+//! grew beside `dark`, the pipeline handing the composition what it
+//! asks for (a palette that calms when the OS asks for reduced motion
+//! answers by the fact), never the composer reaching into an adapter. The fact never munges the palette
 //! on its own (the M74 rule): only the composition moves it, and the
 //! app's own `set_theme` ask wins until the next flip.
 //!
@@ -40,9 +44,12 @@
 //! reach, the ids never riding). Since M77 (ADR-0083, ADR-0080's first
 //! pre-registered re-open rule) the seam and the record grow the OS's
 //! reduced-motion fact beside the dark one — one seam, one door, one
-//! record per flip, never a second seam per fact — the theme trail's
-//! shape (ADR-0079), bounded, drained at the tick's start, silent while
-//! nobody listens (the A7 idle contract).
+//! record per flip, never a second seam per fact. Since M79 (ADR-0085,
+//! the same rule cashed a second time) the seam and the record grow the
+//! OS's high-contrast fact beside the two — the facts the vocabulary
+//! consults riding beside each other, never a second seam per fact —
+//! the theme trail's shape (ADR-0079), bounded, drained at the tick's
+//! start, silent while nobody listens (the A7 idle contract).
 //!
 //! ```text
 //! // The adapter's door (core-only dependency):
@@ -78,9 +85,11 @@ pub const SETTING_TRAIL_CAP: usize = 256;
 /// through the door (the event the platform owns); the vocabulary
 /// never polls — the seam is the fact's one installed source. Since
 /// M77 (ADR-0083, ADR-0080's pre-registered re-open rule) the trait
-/// carries the OS's reduced-motion fact beside the dark fact — one
-/// seam, the facts the vocabulary consults riding beside each other,
-/// never a second seam per fact.
+/// carries the OS's reduced-motion fact beside the dark fact, and
+/// since M79 (ADR-0085, the same rule cashed a second time) the OS's
+/// high-contrast fact beside the two — one seam, the facts the
+/// vocabulary consults riding beside each other, never a second seam
+/// per fact.
 pub trait SettingSeam: Send + Sync + 'static {
     /// The OS's dark-mode fact, re-read once per paint pass — one
     /// dynamic call per frame, never per node, the palette
@@ -95,16 +104,25 @@ pub trait SettingSeam: Send + Sync + 'static {
     /// method is required, the adapter answering the absence when its
     /// platform reports no motion fact (`false` — motion allowed).
     fn reduced_motion(&self) -> bool;
+
+    /// The OS's high-contrast fact, re-read beside the two once per
+    /// paint pass (ADR-0085) — the same one dynamic call per frame,
+    /// the vocabulary consulting it when contrast itself is the
+    /// question (a hairline's weight, a focus ring's width, a muted
+    /// ink raised). Required like the facts it sits beside, the
+    /// adapter answering the absence when its platform reports no
+    /// contrast fact (`false` — standard contrast).
+    fn high_contrast(&self) -> bool;
 }
 
 /// The provided canon setting (§13.3, the provided-implementation rule
 /// beside every seam — [`crate::theme::CanonPalette`]'s precedent):
-/// light, motion allowed, always — the facts the blessed snapshot
-/// corpus was blessed with, installable by name so a consumer that
-/// swapped away can swap back through the same door it swapped in.
-/// Installing it where nothing is installed (or where the canon facts
-/// are installed) is the no-op the door answers `false` on: the
-/// default build already resolves them.
+/// light, motion allowed, standard contrast, always — the facts the
+/// blessed snapshot corpus was blessed with, installable by name so a
+/// consumer that swapped away can swap back through the same door it
+/// swapped in. Installing it where nothing is installed (or where the
+/// canon facts are installed) is the no-op the door answers `false` on:
+/// the default build already resolves them.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct CanonSettings;
 
@@ -114,6 +132,10 @@ impl SettingSeam for CanonSettings {
     }
 
     fn reduced_motion(&self) -> bool {
+        false
+    }
+
+    fn high_contrast(&self) -> bool {
         false
     }
 }
@@ -126,7 +148,8 @@ impl SettingSeam for CanonSettings {
 /// never a palette that reaches into the platform's adapter").
 /// Implemented by the app, installed through
 /// [`crate::passes::PassPipeline::set_composer`]: the door resolves the
-/// composed [`Palette`] against the fact that *is* at install time and
+/// composed [`Palette`] against the facts that *are* at install time
+/// (since M80 the signature carries them beside `dark`, ADR-0086) and
 /// re-resolves it on every flip that lands — the theme tier's own swap
 /// rules (the `PartialEq` idle check, the `Change::PAINT` broadcast,
 /// the [`crate::inspect::ThemeRecord`] tagged with the composer's own
@@ -141,13 +164,19 @@ impl SettingSeam for CanonSettings {
 /// wins while the fact is still — the composition owns the palette
 /// only when the OS moves).
 pub trait SettingComposer: Send + Sync + 'static {
-    /// The roles the palette resolves for the fact `dark` names —
+    /// The roles the palette resolves for the facts the seam holds —
     /// called once per install and once per landed flip (never per
     /// frame: the composed palette installs as a [`crate::theme::ThemeSeam`]
     /// the paint pass resolves in its own once-per-pass shape). The
     /// equality check prices the value it answered: a flip that
-    /// composes the palette already installed re-swaps nothing.
-    fn palette(&self, dark: bool) -> Palette;
+    /// composes the palette already installed re-swaps nothing. Since
+    /// M80 (ADR-0086) the facts ride beside `dark` — the pipeline
+    /// handing the composition what it asks for, never the composer
+    /// reaching into an adapter (ADR-0081's own rule): a palette that
+    /// calms when the OS asks for reduced motion, or raises when it
+    /// asks for high contrast, answers by the facts at the same two
+    /// resolution points the door already owned.
+    fn palette(&self, dark: bool, reduced_motion: bool, high_contrast: bool) -> Palette;
 
     /// The composed palette's tag — the stable name the causal log's
     /// [`crate::inspect::ThemeRecord`] carries for swaps this composer
@@ -167,7 +196,7 @@ pub trait SettingComposer: Send + Sync + 'static {
 pub struct CanonComposer;
 
 impl SettingComposer for CanonComposer {
-    fn palette(&self, _dark: bool) -> Palette {
+    fn palette(&self, _dark: bool, _reduced_motion: bool, _high_contrast: bool) -> Palette {
         Palette::CANON
     }
 
@@ -207,6 +236,36 @@ impl ThemeSeam for ComposedPalette {
     fn name(&self) -> &'static str {
         self.name
     }
+}
+
+/// The OS facts one resolution carries (ADR-0080, ADR-0083, ADR-0085):
+/// the pipeline's own bundle of the seam's answers — the composition
+/// door reads them once per resolution point (the install, every
+/// landed flip) and hands them to the composer. Not app-facing: the
+/// [`SettingComposer`] trait keeps the plain per-fact signature
+/// (ADR-0086's rule — the composer answers by the facts beside
+/// `dark`), the bundle is the door's internal shape.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct OsFacts {
+    /// The dark-mode fact — [`SettingSeam::dark_mode`]'s answer.
+    pub(crate) dark: bool,
+    /// The reduced-motion fact — [`SettingSeam::reduced_motion`]'s
+    /// answer.
+    pub(crate) reduced_motion: bool,
+    /// The high-contrast fact — [`SettingSeam::high_contrast`]'s
+    /// answer.
+    pub(crate) high_contrast: bool,
+}
+
+impl OsFacts {
+    /// The canon facts (light, motion allowed, standard contrast) —
+    /// what the door resolves where nothing is installed, the facts
+    /// the default build resolves.
+    pub(crate) const CANON: Self = Self {
+        dark: false,
+        reduced_motion: false,
+        high_contrast: false,
+    };
 }
 
 thread_local! {
@@ -253,6 +312,7 @@ pub fn note_setting(record: SettingRecord) {
             target: "alacer::settings",
             dark = record.dark,
             reduced_motion = record.reduced_motion,
+            high_contrast = record.high_contrast,
             repainted = record.repainted,
             "setting flip queued for the next tick"
         );
@@ -281,13 +341,14 @@ mod tests {
         take_setting_trail,
     };
 
-    /// The canon setting pins the canon facts — light, motion allowed
-    /// — the facts the blessed snapshot corpus was blessed with, byte
-    /// for byte, the corpus's green depends on it.
+    /// The canon setting pins the canon facts — light, motion allowed,
+    /// standard contrast — the facts the blessed snapshot corpus was
+    /// blessed with, byte for byte, the corpus's green depends on it.
     #[test]
     fn the_canon_setting_pins_the_canon_facts() {
         assert!(!CanonSettings.dark_mode());
         assert!(!CanonSettings.reduced_motion());
+        assert!(!CanonSettings.high_contrast());
     }
 
     /// The disabled trail is a no-op: nothing queues, the drain answers
@@ -297,6 +358,7 @@ mod tests {
         note_setting(SettingRecord {
             dark: true,
             reduced_motion: false,
+            high_contrast: false,
             repainted: 0,
         });
         assert!(
@@ -314,6 +376,7 @@ mod tests {
             note_setting(SettingRecord {
                 dark: i % 2 == 0,
                 reduced_motion: i % 3 == 0,
+                high_contrast: i % 5 == 0,
                 repainted: 1,
             });
         }
@@ -326,6 +389,10 @@ mod tests {
         assert!(
             !drained[0].reduced_motion,
             "both facts ride the same record (i=8 allows motion — 8 % 3 != 0)"
+        );
+        assert!(
+            !drained[0].high_contrast,
+            "all three facts ride the same record (i=8 allows contrast — 8 % 5 != 0)"
         );
         assert!(
             take_setting_trail().is_empty(),

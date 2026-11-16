@@ -70,6 +70,15 @@ impl EventCoalescer {
 
     fn flush_wheel(&mut self) {
         if self.wheel_accumulated != Vector::zero() {
+            // The wheel run's position is its first event's — every run
+            // with an accumulated delta began with a `Wheel` push that
+            // set it, so the absence is an invariant violation (the
+            // documented fallback names the violation instead of
+            // silently routing the run to the viewport origin).
+            debug_assert!(
+                self.wheel_position.is_some(),
+                "a wheel run with an accumulated delta but no position — the run's first event sets it"
+            );
             let position = self.wheel_position.unwrap_or_default();
             self.pending.push(PointerEvent::Wheel {
                 delta: self.wheel_accumulated,

@@ -147,6 +147,13 @@ pub struct FluxWriter {
 impl FluxWriter {
     /// Writes `value` into `signal` with a declared origin (§13.3 "who
     /// wrote this signal").
+    ///
+    /// # Panics
+    ///
+    /// If the capture lock is poisoned — a panicked writer means the
+    /// frame is corrupt either way (the render binding's own policy,
+    /// the drain paths' rule the write path rides too: a silent skip
+    /// would stream a write the provenance table never saw).
     pub fn write<T>(
         &self,
         signal: &RwSignal<T>,
@@ -156,11 +163,11 @@ impl FluxWriter {
         T: Send + Sync + 'static,
     {
         let key = signal_key_of(signal);
-        if let Ok(mut capture) = self.capture.lock()
-            && capture.enabled
-        {
+        let mut capture = self.capture.lock().expect("flux capture lock");
+        if capture.enabled {
             capture.record_write(key, origin.into());
         }
+        drop(capture);
         signal.set(value);
     }
 }
@@ -335,6 +342,14 @@ impl Flux {
     /// On every effect rerun (initial run included) `on_change` inspects the
     /// new value and returns the masks to queue for `node`. The closure must
     /// not touch widgets — it computes masks, nothing else (rule 1).
+    ///
+    /// # Panics
+    ///
+    /// If the capture lock is poisoned — a panicked writer means the
+    /// frame is corrupt either way (the drain paths' policy the
+    /// registration rides too: a silent `0` would mis-register the
+    /// activation against the placeholder id, a provenance table that
+    /// lies by construction).
     pub fn bind<T, F>(&mut self, signal: RwSignal<T>, node: NodeId, on_change: F)
     where
         T: Send + Sync + Clone + 'static,
@@ -344,17 +359,19 @@ impl Flux {
         let counters = Arc::clone(&self.counters);
         let capture = Arc::clone(&self.capture);
         // Register the edge up front (the "who subscribes" table); the id is
-        // captured by the effect so every rerun records its activation.
-        let binding = self.capture.lock().map_or_else(
-            |_| 0_u64,
-            |mut capture| {
-                if capture.enabled {
-                    capture.register(signal_key_of(&signal), node)
-                } else {
-                    0
-                }
-            },
-        );
+        // captured by the effect so every rerun records its activation. A
+        // poisoned capture lock panics here (the drain paths' policy the
+        // registration rides too): a silent `0` would mis-register the
+        // activation against the placeholder id, a provenance table that
+        // lies by construction.
+        let binding = {
+            let mut capture = self.capture.lock().expect("flux capture lock");
+            if capture.enabled {
+                capture.register(signal_key_of(&signal), node)
+            } else {
+                0
+            }
+        };
         let signal_key = signal_key_of(&signal);
         let effect = self.owner.with(|| {
             ImmediateEffect::new(move || {

@@ -36,6 +36,7 @@ use alacer_widgets::BoxedWidget as _;
 struct FixedSettings {
     dark: bool,
     reduced_motion: bool,
+    high_contrast: bool,
 }
 
 impl SettingSeam for FixedSettings {
@@ -44,6 +45,9 @@ impl SettingSeam for FixedSettings {
     }
     fn reduced_motion(&self) -> bool {
         self.reduced_motion
+    }
+    fn high_contrast(&self) -> bool {
+        self.high_contrast
     }
 }
 
@@ -158,6 +162,7 @@ fn m77_the_motion_flip_lands_where_dark_is_still() {
         harness.pipeline_mut().set_settings(Box::new(FixedSettings {
             dark: false,
             reduced_motion: true,
+            high_contrast: false,
         })),
         "the motion-only flip lands — the grown check compares both facts"
     );
@@ -194,6 +199,7 @@ fn m77_the_record_names_both_facts_beside_each_other() {
     harness.pipeline_mut().set_settings(Box::new(FixedSettings {
         dark: true,
         reduced_motion: true,
+        high_contrast: false,
     }));
     settle(&mut harness);
     let facts = setting_facts(&trail);
@@ -222,6 +228,7 @@ fn m77_the_no_op_names_nothing() {
     assert!(harness.pipeline_mut().set_settings(Box::new(FixedSettings {
         dark: true,
         reduced_motion: true,
+        high_contrast: false,
     })));
     settle(&mut harness);
     let counters = harness.counters();
@@ -229,6 +236,7 @@ fn m77_the_no_op_names_nothing() {
         !harness.pipeline_mut().set_settings(Box::new(FixedSettings {
             dark: true,
             reduced_motion: true,
+            high_contrast: false,
         })),
         "the same facts are a no-op"
     );
@@ -279,6 +287,7 @@ fn m77_the_wire_names_the_motion_fact() {
     let record = SettingRecord {
         dark: false,
         reduced_motion: true,
+        high_contrast: false,
         repainted: 42,
     };
     let event = alacer_inspect::wire::wire_setting(&record);
@@ -315,6 +324,7 @@ fn m77_the_disabled_trail_still_lands() {
         harness.pipeline_mut().set_settings(Box::new(FixedSettings {
             dark: false,
             reduced_motion: true,
+            high_contrast: false,
         })),
         "the motion flip lands without a listener"
     );
@@ -338,11 +348,11 @@ fn m77_the_disabled_trail_still_lands() {
 fn m77_the_living_documents_re_agree() {
     let readme = read_workspace_file("README.md");
     assert!(
-        readme.contains("M0 through M78"),
+        readme.contains("M0 through M80"),
         "the README status reflects the living cut — the chain cannot drift"
     );
     assert!(
-        readme.contains("All 84 criterion cases"),
+        readme.contains("All 85 criterion cases"),
         "the README quotes the baselines.json bench_count the fact tier grew"
     );
     let architecture = read_workspace_file("docs/architecture.md");
@@ -351,7 +361,7 @@ fn m77_the_living_documents_re_agree() {
         "the architecture carries the motion fact's decision"
     );
     assert!(
-        architecture.contains("85 decision records"),
+        architecture.contains("87 decision records"),
         "the register grew the M77 row"
     );
     let baselines = serde_json::from_str::<serde_json::Value>(&read_workspace_file(
@@ -359,7 +369,7 @@ fn m77_the_living_documents_re_agree() {
     ))
     .expect("the baselines parse");
     assert_eq!(
-        baselines["bench_count"], 84,
+        baselines["bench_count"], 85,
         "the published corpus carries the fact tier's pricing"
     );
 }

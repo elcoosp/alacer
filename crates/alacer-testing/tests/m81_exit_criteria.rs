@@ -641,11 +641,11 @@ fn m81_the_disabled_trail_still_lands() {
 fn m81_the_living_documents_re_agree() {
     let readme = read_workspace_file("README.md");
     assert!(
-        readme.contains("M0 through M81"),
+        readme.contains("M0 through M85"),
         "the README status reflects the living cut — the chain cannot drift"
     );
     assert!(
-        readme.contains("All 86 criterion cases"),
+        readme.contains("All 91 criterion cases"),
         "the README quotes the baselines.json bench_count the fact tier grew"
     );
     let architecture = read_workspace_file("docs/architecture.md");
@@ -684,7 +684,7 @@ fn m81_the_living_documents_re_agree() {
     // the m80 suite's documents pin moved to M81's cut.
     let m80 = read_workspace_file("crates/alacer-testing/tests/m80_exit_criteria.rs");
     assert!(
-        m80.contains("M0 through M81"),
+        m80.contains("M0 through M85"),
         "the m80 suite's pins moved with the documents"
     );
 }

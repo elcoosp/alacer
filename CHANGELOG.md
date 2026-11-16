@@ -9,6 +9,34 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M88 — the bring-into-view door: the scroll ask priced in nodes (ADR-0092)**:
+  the complement the scroll tier's own door set always named — the
+  wheel, the AT's unit scrolls and value steps, and the app's
+  raw-offset handle all answer asks priced in *offsets*, while the ask
+  consumers actually hold is priced in *nodes* ("this item, this row,
+  this focused control"). `PassPipeline::scroll_into_view` reads the
+  bounds ledger it already owns and prices the minimal offset that
+  lands the aimed node fully inside the nearest scrollable ancestor's
+  viewport — the content-space rect the bounds' own difference,
+  invariant under every offset the bounds reflect (container and
+  descendants ride the same compose translation); a rect taller than
+  the viewport pins its top edge — and hands the ask to the
+  container's own door (`Widget::bring_into_view`, the clamp
+  arithmetic the wheel already rides: the span walls, the named
+  refusals, never the pipeline guessing at a widget-private span).
+  The answer is data at every landing: `Landed` beside the container
+  that moved, `Visible` the honest no-op (no masks, no record, the
+  idle frame the content clamp's own rule rides), the refusals named
+  `unknown_node`/`not_laid_out`/`no_scrollable_ancestor`/
+  `no_scroll_door` — typed answers alone, never tier records. A
+  landed ask streams one `bring_into_view` record with the
+  container's stamp beside the additive `aimed` field (the node the
+  ask was for, the M30 rule at the scroll tier), and merges
+  `PAINT | A11Y` on the container (the wheel's own currency, compose
+  translating without a measure call). The corpus grows 93 → 94 by
+  the coordinated rule (`scroll/route_100_bring_into_view_1k`), and
+  [`examples/scroll_into_view.rs`](crates/alacer/examples/scroll_into_view.rs)
+  the consumer demonstration.
 - **M87 — the input-frame allocation budget: the tier the warm tick does not cover (ADR-0091)**:
   ADR-0088's own pre-registered re-open rule cashed — through M86 the
   ledger's budget had one tier (the warm tick pinned clean to the

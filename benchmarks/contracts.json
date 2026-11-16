@@ -479,6 +479,31 @@
       "id": "settings_door_flip_accent",
       "baseline": "settings/door_flip_accent",
       "scope": "same-host"
+    },
+    {
+      "id": "alloc_warm_frame_zero_alloc",
+      "baseline": "alloc/warm_frame_zero_alloc",
+      "scope": "same-host"
+    },
+    {
+      "id": "alloc_warm_frame_observed",
+      "baseline": "alloc/warm_frame_observed",
+      "scope": "same-host"
+    },
+    {
+      "id": "alloc_ledger_overhead",
+      "baseline": "alloc/ledger_overhead",
+      "scope": "same-host"
+    },
+    {
+      "id": "alloc_snapshot_get",
+      "baseline": "alloc/snapshot_get",
+      "scope": "same-host"
+    },
+    {
+      "id": "settings_kiosk_flip_no_op",
+      "baseline": "settings/kiosk_flip_no_op",
+      "scope": "same-host"
     }
   ],
   "test_enforced_gates": [

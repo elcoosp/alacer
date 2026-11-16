@@ -484,11 +484,11 @@ fn m42_the_living_documents_re_agree_at_m42() {
     // M42 and M43 landing in one cut, the workspace's one-milestone-
     // per-minor rule counting them as the minor's two entries).
     assert!(
-        readme.contains("M0 through M85") && readme.contains("ninety decision records"),
+        readme.contains("M0 through M86") && readme.contains("ninety-two decision records"),
         "the README's status block and count re-agree at M43"
     );
     assert!(
-        architecture.contains("88 decision records"),
+        architecture.contains("92 decision records"),
         "the architecture register re-agrees at 64 decision records"
     );
     // The protocol document carries the read fact (the wire's

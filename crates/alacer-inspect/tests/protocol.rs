@@ -359,9 +359,12 @@ fn setting_events_carry_the_documented_flat_shape() {
     // are the facts; since M76 (ADR-0082) the broadcast's node count
     // rides beside them, and since M77 (ADR-0083) the reduced-motion
     // fact rides beside the dark one, and since M79 (ADR-0085) the
-    // high-contrast fact rides beside the two — the additive fields the
+    // high-contrast fact rides beside the two, and since M81 (ADR-0087)
+    // the accent fact rides beside the three as the documented hex (or
+    // `null`, the honest absence) — the additive fields the
     // versioning rule admits at version 1, the lengths rule's shape
     // (the ids never ride).
+    use alacer_core::color::Color;
     use alacer_core::inspect::SettingRecord;
     use alacer_inspect::wire::wire_setting;
 
@@ -369,6 +372,7 @@ fn setting_events_carry_the_documented_flat_shape() {
         dark: true,
         reduced_motion: false,
         high_contrast: false,
+        accent: None,
         repainted: 7,
     });
     let json = serde_json::to_string(&flip).expect("flip json");
@@ -377,6 +381,7 @@ fn setting_events_carry_the_documented_flat_shape() {
             && json.contains(r#""dark":true"#)
             && json.contains(r#""reduced_motion":false"#)
             && json.contains(r#""high_contrast":false"#)
+            && json.contains(r#""accent":null"#)
             && json.contains(r#""repainted":7"#),
         "the flip's facts and its reach, named plain: {json}"
     );
@@ -384,6 +389,7 @@ fn setting_events_carry_the_documented_flat_shape() {
         dark: false,
         reduced_motion: true,
         high_contrast: true,
+        accent: Some(Color::rgb(255, 94, 58)),
         repainted: 0,
     });
     let json = serde_json::to_string(&flip).expect("flip json");
@@ -391,6 +397,7 @@ fn setting_events_carry_the_documented_flat_shape() {
         json.contains(r#""dark":false"#)
             && json.contains(r#""reduced_motion":true"#)
             && json.contains(r#""high_contrast":true"#)
+            && json.contains(r##""accent":"#FF5E3AFF""##)
             && json.contains(r#""repainted":0"#),
         "the light flip names its own facts and reach: {json}"
     );

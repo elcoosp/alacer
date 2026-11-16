@@ -4,7 +4,7 @@
 //! Everything here is **dev-mode and opt-in**: an unset observer and a
 //! disabled capture flag cost one branch per frame — the A7 idle contract
 //! and the M1 overhead gate are unchanged. With them on, the seam answers
-//! the Causality inspector's five questions from recorded truth:
+//! the Causality inspector's questions from recorded truth:
 //!
 //! | Question | Answered by |
 //! |---|---|
@@ -23,6 +23,7 @@
 
 use crate::announce::Politeness;
 use crate::arena::NodeId;
+use crate::color::Color;
 use crate::damage::Damage;
 use crate::geom::Rect;
 use crate::geom::Size;
@@ -1986,8 +1987,11 @@ pub struct ThemeRecord {
 /// ADR-0080's first pre-registered re-open rule) the record grows the
 /// reduced-motion fact beside the dark fact, and since M79 (ADR-0085,
 /// the same rule cashed a second time) the high-contrast fact beside
-/// the two — one record per seam, the facts the vocabulary consults
-/// riding beside each other, never a second seam or event per fact.
+/// the two, and since M81 (ADR-0087, the same rule cashed a third
+/// time) the accent-color fact beside the three — the fact riding its
+/// presence ([`None`], the honest absence, never a guessed color) —
+/// one record per seam, the facts the vocabulary consults riding
+/// beside each other, never a second seam or event per fact.
 /// The record rides *beside*
 /// the door's `bool` answer — the door still answers whether the flip
 /// landed — never instead of it; a flip that lands where the facts
@@ -2013,6 +2017,15 @@ pub struct SettingRecord {
     /// consults when contrast itself is the question (a hairline's
     /// weight, a focus ring's width), never a second seam per fact.
     pub high_contrast: bool,
+    /// The OS's accent-color fact (ADR-0087) — the same seam's answer,
+    /// resolved once per paint pass into `PaintCtx` beside the facts it
+    /// sits beside: the role-independent decision the vocabulary
+    /// consults when tint itself is the question (an accent that
+    /// follows the OS's pick), and the fact the composition resolves
+    /// its accent roles by. The fact rides its presence: `None` is the
+    /// honest absence — a platform that reports no accent answering
+    /// `None`, never a guessed color.
+    pub accent: Option<Color>,
     /// The broadcast's node count — how many nodes the flip's
     /// `Change::PAINT` merge touched (ADR-0082): the lengths rule's
     /// shape, the count naming the flip's reach, the ids never riding

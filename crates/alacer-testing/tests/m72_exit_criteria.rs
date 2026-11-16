@@ -415,7 +415,7 @@ fn m72_the_living_documents_re_agree() {
     let baselines = parse_workspace_json("benchmarks/baselines/baselines.json");
     assert_eq!(
         baselines["bench_count"],
-        serde_json::json!(93),
+        serde_json::json!(94),
         "the published corpus carries the four new cases the two cuts promised"
     );
     for case in [
@@ -440,7 +440,7 @@ fn m72_the_living_documents_re_agree() {
     );
     let m5 = read_workspace_file("crates/alacer-testing/tests/m5_exit_criteria.rs");
     assert!(
-        m5.contains("const EXPECTED_BENCH_COUNT: usize = 93;"),
+        m5.contains("const EXPECTED_BENCH_COUNT: usize = 94;"),
         "the m5 suite's corpus const re-agrees with the published baseline"
     );
 }

@@ -86,6 +86,11 @@ rustc-hash = "2.1.3"
 tracing = "0.1.44"
 criterion = "0.8.2"
 
+# The allocation ledger (A7, M84): the heap profiler the warm-frame
+# zero-allocation budget has always named — the budget checker installed
+# by the test/bench/example binaries, never by the framework.
+dhat = "0.3.3"
+
 # The Causality inspector's wire (ADR-0010): JSON protocol + RFC 6455
 # handshake primitives. Adopted, not written (audit PRIMITIVES P8).
 serde = { version = "1.0.228", features = ["derive"] }

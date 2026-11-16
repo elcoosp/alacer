@@ -88,6 +88,55 @@ pub type SharedFlagHandler = Rc<RefCell<dyn FnMut(bool)>>;
 /// slot) — the value tier's change handlers (`on_change` on a slider).
 pub type SharedNumberHandler = Rc<RefCell<dyn FnMut(f32)>>;
 
+/// A shared paint closure (the `PropValue::Painter` slot — M82): the
+/// custom-paint callback a canvas element runs at paint time, shared so
+/// re-renders can reuse it. The closure records primitives through
+/// [`alacer_core::scene::PaintCtx`] — the paint seam's own vocabulary.
+pub type SharedPainter = Rc<dyn for<'ctx> Fn(&mut alacer_core::scene::PaintCtx<'ctx>)>;
+
+/// A paint closure wrapped for the `rsx!` prop grammar: the explicit
+/// carrier the `Into<PropValue>` conversion needs (the blanket
+/// `FnMut() → Handler` impl owns the bare-closure slot; a paint closure
+/// carries its `PaintCtx` argument, so it rides this newtype — the
+/// `on_paint: Painter::new(|ctx| …)` form).
+pub struct Painter {
+    inner: SharedPainter,
+}
+
+impl Painter {
+    /// Wraps a paint closure: called once per canvas paint pass with the
+    /// node's [`alacer_core::scene::PaintCtx`] (local coordinates, the
+    /// clip stack, and the frame's resolved facts).
+    pub fn new(
+        paint: impl for<'ctx> Fn(&mut alacer_core::scene::PaintCtx<'ctx>) + 'static,
+    ) -> Self {
+        Self {
+            inner: Rc::new(paint),
+        }
+    }
+
+    /// The shared closure behind the carrier (identity comparisons ride
+    /// this — the patcher's "did the painter move" answer).
+    #[must_use]
+    pub fn shared(&self) -> SharedPainter {
+        Rc::clone(&self.inner)
+    }
+}
+
+impl Clone for Painter {
+    fn clone(&self) -> Self {
+        Self {
+            inner: Rc::clone(&self.inner),
+        }
+    }
+}
+
+impl std::fmt::Debug for Painter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Painter(<closure>)")
+    }
+}
+
 /// A property value: the small, typed vocabulary `rsx!` props compile to.
 #[derive(Clone)]
 pub enum PropValue {
@@ -119,6 +168,9 @@ pub enum PropValue {
     /// changes, no view re-run required — the progress bridge's door,
     /// typed by the value it carries.
     NumberBinding(alacer_core::flux::RenderBinding<f32>),
+    /// A paint closure (`on_paint: Painter::new(|ctx| …)` — M82): the
+    /// custom-paint callback a canvas element runs at paint time.
+    Painter(Painter),
 }
 
 impl std::fmt::Debug for PropValue {
@@ -132,6 +184,7 @@ impl std::fmt::Debug for PropValue {
             Self::TextHandler(_) => f.debug_tuple("TextHandler").field(&"<fn>").finish(),
             Self::FlagHandler(_) => f.debug_tuple("FlagHandler").field(&"<fn>").finish(),
             Self::NumberHandler(_) => f.debug_tuple("NumberHandler").field(&"<fn>").finish(),
+            Self::Painter(_) => f.debug_tuple("Painter").field(&"<closure>").finish(),
             Self::Binding(_) => f.debug_tuple("Binding").field(&"<bound>").finish(),
             Self::NumberBinding(_) => f.debug_tuple("NumberBinding").field(&"<bound>").finish(),
         }
@@ -151,6 +204,7 @@ impl PartialEq for PropValue {
             (Self::TextHandler(a), Self::TextHandler(b)) => Rc::ptr_eq(a, b),
             (Self::FlagHandler(a), Self::FlagHandler(b)) => Rc::ptr_eq(a, b),
             (Self::NumberHandler(a), Self::NumberHandler(b)) => Rc::ptr_eq(a, b),
+            (Self::Painter(a), Self::Painter(b)) => Rc::ptr_eq(&a.inner, &b.inner),
             // Bindings never compare equal — nor does any other pairing:
             // a rebuild re-hangs the same binding slot, and the patcher
             // re-hangs idempotently.
@@ -216,6 +270,12 @@ impl From<alacer_core::flux::RenderBinding<f32>> for PropValue {
 impl<F: FnMut() + 'static> From<F> for PropValue {
     fn from(value: F) -> Self {
         Self::Handler(Rc::new(RefCell::new(value)))
+    }
+}
+
+impl From<Painter> for PropValue {
+    fn from(value: Painter) -> Self {
+        Self::Painter(value)
     }
 }
 

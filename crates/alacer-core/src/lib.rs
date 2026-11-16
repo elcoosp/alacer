@@ -104,11 +104,6 @@ pub use events::{
 };
 pub use flux::{Flux, FluxCounters, FluxRwSignal, FluxWriter, RenderBinding};
 pub use frame_refusal::FRAME_REFUSAL_TRAIL_CAP;
-pub use theme::THEME_TRAIL_CAP;
-pub use view_patch::VIEW_PATCH_TRAIL_CAP;
-// The reactive trait seam: the framework's signal handles are
-// `reactive_graph`'s, so its read/write traits ride the same re-export
-// (call sites never need a direct reactive_graph dependency).
 pub use geom::{Point, Rect, Size, Vector};
 pub use input::EventCoalescer;
 pub use inspect::{
@@ -130,6 +125,11 @@ pub use passes::{
     ImeRequest, LayoutEngine, LayoutError, PassKind, PassPipeline, PassRun, SceneJournal, TreeNode,
     TreeSnapshot,
 };
+pub use theme::THEME_TRAIL_CAP;
+pub use view_patch::VIEW_PATCH_TRAIL_CAP;
+// The reactive trait seam: the framework's signal handles are
+// `reactive_graph`'s, so its read/write traits ride the same re-export
+// (call sites never need a direct reactive_graph dependency).
 pub use reactive_graph::traits::{Get, GetUntracked, Set};
 pub use scene::{
     Glyph, GlyphBitmap, GlyphSource, PaintCtx, PaintSink, Primitive, Quad, SceneSnapshot,

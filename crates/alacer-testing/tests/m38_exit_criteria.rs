@@ -295,7 +295,7 @@ fn m38_the_living_documents_re_agree() {
     let architecture = std::fs::read_to_string(root.join("docs/architecture.md"))
         .expect("the architecture document");
     assert!(
-        architecture.contains("88 decision records"),
+        architecture.contains("92 decision records"),
         "the architecture register re-agrees at 45 decision records"
     );
     assert!(
@@ -306,7 +306,7 @@ fn m38_the_living_documents_re_agree() {
     // The README's status block, count, and ADR line re-agree.
     let readme = std::fs::read_to_string(root.join("README.md")).expect("README");
     assert!(
-        readme.contains("M0 through M85") && readme.contains("ninety decision records"),
+        readme.contains("M0 through M86") && readme.contains("ninety-two decision records"),
         "the README's status block and ADR count re-agree at M38"
     );
 
@@ -326,7 +326,7 @@ fn m38_the_living_documents_re_agree() {
     let m5 = std::fs::read_to_string(root.join("crates/alacer-testing/tests/m5_exit_criteria.rs"))
         .expect("the m5 suite");
     assert!(
-        m5.contains("const EXPECTED_BENCH_COUNT: usize = 91;"),
+        m5.contains("const EXPECTED_BENCH_COUNT: usize = 93;"),
         "the m5 suite's corpus pin stands at 63"
     );
 

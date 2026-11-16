@@ -504,6 +504,16 @@
       "id": "settings_kiosk_flip_no_op",
       "baseline": "settings/kiosk_flip_no_op",
       "scope": "same-host"
+    },
+    {
+      "id": "settings_shaped_flip_pinned_no_op",
+      "baseline": "settings/shaped_flip_pinned_no_op",
+      "scope": "same-host"
+    },
+    {
+      "id": "alloc_input_frame_budget",
+      "baseline": "alloc/input_frame_budget",
+      "scope": "same-host"
     }
   ],
   "test_enforced_gates": [

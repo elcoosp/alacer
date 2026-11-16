@@ -9,7 +9,8 @@ use alacer_view::{ElementProps, WidgetRegistry};
 /// Creates the registry pre-loaded with the element set: the M0 canon
 /// (`label`, `button`, `column`, `row`, `spacer`, `panel`, `list`) plus the
 /// M6 canon (`checkbox`, `text_input`, `table`, `table_row`, `table_cell`,
-/// `column_header`) plus the M32 value tier (`slider`, `progress`).
+/// `column_header`) plus the M32 value tier (`slider`, `progress`) plus the
+/// M82 paint seam (`canvas`).
 #[must_use]
 pub fn default_registry() -> WidgetRegistry {
     let mut registry = WidgetRegistry::new();
@@ -28,7 +29,43 @@ pub fn default_registry() -> WidgetRegistry {
     registry.register("column_header", column_header_create, column_header_patch);
     registry.register("slider", slider_create, slider_patch);
     registry.register("progress", progress_create, progress_patch);
+    registry.register("canvas", canvas_create, canvas_patch);
     registry
+}
+
+/// The canvas element (`canvas { name: …, on_paint: Painter::new(…) }` —
+/// M82): the paint seam's DSL door.
+fn canvas_create(props: &ElementProps<'_>) -> crate::Canvas {
+    let mut canvas = crate::Canvas::new(props.text("name").unwrap_or_default());
+    if let Some(width) = props.number("width")
+        && let Some(height) = props.number("height")
+    {
+        canvas = canvas.size(width, height);
+    }
+    canvas.painter_from(props.painter("on_paint"))
+}
+
+fn canvas_patch(canvas: &mut crate::Canvas, props: &ElementProps<'_>) -> bool {
+    let mut visual = false;
+    if let Some(name) = props.text("name") {
+        canvas.set_name(name);
+        visual = true;
+    }
+    if let Some(width) = props.number("width")
+        && let Some(height) = props.number("height")
+    {
+        canvas.set_size(width, height);
+        visual = true;
+    }
+    // The painter's identity is the repaint contract (the widget's own
+    // rule): a rebuilt closure reports visual, a hoisted painter
+    // re-hangs quietly — the idle-frame property, at the canvas seam.
+    // An absent `on_paint` leaves the hung painter alone (the patcher
+    // applies only the props the view carries).
+    if let Some(painter) = props.painter("on_paint") {
+        visual |= canvas.set_painter(Some(painter));
+    }
+    visual
 }
 
 fn label_create(props: &ElementProps<'_>) -> crate::Label {
@@ -781,9 +818,11 @@ mod tests {
         );
         // The absent `color` prop resolves the canon surface (ADR-0079's
         // pin): the registry default is the palette's own surface role,
-        // byte-identical to what 0.16 painted.
+        // byte-identical to what 0.16 painted. The comparison builds the
+        // same panel the registry created — the `height` prop's 12.0, the
+        // color absent — so the only difference under test is the color.
         assert_eq!(
-            crate::Panel::new(0.0, crate::theme::SURFACE).style(),
+            crate::Panel::new(12.0, crate::theme::SURFACE).style(),
             widget.style(),
             "the absent color prop's default is the canon surface"
         );

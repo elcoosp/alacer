@@ -626,6 +626,9 @@ pub enum WireEvent {
     /// beside the dark one — the additive fields the versioning rule
     /// admits at version 1, the lengths rule's shape (a count is not an
     /// identity: the ids never ride), never a second event per fact.
+    /// Since M79 (ADR-0085) the event grows the high-contrast fact
+    /// beside the two — the additive field the versioning rule admits
+    /// at version 1, the facts riding beside each other.
     /// Streams ahead of the theme facts (the flip is the fact the
     /// palette resolves beside).
     Setting {
@@ -637,6 +640,10 @@ pub enum WireEvent {
         /// answer beside the dark one, the stable, documented field
         /// value the protocol document pins.
         reduced_motion: bool,
+        /// The OS's high-contrast fact (ADR-0085) — the same seam's
+        /// answer beside the facts it sits beside, the stable,
+        /// documented field value the protocol document pins.
+        high_contrast: bool,
         /// The broadcast's node count — how many nodes the flip's
         /// `Change::PAINT` merge touched (ADR-0082, the lengths rule),
         /// the flip's reach named on the wire.
@@ -1225,16 +1232,18 @@ pub fn wire_theme(record: &alacer_core::inspect::ThemeRecord) -> WireEvent {
 /// The setting-flip record, flat on the wire (M74, ADR-0080): the
 /// dark-mode fact beside the door that landed it — the bool *is* the
 /// fact. Since M76 (ADR-0082) the event carries the broadcast's node
-/// count beside the fact, and since M77 (ADR-0083) the reduced-motion
-/// fact beside the dark one — the lengths rule, the ids never riding.
-/// The setting tier's own answer, never a silent repaint: the flips
-/// the whole window rode are named facts now, one per flip that
+/// count beside the fact, since M77 (ADR-0083) the reduced-motion
+/// fact beside the dark one, and since M79 (ADR-0085) the
+/// high-contrast fact beside the two — the lengths rule, the ids never
+/// riding. The setting tier's own answer, never a silent repaint: the
+/// flips the whole window rode are named facts now, one per flip that
 /// landed.
 #[must_use]
 pub fn wire_setting(record: &alacer_core::inspect::SettingRecord) -> WireEvent {
     WireEvent::Setting {
         dark: record.dark,
         reduced_motion: record.reduced_motion,
+        high_contrast: record.high_contrast,
         repainted: record.repainted,
     }
 }
@@ -3010,6 +3019,27 @@ mod client_tests {
             assert!(
                 page.contains(fragment),
                 "the embedded client renders the motion fact: {fragment}"
+            );
+        }
+    }
+
+    /// M79 (ADR-0085, this cut): the embedded standalone client renders
+    /// the setting tier's contrast fact — the additive `high_contrast`
+    /// field lands beside the facts it sits beside in the row's
+    /// headline and its detail line, one event carrying the facts the
+    /// vocabulary consults (never a second event per fact). The pin
+    /// rides the file's own fragments (the M30 route).
+    #[test]
+    fn the_client_renders_the_settings_contrast_fact() {
+        let page = include_str!("inspector.html");
+        for fragment in [
+            "event.high_contrast",
+            "the OS fact is now",
+            "the flip repainted",
+        ] {
+            assert!(
+                page.contains(fragment),
+                "the embedded client renders the contrast fact: {fragment}"
             );
         }
     }

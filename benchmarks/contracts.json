@@ -469,6 +469,11 @@
       "id": "theme_door_swap_counted",
       "baseline": "theme/door_swap_counted",
       "scope": "same-host"
+    },
+    {
+      "id": "settings_door_flip_contrast",
+      "baseline": "settings/door_flip_contrast",
+      "scope": "same-host"
     }
   ],
   "test_enforced_gates": [

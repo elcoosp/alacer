@@ -1984,9 +1984,11 @@ pub struct ThemeRecord {
 /// the ids never ride), the count computed where the broadcast
 /// resolves, never re-counted at the reader. Since M77 (ADR-0083,
 /// ADR-0080's first pre-registered re-open rule) the record grows the
-/// reduced-motion fact beside the dark fact — one record per seam, the
-/// facts the vocabulary consults riding beside each other, never a
-/// second seam or event per fact. The record rides *beside*
+/// reduced-motion fact beside the dark fact, and since M79 (ADR-0085,
+/// the same rule cashed a second time) the high-contrast fact beside
+/// the two — one record per seam, the facts the vocabulary consults
+/// riding beside each other, never a second seam or event per fact.
+/// The record rides *beside*
 /// the door's `bool` answer — the door still answers whether the flip
 /// landed — never instead of it; a flip that lands where the facts
 /// already are queues no record (the idle-frame property, A1's rule at
@@ -2005,6 +2007,12 @@ pub struct SettingRecord {
     /// when motion itself is the question (a spinner's spin, a
     /// thumbnail's autoplay), never a second seam per fact.
     pub reduced_motion: bool,
+    /// The OS's high-contrast fact (ADR-0085) — the same seam's answer,
+    /// resolved once per paint pass into `PaintCtx` beside the facts it
+    /// sits beside: the role-independent decision the vocabulary
+    /// consults when contrast itself is the question (a hairline's
+    /// weight, a focus ring's width), never a second seam per fact.
+    pub high_contrast: bool,
     /// The broadcast's node count — how many nodes the flip's
     /// `Change::PAINT` merge touched (ADR-0082): the lengths rule's
     /// shape, the count naming the flip's reach, the ids never riding

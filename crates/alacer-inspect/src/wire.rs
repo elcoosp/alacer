@@ -627,8 +627,11 @@ pub enum WireEvent {
     /// admits at version 1, the lengths rule's shape (a count is not an
     /// identity: the ids never ride), never a second event per fact.
     /// Since M79 (ADR-0085) the event grows the high-contrast fact
-    /// beside the two — the additive field the versioning rule admits
-    /// at version 1, the facts riding beside each other.
+    /// beside the two, and since M81 (ADR-0087) the accent-color fact
+    /// beside the three — the additive fields the versioning rule
+    /// admits at version 1, the facts riding beside each other, the
+    /// accent riding its presence (`null` the honest absence, the hex
+    /// the reported color, never a guess).
     /// Streams ahead of the theme facts (the flip is the fact the
     /// palette resolves beside).
     Setting {
@@ -644,6 +647,12 @@ pub enum WireEvent {
         /// answer beside the facts it sits beside, the stable,
         /// documented field value the protocol document pins.
         high_contrast: bool,
+        /// The OS's accent-color fact (ADR-0087) — the same seam's
+        /// answer beside the facts it sits beside, as the documented
+        /// `#RRGGBBAA` hex, or `null` when the platform reports no
+        /// accent (the honest absence), the stable, documented field
+        /// value the protocol document pins.
+        accent: Option<String>,
         /// The broadcast's node count — how many nodes the flip's
         /// `Change::PAINT` merge touched (ADR-0082, the lengths rule),
         /// the flip's reach named on the wire.
@@ -1233,19 +1242,34 @@ pub fn wire_theme(record: &alacer_core::inspect::ThemeRecord) -> WireEvent {
 /// dark-mode fact beside the door that landed it — the bool *is* the
 /// fact. Since M76 (ADR-0082) the event carries the broadcast's node
 /// count beside the fact, since M77 (ADR-0083) the reduced-motion
-/// fact beside the dark one, and since M79 (ADR-0085) the
-/// high-contrast fact beside the two — the lengths rule, the ids never
-/// riding. The setting tier's own answer, never a silent repaint: the
-/// flips the whole window rode are named facts now, one per flip that
-/// landed.
+/// fact beside the dark one, since M79 (ADR-0085) the
+/// high-contrast fact beside the two, and since M81 (ADR-0087) the
+/// accent-color fact beside the three — the lengths rule, the ids never
+/// riding, the accent riding its presence (the documented `#RRGGBBAA`
+/// hex, or `null` when the platform reports no accent — the honest
+/// absence, never a guessed color). The setting tier's own answer,
+/// never a silent repaint: the flips the whole window rode are named
+/// facts now, one per flip that landed.
 #[must_use]
 pub fn wire_setting(record: &alacer_core::inspect::SettingRecord) -> WireEvent {
     WireEvent::Setting {
         dark: record.dark,
         reduced_motion: record.reduced_motion,
         high_contrast: record.high_contrast,
+        accent: record.accent.map(accent_hex),
         repainted: record.repainted,
     }
+}
+
+/// The accent fact's wire naming (ADR-0087): the OS-reported color as
+/// the documented `#RRGGBBAA` hex — the stable, documented field value
+/// the protocol document pins, the wire-local naming vocabulary's rule
+/// ([`input_name`], [`refusal_name`]).
+fn accent_hex(color: alacer_core::color::Color) -> String {
+    format!(
+        "#{:02X}{:02X}{:02X}{:02X}",
+        color.r, color.g, color.b, color.a
+    )
 }
 
 /// The chord's key, named for the wire ([`KeyRecord`]'s `key` field):
@@ -3040,6 +3064,28 @@ mod client_tests {
             assert!(
                 page.contains(fragment),
                 "the embedded client renders the contrast fact: {fragment}"
+            );
+        }
+    }
+
+    /// M81 (ADR-0087, this cut): the embedded standalone client renders
+    /// the setting tier's accent fact — the additive `accent` field
+    /// lands beside the facts it sits beside in the row's headline and
+    /// its detail line, the fact riding its presence (`null` the
+    /// honest absence, the hex the reported color), one event carrying
+    /// the facts the vocabulary consults (never a second event per
+    /// fact). The pin rides the file's own fragments (the M30 route).
+    #[test]
+    fn the_client_renders_the_settings_accent_fact() {
+        let page = include_str!("inspector.html");
+        for fragment in [
+            "event.accent",
+            "case \"setting\":",
+            "The client renders the setting tier's own fact (M74,",
+        ] {
+            assert!(
+                page.contains(fragment),
+                "the embedded client renders the accent fact: {fragment}"
             );
         }
     }

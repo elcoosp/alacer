@@ -305,7 +305,7 @@ fn m23_the_living_documents_re_agree() {
     for guide in ["docs/migration/from-iced.md", "docs/migration/from-egui.md"] {
         let guide = read_workspace_file(guide);
         assert!(
-            guide.contains("onto Alacer **0.16.0**"),
+            guide.contains("onto Alacer **0.17.0**"),
             "{guide} names the shipped family"
         );
     }
@@ -330,7 +330,7 @@ fn m23_the_living_documents_re_agree() {
         "the m20/m21 version pins moved with the badge"
     );
     assert!(
-        m21.contains("onto Alacer **0.16.0**"),
+        m21.contains("onto Alacer **0.17.0**"),
         "the m21 suite's migration-guide pin moved with the guides"
     );
 }

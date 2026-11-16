@@ -3,7 +3,8 @@
 //! pointer, word, clipboard, and history tiers ride it), the M6 canon
 //! (checkbox, data table) the todo and data-table apps need, the M20 value
 //! tier's slider, the M21 value tier's read half (the progress indicator
-//! the app reports through), and the panel/table/list vocabulary the M5
+//! the app reports through), the M82 canvas (the app's own paint closure
+//! through the paint seam), and the panel/table/list vocabulary the M5
 //! tour assembles.
 //!
 //! Widgets are retained: created once, mutated in place, painted on demand.
@@ -13,6 +14,7 @@
 
 mod button;
 mod canon;
+mod canvas;
 mod checkbox;
 mod column;
 mod label;
@@ -26,6 +28,7 @@ mod text_input;
 
 pub use button::Button;
 pub use canon::{DataTableHandles, TodoHandles, TodoItem, data_table_app, todo_app};
+pub use canvas::Canvas;
 pub use checkbox::Checkbox;
 pub use column::{Column, Row, Spacer};
 pub use label::Label;

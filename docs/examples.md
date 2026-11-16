@@ -4,8 +4,9 @@ Every runnable example in the workspace, what each one demonstrates, and the
 contract it exercises. All of them run the *real* pipeline — wgpu (or
 softbuffer with `ALACER_SOFTWARE=1`), the ten-pass contract, the scene
 journal, and AccessKit — never a mock (axiom A4). Headless CI builds every
-example (`cargo build -p alacer --examples`) and tests the same code paths
-through the software backend.
+example with the hot-reload wiring linked (`cargo build -p alacer --features
+hot-reload --examples`) and tests the same code paths through the software
+backend.
 
 | Example | Demonstrates | Contract | Run |
 |---|---|---|---|
@@ -74,6 +75,8 @@ through the software backend.
 | [`hot_reload`](../crates/alacer/examples/hot_reload.rs) | a "simulate patch" button swapping the view generation live | the M4 hot-reload contract: state intact, scoped re-render, one frame (§13.2) | `cargo run -p alacer --example hot_reload` |
 | [`recording`](../crates/alacer/examples/recording.rs) | the record/replay format driven from the consumer side: a settings form's session recorded live as it executes (`Session` — what you did is what gets saved), saved as a versioned `.alc`, loaded back, and replayed on a fresh harness through the real input methods — the counters proving the replay landed what the recording landed | the record/replay contract (ADR-0012, §13.4): semantic steps (a `press` names a role and an accessible name, never a pixel) surviving layout drift, the replayed recording the regression test — a step that no longer describes reality panics loudly, the schema guard refusing unknown formats | `cargo run -p alacer --example recording` |
 | [`inspector_demo`](../crates/alacer/examples/inspector_demo.rs) | the counter app with the Causality inspector riding on it | the M4 inspector: why did this render, who wrote this signal, why is this frame slow (§13.3) | `cargo run -p alacer --example inspector_demo` |
+| [`inspector_attach`](../crates/alacer/examples/inspector_attach.rs) | the same counter app with the inspector attached in one call — `attach_inspector` before the first frame, the URL printed, the accept loop serving on its own thread | the M83 assembly seam: the recorder into the observer slot, the bind before the install (a refused attach changes nothing), the reader handle answering the causal facts in-process (ADR-0010, §13.3) | `cargo run -p alacer --example inspector_attach` |
+| [`canvas`](../crates/alacer/examples/canvas.rs) | the app's own paint closure through the paint seam: a level bar that follows a slider, one signal write away | the M82 canvas: the painter records primitives through `PaintCtx` (the clip stack and the resolved facts riding), `bind_value` queues the canvas's `PAINT` mask — the repaint currency every widget shares, at the app's own surface (ADR-8's paint seam; the identity rule prices the hoisted painter as an idle frame) | `cargo run -p alacer --example canvas` |
 
 ## Where the pixels are proven
 

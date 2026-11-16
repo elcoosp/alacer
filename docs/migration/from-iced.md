@@ -223,6 +223,6 @@ Bless with `ALACER_BLESS=1`; the corpus lives in
 - **No `Task` type.** Async effects write signals; there is no command
   cancellation vocabulary yet — wrap your own join handles.
 - **Themes are constants, not a theme system.** `iced::Theme`'s palette
-  switching has no equivalent in 0.12; restyle by writing style properties.
+  switching has no equivalent in 0.17; restyle by writing style properties.
 - **One window, no multi-viewport.** Iced's `window::open` multi-window
   support has no Alacer counterpart yet.

@@ -28,6 +28,10 @@ alacer-widgets.workspace = true
 alacer-inspect.workspace = true
 tiny-skia.workspace = true
 reactive_graph.workspace = true
+# The allocation ledger's profiler core (A7, M84): the heap hook the
+# budget's checker rides — the ledger's API lives here, the hook is
+# dhat's own.
+dhat.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true
@@ -68,4 +72,8 @@ harness = false
 
 [[bench]]
 name = "inspect"
+harness = false
+
+[[bench]]
+name = "alloc"
 harness = false

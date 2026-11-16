@@ -436,8 +436,14 @@ function connect() {
         // line count renders beside the landing — "the scroll landed
         // (the offset 400) — the run priced 1 line" — a notch and the
         // trackpad's fractional run alike, the stories with no run
+        // riding the null the wire honestly carries. Since M88 the
+        // bring-into-view ask names the node it was *for* too
+        // (ADR-0092): the `aimed` id renders beside the container's
+        // own — "the scroll landed (the offset 568) for node 7412"
+        // — the two ids one ask produced, the stories with no aim
         // riding the null the wire honestly carries.
         const target = event.target != null ? " (control " + event.target + ")" : "";
+        const aim = event.aimed != null ? " for node " + event.aimed : "";
         const wall = event.pinned != null ? ", pinned at the " + event.pinned : "";
         const clamp = event.requested != null && event.requested !== event.offset;
         const unit = event.unit != null ? " by one " + event.unit : "";
@@ -446,8 +452,8 @@ function connect() {
           : "";
         const span = event.outcome === "delivered"
           ? (clamp
-            ? " (asked " + event.requested + ", landed " + event.offset + ")" + unit + run
-            : " (the offset " + event.offset + ")" + unit + run)
+            ? " (asked " + event.requested + ", landed " + event.offset + ")" + unit + run + aim
+            : " (the offset " + event.offset + ")" + unit + run + aim)
           : "";
         const answer = event.outcome === "refused"
           ? "refused: " + event.refusal + target

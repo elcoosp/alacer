@@ -7,6 +7,16 @@
 //! nowhere in the pipeline: a widget that wanted it guessed or polled;
 //! "follow the OS" meant rebuilding the palette by hand.
 //!
+//! Since M86 the composition tier grows the shaped lock beside the
+//! kiosk one (ADR-0090, ADR-0089's own pre-registered re-open rule):
+//! a composition that holds the facts its [`FactShape`] pins and
+//! follows the rest through the base composition it rides
+//! ([`ShapedComposer::over`]) — a signage display whose surface
+//! follows dark while its brand accent never moves, a motion-locked
+//! kiosk beside an accent-free one, the pinned fact substituted before
+//! the base resolves and the followed facts riding the base's answer
+//! the way the composition tier always has.
+//!
 //! Since M75 the seam carries its composition half (ADR-0081,
 //! ADR-0080's pre-registered re-open rule): an app that wants the
 //! palette to *follow* the fact installs a [`SettingComposer`] through
@@ -299,6 +309,181 @@ impl SettingComposer for KioskComposer {
     }
 }
 
+/// The pin half of a [`FactShape`]'s slot: the fact follows the OS, or
+/// the shape holds it at a pinned value. The shape's own algebra —
+/// generic over the pinned fact's type, the accent slot pinning the
+/// *fact* ([`Option`]`<`[`Color`]`>`: a color, or the honest absence,
+/// ADR-0087's presence rule held at the shape's door).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FactPin<T> {
+    /// The fact rides to the base composition the way it landed.
+    Follow,
+    /// The shape holds the fact at the pinned value.
+    Pin(T),
+}
+
+impl<T> FactPin<T> {
+    /// The value the slot answers: the pinned one where held, the
+    /// landed one where the slot follows.
+    fn substitute(self, landed: T) -> T {
+        match self {
+            Self::Follow => landed,
+            Self::Pin(pinned) => pinned,
+        }
+    }
+}
+
+/// The shape a [`ShapedComposer`] holds (§13.3, ADR-0090): per fact,
+/// follow the OS (`FactPin::Follow`) or pin it (`FactPin::Pin`) — the
+/// lock's own shape, built const from
+/// [`FactShape::FOLLOW_ALL`] one pin at a time so a shape ships beside
+/// the facts it holds (the kiosk lock's const precedent). The pinned
+/// fact is substituted before the base composition resolves — a
+/// boarding gate pins the dark fact it was installed under; an
+/// accent-free checkout line pins the honest absence; a brand-tinted
+/// surface pins the brand color — and every fact the shape leaves
+/// unpinned rides to the composition the way it always has.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FactShape {
+    /// The dark fact: follow or the pinned value.
+    dark: FactPin<bool>,
+    /// The reduced-motion fact: follow or the pinned value.
+    reduced_motion: FactPin<bool>,
+    /// The high-contrast fact: follow or the pinned value.
+    high_contrast: FactPin<bool>,
+    /// The accent fact: follow, pinned to a color, or pinned to the
+    /// honest absence ([`None`] pinned — the fact held at absence,
+    /// ADR-0087's presence rule at the shape's door).
+    accent: FactPin<Option<Color>>,
+}
+
+impl FactShape {
+    /// The empty shape: every fact follows, the base composition
+    /// answers unchanged — the shape that is no lock at all, the
+    /// install the no-op rides.
+    pub const FOLLOW_ALL: Self = Self {
+        dark: FactPin::Follow,
+        reduced_motion: FactPin::Follow,
+        high_contrast: FactPin::Follow,
+        accent: FactPin::Follow,
+    };
+
+    /// Pins the dark fact to `dark` — the flip the OS lands, the
+    /// surface the base never sees move.
+    #[must_use]
+    pub const fn pin_dark(mut self, dark: bool) -> Self {
+        self.dark = FactPin::Pin(dark);
+        self
+    }
+
+    /// Pins the reduced-motion fact to `reduced_motion` — the motion
+    /// ask the OS lands, the calm palette the base never sees move.
+    #[must_use]
+    pub const fn pin_reduced_motion(mut self, reduced_motion: bool) -> Self {
+        self.reduced_motion = FactPin::Pin(reduced_motion);
+        self
+    }
+
+    /// Pins the high-contrast fact to `high_contrast` — the contrast
+    /// ask the OS lands, the hairlines the base never sees move.
+    #[must_use]
+    pub const fn pin_high_contrast(mut self, high_contrast: bool) -> Self {
+        self.high_contrast = FactPin::Pin(high_contrast);
+        self
+    }
+
+    /// Pins the accent fact to `accent` — the color the base composes
+    /// its accent roles from, whatever the OS reports.
+    #[must_use]
+    pub const fn pin_accent(mut self, accent: Color) -> Self {
+        self.accent = FactPin::Pin(Some(accent));
+        self
+    }
+
+    /// Pins the accent fact to the honest absence — the base composes
+    /// from [`None`], whatever the OS reports (the accent-free checkout
+    /// line, ADR-0087's presence rule held at the shape's door).
+    #[must_use]
+    pub const fn pin_absent_accent(mut self) -> Self {
+        self.accent = FactPin::Pin(None);
+        self
+    }
+}
+
+/// The shaped lock (§13.3, ADR-0090): the composition that holds the
+/// facts its [`FactShape`] pins and follows the rest through the base
+/// composition it rides — ADR-0089's own pre-registered re-open rule
+/// cashed ("a consumer needs a lock with *shape* (an accent that never
+/// moves but a surface that follows dark, a motion-locked kiosk beside
+/// an accent-free one) → the provided-composition rule grows the second
+/// provided composer beside the lock — never a lock flag the facts
+/// interpret"). Through M85 the palette the facts could not move
+/// followed nothing at all: [`KioskComposer`] answers one palette for
+/// every fact permutation, and an app's own composition follows every
+/// fact by how it is written. The shaped lock is the between: the
+/// framework provides the shape, the app provides the palettes (the
+/// base composition it already wrote), the composition the two compose.
+///
+/// The lock's flip is the equality check's idle answer wherever its
+/// shape holds: a flip lands (the facts are the seam's, the door
+/// answers `true`, one [`crate::inspect::SettingRecord`] streams), the
+/// shape substitutes the pinned facts, the base resolves, and the
+/// composed answer is the palette the pinned facts already named — the
+/// swap the equality check refuses (the idle-frame property at the
+/// theme tier, ADR-0081, through the shape). Every followed fact rides
+/// the base's answer the way the composition tier always has — the
+/// swap lands, the [`crate::inspect::ThemeRecord`] tagged the shape's
+/// own name. The app's own `set_theme` ask still wins while it holds;
+/// the next flip is where the shape wins the followed facts back and
+/// the pinned facts never move.
+pub struct ShapedComposer {
+    /// The composition the shape rides — the app's own fact → palette
+    /// mapping, the palettes the framework cannot know.
+    base: Box<dyn SettingComposer>,
+    /// The facts the lock holds.
+    shape: FactShape,
+}
+
+impl ShapedComposer {
+    /// The lock over `base` with `shape` held — the base resolving
+    /// from the facts the shape leaves unpinned, the pinned facts
+    /// substituted before it answers.
+    #[must_use]
+    pub fn over(base: Box<dyn SettingComposer>, shape: FactShape) -> Self {
+        Self { base, shape }
+    }
+}
+
+impl SettingComposer for ShapedComposer {
+    fn palette(
+        &self,
+        dark: bool,
+        reduced_motion: bool,
+        high_contrast: bool,
+        accent: Option<Color>,
+    ) -> Palette {
+        self.base.palette(
+            self.shape.dark.substitute(dark),
+            self.shape.reduced_motion.substitute(reduced_motion),
+            self.shape.high_contrast.substitute(high_contrast),
+            self.shape.accent.substitute(accent),
+        )
+    }
+
+    fn name(&self) -> &'static str {
+        "shaped"
+    }
+}
+
+impl std::fmt::Debug for ShapedComposer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ShapedComposer")
+            .field("base", &self.base.name())
+            .field("shape", &self.shape)
+            .finish()
+    }
+}
+
 /// The composed palette the composition door mounts (ADR-0081): a
 /// [`ThemeSeam`] the pipeline itself installed from a composer's
 /// answer — the roles the composer resolved beside the tag it named.
@@ -436,8 +621,8 @@ pub(crate) fn take_setting_trail() -> Vec<SettingRecord> {
 #[cfg(test)]
 mod tests {
     use super::{
-        CanonSettings, KioskComposer, SETTING_TRAIL_CAP, SettingComposer, SettingRecord,
-        SettingSeam, note_setting, take_setting_trail,
+        CanonSettings, FactShape, KioskComposer, SETTING_TRAIL_CAP, SettingComposer, SettingRecord,
+        SettingSeam, ShapedComposer, note_setting, take_setting_trail,
     };
     use crate::color::Color;
     use crate::theme::Palette;
@@ -554,6 +739,166 @@ mod tests {
             SettingComposer::palette(&first, false, false, false, None),
             SettingComposer::palette(&second, false, false, false, None),
             "two locks resolved the same palette"
+        );
+    }
+
+    /// The facts-echoing composition the shape's tests ride: the
+    /// answered palette's roles name the facts the base was handed —
+    /// surface the dark fact, panel the motion fact, border the
+    /// contrast fact, accent the accent fact — so a test reads the
+    /// shape's substitution straight off the palette the base
+    /// answered.
+    struct FactEchoComposer;
+
+    impl SettingComposer for FactEchoComposer {
+        fn palette(
+            &self,
+            dark: bool,
+            reduced_motion: bool,
+            high_contrast: bool,
+            accent: Option<Color>,
+        ) -> Palette {
+            Palette {
+                surface: if dark {
+                    Color::rgb(1, 1, 1)
+                } else {
+                    Color::rgb(0, 0, 0)
+                },
+                panel: if reduced_motion {
+                    Color::rgb(1, 1, 1)
+                } else {
+                    Color::rgb(0, 0, 0)
+                },
+                border: if high_contrast {
+                    Color::rgb(1, 1, 1)
+                } else {
+                    Color::rgb(0, 0, 0)
+                },
+                accent: accent.unwrap_or(Color::rgb(2, 2, 2)),
+                ..Palette::CANON
+            }
+        }
+
+        fn name(&self) -> &'static str {
+            "fact-echo"
+        }
+    }
+
+    /// The shaped lock pins the facts its shape holds and follows the
+    /// rest: the pinned facts reach the base at the pin values, the
+    /// followed facts at the landed values — every permutation, read
+    /// off the roles the fact-echo base answers (ADR-0090). Const-built
+    /// like the kiosk lock, the shape ships beside the facts it holds.
+    #[test]
+    fn the_shaped_lock_pins_its_facts_and_follows_the_rest() {
+        const SHAPE: FactShape = FactShape::FOLLOW_ALL
+            .pin_dark(true)
+            .pin_accent(Color::rgb(255, 176, 64));
+        let shaped = ShapedComposer::over(Box::new(FactEchoComposer), SHAPE);
+        for bits in 0_u8..4 {
+            let dark = bits & 1 != 0;
+            let reduced_motion = bits & 2 != 0;
+            let answer = SettingComposer::palette(
+                &shaped,
+                dark,
+                reduced_motion,
+                false,
+                Some(Color::rgb(255, 94, 58)),
+            );
+            assert_eq!(
+                answer.surface,
+                Color::rgb(1, 1, 1),
+                "the followed dark fact reached the base (bits {bits})"
+            );
+            assert_eq!(
+                answer.panel,
+                if reduced_motion {
+                    Color::rgb(1, 1, 1)
+                } else {
+                    Color::rgb(0, 0, 0)
+                },
+                "the followed motion fact reached the base (bits {bits})"
+            );
+            assert_eq!(
+                answer.border,
+                Color::rgb(0, 0, 0),
+                "the followed contrast fact reached the base (bits {bits})"
+            );
+            assert_eq!(
+                answer.accent,
+                Color::rgb(255, 176, 64),
+                "the pinned accent fact never reached the base (bits {bits})"
+            );
+        }
+        assert_eq!(SettingComposer::name(&shaped), "shaped");
+    }
+
+    /// The shape that holds nothing is the base itself: every fact
+    /// rides to the composition unchanged, the answered palette the
+    /// base's own answer (the no-lock shape the no-op install rides).
+    #[test]
+    fn the_follow_all_shape_answers_the_base_unchanged() {
+        let shaped = ShapedComposer::over(Box::new(FactEchoComposer), FactShape::FOLLOW_ALL);
+        for bits in 0_u8..8 {
+            let dark = bits & 1 != 0;
+            let reduced_motion = bits & 2 != 0;
+            let high_contrast = bits & 4 != 0;
+            let accent = (bits % 2 != 0).then_some(Color::rgb(255, 94, 58));
+            assert_eq!(
+                SettingComposer::palette(&shaped, dark, reduced_motion, high_contrast, accent),
+                SettingComposer::palette(
+                    &FactEchoComposer,
+                    dark,
+                    reduced_motion,
+                    high_contrast,
+                    accent
+                ),
+                "the empty shape moved a fact (bits {bits})"
+            );
+        }
+    }
+
+    /// The pinned absences hold too: the accent pinned to the honest
+    /// absence reaches the base as `None` even where the OS reports a
+    /// color — the shape holding the fact, not dropping it (ADR-0087's
+    /// presence rule at the shape's door).
+    #[test]
+    fn the_shape_pins_the_honest_absence_too() {
+        let shaped = ShapedComposer::over(
+            Box::new(FactEchoComposer),
+            FactShape::FOLLOW_ALL.pin_absent_accent(),
+        );
+        let answer =
+            SettingComposer::palette(&shaped, false, false, false, Some(Color::rgb(255, 94, 58)));
+        assert_eq!(
+            answer.accent,
+            Color::rgb(2, 2, 2),
+            "the pinned absence dropped to the base's absence marker"
+        );
+    }
+
+    /// Two shapes hold two facts apart, and one shape is pure: two
+    /// resolutions of the same facts answer the same palette (the
+    /// shape's own purity, beside the lock's).
+    #[test]
+    fn two_shapes_hold_two_facts_apart_and_one_shape_is_pure() {
+        let dark_lock = ShapedComposer::over(
+            Box::new(FactEchoComposer),
+            FactShape::FOLLOW_ALL.pin_dark(true),
+        );
+        let light_lock = ShapedComposer::over(
+            Box::new(FactEchoComposer),
+            FactShape::FOLLOW_ALL.pin_dark(false),
+        );
+        assert_ne!(
+            SettingComposer::palette(&dark_lock, false, false, false, None).surface,
+            SettingComposer::palette(&light_lock, false, false, false, None).surface,
+            "two shapes resolved the same surface"
+        );
+        assert_eq!(
+            SettingComposer::palette(&dark_lock, true, false, false, None),
+            SettingComposer::palette(&dark_lock, false, false, false, None),
+            "the shape's answer moved with the fact it pins"
         );
     }
 }

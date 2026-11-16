@@ -286,8 +286,8 @@ fn m52_the_living_documents_re_agree() {
     // the demonstration.
     let readme = read_workspace_file("README.md");
     for fragment in [
-        "M0 through M81",
-        "eighty-eight decision records",
+        "M0 through M85",
+        "ninety decision records",
         "Since M52 the AT's unit scrolls name their unit too",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
@@ -339,7 +339,7 @@ fn m52_the_living_documents_re_agree() {
             "crates/alacer-testing/tests/{suite}_exit_criteria.rs"
         ));
         assert!(
-            source.contains("M0 through M81"),
+            source.contains("M0 through M85"),
             "the {suite} suite's README pin moved with the documents"
         );
     }
@@ -357,7 +357,7 @@ fn m52_the_living_documents_re_agree() {
             "crates/alacer-testing/tests/{suite}_exit_criteria.rs"
         ));
         assert!(
-            source.contains("eighty-eight decision records"),
+            source.contains("ninety decision records"),
             "the {suite} suite's README status pin moved with the documents"
         );
     }

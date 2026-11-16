@@ -251,27 +251,28 @@ Core semantics we inherit (all cited at `7d656a4`):
 
 ```rust
 use alacer::prelude::*;
+use reactive_graph::traits::{GetUntracked as _, Set as _};
 
-#[derive(Clone, PartialEq)]
-struct Todo { done: bool, label: String }
-
-fn app() -> View {
-    let todos = use_signal(Vec::<Todo>::new);        // Signal<Vec<Todo>>
-    let remaining = use_memo(move ||                 // Memo<usize>, tracked automatically
-        todos.with(|t| t.iter().filter(|x| !x.done).count()));
-
+fn counter_view(count: alacer_core::FluxRwSignal<i32>) -> ViewNode {
     rsx! {
-        input { placeholder: "Add a todo…",
-                on_submit: move |text| todos.write().push(Todo { done: false, label: text }) }
-        for (i, todo) in todos.read().iter().enumerate() {   // fine-grained: per-item bindings
-            todo_row { key: i, todo, on_toggle: move |_| todos.write()[i].done ^= true }
+        column { gap: 8.0, padding: 12.0,
+            label { text: "Clicked {count.get()} times" }
+            button { text: "Increment", on_click: move || count.set(count.get() + 1) }
         }
-        footer { "{remaining} items left" }                  // re-renders this slot only
     }
+}
+
+fn main() {
+    let mut pipeline = pipeline_default();
+    let count = pipeline.flux_mut().signal(0_i32);
+    let mut root = mount_view(&counter_view(count), pipeline);
+    // … the app re-runs the view closure on its own schedule; the
+    // reconciler applies the diff as in-place widget mutations.
+    # let _ = &mut root;
 }
 ```
 
-Ergonomic targets, borrowed from the audited winners: `Copy` signal handles over generational arenas (Dioxus `packages/generational-box` semantics — thread-local arenas, generation counters, `Owner` teardown, `packages/generational-box/src/unsync.rs:38-46`, `entry.rs:31-59` @ `7dfd07e`); dynamic per-run dependency tracking (no manual `unwrap`-style declarations); hooks-rule violations caught with actionable panics (Freya's HOOKS_ERROR pattern, `lifecycle/base.rs:9-107` @ `0b13171`).
+Ergonomic targets, borrowed from the audited winners: `Copy` signal handles over generational arenas (Dioxus `packages/generational-box` semantics — thread-local arenas, generation counters, `Owner` teardown, `packages/generational-box/src/unsync.rs:38-46`, `entry.rs:31-59` @ `7dfd07e`); dynamic per-run dependency tracking (no manual `unwrap`-style declarations); hooks-rule violations caught with actionable panics (Freya's HOOKS_ERROR pattern, `lifecycle/base.rs:9-107` @ `0b13171`). The shipped surface is the facade's prelude (`rsx!`, the re-exports) over `pipeline_default`/`mount_view`/`run_window` — the hook-form (`use_signal`/`use_memo` inside one `app()` closure) stays the ergonomics option, not the shipped shape.
 
 **Why not the alternatives (decided, with evidence):**
 - *Elm-style whole-app re-run* (Masonry/Xilem): every message re-runs `app_logic` and diffs the whole view tree (`xilem/src/driver.rs:256-293` @ `dc49687`) — a tax that grows with app size, paid even when one label changes.
@@ -445,7 +446,7 @@ The audit's sharpest finding is a market failure: AccessKit is the de-facto stan
 
 ### 11.1 The contract (ADR-5)
 
-1. **Required widget methods.** The `Widget` derive requires `role` and a label source — Masonry's required-method design (`masonry_core/src/core/widget.rs:424-435` @ `dc49687`) expressed as `#[derive(Widget)] #[widget(role = Button)]` so the friction lands in one line, not one trait impl.
+1. **Required widget methods.** The `Widget` trait requires `role` and a label source — Masonry's required-method design (`masonry_core/src/core/widget.rs:424-435` @ `dc49687`) shipped as required trait methods: a widget that cannot be named cannot compile, and the friction lands in the two methods every widget writes. The `#[derive(Widget)]` form stays the ergonomics option for the day the set grows past hand impls.
 2. **Debug-mode CI walker.** A test-only pass walks the widget tree and fails the build if any widget lacks role/label or exposes unnamed input controls — novel in the ecosystem, cheap to build (egui's kittest already panics on unnamed inputs *at test time*; we move the check to *compile/test gate* time, `crates/egui_kittest/README.md` @ `fc9d66d`).
 3. **Identity sharing.** AccessKit `NodeId` = id-path hash = hit-test id (§6.3) — the a11y tree is the same tree, not a parallel one.
 4. **Incremental updates.** TreeUpdates built from dirty nodes only (Freya's `accessibility/dirty_nodes.rs` @ `0b13171`), inside pass 9 — never a full-tree rebuild per frame (egui emits a full `TreeUpdate` every end-pass, `crates/egui/src/context.rs:3182-3207` @ `fc9d66d`; we do not inherit that cost).
@@ -820,7 +821,7 @@ Each open question carries its cheapest validation experiment (VISION.md Q1–Q6
 | Q2 | reactive_graph can drive paint scheduling without a second scheduler | Medium | M0 metric (ADR-6 kill-switch); GPUI draw-tracking is the documented fallback |
 | Q3 | subsecond is CI-grade for a non-Dioxus framework | Medium | I3 CI hot-patch suite in M4; template-only fallback documented |
 | Q4 | Per-item paint trackers on a GPU path without Slint's rewrite cost | Medium-High | journal-replay-only partial paint first; add trackers only if fill rate still dominates |
-| Q5 | Required a11y methods won't poison ergonomics | Low-Medium | ship `#[derive(Widget)] #[widget(role = …)]` early; gather feedback at 0.1 |
+| Q5 | Required a11y methods won't poison ergonomics | Low-Medium | answered by the shipped shape: required trait methods since M0 (no derive yet); gather feedback at 0.1, the `#[derive(Widget)]` form stays the option |
 | Q6 | A maintained bench rig stays honest across winit versions | Low | the rig is M0 infrastructure; baselines-as-contract from day 1 (Floem precedent) |
 | Q7 | *(new)* reactive_graph's maintainer set stays responsive | Medium | upstream-first contributions from M0 build goodwill; the crate is small and MIT — a fork under our license is the cheap last resort (explicitly exempted from A5's "never fork" by ADR-6's fork-path note) |
 | Q8 | *(new)* tiny-skia partial paint matches GPU damage semantics exactly | Medium | the equivalence fuzz (§9.3) runs against both backends from M2 |

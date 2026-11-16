@@ -10,8 +10,11 @@
 //! - record/replay: user interactions saved as `.alc` files and replayed
 //!   in `cargo test` — bug reports that are also regression tests (§13.4,
 //!   M6);
-//! - scheduling-contract counters for the ADR-6 kill-switch.
+//! - scheduling-contract counters for the ADR-6 kill-switch;
+//! - the allocation ledger (§A7, M84, ADR-0088): the heap budget's
+//!   checker the warm-frame zero-allocation contract is enforced with.
 
+pub mod alloc;
 pub mod recording;
 
 pub use recording::{

@@ -366,11 +366,11 @@ impl AlacerApp {
         event_loop.run_app(&mut self).map_err(PlatformError::Loop)
     }
 
-    fn ensure_backend(&mut self, event_loop: &ActiveEventLoop) -> Result<(), PlatformError> {
+    fn ensure_backend(&mut self, _event_loop: &ActiveEventLoop) -> Result<(), PlatformError> {
         if self.backend.is_some() {
             return Ok(());
         }
-        let outcome = match self.backend_preference {
+        match self.backend_preference {
             #[cfg(feature = "backend-wgpu")]
             BackendPreference::Wgpu => self.build_wgpu_backend(),
             #[cfg(feature = "backend-softbuffer")]
@@ -383,9 +383,7 @@ impl AlacerApp {
             other => Err(PlatformError::BackendUnavailable {
                 requested: other.name(),
             }),
-        };
-        let _ = event_loop;
-        outcome
+        }
     }
 
     /// Builds the wgpu present path (the window's surface + the renderer)
@@ -437,6 +435,14 @@ impl AlacerApp {
             Ok(report) => report,
             Err(error) => {
                 tracing::error!("layout failed: {error}");
+                // The frame tier's fact (ADR-0077): the tick's layout
+                // stage refused — the record beside the log line, the
+                // failing node's id carried when the engine named one
+                // (ADR-0023's vocabulary: a fact, not a message).
+                note_frame_refusal(FrameRefusalRecord {
+                    species: FrameRefusalSpecies::LayoutRefused,
+                    node: error.node.map(alacer_core::arena::NodeId::raw),
+                });
                 return;
             }
         };
@@ -1009,7 +1015,6 @@ impl ApplicationHandler<PlatformEvent> for AlacerApp {
         if window.id() != window_id {
             return;
         }
-        let _ = event_loop;
         // AccessKit observes every platform event.
         if let Some(adapter) = &mut self.adapter {
             adapter.process_event(&window, &event);

@@ -30,12 +30,19 @@
 //! the composition answers the palette already installed (the kiosk
 //! lock's whole answer), the door landing the fact, the composition
 //! resolving to the equality's no-op, the swap the idle check refuses.
+//! Since M86 the shaped lock's flip joins beside it (ADR-0090):
+//! `shaped_flip_pinned_no_op` — the flip landing where the shape pins
+//! the fact that moved (the shape's substitution and the base
+//! composition's resolution are the lock's added work over the kiosk's,
+//! the idle answer the pinned fact buys).
 
 use alacer_core::flux::Flux;
 use alacer_core::inspect::SettingRecord;
 use alacer_core::passes::{A11yDelta, A11ySink, PassPipeline, SceneJournal, TreeSnapshot};
 use alacer_core::scene::{Primitive, SceneSnapshot};
-use alacer_core::settings::{KioskComposer, SETTING_TRAIL_CAP, SettingComposer, SettingSeam};
+use alacer_core::settings::{
+    FactShape, KioskComposer, SETTING_TRAIL_CAP, SettingComposer, SettingSeam, ShapedComposer,
+};
 use alacer_core::theme::Palette;
 use alacer_core::trail::TrailLog;
 use criterion::{Criterion, criterion_group, criterion_main};
@@ -385,6 +392,32 @@ fn bench_settings_composition(c: &mut Criterion) {
             Box::new(NullA11y),
         );
         pipeline.set_composer(Box::new(KioskComposer::locked(DUET_DARK)));
+        let dark = AtomicBool::new(false);
+        b.iter(|| {
+            let fact = dark.fetch_xor(true, Ordering::Relaxed);
+            black_box(pipeline.set_settings(Box::new(FixedSettings { dark: fact })));
+        });
+    });
+
+    // The shaped lock's flip (ADR-0090): every measured flip lands —
+    // the fact toggles — and the shape pins the fact that moved, so
+    // the composition resolves the palette the pinned fact already
+    // named (the base composition riding the substitution), the
+    // equality check swapping nothing. The shaped lock's steady state
+    // priced beside the kiosk's: the shape's substitution and the base
+    // composition's resolution are the lock's added work, the idle
+    // answer the pinned fact buys.
+    group.bench_function("shaped_flip_pinned_no_op", |b| {
+        let mut pipeline = PassPipeline::new(
+            Flux::new(),
+            Box::new(NoopLayout),
+            Box::new(NullJournal),
+            Box::new(NullA11y),
+        );
+        pipeline.set_composer(Box::new(ShapedComposer::over(
+            Box::new(DuetComposer),
+            FactShape::FOLLOW_ALL.pin_dark(true),
+        )));
         let dark = AtomicBool::new(false);
         b.iter(|| {
             let fact = dark.fetch_xor(true, Ordering::Relaxed);

@@ -1012,7 +1012,7 @@ impl PassPipeline {
     /// light fact where nothing is installed), and the door swaps it in
     /// the way [`Self::set_theme`] swaps — the `PartialEq` idle check,
     /// one [`InspectEvent::Theme`] tagged with the composer's own
-    /// [`SettingComposer::name`], `Change::PAINT` on the tree. Every
+    /// [`crate::settings::SettingComposer::name`], `Change::PAINT` on the tree. Every
     /// later flip that lands through [`Self::set_settings`] re-resolves
     /// the composition the same way — the palette follows the fact
     /// while the composer is installed.

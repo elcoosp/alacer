@@ -84,6 +84,10 @@ impl SettingSeam for SimulatedOs {
     fn high_contrast(&self) -> bool {
         false
     }
+
+    fn accent_color(&self) -> Option<alacer_core::color::Color> {
+        None
+    }
 }
 
 /// The demo's composition (ADR-0081, ADR-0086): the canon palette for
@@ -125,7 +129,13 @@ const DUET_CALM: Palette = Palette {
 };
 
 impl SettingComposer for DuetComposer {
-    fn palette(&self, dark: bool, reduced_motion: bool, _high_contrast: bool) -> Palette {
+    fn palette(
+        &self,
+        dark: bool,
+        reduced_motion: bool,
+        _high_contrast: bool,
+        _accent: Option<alacer_core::color::Color>,
+    ) -> Palette {
         if dark && reduced_motion {
             DUET_CALM
         } else if dark {

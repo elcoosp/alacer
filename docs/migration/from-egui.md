@@ -193,7 +193,7 @@ Be honest about what does not translate 1:1:
   the `Widget` trait and paint primitives (`PaintCtx`), not per-frame draws.
 - **No per-pixel egui painting (`epaint`) equivalent.** Primitives are the
   scene vocabulary (quads, glyphs); arbitrary vector paths are a roadmap
-  item, not a 0.12 feature.
+  item, not a 0.17 feature.
 - **Docking / multi-viewport.** egui's `egui_dock`, `egui_flex`, and
   multi-viewport support have no Alacer equivalent yet; one pipeline, one
   window.

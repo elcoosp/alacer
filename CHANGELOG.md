@@ -9,6 +9,64 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M80 — the composition follows the facts (ADR-0086)**:
+  ADR-0083's second pre-registered re-open rule, grown by ADR-0085's
+  own cut — through M79 the composition resolved against the dark fact
+  alone (a palette that wanted to calm or raise by the facts could not
+  answer without reaching into the platform's adapter, the reach
+  ADR-0081 forbids) — so the composer's signature grows the facts
+  beside `dark`:
+  [`SettingComposer::palette`](crates/alacer-core/src/settings.rs)
+  answers `palette(&self, dark, reduced_motion, high_contrast)` (the
+  pipeline handing the composition what it asks for, never the composer
+  reaching into an adapter), every landed flip re-resolving the
+  composition against the facts that landed (a motion-only flip
+  composing the calm palette riding the flip's own broadcast — one
+  flip, one count, the ADR-0084 rule unchanged; a flip whose facts
+  compose the palette already installed still re-swapping nothing —
+  the theme tier's idle rule guarding the swap half), the install
+  resolving against the facts that are,
+  [`CanonComposer`](crates/alacer-core/src/settings.rs) grown in
+  signature unchanged in behavior (the composition that follows
+  nothing), the wire carrying nothing new (the tag names the
+  composition, not the palette — the M75 *duet* rule), and
+  [`examples/follow_os.rs`](crates/alacer/examples/follow_os.rs)'s
+  *Duet* composition growing its calm answer (the motion-only flip
+  composing the *calm* duet dark — the palette that calms with the
+  fact).
+- **M79 — the setting seam grows the contrast fact (ADR-0085)**:
+  ADR-0083's first pre-registered re-open rule cashed a second time —
+  through M78 a widget that wanted the OS's high-contrast preference
+  guessed or polled, the fact the vocabulary consults when contrast
+  itself is the question (a hairline's weight, a focus ring's width)
+  existing nowhere in the pipeline — so the fact rides the seam the
+  dark and motion facts already have:
+  [`SettingSeam::high_contrast`](crates/alacer-core/src/settings.rs)
+  beside the two (required — one seam, one door, never a second seam
+  per fact), [`CanonSettings`](crates/alacer-core/src/settings.rs)
+  answering the canon absence (light, motion allowed, standard
+  contrast), the platform's
+  [`WinitSettings`](crates/alacer-platform/src/lib.rs) answering the
+  honest absence where winit reports no read (a platform that reports
+  no fact answers the absence, never a guess),
+  [`PassPipeline::set_settings`](crates/alacer-core/src/passes.rs)'s
+  equality check comparing all three facts (the M77 check would have
+  swallowed a contrast-only flip — the fact moved, the door answered
+  `false`, the vocabulary never saw it), a landed flip broadcasting
+  `Change::PAINT` on the tree and resolving the fact once per paint
+  pass into [`PaintCtx`](crates/alacer-core/src/scene.rs) beside the
+  palette and the facts it sits beside (one dynamic call per pass,
+  never per node), the record growing the fact beside the facts it
+  already names (`SettingRecord { dark, reduced_motion, high_contrast,
+  repainted }` — one record per flip), the wire growing additively at
+  version 1 (`setting` — the fact beside the facts), the embedded
+  client rendering the fact in the row's headline and detail line, the
+  corpus growing 84 → 85 by the coordinated rule
+  (`settings/door_flip_contrast` — the contrast-only flip landing
+  where the other facts are still, the real reader naming the contrast
+  fact), and
+  [`examples/high_contrast.rs`](crates/alacer/examples/high_contrast.rs)
+  driving the fact from the consumer side.
 - **M78 — the swap names its repaint count (ADR-0084)**: ADR-0082's
   second pre-registered re-open rule reaches the theme tier — through
   M77 a swap's [`ThemeRecord`](crates/alacer-core/src/inspect.rs)

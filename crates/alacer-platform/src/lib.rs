@@ -27,10 +27,13 @@ pub use wgpu_backend::{BackendError, WgpuRenderer};
 use accesskit_winit::{Adapter, Event as AccessKitEvent, WindowEvent as AccessKitWindowEvent};
 use alacer_a11y::AccessKitSink;
 use alacer_core::events::{ImeEvent, KeyEvent, PointerEvent};
-#[cfg(any(feature = "backend-wgpu", feature = "backend-softbuffer"))]
+// The frame tier's fact rides every backend shape and the no-backend
+// one: the note site lives in the shared `render_frame` (the layout
+// refusal is the tick's, not a backend's), so the imports are not
+// feature-gated — the no-backend matrix compiles the same record
+// (ADR-0077).
 use alacer_core::frame_refusal::note_frame_refusal;
 use alacer_core::geom::{Point, Size};
-#[cfg(any(feature = "backend-wgpu", feature = "backend-softbuffer"))]
 use alacer_core::inspect::{FrameRefusalRecord, FrameRefusalSpecies};
 use alacer_core::passes::{FrameReport, ImeRequest, PassPipeline};
 use alacer_core::widget::EventResponse;

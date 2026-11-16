@@ -241,7 +241,7 @@ fn m21_the_value_write_route_joins_the_corpus_by_the_coordinated_rule() {
 
     assert_eq!(
         baselines["bench_count"],
-        serde_json::json!(86),
+        serde_json::json!(91),
         "the corpus grows 56 → 57 at M22's measurement run"
     );
     let benches = baselines["benches"].as_object().expect("benches object");
@@ -258,7 +258,7 @@ fn m21_the_value_write_route_joins_the_corpus_by_the_coordinated_rule() {
     // cut (the coordinated rule: bench, gates, baseline, pins together).
     assert_eq!(
         gates.len(),
-        86,
+        91,
         "every case carries exactly one regression gate"
     );
     assert!(
@@ -285,18 +285,18 @@ fn m21_the_value_write_route_joins_the_corpus_by_the_coordinated_rule() {
     ] {
         let source = read_workspace_file(&format!("crates/alacer-testing/tests/{suite}"));
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 86;"),
-            "{suite} must pin the 84-case corpus"
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 91;"),
+            "{suite} must pin the 91-case corpus"
         );
     }
     let m19 = read_workspace_file("crates/alacer-testing/tests/m19_exit_criteria.rs");
     assert!(
-        m19.contains("All 86 criterion cases") && m19.contains("serde_json::json!(86)"),
+        m19.contains("All 91 criterion cases") && m19.contains("serde_json::json!(91)"),
         "the m19 suite's pins moved with the corpus"
     );
     let m20 = read_workspace_file("crates/alacer-testing/tests/m20_exit_criteria.rs");
     assert!(
-        m20.contains("serde_json::json!(86)") && m20.contains("usize = 86;"),
+        m20.contains("serde_json::json!(91)") && m20.contains("usize = 91;"),
         "the m20 suite's pins moved with the corpus (the one-cycle drift the pattern prices)"
     );
 }
@@ -308,11 +308,11 @@ fn m21_the_living_documents_re_agree() {
     // newest control, and the status block is the 0.14.0 family at M23.
     let readme = read_workspace_file("README.md");
     for fragment in [
-        "All 86 criterion cases",
+        "All 91 criterion cases",
         "Since M21 the value is reportable too",
         "version-0.17.0",
-        "M0 through M81",
-        "eighty-eight decision records",
+        "M0 through M85",
+        "ninety decision records",
         "`Progress`",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");

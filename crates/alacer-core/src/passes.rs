@@ -899,8 +899,10 @@ impl PassPipeline {
     /// flip streams one [`InspectEvent::Setting`] the tick after it
     /// lands (the theme trail's door-side note, ADR-0079's shape).
     /// Since M77 (ADR-0083) the seam carries the OS's reduced-motion
-    /// fact beside the dark one, and since M79 (ADR-0085) the OS's
-    /// high-contrast fact beside the two — one seam, one door, the flip
+    /// fact beside the dark one, since M79 (ADR-0085) the OS's
+    /// high-contrast fact beside the two, and since M81 (ADR-0087) the
+    /// OS's accent-color fact beside the three (riding its presence —
+    /// `None` is the honest absence) — one seam, one door, the flip
     /// landing when *any* fact moves.
     ///
     /// The facts never munge the palette: the roles the widgets
@@ -920,19 +922,22 @@ impl PassPipeline {
         let dark = settings.dark_mode();
         let reduced_motion = settings.reduced_motion();
         let high_contrast = settings.high_contrast();
-        let (installed_dark, installed_motion, installed_contrast) = self
+        let accent = settings.accent_color();
+        let (installed_dark, installed_motion, installed_contrast, installed_accent) = self
             .settings
             .as_deref()
-            .map_or((false, false, false), |installed| {
+            .map_or((false, false, false, None), |installed| {
                 (
                     installed.dark_mode(),
                     installed.reduced_motion(),
                     installed.high_contrast(),
+                    installed.accent_color(),
                 )
             });
         if installed_dark == dark
             && installed_motion == reduced_motion
             && installed_contrast == high_contrast
+            && installed_accent == accent
         {
             return false;
         }
@@ -949,6 +954,7 @@ impl PassPipeline {
             dark,
             reduced_motion,
             high_contrast,
+            accent,
             repainted,
         });
         self.settings = Some(settings);
@@ -972,6 +978,7 @@ impl PassPipeline {
                 dark,
                 reduced_motion,
                 high_contrast,
+                accent,
             },
             false,
             repainted,
@@ -1015,6 +1022,7 @@ impl PassPipeline {
                     dark: installed.dark_mode(),
                     reduced_motion: installed.reduced_motion(),
                     high_contrast: installed.high_contrast(),
+                    accent: installed.accent_color(),
                 }
             });
         self.composer = Some(composer);
@@ -1053,7 +1061,12 @@ impl PassPipeline {
     ) -> bool {
         let Some(resolved) = self.composer.as_deref().map(|composer| {
             (
-                composer.palette(facts.dark, facts.reduced_motion, facts.high_contrast),
+                composer.palette(
+                    facts.dark,
+                    facts.reduced_motion,
+                    facts.high_contrast,
+                    facts.accent,
+                ),
                 composer.name(),
             )
         }) else {
@@ -3288,12 +3301,14 @@ impl PassPipeline {
             crate::theme::ThemeSeam::palette,
         );
         // The frame's OS facts, resolved once per paint pass
-        // (ADR-0080, ADR-0083, ADR-0085): one dynamic call per fact per
-        // frame — the installed seam's dark-mode, reduced-motion, and
-        // high-contrast answers, or the canon facts when nothing is
-        // installed — handed to every node's context beside the palette.
-        // Never per node: the resolutions ride the palette's own
-        // once-per-pass overhead, priced by the pass-overhead contract.
+        // (ADR-0080, ADR-0083, ADR-0085, ADR-0087): one dynamic call per
+        // fact per frame — the installed seam's dark-mode, reduced-motion,
+        // high-contrast, and accent-color answers (the accent riding its
+        // presence — `None` the honest absence), or the canon facts when
+        // nothing is installed — handed to every node's context beside
+        // the palette. Never per node: the resolutions ride the
+        // palette's own once-per-pass overhead, priced by the
+        // pass-overhead contract.
         let dark = self
             .settings
             .as_deref()
@@ -3306,6 +3321,10 @@ impl PassPipeline {
             .settings
             .as_deref()
             .is_some_and(crate::settings::SettingSeam::high_contrast);
+        let accent = self
+            .settings
+            .as_deref()
+            .and_then(crate::settings::SettingSeam::accent_color);
         for node in targets {
             // The old layer's extent is damage too — a moved/resized widget
             // must erase where it *was*, not only paint where it is. An
@@ -3327,7 +3346,8 @@ impl PassPipeline {
                     crate::scene::PAINT_DAMAGE_MARGIN,
                 ));
             }
-            let primitives = self.paint_node(node, palette, dark, reduced_motion, high_contrast);
+            let primitives =
+                self.paint_node(node, palette, dark, reduced_motion, high_contrast, accent);
             if let Some(extent) = crate::scene::primitives_extent(&primitives) {
                 damage.add(extent);
             }
@@ -3375,6 +3395,7 @@ impl PassPipeline {
         dark: bool,
         reduced_motion: bool,
         high_contrast: bool,
+        accent: Option<crate::color::Color>,
     ) -> Vec<Primitive> {
         struct JournalVec<'a> {
             out: &'a mut Vec<Primitive>,
@@ -3400,6 +3421,7 @@ impl PassPipeline {
                 dark,
                 reduced_motion,
                 high_contrast,
+                accent,
             );
             let widget = &self.arena.slot(node).widget;
             widget.paint(&mut ctx);

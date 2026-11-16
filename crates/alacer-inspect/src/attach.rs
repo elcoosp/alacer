@@ -51,12 +51,6 @@ impl InspectorOptions {
         self.app = app.into();
         self
     }
-
-    /// The configured address (the refusal's data half reads it).
-    #[must_use]
-    pub fn bound_addr(&self) -> &str {
-        &self.addr
-    }
 }
 
 impl Default for InspectorOptions {

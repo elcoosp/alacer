@@ -3,9 +3,14 @@
 
 use alacer_core::events::{EventCtx, PointerEvent};
 use alacer_core::geom::Vector;
-use alacer_core::inspect::{ScrollAction, ScrollOutcome, ScrollRecord, ScrollRefusal};
+use alacer_core::inspect::{
+    HorizontalScrollFact, ScrollAction, ScrollOutcome, ScrollRecord, ScrollRefusal,
+};
 use alacer_core::style::Style;
-use alacer_core::widget::{A11yAction, EventResponse, LabelSource, Role, ScrollUnit, Widget};
+use alacer_core::widget::{
+    A11yAction, BringIntoViewAsk, EventResponse, LabelSource, Role, ScrollAxisLanding, ScrollUnit,
+    Widget,
+};
 use std::cmp::Ordering;
 use std::sync::{Arc, Mutex};
 
@@ -43,17 +48,20 @@ fn pinned_offset_bound(landed: f32, ask: f32, span: f32) -> Option<alacer_core::
     }
 }
 
-/// Answers one scroll ask (M50, ADR-0056): clamps the ask to the
-/// range's span, mutates the state only on a delivery, and returns the
-/// record the door streams — the landed offset beside the ask, the
-/// wall the clamp pinned, the honest refusals (the non-finite ask the
-/// clamp arithmetic would have corrupted, the span-less range that has
-/// no scroll to deliver). One helper because the three doors — the
-/// wheel, the AT actions, the app's own handle — answer by the same
-/// arithmetic; each notes its own action species at its own site.
-fn answer_scroll_ask(
-    state: &mut ScrollState,
+/// Answers one axis's scroll ask (M50, ADR-0056; per axis since M89,
+/// ADR-0093): clamps the ask to the range's span, mutates the offset
+/// only on a delivery, and returns the record the door streams — the
+/// landed offset beside the ask, the wall the clamp pinned, the honest
+/// refusals (the non-finite ask the clamp arithmetic would have
+/// corrupted, the span-less range that has no scroll to deliver). One
+/// helper because the doors — the wheel, the AT actions, the app's own
+/// handle, and since M89 the bring-into-view door's two halves —
+/// answer by the same arithmetic; each notes its own action species at
+/// its own site.
+fn answer_axis_ask(
+    offset: &mut f32,
     ask: f32,
+    span: f32,
 ) -> (ScrollOutcome, f32, Option<alacer_core::RangeBound>) {
     // The funnel carries only finite asks (the value tier's wall, the
     // value record's own rule): a non-finite delta rode the clamp
@@ -62,33 +70,68 @@ fn answer_scroll_ask(
     if !ask.is_finite() {
         return (
             ScrollOutcome::Refused(ScrollRefusal::NonFiniteAsk),
-            state.offset,
+            *offset,
             None,
         );
     }
-    let span = (state.content_height - state.viewport_height).max(0.0);
     if same_offset(span, 0.0) {
         // The range has no span: no scroll exists to deliver — the
         // offset holds where it is, the ask's wall absent (a write
         // that moved nothing pinned nothing).
         return (
             ScrollOutcome::Refused(ScrollRefusal::NoScrollableContent),
-            state.offset,
+            *offset,
             None,
         );
     }
     let landed = ask.clamp(0.0, span);
     let pinned = pinned_offset_bound(landed, ask, span);
-    state.offset = landed;
+    *offset = landed;
     (ScrollOutcome::Delivered, landed, pinned)
 }
 
+/// Answers one vertical scroll ask (the vertical half of every door):
+/// the span the height story keeps, the offset the vertical fields
+/// carry.
+fn answer_scroll_ask(
+    state: &mut ScrollState,
+    ask: f32,
+) -> (ScrollOutcome, f32, Option<alacer_core::RangeBound>) {
+    let span = (state.content_height - state.viewport_height).max(0.0);
+    answer_axis_ask(&mut state.offset, ask, span)
+}
+
+/// Answers one horizontal scroll ask (M89, ADR-0093): the span the
+/// width story keeps, the offset the horizontal half carries — the
+/// same arithmetic, the same walls, the axis's own declared range.
+fn answer_horizontal_ask(
+    state: &mut ScrollState,
+    ask: f32,
+) -> (ScrollOutcome, f32, Option<alacer_core::RangeBound>) {
+    let span = (state.content_width - state.viewport_width).max(0.0);
+    answer_axis_ask(&mut state.offset_x, ask, span)
+}
+
 /// Shared scroll state between the widget and its [`ListHandle`].
+///
+/// Since M89 (ADR-0093) the state keeps both axes: the vertical story
+/// the list always carried (the offset, the content and viewport
+/// heights), and the horizontal story beside it — the x offset, the
+/// content and viewport widths the two-axis constructor and the
+/// handle's width door declare. A vertical-only list keeps the
+/// horizontal widths at zero, and every door's x half answers
+/// `no_scrollable_content` against that empty span (the honest wall,
+/// never a guessed x scroll).
 #[derive(Debug, Default)]
 pub struct ScrollState {
     offset: f32,
     content_height: f32,
     viewport_height: f32,
+    /// The horizontal story beside the vertical (M89, ADR-0093):
+    /// positive = scrolled right.
+    offset_x: f32,
+    content_width: f32,
+    viewport_width: f32,
 }
 
 impl ScrollState {
@@ -96,6 +139,13 @@ impl ScrollState {
     #[must_use]
     pub fn offset(&self) -> f32 {
         self.offset
+    }
+
+    /// Current horizontal offset (positive = scrolled right) — the
+    /// axis the two-axis doors move (M89, ADR-0093).
+    #[must_use]
+    pub fn offset_x(&self) -> f32 {
+        self.offset_x
     }
 }
 
@@ -118,11 +168,43 @@ impl List {
                 offset: 0.0,
                 content_height: 0.0,
                 viewport_height: height,
+                offset_x: 0.0,
+                content_width: 0.0,
+                viewport_width: 0.0,
             })),
             style: Style {
                 clip_overflow: true,
                 size: alacer_core::style::Size2 {
                     width: None,
+                    height: Some(height),
+                },
+                ..Style::column()
+            },
+        }
+    }
+
+    /// A list that also scrolls horizontally (M89, ADR-0093): the
+    /// viewport's two axes are both declared — `width` fixed in the
+    /// style and kept as the horizontal clamp's viewport half, `height`
+    /// exactly [`List::new`]'s. The content's width is the app's own
+    /// story, declared through the handle's `set_content_width` like
+    /// the height it mirrors; until it is, every door's x half answers
+    /// `no_scrollable_content` against the empty span.
+    #[must_use]
+    pub fn two_axis(width: f32, height: f32) -> Self {
+        Self {
+            state: Arc::new(Mutex::new(ScrollState {
+                offset: 0.0,
+                content_height: 0.0,
+                viewport_height: height,
+                offset_x: 0.0,
+                content_width: 0.0,
+                viewport_width: width,
+            })),
+            style: Style {
+                clip_overflow: true,
+                size: alacer_core::style::Size2 {
+                    width: Some(width),
                     height: Some(height),
                 },
                 ..Style::column()
@@ -176,7 +258,7 @@ impl Widget for List {
 
     fn scroll_offset(&self) -> Vector {
         let state = self.state.lock().expect("scroll state");
-        Vector::new(0.0, state.offset)
+        Vector::new(state.offset_x, state.offset)
     }
 
     fn is_scroll_container(&self) -> bool {
@@ -184,38 +266,57 @@ impl Widget for List {
     }
 
     /// The container's half of the bring-into-view door (M88,
-    /// ADR-0092): the ask arrives precomputed — the pipeline read the
-    /// bounds ledger and priced the minimal offset that lands the
-    /// aimed node fully inside this viewport — and the list answers by
-    /// the same clamp arithmetic every door here answers by
-    /// ([`answer_scroll_ask`]): the span walls, the named refusals,
-    /// the state moved only on a delivery. The record streams under
+    /// ADR-0092; two-axis since M89, ADR-0093): the ask arrives
+    /// precomputed — the pipeline read the bounds ledger and priced
+    /// the minimal offsets that land the aimed node fully inside this
+    /// viewport on both axes — and the list answers each axis by the
+    /// same clamp arithmetic every door here answers by
+    /// ([`answer_axis_ask`]): the span walls, the named refusals, the
+    /// state moved only on a delivery. A vertical-only list answers
+    /// the x half `no_scrollable_content` against its undeclared span
+    /// (the honest wall, the ask the geometry priced riding beside
+    /// it). The record streams under
     /// [`ScrollAction::BringIntoView`], the stamps riding from the
     /// route — the container (`target`) and the aimed node (`aimed`)
     /// are the pipeline's facts to fill, never the widget's to guess.
-    fn bring_into_view(&mut self, ask: f32) -> Option<alacer_core::widget::ScrollLanding> {
+    fn bring_into_view(
+        &mut self,
+        ask: BringIntoViewAsk,
+    ) -> Option<alacer_core::widget::ScrollLanding> {
         let mut state = self.state.lock().expect("scroll state");
-        let (outcome, landed, pinned) = answer_scroll_ask(&mut state, ask);
+        let (outcome, landed, pinned) = answer_scroll_ask(&mut state, ask.vertical);
+        let (x_outcome, x_landed, x_pinned) = answer_horizontal_ask(&mut state, ask.horizontal);
         drop(state);
-        // The door's fact: the ask beside the landing, the wall the
-        // clamp pinned, the refusals named — the route's stamps fill
-        // the container and the aimed node (the M43 rule at the scroll
-        // tier; the widget knows neither id).
+        // The door's fact: the ask beside the landing on both axes,
+        // the walls the clamps pinned, the refusals named — the
+        // route's stamps fill the container and the aimed node (the
+        // M43 rule at the scroll tier; the widget knows neither id).
         alacer_core::scroll::note_scroll(ScrollRecord {
             action: ScrollAction::BringIntoView,
             outcome,
             offset: landed,
-            requested: ask.is_finite().then_some(ask),
+            requested: ask.vertical.is_finite().then_some(ask.vertical),
             target: None,
             pinned,
             unit: None,
             lines: None,
             aimed: None,
+            horizontal: Some(HorizontalScrollFact {
+                outcome: x_outcome,
+                offset: x_landed,
+                requested: ask.horizontal.is_finite().then_some(ask.horizontal),
+                pinned: x_pinned,
+            }),
         });
         Some(alacer_core::widget::ScrollLanding {
             outcome,
             offset: landed,
             pinned,
+            horizontal: ScrollAxisLanding {
+                outcome: x_outcome,
+                offset: x_landed,
+                pinned: x_pinned,
+            },
         })
     }
 
@@ -223,9 +324,14 @@ impl Widget for List {
         if let PointerEvent::Wheel { delta, .. } = event {
             let mut state = self.state.lock().expect("scroll state");
             // Wheel deltas: positive y scrolls up; scrolling down accumulates
-            // (§10.2: same-direction deltas coalesce upstream).
+            // (§10.2: same-direction deltas coalesce upstream). The x half
+            // beside it (M89, ADR-0093): positive x scrolls right, the
+            // platform's own mapping — the same clamp arithmetic on the
+            // declared horizontal span, the walls named per axis.
             let ask = state.offset - delta.y;
             let (outcome, landed, pinned) = answer_scroll_ask(&mut state, ask);
+            let ask_x = state.offset_x + delta.x;
+            let (x_outcome, x_landed, x_pinned) = answer_horizontal_ask(&mut state, ask_x);
             drop(state);
             // The door's fact (M50, ADR-0056): the landed offset beside
             // the ask, the wall the clamp pinned, the refusals named —
@@ -242,7 +348,10 @@ impl Widget for List {
             // count is the ask's story, never the landing's). A
             // non-finite run prices no count: the refusal names the
             // wall, the count of a run that never was riding the
-            // absence the M44 rule forbids guessing.
+            // absence the M44 rule forbids guessing. The x run rides
+            // the horizontal half beside the vertical story (M89) —
+            // the line count stays the y run's own story, the vertical
+            // convention the field's contract names.
             let lines = delta.y.is_finite().then(|| delta.y.abs() / A11Y_LINE);
             alacer_core::scroll::note_scroll(ScrollRecord {
                 action: ScrollAction::Wheel,
@@ -254,6 +363,12 @@ impl Widget for List {
                 unit: None,
                 lines,
                 aimed: None,
+                horizontal: Some(HorizontalScrollFact {
+                    outcome: x_outcome,
+                    offset: x_landed,
+                    requested: ask_x.is_finite().then_some(ask_x),
+                    pinned: x_pinned,
+                }),
             });
             // Translation-only: compose moves children, never layout.
             ctx.request(alacer_core::Change::PAINT.union(alacer_core::Change::A11Y));
@@ -343,6 +458,7 @@ impl Widget for List {
             // absence honest here.
             lines: None,
             aimed: None,
+            horizontal: None,
         });
         true
     }
@@ -398,6 +514,7 @@ impl ListHandle {
                 unit: None,
                 lines: None,
                 aimed: None,
+                horizontal: None,
             });
             return;
         }
@@ -423,6 +540,87 @@ impl ListHandle {
                 unit: None,
                 lines: None,
                 aimed: None,
+                horizontal: None,
+            });
+        }
+    }
+
+    /// Updates the content width (call after structural changes) — the
+    /// horizontal story's own content door (M89, ADR-0093), the
+    /// height door's rules spoken on the x axis: a shrink the `offset_x`
+    /// felt clamps it to the declared span and streams one
+    /// `ScrollAction::ContentClamp` record whose horizontal half
+    /// carries the landing beside the wall it pinned, the vertical
+    /// fields riding the identity answer (the axis unasked holds the
+    /// offset it had — the same convention the bring-into-view door's
+    /// visible half answers by); a resize the offset never felt queues
+    /// nothing; a non-finite width refuses on the horizontal half
+    /// (`non_finite_content`), the state keeping the width and offset
+    /// it held.
+    ///
+    /// # Panics
+    ///
+    /// If the shared scroll state's lock is poisoned — a panicked writer
+    /// means the frame is corrupt either way.
+    pub fn set_content_width(&self, width: f32) {
+        let mut state = self.state.lock().expect("scroll state");
+        // The non-finite wall (M51's rule on the x axis): refused
+        // before the arithmetic, the state keeping what it held.
+        if !width.is_finite() {
+            let held_y = state.offset;
+            let held_x = state.offset_x;
+            drop(state);
+            alacer_core::scroll::note_scroll(ScrollRecord {
+                action: ScrollAction::ContentClamp,
+                // The vertical half rides the identity answer: the
+                // height story was not this record's ask.
+                outcome: ScrollOutcome::Delivered,
+                offset: held_y,
+                requested: None,
+                target: None,
+                pinned: None,
+                unit: None,
+                lines: None,
+                aimed: None,
+                horizontal: Some(HorizontalScrollFact {
+                    outcome: ScrollOutcome::Refused(ScrollRefusal::NonFiniteContent),
+                    offset: held_x,
+                    requested: None,
+                    pinned: None,
+                }),
+            });
+            return;
+        }
+        state.content_width = width;
+        let span = (width - state.viewport_width).max(0.0);
+        let clamped = state.offset_x.clamp(0.0, span);
+        let pinned = pinned_offset_bound(clamped, state.offset_x, span);
+        let moved = !same_offset(clamped, state.offset_x);
+        let held_y = state.offset;
+        state.offset_x = clamped;
+        drop(state);
+        if moved {
+            // The horizontal content clamp's fact (M89, ADR-0093): the
+            // landing beside the wall it pinned on the x half, the
+            // vertical fields riding the identity answer, no ask
+            // beside it, no route behind it. A resize the offset never
+            // felt queues nothing.
+            alacer_core::scroll::note_scroll(ScrollRecord {
+                action: ScrollAction::ContentClamp,
+                outcome: ScrollOutcome::Delivered,
+                offset: held_y,
+                requested: None,
+                target: None,
+                pinned: None,
+                unit: None,
+                lines: None,
+                aimed: None,
+                horizontal: Some(HorizontalScrollFact {
+                    outcome: ScrollOutcome::Delivered,
+                    offset: clamped,
+                    requested: None,
+                    pinned,
+                }),
             });
         }
     }
@@ -454,6 +652,7 @@ impl ListHandle {
             unit: None,
             lines: None,
             aimed: None,
+            horizontal: None,
         });
     }
 
@@ -466,6 +665,18 @@ impl ListHandle {
     #[must_use]
     pub fn offset(&self) -> f32 {
         self.state.lock().expect("scroll state").offset()
+    }
+
+    /// Current horizontal offset (positive = scrolled right) — the
+    /// axis the two-axis doors move (M89, ADR-0093).
+    ///
+    /// # Panics
+    ///
+    /// If the shared scroll state's lock is poisoned — a panicked writer
+    /// means the frame is corrupt either way.
+    #[must_use]
+    pub fn offset_x(&self) -> f32 {
+        self.state.lock().expect("scroll state").offset_x()
     }
 
     /// The raw state (harness introspection).

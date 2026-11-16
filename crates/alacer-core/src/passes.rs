@@ -625,8 +625,14 @@ pub struct FrameReport {
     pub damage: Damage,
     /// The a11y delta pass 9 produced (empty when the pass skipped).
     pub a11y_delta: A11yDelta,
-    /// The pass ledger, in contract order — every tick pass, ran or skipped.
-    pub passes: Vec<PassRun>,
+    /// The pass ledger, in contract order — every tick pass, ran or
+    /// skipped. Shared, not rebuilt (§14.3's warm path, A7's budget):
+    /// a warm idle frame's ledger is the same eight skipped runs every
+    /// tick, so the report hands out an [`std::sync::Arc`] handle to the
+    /// cached canonical ledger and a warm tick allocates nothing (M84,
+    /// ADR-0088). A frame where a pass ran — or timings ride — carries
+    /// its own freshly built ledger.
+    pub passes: std::sync::Arc<Vec<PassRun>>,
     /// Focus moved this frame.
     pub focus_changed: bool,
     /// Total tick wall time, when timings are on (else 0).
@@ -714,6 +720,12 @@ pub struct PassPipeline {
     /// Pass ledger entries for dispatch-driven passes (event, action),
     /// attributed to the next tick's report.
     interframe: Vec<PassRun>,
+    /// The canonical idle-frame ledger (timings off): the tick passes,
+    /// all skipped — the one ledger a warm tick hands out by handle
+    /// instead of rebuilding (A7's budget, M84, ADR-0088). Timed frames
+    /// never consult it: their runs carry per-frame nanos, no two ticks
+    /// agree.
+    idle_ledger: Option<std::sync::Arc<Vec<PassRun>>>,
     /// Style cache — pass 5 diffs `widget.style()` against it (§7.2 pass 5).
     style_cache: FxHashMap<NodeId, Style>,
     /// Focus candidates, recomputed by pass 2.
@@ -791,6 +803,7 @@ impl PassPipeline {
             last_compose_events: 0,
             timings: false,
             interframe: Vec::new(),
+            idle_ledger: None,
             style_cache: FxHashMap::default(),
             focusables: Vec::new(),
             focused: None,
@@ -3062,6 +3075,7 @@ impl PassPipeline {
             .or_else(|| self.scene_cache.as_ref().map(std::sync::Arc::clone))
             .unwrap_or_default();
         self.frames += 1;
+        let passes = self.ledger_handle(ledger);
         let report = FrameReport {
             layout_ran,
             paint_ran,
@@ -3069,12 +3083,41 @@ impl PassPipeline {
             scene,
             damage,
             a11y_delta,
-            passes: ledger,
+            passes,
             focus_changed,
             total_nanos,
         };
         self.notify_frame(&report, &dirty, viewport);
         Ok(report)
+    }
+
+    /// The report's ledger handle (A7's budget, M84, ADR-0088): a warm
+    /// idle frame with timings off produces the same eight skipped runs
+    /// every tick, so the canonical ledger is built once and handed out
+    /// by [`std::sync::Arc`] handle — a warm tick allocates nothing. The
+    /// ledger buffer rides back into the pipeline on every cache hit (its
+    /// capacity is the reuse), so the take-push cycle at the tick's start
+    /// re-pays nothing in steady state. A frame where a pass ran, a
+    /// dispatch-driven entry rides, or timings are on carries its own
+    /// freshly built ledger, honestly priced.
+    fn ledger_handle(&mut self, ledger: Vec<PassRun>) -> std::sync::Arc<Vec<PassRun>> {
+        let canonical = !self.timings && ledger.iter().all(|run| !run.ran);
+        if canonical {
+            if let Some(cached) = &self.idle_ledger
+                && cached.len() == ledger.len()
+            {
+                // The buffer's capacity rides back for the next tick —
+                // the tick's take-push cycle re-pays nothing.
+                self.interframe = ledger;
+                self.interframe.clear();
+                return std::sync::Arc::clone(cached);
+            }
+            let arc = std::sync::Arc::new(ledger);
+            self.idle_ledger = Some(std::sync::Arc::clone(&arc));
+            arc
+        } else {
+            std::sync::Arc::new(ledger)
+        }
     }
 
     /// Runs one pass under its tracing span, recording the ledger entry.
@@ -4258,7 +4301,7 @@ mod tests {
             PassKind::tick_order().to_vec(),
             "the ledger is the contract order, verbatim"
         );
-        for run in &report.passes {
+        for run in report.passes.iter() {
             if run.kind == PassKind::Mutate {
                 assert!(
                     !run.ran,
@@ -4296,7 +4339,7 @@ mod tests {
         let idle = p.tick(viewport()).expect("idle frame");
 
         assert!(idle.is_idle());
-        for run in &idle.passes {
+        for run in idle.passes.iter() {
             assert!(
                 !run.ran,
                 "idle frames skip {}: still ledgered",

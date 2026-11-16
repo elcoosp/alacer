@@ -4,7 +4,7 @@
   "generated_at": "2026-11-15T19:10:54+00:00",
   "toolchain": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
   "git": {
-    "commit": "130ced7136b276e7bf210113f0bc49bf872f8b37",
+    "commit": "16ea19ebd2c3f0241950667951de2ca96a8dddc4",
     "dirty": true
   },
   "host": {
@@ -14,7 +14,7 @@
     "cpu_count": "2",
     "fingerprint": "ee37c3efc5995352"
   },
-  "bench_count": 84,
+  "bench_count": 85,
   "benches": {
     "a11y/full_rebuild_1k": {
       "median_ns": 92499.67399115533,
@@ -518,6 +518,12 @@
       "median_ns": 40870.0868627451,
       "mean_ns": 35184.365656146576,
       "median_abs_dev_ns": 14590.315208188484,
+      "samples": 100
+    },
+    "settings/door_flip_contrast": {
+      "median_ns": 13303.317802480538,
+      "mean_ns": 16205.892096444222,
+      "median_abs_dev_ns": 10510.567705858037,
       "samples": 100
     }
   }

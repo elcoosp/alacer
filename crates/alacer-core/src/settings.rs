@@ -247,6 +247,58 @@ impl SettingComposer for CanonComposer {
     }
 }
 
+/// The locked composition (§13.3, ADR-0089): one palette, every fact,
+/// every flip — the kiosk's answer. A kiosk, a signage display, an
+/// embedded panel cannot follow the OS: a dark flip at 7pm must not
+/// repaint the boarding gate, and the operator's desktop accent must
+/// not tint the checkout line. Through M84 a palette the facts could
+/// not move had two half-doors: the manual
+/// [`crate::passes::PassPipeline::set_theme`] ask, which wins *until
+/// the next flip* (the composition owns the palette when the OS moves),
+/// and [`CanonComposer`], which locks the *canon* palette — light,
+/// motion-allowing — and no other. [`KioskComposer::locked`] is the
+/// lock over any palette: the composition answers the same
+/// [`Palette`] for every fact permutation, so a flip lands (the facts
+/// are the seam's, the door answers `true`), the door resolves the
+/// composition, the composed answer *is* the palette already installed
+/// — and the equality check swaps nothing (the idle-frame property at
+/// the theme tier, ADR-0081). The app's own `set_theme` ask still wins
+/// while it holds; the next flip is where the lock wins it back, the
+/// swap riding the flip's own broadcast, the record tagged the
+/// composer's own [`name`](SettingComposer::name).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct KioskComposer {
+    /// The palette the lock holds — the one answer, every fact.
+    palette: Palette,
+}
+
+impl KioskComposer {
+    /// The lock over `palette`: the composition that answers it for
+    /// every fact permutation — the flip the facts land, the palette
+    /// never moves. Const, so the lock ships beside the palette it
+    /// holds (the examples' `const DUET_DARK` shape).
+    #[must_use]
+    pub const fn locked(palette: Palette) -> Self {
+        Self { palette }
+    }
+}
+
+impl SettingComposer for KioskComposer {
+    fn palette(
+        &self,
+        _dark: bool,
+        _reduced_motion: bool,
+        _high_contrast: bool,
+        _accent: Option<Color>,
+    ) -> Palette {
+        self.palette
+    }
+
+    fn name(&self) -> &'static str {
+        "kiosk"
+    }
+}
+
 /// The composed palette the composition door mounts (ADR-0081): a
 /// [`ThemeSeam`] the pipeline itself installed from a composer's
 /// answer — the roles the composer resolved beside the tag it named.
@@ -384,9 +436,11 @@ pub(crate) fn take_setting_trail() -> Vec<SettingRecord> {
 #[cfg(test)]
 mod tests {
     use super::{
-        CanonSettings, SETTING_TRAIL_CAP, SettingRecord, SettingSeam, note_setting,
-        take_setting_trail,
+        CanonSettings, KioskComposer, SETTING_TRAIL_CAP, SettingComposer, SettingRecord,
+        SettingSeam, note_setting, take_setting_trail,
     };
+    use crate::color::Color;
+    use crate::theme::Palette;
 
     /// The canon setting pins the canon facts — light, motion allowed,
     /// standard contrast, no accent — the facts the blessed snapshot
@@ -453,5 +507,53 @@ mod tests {
             "the drain clears whole — a fact streams once"
         );
         super::set_setting_trail_enabled(false);
+    }
+
+    /// The kiosk lock answers one palette for every fact permutation —
+    /// all sixteen, bit-flipped — the composition that follows nothing,
+    /// tagged by its own name (ADR-0089). Const-constructible, the lock
+    /// ships beside the palette it holds.
+    #[test]
+    fn the_kiosk_lock_answers_one_palette_for_every_facts() {
+        let locked = Palette {
+            accent: Color::rgb(255, 176, 64),
+            ..Palette::CANON
+        };
+        let lock = KioskComposer::locked(locked);
+        for bits in 0_u8..16 {
+            let dark = bits & 1 != 0;
+            let reduced_motion = bits & 2 != 0;
+            let high_contrast = bits & 4 != 0;
+            let accent = (bits & 8 != 0).then_some(Color::rgb(255, 94, 58));
+            assert_eq!(
+                SettingComposer::palette(&lock, dark, reduced_motion, high_contrast, accent),
+                locked,
+                "the lock followed the facts (bits {bits})"
+            );
+        }
+        assert_eq!(SettingComposer::name(&lock), "kiosk");
+    }
+
+    /// The lock's answers are total and pure: two resolutions of the
+    /// same facts answer the same palette, and two locks hold
+    /// different palettes apart (the palette is the lock's state, the
+    /// facts never its input).
+    #[test]
+    fn two_locks_hold_two_palettes_and_one_lock_is_pure() {
+        let first = KioskComposer::locked(Palette::CANON);
+        let second = KioskComposer::locked(Palette {
+            accent: Color::rgb(255, 176, 64),
+            ..Palette::CANON
+        });
+        assert_eq!(
+            SettingComposer::palette(&first, true, true, true, Some(Color::rgb(1, 2, 3))),
+            SettingComposer::palette(&first, false, false, false, None),
+            "the lock's answer moved with the facts"
+        );
+        assert_ne!(
+            SettingComposer::palette(&first, false, false, false, None),
+            SettingComposer::palette(&second, false, false, false, None),
+            "two locks resolved the same palette"
+        );
     }
 }

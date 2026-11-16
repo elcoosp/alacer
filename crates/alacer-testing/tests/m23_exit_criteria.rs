@@ -255,8 +255,8 @@ fn m23_the_living_documents_re_agree() {
     let readme = read_workspace_file("README.md");
     for fragment in [
         "version-0.17.0",
-        "M0 through M81",
-        "eighty-eight decision records",
+        "M0 through M85",
+        "ninety decision records",
         "Since M23 the frame carries a public ledger",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
@@ -317,7 +317,7 @@ fn m23_the_living_documents_re_agree() {
     let m22 = read_workspace_file("crates/alacer-testing/tests/m22_exit_criteria.rs");
     for (suite, source) in [("m20", &m20), ("m21", &m21), ("m22", &m22)] {
         assert!(
-            source.contains("M0 through M81") && source.contains("eighty-eight decision records"),
+            source.contains("M0 through M85") && source.contains("ninety decision records"),
             "the {suite} suite's README pins moved with the documents"
         );
         assert!(

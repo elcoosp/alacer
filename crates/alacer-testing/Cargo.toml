@@ -61,3 +61,11 @@ harness = false
 [[bench]]
 name = "trail"
 harness = false
+
+[[bench]]
+name = "canvas"
+harness = false
+
+[[bench]]
+name = "inspect"
+harness = false

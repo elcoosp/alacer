@@ -1919,8 +1919,8 @@ pub struct FrameRefusalRecord {
 /// One view patch's fact (§13.3, ADR-0078): the view tier's own
 /// record, the route-drop trail's shape (ADR-0063) at the view tier —
 /// the reconciler's four counts computed where the patch resolves
-/// ([`alacer_view::ViewRoot::mount`]'s build,
-/// [`alacer_view::ViewRoot::update`]'s diff), named by its lengths
+/// (the view root's `mount` build, its `update` diff — the `alacer_view`
+/// tier's own doors), named by its lengths
 /// (the payload rule's shape: a fact, not a message — the props a
 /// patch applied never ride, the text they carry can). The record
 /// rides *beside* the door's own `PatchReport` — `update` still
@@ -1945,7 +1945,7 @@ pub struct ViewPatchRecord {
 /// One theme swap's fact (§7.2 pass 8, ADR-0079): the theme tier's own
 /// record — the palette's tag beside the door that landed it, the
 /// route-drop trail's shape (ADR-0063) at the theme tier. The tag is
-/// the seam's own [`alacer_core::theme::ThemeSeam::name`] (the wire
+/// the seam's own [`crate::theme::ThemeSeam::name`] (the wire
 /// vocabulary's stable, documented field values), never the palette's
 /// colors: the payload rule's shape — the log names the palette, the
 /// paint pass resolves it. Since M78 (ADR-0084, ADR-0082's second
@@ -1962,7 +1962,7 @@ pub struct ViewPatchRecord {
 /// that paint the new palette stream no theme fact of their own.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ThemeRecord {
-    /// The palette's tag — the installed [`alacer_core::theme::ThemeSeam`]
+    /// The palette's tag — the installed [`crate::theme::ThemeSeam`]
     /// 's own `name()` (`"canon"`, `"midnight"`, `"high_contrast"`), the
     /// log answering "which palette is live now" from the row alone.
     pub palette: String,
@@ -2001,7 +2001,7 @@ pub struct ThemeRecord {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SettingRecord {
     /// The OS's dark-mode fact — the installed
-    /// [`alacer_core::settings::SettingSeam`]'s own answer, resolved
+    /// [`crate::settings::SettingSeam`]'s own answer, resolved
     /// once per paint pass into `PaintCtx` (the palette the roles
     /// borrow resolved beside it).
     pub dark: bool,

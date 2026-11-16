@@ -49,7 +49,15 @@
 //! OS's high-contrast fact beside the two — the facts the vocabulary
 //! consults riding beside each other, never a second seam per fact —
 //! the theme trail's shape (ADR-0079), bounded, drained at the tick's
-//! start, silent while nobody listens (the A7 idle contract).
+//! start, silent while nobody listens (the A7 idle contract). Since
+//! M81 (ADR-0087, the same rule cashed a third time) the seam and the
+//! record grow the OS's accent-color fact beside the three — the fact
+//! riding its presence ([`None`], the honest absence, never a guess,
+//! the adapter answering the absence when its platform reports no
+//! accent), and since the same cut (ADR-0086's own pre-registered
+//! rule) the composition resolves by it beside the three: a palette
+//! that tints its accent roles from the OS accent answers by the fact
+//! at the two points the door already owned.
 //!
 //! ```text
 //! // The adapter's door (core-only dependency):
@@ -64,6 +72,7 @@ use std::cell::Cell;
 use std::cell::RefCell;
 use std::collections::VecDeque;
 
+use crate::color::Color;
 use crate::inspect::SettingRecord;
 use crate::theme::{Palette, ThemeSeam};
 
@@ -87,9 +96,12 @@ pub const SETTING_TRAIL_CAP: usize = 256;
 /// M77 (ADR-0083, ADR-0080's pre-registered re-open rule) the trait
 /// carries the OS's reduced-motion fact beside the dark fact, and
 /// since M79 (ADR-0085, the same rule cashed a second time) the OS's
-/// high-contrast fact beside the two — one seam, the facts the
-/// vocabulary consults riding beside each other, never a second seam
-/// per fact.
+/// high-contrast fact beside the two, and since M81 (ADR-0087, the
+/// same rule cashed a third time) the OS's accent-color fact beside
+/// the three — one seam, the facts the vocabulary consults riding
+/// beside each other, never a second seam per fact. The accent fact
+/// rides its presence: an adapter whose platform reports no accent
+/// answers [`None`] — the honest absence, never a guess.
 pub trait SettingSeam: Send + Sync + 'static {
     /// The OS's dark-mode fact, re-read once per paint pass — one
     /// dynamic call per frame, never per node, the palette
@@ -113,16 +125,27 @@ pub trait SettingSeam: Send + Sync + 'static {
     /// adapter answering the absence when its platform reports no
     /// contrast fact (`false` — standard contrast).
     fn high_contrast(&self) -> bool;
+
+    /// The OS's accent-color fact, re-read beside the three once per
+    /// paint pass (ADR-0087) — the same one dynamic call per frame, the
+    /// vocabulary consulting it when tint itself is the question (an
+    /// accent that follows the OS's pick, a selection riding it), the
+    /// composition resolving its accent roles by it beside the facts.
+    /// Required like the facts it sits beside, and answerable by the
+    /// absence: [`None`] is the honest absence — the fact riding its
+    /// presence, a platform that reports no accent answering `None`
+    /// (never a guessed color).
+    fn accent_color(&self) -> Option<Color>;
 }
 
 /// The provided canon setting (§13.3, the provided-implementation rule
 /// beside every seam — [`crate::theme::CanonPalette`]'s precedent):
-/// light, motion allowed, standard contrast, always — the facts the
-/// blessed snapshot corpus was blessed with, installable by name so a
-/// consumer that swapped away can swap back through the same door it
-/// swapped in. Installing it where nothing is installed (or where the
-/// canon facts are installed) is the no-op the door answers `false` on:
-/// the default build already resolves them.
+/// light, motion allowed, standard contrast, no accent, always — the
+/// facts the blessed snapshot corpus was blessed with, installable by
+/// name so a consumer that swapped away can swap back through the same
+/// door it swapped in. Installing it where nothing is installed (or
+/// where the canon facts are installed) is the no-op the door answers
+/// `false` on: the default build already resolves them.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct CanonSettings;
 
@@ -138,6 +161,10 @@ impl SettingSeam for CanonSettings {
     fn high_contrast(&self) -> bool {
         false
     }
+
+    fn accent_color(&self) -> Option<Color> {
+        None
+    }
 }
 
 /// The composition seam (§7.2 pass 8, ADR-0081): the palette the OS's
@@ -149,7 +176,8 @@ impl SettingSeam for CanonSettings {
 /// Implemented by the app, installed through
 /// [`crate::passes::PassPipeline::set_composer`]: the door resolves the
 /// composed [`Palette`] against the facts that *are* at install time
-/// (since M80 the signature carries them beside `dark`, ADR-0086) and
+/// (since M80 the signature carries them beside `dark`, ADR-0086, and
+/// since M81 the accent fact beside the three, ADR-0087) and
 /// re-resolves it on every flip that lands — the theme tier's own swap
 /// rules (the `PartialEq` idle check, the `Change::PAINT` broadcast,
 /// the [`crate::inspect::ThemeRecord`] tagged with the composer's own
@@ -170,13 +198,21 @@ pub trait SettingComposer: Send + Sync + 'static {
     /// the paint pass resolves in its own once-per-pass shape). The
     /// equality check prices the value it answered: a flip that
     /// composes the palette already installed re-swaps nothing. Since
-    /// M80 (ADR-0086) the facts ride beside `dark` — the pipeline
+    /// M80 (ADR-0086) the bool facts ride beside `dark` — the pipeline
     /// handing the composition what it asks for, never the composer
-    /// reaching into an adapter (ADR-0081's own rule): a palette that
-    /// calms when the OS asks for reduced motion, or raises when it
-    /// asks for high contrast, answers by the facts at the same two
-    /// resolution points the door already owned.
-    fn palette(&self, dark: bool, reduced_motion: bool, high_contrast: bool) -> Palette;
+    /// reaching into an adapter (ADR-0081's own rule) — and since M81
+    /// (ADR-0087, the signature's own pre-registered growth) the accent
+    /// fact rides beside the three, the fact riding its presence: a
+    /// palette that tints its accent roles from the OS accent answers
+    /// by the fact at the same two resolution points the door already
+    /// owned, and answers the absence with its own.
+    fn palette(
+        &self,
+        dark: bool,
+        reduced_motion: bool,
+        high_contrast: bool,
+        accent: Option<Color>,
+    ) -> Palette;
 
     /// The composed palette's tag — the stable name the causal log's
     /// [`crate::inspect::ThemeRecord`] carries for swaps this composer
@@ -187,7 +223,7 @@ pub trait SettingComposer: Send + Sync + 'static {
 
 /// The provided canon composition (§13.3, the provided-implementation
 /// rule beside every seam — [`CanonSettings`]'s precedent): the canon
-/// palette for either fact — the composition that follows nothing,
+/// palette for any facts — the composition that follows nothing,
 /// installable by name so a consumer that composed away can compose
 /// back through the same door it composed in. Installing it where the
 /// canon palette is already live (the default build's own answer, or
@@ -196,7 +232,13 @@ pub trait SettingComposer: Send + Sync + 'static {
 pub struct CanonComposer;
 
 impl SettingComposer for CanonComposer {
-    fn palette(&self, _dark: bool, _reduced_motion: bool, _high_contrast: bool) -> Palette {
+    fn palette(
+        &self,
+        _dark: bool,
+        _reduced_motion: bool,
+        _high_contrast: bool,
+        _accent: Option<Color>,
+    ) -> Palette {
         Palette::CANON
     }
 
@@ -238,11 +280,11 @@ impl ThemeSeam for ComposedPalette {
     }
 }
 
-/// The OS facts one resolution carries (ADR-0080, ADR-0083, ADR-0085):
-/// the pipeline's own bundle of the seam's answers — the composition
-/// door reads them once per resolution point (the install, every
-/// landed flip) and hands them to the composer. Not app-facing: the
-/// [`SettingComposer`] trait keeps the plain per-fact signature
+/// The OS facts one resolution carries (ADR-0080, ADR-0083, ADR-0085,
+/// ADR-0087): the pipeline's own bundle of the seam's answers — the
+/// composition door reads them once per resolution point (the install,
+/// every landed flip) and hands them to the composer. Not app-facing:
+/// the [`SettingComposer`] trait keeps the plain per-fact signature
 /// (ADR-0086's rule — the composer answers by the facts beside
 /// `dark`), the bundle is the door's internal shape.
 #[derive(Debug, Clone, Copy)]
@@ -255,16 +297,20 @@ pub(crate) struct OsFacts {
     /// The high-contrast fact — [`SettingSeam::high_contrast`]'s
     /// answer.
     pub(crate) high_contrast: bool,
+    /// The accent-color fact — [`SettingSeam::accent_color`]'s answer,
+    /// riding its presence (`None` is the honest absence).
+    pub(crate) accent: Option<Color>,
 }
 
 impl OsFacts {
-    /// The canon facts (light, motion allowed, standard contrast) —
-    /// what the door resolves where nothing is installed, the facts
-    /// the default build resolves.
+    /// The canon facts (light, motion allowed, standard contrast, no
+    /// accent) — what the door resolves where nothing is installed, the
+    /// facts the default build resolves.
     pub(crate) const CANON: Self = Self {
         dark: false,
         reduced_motion: false,
         high_contrast: false,
+        accent: None,
     };
 }
 
@@ -313,6 +359,7 @@ pub fn note_setting(record: SettingRecord) {
             dark = record.dark,
             reduced_motion = record.reduced_motion,
             high_contrast = record.high_contrast,
+            accent = ?record.accent,
             repainted = record.repainted,
             "setting flip queued for the next tick"
         );
@@ -342,13 +389,18 @@ mod tests {
     };
 
     /// The canon setting pins the canon facts — light, motion allowed,
-    /// standard contrast — the facts the blessed snapshot corpus was
-    /// blessed with, byte for byte, the corpus's green depends on it.
+    /// standard contrast, no accent — the facts the blessed snapshot
+    /// corpus was blessed with, byte for byte, the corpus's green
+    /// depends on it.
     #[test]
     fn the_canon_setting_pins_the_canon_facts() {
         assert!(!CanonSettings.dark_mode());
         assert!(!CanonSettings.reduced_motion());
         assert!(!CanonSettings.high_contrast());
+        assert!(
+            CanonSettings.accent_color().is_none(),
+            "the canon absence is the honest absence — no guessed accent"
+        );
     }
 
     /// The disabled trail is a no-op: nothing queues, the drain answers
@@ -359,6 +411,7 @@ mod tests {
             dark: true,
             reduced_motion: false,
             high_contrast: false,
+            accent: None,
             repainted: 0,
         });
         assert!(
@@ -377,6 +430,7 @@ mod tests {
                 dark: i % 2 == 0,
                 reduced_motion: i % 3 == 0,
                 high_contrast: i % 5 == 0,
+                accent: None,
                 repainted: 1,
             });
         }

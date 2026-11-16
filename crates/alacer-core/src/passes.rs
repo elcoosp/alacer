@@ -601,6 +601,78 @@ impl FocusMoveOutcome {
     }
 }
 
+/// Why a bring-into-view ask never reached a scroll answer (M88,
+/// ADR-0092): the door's own refusals, named where the ask died —
+/// never a munged landing, never a tier fact for a question the scroll
+/// tier never answered (the ADR-0046 rule the scroll tier rides: a
+/// question outside the tier is not a tier fact, so these refuse as
+/// data on this door's typed answer alone and stream no record).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScrollIntoViewRefusal {
+    /// The aimed id is not a live node — the sentinel, a stale handle,
+    /// an id the tree never allocated. The honest absence: no geometry
+    /// exists to read, no container to ask.
+    UnknownNode,
+    /// The node is live but the bounds ledger holds no answer for it
+    /// yet — mounted this batch, the layout pass has not run. The door
+    /// never guesses geometry the ledger has not written.
+    NotLaidOut,
+    /// No scroll container sits above the aimed node — the ask lands
+    /// nowhere because nothing here scrolls. The nearest-ancestor walk
+    /// answered honestly before any container was guessed.
+    NoScrollableAncestor,
+    /// The nearest ancestor claims the scroll slot
+    /// ([`crate::widget::Widget::is_scroll_container`]) but ships no
+    /// bring-into-view door — the contract gap named where the
+    /// consumer can read it, never skipped in silence.
+    NoScrollDoor,
+}
+
+/// The bring-into-view door's landing (M88, ADR-0092): the container
+/// that moved beside the container's own answer ([`crate::widget::
+/// ScrollLanding`], flattened — the door adds the identity the widget's
+/// door cannot know, the M43 rule's shape: the widget answers its range,
+/// the route names the control the ask rode).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ScrollIntoViewLanding {
+    /// The nearest scrollable ancestor whose offset moved — the
+    /// [`NodeId`] the ask resolved to (the record's `target` stamp
+    /// carries the same fact on the log, as the AccessKit-stable id
+    /// hash).
+    pub container: NodeId,
+    /// What the container's clamp answered — delivered, or the named
+    /// refusal species ([`crate::inspect::ScrollRefusal`]).
+    pub outcome: crate::inspect::ScrollOutcome,
+    /// The offset the container holds as the answer resolves.
+    pub offset: f32,
+    /// The wall the clamp pinned a past ask at (`min`/`max`), `None`
+    /// when the landing is the ask or nothing moved.
+    pub pinned: Option<crate::inspect::RangeBound>,
+}
+
+/// The bring-into-view door's answer (M88, ADR-0092) — the M27 rule
+/// at the scroll tier: the ask is data at every landing, the landed
+/// offset beside the outcome, the named refusal beside the silence.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ScrollIntoViewOutcome {
+    /// The ask landed: the container's clamp answered the minimal ask
+    /// the bounds ledger priced, the landing carrying the container
+    /// that moved, the offset and the wall (if the clamp held one)
+    /// beside them. One `ScrollRecord` streamed under
+    /// [`crate::inspect::ScrollAction::BringIntoView`], the stamps
+    /// naming the container and the aimed node.
+    Landed(ScrollIntoViewLanding),
+    /// The aimed node already sits fully inside the viewport — nothing
+    /// to move, nothing to ask: no masks, no record, the idle frame
+    /// the content clamp's own rule rides (the M51 idle property at
+    /// the door's tier).
+    Visible,
+    /// The ask died before any container's door: the species names
+    /// where ([`ScrollIntoViewRefusal`]), no masks queued, no record
+    /// streamed.
+    Refused(ScrollIntoViewRefusal),
+}
+
 /// One frame's outcome, returned by [`PassPipeline::tick`].
 #[derive(Debug, Clone)]
 #[expect(
@@ -1258,6 +1330,188 @@ impl PassPipeline {
             );
         }
         outcome
+    }
+
+    /// Brings `node` fully inside its nearest scrollable ancestor's
+    /// viewport (§8.2, M88, ADR-0092): the geometry-driven scroll ask —
+    /// the counterpart the offset-priced doors (the wheel, the AT's
+    /// unit scrolls, the app's raw-offset handle) have left open,
+    /// because the ask consumers actually hold is priced in *nodes*
+    /// ("this item, this row, this focused control"), not offsets.
+    ///
+    /// The pipeline reads the bounds ledger it already owns — pass 6's
+    /// absolute composed bounds, pass 7's applied offsets — and prices
+    /// the minimal offset that lands the node's rect fully inside the
+    /// container's viewport: the node above the window scrolls to its
+    /// top edge, below it scrolls to its bottom edge, a rect taller
+    /// than the viewport pins its top edge (deterministic, the
+    /// scroll-into-view convention), and a node already fully visible
+    /// answers [`ScrollIntoViewOutcome::Visible`] — nothing moved,
+    /// nothing queued (the M51 idle property at the door's tier). The
+    /// ask then rides the container's own door
+    /// ([`crate::widget::Widget::bring_into_view`]): the clamp
+    /// arithmetic — the span walls, the named refusals — answers where
+    /// the range lives, never the pipeline guessing at a widget-private
+    /// span. The vertical tier only: the scroll vocabulary's offset is
+    /// a scalar, and the horizontal asks are a different cut's fact.
+    ///
+    /// The answer is data at every landing (the M27 rule at the scroll
+    /// tier): a [`ScrollIntoViewOutcome::Landed`] carrying the
+    /// [`ScrollIntoViewLanding`] (the container that moved beside the
+    /// container's own answer), [`ScrollIntoViewOutcome::Visible`]
+    /// beside the honest no-op, and a named [`ScrollIntoViewRefusal`]
+    /// when the ask died before any scroll answer — a dead id, a node
+    /// the layout has not answered yet, no scrollable ancestor, a
+    /// container claiming the scroll slot without the door. The
+    /// refusals queue no masks and stream no record: a question
+    /// outside the tier is not a tier fact (the ADR-0046 rule the
+    /// scroll tier rides). The landing streams
+    /// one [`crate::inspect::ScrollRecord`] under
+    /// [`crate::inspect::ScrollAction::BringIntoView`] — the record
+    /// naming the container it rode (`target`) and the node it was for
+    /// (the additive `aimed` stamp, the M30 attribution rule at the
+    /// scroll tier) — and queues `PAINT | A11Y` on the container, the
+    /// same currency the wheel's dispatch merges on consumption (§7.2
+    /// pass 10). The nearest ancestor only: a node nested two scrolls
+    /// deep asks the one it sits in — the deeper ones are the next
+    /// ask's fact, never a cascade this door guesses at.
+    pub fn scroll_into_view(&mut self, node: NodeId) -> ScrollIntoViewOutcome {
+        // The dead id: no geometry exists to read, no container to ask.
+        if !self.arena.is_live(node) {
+            tracing::trace!(
+                target: "alacer::scroll",
+                node = node.raw(),
+                "refused: the aimed id is not a live node — help: a stale handle or a sentinel cannot be brought anywhere; an idle frame, nothing queued"
+            );
+            return ScrollIntoViewOutcome::Refused(ScrollIntoViewRefusal::UnknownNode);
+        }
+        // The unlaid-out node: the bounds ledger holds no answer for it
+        // yet — the door never guesses geometry the layout has not
+        // written.
+        let Some(child_abs) = self.arena.bounds(node) else {
+            tracing::trace!(
+                target: "alacer::scroll",
+                node = node.raw(),
+                "refused: the aimed node has no composed bounds yet — help: settle a tick so pass 6 writes the ledger the door reads; an idle frame, nothing queued"
+            );
+            return ScrollIntoViewOutcome::Refused(ScrollIntoViewRefusal::NotLaidOut);
+        };
+        // The nearest scrollable ancestor, from the node upward — the
+        // aimed node itself excluded (a container does not scroll
+        // itself into itself; its own rect rides its ancestor's
+        // viewport).
+        let Some(container) = self.nearest_scrollable_ancestor(node) else {
+            tracing::trace!(
+                target: "alacer::scroll",
+                node = node.raw(),
+                "refused: no scrollable ancestor above the aimed node — help: the ask lands nowhere because nothing here scrolls; an idle frame, nothing queued"
+            );
+            return ScrollIntoViewOutcome::Refused(ScrollIntoViewRefusal::NoScrollableAncestor);
+        };
+        let Some(container_abs) = self.arena.bounds(container) else {
+            // A descendant with bounds under a container without them
+            // cannot happen after a layout pass; the honest refusal if
+            // it ever does.
+            tracing::trace!(
+                target: "alacer::scroll",
+                node = node.raw(),
+                "refused: the container has no composed bounds yet — an idle frame, nothing queued"
+            );
+            return ScrollIntoViewOutcome::Refused(ScrollIntoViewRefusal::NotLaidOut);
+        };
+        // The ask's price, from the ledger: the node's content-space
+        // rect rides the bounds' own difference — both the container
+        // and its descendants ride the same compose translation (the
+        // container inside its own subtree), so the difference is the
+        // content position, invariant under every offset the bounds
+        // already reflect; asks composed in one batch price against
+        // the geometry that is, never stale pixels.
+        let current = self.arena.widget(container).scroll_offset().y;
+        let content_top = child_abs.origin.y - container_abs.origin.y;
+        let content_bottom = content_top + child_abs.size.height;
+        let viewport_height = container_abs.size.height;
+        let visible_top = content_top - current;
+        let visible_bottom = content_bottom - current;
+        // Already fully inside: the honest no-op — nothing to ask, the
+        // container never disturbed, no record (the idle frame's own
+        // rule at this tier).
+        if visible_top >= 0.0 && visible_bottom <= viewport_height {
+            tracing::trace!(
+                target: "alacer::scroll",
+                node = node.raw(),
+                "visible: the aimed node sits fully inside the viewport — nothing to move, nothing queued"
+            );
+            return ScrollIntoViewOutcome::Visible;
+        }
+        // The minimal ask: above the window scrolls to the top edge
+        // (a rect taller than the viewport pins its top edge), below
+        // it scrolls to the bottom edge.
+        let ask = if visible_top < 0.0 {
+            content_top
+        } else {
+            content_bottom - viewport_height
+        };
+        // The stamps (M43, ADR-0049, the M50 discipline at the scroll
+        // tier): the route knows the container it resolved and the
+        // node the ask was for — the facts the container's door queues
+        // carry both, the widget never guessing its own identity. The
+        // idle contract holds: while nobody listens the stamps are one
+        // `Cell` read and no id-path walk.
+        let container_hash = self.id_hash(container);
+        let aimed_hash = self.id_hash(node);
+        let _target_stamp = crate::scroll::scroll_trail_enabled()
+            .then(|| crate::scroll::ScrollTargetGuard::for_target(Some(container_hash)));
+        let _aim_stamp = crate::scroll::scroll_trail_enabled()
+            .then(|| crate::scroll::ScrollAimGuard::for_aim(Some(aimed_hash)));
+        let answer = {
+            let mut guard = self.arena.mutate(container);
+            guard.widget_mut().bring_into_view(ask)
+        };
+        let Some(landing) = answer else {
+            tracing::trace!(
+                target: "alacer::scroll",
+                node = node.raw(),
+                "refused: the container claims the scroll slot without a bring-into-view door — the contract gap named, never skipped in silence"
+            );
+            return ScrollIntoViewOutcome::Refused(ScrollIntoViewRefusal::NoScrollDoor);
+        };
+        if landing.outcome == crate::inspect::ScrollOutcome::Delivered {
+            // The same currency the wheel's dispatch merges on
+            // consumption (§7.2 pass 10): the repaint and the a11y
+            // bounds re-announce ride the one batch, compose
+            // translating the moved descendants without a measure
+            // call.
+            self.arena
+                .merge_mask(container, crate::Change::PAINT.union(crate::Change::A11Y));
+        }
+        tracing::trace!(
+            target: "alacer::scroll",
+            node = node.raw(),
+            container = container.raw(),
+            offset = landing.offset,
+            "the bring-into-view ask answered beside the container's own clamp"
+        );
+        ScrollIntoViewOutcome::Landed(ScrollIntoViewLanding {
+            container,
+            outcome: landing.outcome,
+            offset: landing.offset,
+            pinned: landing.pinned,
+        })
+    }
+
+    /// The nearest ancestor of `node` whose widget claims the scroll
+    /// slot ([`crate::widget::Widget::is_scroll_container`]) — the
+    /// arena's own parent links, one walk per ask, the aimed node
+    /// itself excluded.
+    fn nearest_scrollable_ancestor(&self, node: NodeId) -> Option<NodeId> {
+        let mut cursor = self.arena.parent(node);
+        while let Some(id) = cursor {
+            if self.arena.widget(id).is_scroll_container() {
+                return Some(id);
+            }
+            cursor = self.arena.parent(id);
+        }
+        None
     }
 
     /// Queues a raw pointer event into the frame-batched input queue (§10.2,

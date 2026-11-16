@@ -46,7 +46,7 @@
 | 50-event pointer storm                                | **1** coalesced dispatch (**40.43×**)           | `input_storm_batching` budget                                                                          |
 | 10k-node churn frame vs egui, same host               | 1.10 ms vs 20.7 ms full frame (**18.8×**)       | 5-run medians, declared rig (`benchmarks/rig.json`)                                                    |
 | …vs Masonry                                           | 1.10 ms vs 4.6 ms full pass pipeline (**4.2×**) | same rig, `scripts/run_comparison.py`                                                                  |
-| All 91 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
+| All 93 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
 
 _Competitor rows compare Alacer's incremental frame against their full frame/pass — every row in
 `benchmarks/comparisons/results.json` is labeled with its scope._
@@ -300,7 +300,7 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `accent_follow`                                      | the OS's accent fact rides the same seam: the accent-only flip lands, the composition tints the palette's accent roles from the fact, the log names all four facts |
 | `todo` / `data_table`                                | the canons: a11y tree, record/replay, grid slots, keyboard navigation            |
 
-<details><summary><b>67 examples, grouped (69 ship; recording and alloc_budget live in the catalog)</b></summary>
+<details><summary><b>68 examples, grouped (71 ship; recording, alloc_budget, and input_budget live in the catalog)</b></summary>
 
 **Start here**
 
@@ -331,6 +331,7 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `follow_os` | the M75 composition door driven from the consumer side: the *Duet* composition — canon for light, a duet dark beside it — installs over the canon default (the honest no-op), and the simulated OS's flips compose the palette through `PassPipeline::set_composer` — the role probe painting from `ctx.palette().accent` (the palette the widgets borrow moving when — and only when — the composition resolves it), the fact probe painting from `ctx.dark()` beside it, the *trail* label mirroring the streamed `Theme` records tagged `duet` (the manual `set_theme` door winning until the next flip); since M80 the motion-only flip composes the *calm* duet dark beside them (the palette that calms with the fact, ADR-0086) |
 | `accent_follow` | the M81 accent fact driven from the consumer side: the OS reports an accent where the three bool facts are still — the landing the three-fact check swallowed — the accent-follow composition tinting the palette's accent roles from the fact (the role probe painting from `ctx.palette().accent`), the accent probe painting from `ctx.accent_color()` beside it (the fact riding its presence — the absence ink, never a guessed color), the *trail* label mirroring the streamed `Setting` records named by all four facts and the `Theme` records tagged `accent-follow` |
 | `kiosk` | one palette, every fact, every flip: the lock the OS's dark flip and the operator's accent cannot move (`KioskComposer::locked`) — the lock installs over the canon default, the dark flip lands (one `Setting` record) and the theme tier streams none, the manual `set_theme` ask wins while it holds, and the next flip is where the lock wins it back (the record tagged `kiosk`, the probe's pixel the lock's own answer) |
+| `shaped_lock` | the M86 shaped lock driven from the consumer side: the signage display whose surface follows the OS's dark fact while its brand accent never moves (`ShapedComposer::over`, `FactShape::FOLLOW_ALL.pin_accent`) — the lock installs over the app's own duet composition, the dark flip lands and the surface follows (one `Theme` record tagged `shaped` riding the flip's own broadcast), and the OS's accent flip lands and the accent does not move (the pinned fact the base never sees, the theme tier silent — the equality check's idle answer through the shape) |
 | `reduced_motion` | the M77 motion fact driven from the consumer side: the OS asks for reduced motion where the dark fact is still — the landing the dark-only check swallowed — the motion probe painting from `ctx.reduced_motion()` (the animated bar it pins static), the second ask the honest no-op, the *trail* label mirroring the streamed `Setting` records named by both facts |
 | `high_contrast` | the M79 contrast fact driven from the consumer side: the OS asks for high contrast where the dark and motion facts are still — the landing the two-fact check swallowed — the contrast probe painting from `ctx.high_contrast()` (the hairline the fact raises), the second ask the honest no-op, the *trail* label mirroring the streamed `Setting` records named by all three facts |
 
@@ -427,7 +428,7 @@ tree (`query(role).named(..)`, `press`, `find_all`) — never widget internals.
 ## Status
 
 > [!NOTE]
-> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M85 of `docs/architecture.md` are
+> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M86 of `docs/architecture.md` are
 > complete, but the API still moves between minor versions. MSRV **1.99**, edition **2024**.
 
 | Platform            | CI coverage                                                                                                                                                           |
@@ -439,7 +440,7 @@ tree (`query(role).named(..)`, `press`, `find_all`) — never widget internals.
 ## Learn more
 
 - [Architecture](https://github.com/elcoosp/alacer/blob/main/docs/architecture.md) — design axioms, the ten-pass contract, rendering, accessibility, DX, performance, roadmap and kill criteria
-- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — ninety decision records, from workspace discipline to the M85 scope
+- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — ninety-two decision records, from workspace discipline to the M87 scope
 - [Examples catalog](https://github.com/elcoosp/alacer/blob/main/docs/examples.md) — every example with the contract it exercises
 - [Migrating from Iced](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-iced.md) · [from egui](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-egui.md) — mental-model mappings, interop limits stated plainly
 - [Inspector protocol](https://github.com/elcoosp/alacer/blob/main/docs/inspector-protocol.md) — the versioned WebSocket contract behind `alacer-inspect`

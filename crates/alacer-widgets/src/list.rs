@@ -183,6 +183,42 @@ impl Widget for List {
         true
     }
 
+    /// The container's half of the bring-into-view door (M88,
+    /// ADR-0092): the ask arrives precomputed — the pipeline read the
+    /// bounds ledger and priced the minimal offset that lands the
+    /// aimed node fully inside this viewport — and the list answers by
+    /// the same clamp arithmetic every door here answers by
+    /// ([`answer_scroll_ask`]): the span walls, the named refusals,
+    /// the state moved only on a delivery. The record streams under
+    /// [`ScrollAction::BringIntoView`], the stamps riding from the
+    /// route — the container (`target`) and the aimed node (`aimed`)
+    /// are the pipeline's facts to fill, never the widget's to guess.
+    fn bring_into_view(&mut self, ask: f32) -> Option<alacer_core::widget::ScrollLanding> {
+        let mut state = self.state.lock().expect("scroll state");
+        let (outcome, landed, pinned) = answer_scroll_ask(&mut state, ask);
+        drop(state);
+        // The door's fact: the ask beside the landing, the wall the
+        // clamp pinned, the refusals named — the route's stamps fill
+        // the container and the aimed node (the M43 rule at the scroll
+        // tier; the widget knows neither id).
+        alacer_core::scroll::note_scroll(ScrollRecord {
+            action: ScrollAction::BringIntoView,
+            outcome,
+            offset: landed,
+            requested: ask.is_finite().then_some(ask),
+            target: None,
+            pinned,
+            unit: None,
+            lines: None,
+            aimed: None,
+        });
+        Some(alacer_core::widget::ScrollLanding {
+            outcome,
+            offset: landed,
+            pinned,
+        })
+    }
+
     fn on_pointer_event(&mut self, ctx: &mut EventCtx, event: &PointerEvent) -> EventResponse {
         if let PointerEvent::Wheel { delta, .. } = event {
             let mut state = self.state.lock().expect("scroll state");
@@ -217,6 +253,7 @@ impl Widget for List {
                 pinned,
                 unit: None,
                 lines,
+                aimed: None,
             });
             // Translation-only: compose moves children, never layout.
             ctx.request(alacer_core::Change::PAINT.union(alacer_core::Change::A11Y));
@@ -305,6 +342,7 @@ impl Widget for List {
             // ADR-0059): the AT's asks ride their unit's magnitude, the
             // absence honest here.
             lines: None,
+            aimed: None,
         });
         true
     }
@@ -359,6 +397,7 @@ impl ListHandle {
                 pinned: None,
                 unit: None,
                 lines: None,
+                aimed: None,
             });
             return;
         }
@@ -383,6 +422,7 @@ impl ListHandle {
                 pinned,
                 unit: None,
                 lines: None,
+                aimed: None,
             });
         }
     }
@@ -413,6 +453,7 @@ impl ListHandle {
             pinned,
             unit: None,
             lines: None,
+            aimed: None,
         });
     }
 

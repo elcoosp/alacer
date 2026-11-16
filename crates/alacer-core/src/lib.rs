@@ -42,7 +42,9 @@
 //!   (`PassPipeline::set_settings`), resolved once per paint pass into
 //!   [`scene::PaintCtx`] beside the palette, the flip riding
 //!   `Change::PAINT` on the tree and one [`inspect::SettingRecord`] on
-//!   the causal log (§7.2 pass 8, ADR-0080); since M75 the composition
+//!   the causal log (§7.2 pass 8, ADR-0080); since M77 the reduced-motion
+//!   and since M79 the high-contrast facts ride the same seam (one seam,
+//!   one door, never a second seam per fact); since M75 the composition
 //!   door rides beside it — the palette the OS's fact resolves into,
 //!   installed as one [`SettingComposer`] (`PassPipeline::set_composer`,
 //!   ADR-0081) and re-swapped on every flip that lands.

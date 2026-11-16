@@ -3,6 +3,10 @@
 //! the real pipeline on the ledger's static UI, the observed tick's
 //! priced record beside it, and the ledger's own costs (the hook's
 //! alloc/dealloc wrapper, the snapshot read) priced beside the frame.
+//! Since M87 the input frame's beat joins the corpus (ADR-0091,
+//! ADR-0088's own pre-registered re-open rule cashed): `input_frame_budget`
+//! — the pointer-move frame the warm tick does not cover, its balanced
+//! churn priced by the same ledger the suite rides.
 //!
 //! The bench lives in the harness crate because that is where the whole
 //! pipeline is assembled with the real widget set (the DAG's harness
@@ -94,6 +98,42 @@ fn bench_alloc_budget(c: &mut Criterion) {
 
         b.iter(|| black_box(harness.tick()));
         let _ = trail.dropped();
+    });
+
+    group.bench_function("input_frame_budget", |b| {
+        let mut harness = TestHarness::new(800.0, 600.0);
+        mount_static_ui(&mut harness);
+        harness.settle();
+
+        // The one-time dispatch block the instrument measured (+192
+        // bytes, held after) lands on this first tracked move frame —
+        // outside the priced steady state, the same shape the suite's
+        // window rides.
+        let ((), first) = ledger.measure(|| {
+            harness.pointer_move(alacer_core::geom::Point::new(64.0, 64.0));
+            let _ = harness.tick();
+        });
+        assert!(
+            first.net_bytes() > 0,
+            "the first tracked move frame paid no one-time block — the measured truth moved: {first:?}"
+        );
+
+        // Honesty before the clock: the steady-state input frame
+        // retains nothing — a frame that leaks is a broken budget,
+        // never a fast-but-leaky one.
+        let ((), delta) = ledger.measure(|| {
+            harness.pointer_move(alacer_core::geom::Point::new(68.0, 64.0));
+            let _ = harness.tick();
+        });
+        assert!(
+            delta.is_balanced() && delta.net_bytes() == 0,
+            "the input frame retained memory: {delta:?}"
+        );
+
+        b.iter(|| {
+            harness.pointer_move(alacer_core::geom::Point::new(72.0, 64.0));
+            black_box(harness.tick());
+        });
     });
 
     group.bench_function("ledger_overhead", |b| {

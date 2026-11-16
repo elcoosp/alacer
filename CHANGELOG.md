@@ -9,6 +9,45 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M87 — the input-frame allocation budget: the tier the warm tick does not cover (ADR-0091)**:
+  ADR-0088's own pre-registered re-open rule cashed — through M86 the
+  ledger's budget had one tier (the warm tick pinned clean to the
+  byte, the m84 suite) and an input-driven frame was priced by
+  nothing — the instrument measured first: a pointer-move frame
+  churns a small, balanced burst (6 blocks / ~752 bytes, allocated
+  and freed inside the same tick), the dispatch queue's one-time
+  block (~192 bytes) lands on the first tracked move frame and is
+  held ever after (the capacity, never re-paid), the key and click
+  frames balance beside it, and the warm idle tick answers clean in
+  the same window. The budget the m87 suite pins is the honest shape —
+  the input frame's line is **balanced**, net zero to the byte, the
+  one-time block named (never a zero the facts refute): the m86-era
+  folklore the instrument answered, the corpus growing 92 → 93 by the
+  coordinated rule (`alloc/input_frame_budget`), and
+  [`examples/input_budget.rs`](crates/alacer/examples/input_budget.rs)
+  the consumer demonstration.
+- **M86 — the shaped composition lock: the lock with shape (ADR-0090)**:
+  ADR-0089's own pre-registered re-open rule cashed — through M85 a
+  palette the OS's facts could not move followed nothing at all (the
+  kiosk lock answers one palette for every fact permutation, an app's
+  own composition follows every fact by how it is written) — so the
+  composition tier grows the lock with shape:
+  [`ShapedComposer::over`](crates/alacer-core/src/settings.rs) with
+  [`FactShape`](crates/alacer-core/src/settings.rs), the second
+  provided composer beside the kiosk one: the shape holding the facts
+  it pins (const-built one pin at a time from `FOLLOW_ALL`, the honest
+  absence pinned beside the color), the base composition (the app's
+  own fact → palette mapping) answering the rest — the pinned fact
+  substituted before the base resolves, the lock's flip the equality
+  check's idle answer wherever the shape holds (one `SettingRecord`
+  streams, the theme tier silent on the pinned fact), one
+  `ThemeRecord` tagged `shaped` riding the followed fact's swap, no
+  pipeline plumbing (the shape is a composition the door already
+  resolves), the m86 suite pinning the story in pixels and records
+  (the two-probe shape), the corpus growing 91 → 92 by the coordinated
+  rule (`settings/shaped_flip_pinned_no_op`), and
+  [`examples/shaped_lock.rs`](crates/alacer/examples/shaped_lock.rs)
+  the consumer demonstration.
 - **M85 — the kiosk lock: the composition that follows nothing (ADR-0089)**:
   ADR-0081's rule cashed a second time beside the
   provided-implementation rule (§13.3) — through M84 a palette the

@@ -899,8 +899,9 @@ impl PassPipeline {
     /// flip streams one [`InspectEvent::Setting`] the tick after it
     /// lands (the theme trail's door-side note, ADR-0079's shape).
     /// Since M77 (ADR-0083) the seam carries the OS's reduced-motion
-    /// fact beside the dark one — one seam, one door, the flip landing
-    /// when *either* fact moves.
+    /// fact beside the dark one, and since M79 (ADR-0085) the OS's
+    /// high-contrast fact beside the two — one seam, one door, the flip
+    /// landing when *any* fact moves.
     ///
     /// The facts never munge the palette: the roles the widgets
     /// borrowed re-resolve from the *installed palette* exactly as
@@ -918,13 +919,21 @@ impl PassPipeline {
     pub fn set_settings(&mut self, settings: Box<dyn crate::settings::SettingSeam>) -> bool {
         let dark = settings.dark_mode();
         let reduced_motion = settings.reduced_motion();
-        let (installed_dark, installed_motion) = self
+        let high_contrast = settings.high_contrast();
+        let (installed_dark, installed_motion, installed_contrast) = self
             .settings
             .as_deref()
-            .map_or((false, false), |installed| {
-                (installed.dark_mode(), installed.reduced_motion())
+            .map_or((false, false, false), |installed| {
+                (
+                    installed.dark_mode(),
+                    installed.reduced_motion(),
+                    installed.high_contrast(),
+                )
             });
-        if installed_dark == dark && installed_motion == reduced_motion {
+        if installed_dark == dark
+            && installed_motion == reduced_motion
+            && installed_contrast == high_contrast
+        {
             return false;
         }
         // The broadcast: every node repaints — the facts the whole tree
@@ -939,6 +948,7 @@ impl PassPipeline {
         crate::settings::note_setting(crate::inspect::SettingRecord {
             dark,
             reduced_motion,
+            high_contrast,
             repainted,
         });
         self.settings = Some(settings);
@@ -957,7 +967,15 @@ impl PassPipeline {
         // re-swaps nothing — the swap half of the door is the no-op
         // (the idle rule at the theme tier), the flip itself still
         // landed (the fact moved).
-        self.compose_from(dark, false, repainted);
+        self.compose_from(
+            crate::settings::OsFacts {
+                dark,
+                reduced_motion,
+                high_contrast,
+            },
+            false,
+            repainted,
+        );
         true
     }
 
@@ -989,15 +1007,21 @@ impl PassPipeline {
     /// still, the composition owning the palette only when the OS
     /// moves.
     pub fn set_composer(&mut self, composer: Box<dyn crate::settings::SettingComposer>) -> bool {
-        let dark = self
+        let facts = self
             .settings
             .as_deref()
-            .is_some_and(crate::settings::SettingSeam::dark_mode);
+            .map_or(crate::settings::OsFacts::CANON, |installed| {
+                crate::settings::OsFacts {
+                    dark: installed.dark_mode(),
+                    reduced_motion: installed.reduced_motion(),
+                    high_contrast: installed.high_contrast(),
+                }
+            });
         self.composer = Some(composer);
         // The install path walks its own broadcast — no flip reach to
         // name, the count resolved where the install's walk runs
         // (ADR-0084's shape at the composition door).
-        let landed = self.compose_from(dark, true, 0);
+        let landed = self.compose_from(facts, true, 0);
         if !landed {
             tracing::trace!(
                 target: "alacer::settings",
@@ -1008,23 +1032,31 @@ impl PassPipeline {
     }
 
     /// The composition's resolution half (ADR-0081): the installed
-    /// composer answers its palette for `dark`, and the answer swaps in
-    /// as the installed theme the roles borrow — the theme door's own
-    /// swap rules, priced where the swap resolves. Answers whether a
-    /// palette moved; a composer resolving the palette already
-    /// installed (or no composer at all) is the no-op. `broadcast`
-    /// merges the repaint currency itself — the install path carries
-    /// it, the flip path skips it (the flip's own broadcast already
-    /// walked the tree). `flip_reach` is the count the flip's own
-    /// broadcast resolved: the composed swap's record names it on the
-    /// flip path (ADR-0084 — one flip, one count), while the install
-    /// path walks its own broadcast and names that walk's length.
-    fn compose_from(&mut self, dark: bool, broadcast: bool, flip_reach: usize) -> bool {
-        let Some(resolved) = self
-            .composer
-            .as_deref()
-            .map(|composer| (composer.palette(dark), composer.name()))
-        else {
+    /// composer answers its palette by the facts the door resolved
+    /// (ADR-0086 — the signature the composition asks for), and the
+    /// answer swaps in as the installed theme the roles borrow — the
+    /// theme door's own swap rules, priced where the swap resolves.
+    /// Answers whether a palette moved; a composer resolving the
+    /// palette already installed (or no composer at all) is the no-op.
+    /// `broadcast` merges the repaint currency itself — the install
+    /// path carries it, the flip path skips it (the flip's own
+    /// broadcast already walked the tree). `flip_reach` is the count
+    /// the flip's own broadcast resolved: the composed swap's record
+    /// names it on the flip path (ADR-0084 — one flip, one count),
+    /// while the install path walks its own broadcast and names that
+    /// walk's length.
+    fn compose_from(
+        &mut self,
+        facts: crate::settings::OsFacts,
+        broadcast: bool,
+        flip_reach: usize,
+    ) -> bool {
+        let Some(resolved) = self.composer.as_deref().map(|composer| {
+            (
+                composer.palette(facts.dark, facts.reduced_motion, facts.high_contrast),
+                composer.name(),
+            )
+        }) else {
             return false;
         };
         let (palette, name) = resolved;
@@ -3256,12 +3288,12 @@ impl PassPipeline {
             crate::theme::ThemeSeam::palette,
         );
         // The frame's OS facts, resolved once per paint pass
-        // (ADR-0080, ADR-0083): one dynamic call per fact per frame —
-        // the installed seam's dark-mode and reduced-motion answers, or
-        // the canon facts when nothing is installed — handed to every
-        // node's context beside the palette. Never per node: the
-        // resolutions ride the palette's own once-per-pass overhead,
-        // priced by the pass-overhead contract.
+        // (ADR-0080, ADR-0083, ADR-0085): one dynamic call per fact per
+        // frame — the installed seam's dark-mode, reduced-motion, and
+        // high-contrast answers, or the canon facts when nothing is
+        // installed — handed to every node's context beside the palette.
+        // Never per node: the resolutions ride the palette's own
+        // once-per-pass overhead, priced by the pass-overhead contract.
         let dark = self
             .settings
             .as_deref()
@@ -3270,6 +3302,10 @@ impl PassPipeline {
             .settings
             .as_deref()
             .is_some_and(crate::settings::SettingSeam::reduced_motion);
+        let high_contrast = self
+            .settings
+            .as_deref()
+            .is_some_and(crate::settings::SettingSeam::high_contrast);
         for node in targets {
             // The old layer's extent is damage too — a moved/resized widget
             // must erase where it *was*, not only paint where it is. An
@@ -3291,7 +3327,7 @@ impl PassPipeline {
                     crate::scene::PAINT_DAMAGE_MARGIN,
                 ));
             }
-            let primitives = self.paint_node(node, palette, dark, reduced_motion);
+            let primitives = self.paint_node(node, palette, dark, reduced_motion, high_contrast);
             if let Some(extent) = crate::scene::primitives_extent(&primitives) {
                 damage.add(extent);
             }
@@ -3338,6 +3374,7 @@ impl PassPipeline {
         palette: crate::theme::Palette,
         dark: bool,
         reduced_motion: bool,
+        high_contrast: bool,
     ) -> Vec<Primitive> {
         struct JournalVec<'a> {
             out: &'a mut Vec<Primitive>,
@@ -3354,8 +3391,16 @@ impl PassPipeline {
         let mut out = Vec::new();
         {
             let mut sink = JournalVec { out: &mut out };
-            let mut ctx =
-                PaintCtx::new(&mut sink, origin, size, clip, palette, dark, reduced_motion);
+            let mut ctx = PaintCtx::new(
+                &mut sink,
+                origin,
+                size,
+                clip,
+                palette,
+                dark,
+                reduced_motion,
+                high_contrast,
+            );
             let widget = &self.arena.slot(node).widget;
             widget.paint(&mut ctx);
         }

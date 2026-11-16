@@ -65,6 +65,14 @@ thread_local! {
     /// carry the route's id, the facts queued outside one ride their
     /// absence.
     static SCROLL_TARGET: Cell<Option<u64>> = const { Cell::new(None) };
+    /// The node the bring-into-view ask was *for* (M88, ADR-0092):
+    /// `Some(id)` while the pipeline's door holds its guard, `None`
+    /// otherwise — the record's `target` names the container whose
+    /// offset moved, this names the aimed node, the two ids one ask
+    /// produced (the M30 attribution rule at the scroll tier). The
+    /// stamp fills only what the route knows: the wheel's and the AT's
+    /// asks aim no node, and their records ride the honest absence.
+    static SCROLL_AIMED: Cell<Option<u64>> = const { Cell::new(None) };
 }
 
 /// Enables or disables the scroll trail (the pipeline's side of the
@@ -117,6 +125,35 @@ impl Drop for ScrollTargetGuard {
     }
 }
 
+/// The aimed node's stamp guard (M88, ADR-0092): the pipeline's
+/// bring-into-view door holds one for the length of one ask — the node
+/// the ask was *for*, the id the widget's door cannot know (the M43
+/// rule's words at the scroll tier). Dropping clears the stamp — a
+/// panicking container leaves no stale aim on the thread.
+pub(crate) struct ScrollAimGuard {
+    previous: Option<u64>,
+}
+
+impl ScrollAimGuard {
+    /// Stamps `aimed` as the node the bring-into-view ask was for,
+    /// restoring the previous stamp on drop (one guard per ask — but a
+    /// nested ask would still answer honestly).
+    pub(crate) fn for_aim(aimed: Option<u64>) -> Self {
+        let previous = SCROLL_AIMED.with(|slot| {
+            let previous = slot.get();
+            slot.set(aimed);
+            previous
+        });
+        Self { previous }
+    }
+}
+
+impl Drop for ScrollAimGuard {
+    fn drop(&mut self) {
+        SCROLL_AIMED.with(|slot| slot.set(self.previous));
+    }
+}
+
 /// Notes one scroll fact on this thread's trail (the scroll tier's
 /// side of the trail, ADR-0056): a no-op while the trail is disabled,
 /// an oldest-evicting push while it rides. The scroll doors call this
@@ -138,10 +175,15 @@ pub fn note_scroll(record: crate::inspect::ScrollRecord) {
         // The stamp side (M50, ADR-0056): the funnel's guard answers
         // the *who* the widget cannot know — the widget's own `None`
         // stays `None` when no route holds a guard (the app door's
-        // honest absence).
+        // honest absence). The aim stamp beside it (M88, ADR-0092):
+        // the bring-into-view ask names the node it was *for*, the
+        // route's guard filling only what the widget cannot know.
         let mut record = record;
         if record.target.is_none() {
             record.target = SCROLL_TARGET.with(Cell::get);
+        }
+        if record.aimed.is_none() {
+            record.aimed = SCROLL_AIMED.with(Cell::get);
         }
         tracing::trace!(
             target: "alacer::scroll",
@@ -150,6 +192,7 @@ pub fn note_scroll(record: crate::inspect::ScrollRecord) {
             offset = record.offset,
             unit = record.unit.map(crate::widget::ScrollUnit::name),
             lines = record.lines,
+            aimed = record.aimed,
             "scroll fact queued for the next tick"
         );
         TRAIL.with(|slot| {
@@ -188,6 +231,7 @@ mod tests {
             pinned: None,
             unit: None,
             lines: None,
+            aimed: None,
         });
         assert!(
             take_scroll_trail().is_empty(),
@@ -211,6 +255,7 @@ mod tests {
                 pinned: None,
                 unit: None,
                 lines: None,
+                aimed: None,
             });
         }
         let drained = take_scroll_trail();
@@ -245,6 +290,7 @@ mod tests {
             pinned: Some(RangeBound::Max),
             unit: None,
             lines: None,
+            aimed: None,
         });
         drop(guard);
         let drained = take_scroll_trail();
@@ -274,6 +320,7 @@ mod tests {
             pinned: None,
             unit: None,
             lines: None,
+            aimed: None,
         });
         // The caller's own answer is never overwritten.
         note_scroll(ScrollRecord {
@@ -285,6 +332,7 @@ mod tests {
             pinned: None,
             unit: None,
             lines: None,
+            aimed: None,
         });
         let drained = take_scroll_trail();
         assert_eq!(
@@ -308,12 +356,88 @@ mod tests {
             pinned: None,
             unit: None,
             lines: None,
+            aimed: None,
         });
         let drained = take_scroll_trail();
         assert_eq!(
             drained[0].target, None,
             "the guard's drop cleared the stamp"
         );
+        crate::scroll::set_scroll_trail_enabled(false);
+    }
+
+    /// The aim stamp (M88, ADR-0092): a record the door queued with a
+    /// `None` aim is stamped with the node the pipeline's
+    /// bring-into-view ask was for — the id the widget's door cannot
+    /// know. A record the caller named keeps its own answer, an ask
+    /// that aimed no node rides the honest absence, and a dropped
+    /// guard leaves no stale aim on the thread.
+    #[test]
+    fn the_aim_stamp_names_the_node_the_ask_was_for() {
+        crate::scroll::set_scroll_trail_enabled(true);
+
+        // Beneath an aim guard: the door's `None` becomes the aimed
+        // id, the container's own stamp riding beside it.
+        let aim = crate::scroll::ScrollAimGuard::for_aim(Some(0xFE_ED));
+        note_scroll(ScrollRecord {
+            action: crate::inspect::ScrollAction::BringIntoView,
+            outcome: ScrollOutcome::Delivered,
+            offset: 568.0,
+            requested: Some(568.0),
+            target: Some(0xAB_CD),
+            pinned: None,
+            unit: None,
+            lines: None,
+            aimed: None,
+        });
+        drop(aim);
+        let drained = take_scroll_trail();
+        assert_eq!(
+            drained[0].aimed,
+            Some(0xFE_ED),
+            "the fact queued beneath the aim names the node the ask was for"
+        );
+        assert_eq!(
+            drained[0].target,
+            Some(0xAB_CD),
+            "the container's own stamp rides untouched — the aim never overwrites it"
+        );
+
+        // A record the caller named itself keeps its own answer.
+        note_scroll(ScrollRecord {
+            action: crate::inspect::ScrollAction::BringIntoView,
+            outcome: ScrollOutcome::Delivered,
+            offset: 0.0,
+            requested: Some(0.0),
+            target: None,
+            pinned: None,
+            unit: None,
+            lines: None,
+            aimed: Some(0x12_34),
+        });
+        // Outside a guard: the absence honest — the wheel's rides.
+        note_scroll(ScrollRecord {
+            action: ScrollAction::Wheel,
+            outcome: ScrollOutcome::Delivered,
+            offset: 40.0,
+            requested: Some(40.0),
+            target: None,
+            pinned: None,
+            unit: None,
+            lines: None,
+            aimed: None,
+        });
+        let drained = take_scroll_trail();
+        assert_eq!(
+            drained[0].aimed,
+            Some(0x12_34),
+            "a record the caller named keeps its own answer"
+        );
+        assert_eq!(
+            drained[1].aimed, None,
+            "an ask that aimed no node carries no aim"
+        );
+
         crate::scroll::set_scroll_trail_enabled(false);
     }
 }

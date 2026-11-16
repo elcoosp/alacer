@@ -25,13 +25,17 @@
 //! beside it (ADR-0087, the same rule cashed a third time):
 //! `door_flip_accent` — the accent-only flip landing where the other
 //! facts are still, all four facts resolved, the record streamed, the
-//! real reader naming the accent fact.
+//! real reader naming the accent fact. Since M85 the lock's flip joins
+//! beside it (ADR-0089): `kiosk_flip_no_op` — the flip landing where
+//! the composition answers the palette already installed (the kiosk
+//! lock's whole answer), the door landing the fact, the composition
+//! resolving to the equality's no-op, the swap the idle check refuses.
 
 use alacer_core::flux::Flux;
 use alacer_core::inspect::SettingRecord;
 use alacer_core::passes::{A11yDelta, A11ySink, PassPipeline, SceneJournal, TreeSnapshot};
 use alacer_core::scene::{Primitive, SceneSnapshot};
-use alacer_core::settings::{SETTING_TRAIL_CAP, SettingComposer, SettingSeam};
+use alacer_core::settings::{KioskComposer, SETTING_TRAIL_CAP, SettingComposer, SettingSeam};
 use alacer_core::theme::Palette;
 use alacer_core::trail::TrailLog;
 use criterion::{Criterion, criterion_group, criterion_main};
@@ -361,6 +365,26 @@ fn bench_settings_composition(c: &mut Criterion) {
             Box::new(NullA11y),
         );
         pipeline.set_composer(Box::new(DuetComposer));
+        let dark = AtomicBool::new(false);
+        b.iter(|| {
+            let fact = dark.fetch_xor(true, Ordering::Relaxed);
+            black_box(pipeline.set_settings(Box::new(FixedSettings { dark: fact })));
+        });
+    });
+
+    // The lock's flip (ADR-0089): every measured flip lands — the fact
+    // toggles — and the composition resolves to the palette already
+    // installed, the equality check swapping nothing. The kiosk's
+    // steady state priced: a facts-bearing frame whose theme tier does
+    // nothing, which is the lock's whole answer.
+    group.bench_function("kiosk_flip_no_op", |b| {
+        let mut pipeline = PassPipeline::new(
+            Flux::new(),
+            Box::new(NoopLayout),
+            Box::new(NullJournal),
+            Box::new(NullA11y),
+        );
+        pipeline.set_composer(Box::new(KioskComposer::locked(DUET_DARK)));
         let dark = AtomicBool::new(false);
         b.iter(|| {
             let fact = dark.fetch_xor(true, Ordering::Relaxed);

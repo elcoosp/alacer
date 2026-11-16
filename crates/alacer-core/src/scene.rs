@@ -86,10 +86,10 @@ pub trait PaintSink {
 /// pass — one dynamic call per frame, never per node — and every widget
 /// paints the roles its app did not override from the copy it holds.
 /// Beside the palette it carries the frame's resolved OS facts
-/// (ADR-0080, ADR-0083): the installed [`crate::settings::SettingSeam`]'s
-/// dark-mode and reduced-motion answers, resolved the same
-/// once-per-pass shape, the role-independent decisions the vocabulary
-/// consults.
+/// (ADR-0080, ADR-0083, ADR-0085): the installed
+/// [`crate::settings::SettingSeam`]'s dark-mode, reduced-motion, and
+/// high-contrast answers, resolved the same once-per-pass shape, the
+/// role-independent decisions the vocabulary consults.
 pub struct PaintCtx<'a> {
     sink: &'a mut dyn PaintSink,
     origin: Point,
@@ -98,15 +98,21 @@ pub struct PaintCtx<'a> {
     palette: crate::theme::Palette,
     dark: bool,
     reduced_motion: bool,
+    high_contrast: bool,
 }
 
 impl<'a> PaintCtx<'a> {
     /// Creates a context painting at `origin` over `size`, with an optional
     /// clip, resolving paint roles from `palette`, the OS's dark-mode
-    /// fact from `dark`, and the OS's reduced-motion fact from
-    /// `reduced_motion` (the paint pass resolves the installed seams once
+    /// fact from `dark`, the OS's reduced-motion fact from
+    /// `reduced_motion`, and the OS's high-contrast fact from
+    /// `high_contrast` (the paint pass resolves the installed seams once
     /// per pass; direct callers without a theme resolve the canon palette
     /// and the canon facts).
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the constructor mirrors the context's own resolved facts — the palette beside the OS facts the pass resolved once each; packing them into a bundle would trade every direct caller's readability for nothing (the M79 cut grew the fact beside the two)"
+    )]
     #[must_use]
     pub fn new(
         sink: &'a mut dyn PaintSink,
@@ -116,6 +122,7 @@ impl<'a> PaintCtx<'a> {
         palette: crate::theme::Palette,
         dark: bool,
         reduced_motion: bool,
+        high_contrast: bool,
     ) -> Self {
         Self {
             sink,
@@ -125,6 +132,7 @@ impl<'a> PaintCtx<'a> {
             palette,
             dark,
             reduced_motion,
+            high_contrast,
         }
     }
 
@@ -162,6 +170,17 @@ impl<'a> PaintCtx<'a> {
     #[must_use]
     pub const fn reduced_motion(&self) -> bool {
         self.reduced_motion
+    }
+
+    /// The frame's resolved OS fact beside the two (ADR-0085): the
+    /// high-contrast answer the installed setting seam gave this pass —
+    /// the fact a widget consults when contrast itself is the question
+    /// (a hairline's weight, a focus ring's width), the same
+    /// once-per-pass shape the dark and motion facts ride, never a
+    /// per-node call.
+    #[must_use]
+    pub const fn high_contrast(&self) -> bool {
+        self.high_contrast
     }
 
     /// Records one quad, translated to absolute coordinates.
@@ -313,6 +332,7 @@ mod tests {
             crate::geom::Size::new(10.0, 10.0),
             None,
             crate::theme::Palette::CANON,
+            false,
             false,
             false,
         );

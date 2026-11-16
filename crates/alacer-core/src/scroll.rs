@@ -190,6 +190,7 @@ pub fn note_scroll(record: crate::inspect::ScrollRecord) {
             action = record.action.name(),
             outcome = record.outcome.name(),
             offset = record.offset,
+            offset_x = record.horizontal.map(|axis| axis.offset),
             unit = record.unit.map(crate::widget::ScrollUnit::name),
             lines = record.lines,
             aimed = record.aimed,
@@ -232,6 +233,7 @@ mod tests {
             unit: None,
             lines: None,
             aimed: None,
+            horizontal: None,
         });
         assert!(
             take_scroll_trail().is_empty(),
@@ -256,6 +258,7 @@ mod tests {
                 unit: None,
                 lines: None,
                 aimed: None,
+                horizontal: None,
             });
         }
         let drained = take_scroll_trail();
@@ -291,6 +294,7 @@ mod tests {
             unit: None,
             lines: None,
             aimed: None,
+            horizontal: None,
         });
         drop(guard);
         let drained = take_scroll_trail();
@@ -321,6 +325,7 @@ mod tests {
             unit: None,
             lines: None,
             aimed: None,
+            horizontal: None,
         });
         // The caller's own answer is never overwritten.
         note_scroll(ScrollRecord {
@@ -333,6 +338,7 @@ mod tests {
             unit: None,
             lines: None,
             aimed: None,
+            horizontal: None,
         });
         let drained = take_scroll_trail();
         assert_eq!(
@@ -357,6 +363,7 @@ mod tests {
             unit: None,
             lines: None,
             aimed: None,
+            horizontal: None,
         });
         let drained = take_scroll_trail();
         assert_eq!(
@@ -389,6 +396,7 @@ mod tests {
             unit: None,
             lines: None,
             aimed: None,
+            horizontal: None,
         });
         drop(aim);
         let drained = take_scroll_trail();
@@ -414,6 +422,7 @@ mod tests {
             unit: None,
             lines: None,
             aimed: Some(0x12_34),
+            horizontal: None,
         });
         // Outside a guard: the absence honest — the wheel's rides.
         note_scroll(ScrollRecord {
@@ -426,6 +435,7 @@ mod tests {
             unit: None,
             lines: None,
             aimed: None,
+            horizontal: None,
         });
         let drained = take_scroll_trail();
         assert_eq!(

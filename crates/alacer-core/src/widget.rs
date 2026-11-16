@@ -50,6 +50,12 @@ pub enum Role {
     TableCell,
     /// A table's column header.
     ColumnHeader,
+    /// A free-form custom-paint surface (the canvas, M82): the app's paint
+    /// closure records the primitives through the paint seam, and the AT
+    /// gets the name — a named canvas is a chart, a diagram, a drawing
+    /// surface; an unnamed one is an unusable blank (the ADR-5 rule the
+    /// named roles carry).
+    Canvas,
     /// The app's reserved announcement region (§11.6, ADR-0024): a live
     /// region the pipeline owns — its content is the last announcement,
     /// and assistive technologies speak its changes. Never a widget's
@@ -63,7 +69,8 @@ impl Role {
     /// M6: an unnamed toggle is unusable with a screen reader. The slider
     /// joins in M20: an unnamed value control reads as a bare number. The
     /// progress indicator joins in M21: an unnamed report reads as a bare
-    /// number too.
+    /// number too. The canvas joins in M82: an unnamed drawing surface
+    /// reads as a blank.
     #[must_use]
     pub const fn requires_name(self) -> bool {
         matches!(
@@ -73,6 +80,7 @@ impl Role {
                 | Self::CheckBox
                 | Self::Slider
                 | Self::ProgressIndicator
+                | Self::Canvas
         )
     }
 
@@ -95,6 +103,7 @@ impl Role {
             Self::TableRow => "table_row",
             Self::TableCell => "table_cell",
             Self::ColumnHeader => "column_header",
+            Self::Canvas => "canvas",
             Self::LiveRegion => "live_region",
         }
     }

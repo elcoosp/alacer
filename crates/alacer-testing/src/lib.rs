@@ -17,6 +17,9 @@ pub mod recording;
 pub use recording::{
     RECORDING_SCHEMA, Recording, Session, Step, key_from_name, key_name, role_from_name,
 };
+// The harness renders pixmaps; consumers of `pixels()`/`snapshot()` name the
+// type through here so a test never depends on the rasterizer directly.
+pub use tiny_skia::Pixmap;
 
 use alacer_a11y::AccessKitSink;
 use alacer_core::arena::NodeId;
@@ -32,7 +35,6 @@ use alacer_text::{ThreadLocalGlyphSource, ThreadLocalMeasurer, ThreadLocalTextSe
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
-use tiny_skia::Pixmap;
 
 /// The harness: pipeline + viewport + counters, everything headless.
 pub struct TestHarness {

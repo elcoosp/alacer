@@ -474,6 +474,11 @@
       "id": "settings_door_flip_contrast",
       "baseline": "settings/door_flip_contrast",
       "scope": "same-host"
+    },
+    {
+      "id": "settings_door_flip_accent",
+      "baseline": "settings/door_flip_accent",
+      "scope": "same-host"
     }
   ],
   "test_enforced_gates": [

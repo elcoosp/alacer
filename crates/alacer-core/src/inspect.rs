@@ -1083,6 +1083,48 @@ pub struct ScrollRecord {
     /// version 1 (the additive-field rule the wire's scroll event
     /// carries): clients that ignore unknown fields are unaffected.
     pub aimed: Option<u64>,
+    /// The horizontal half of the ask's story (M89, ADR-0093 —
+    /// ADR-0056's own axis rule cashed): the axis's outcome, landed
+    /// offset, ask, and wall beside the vertical fields, the same
+    /// rules spoken per axis — the door priced the ask from the
+    /// geometry, the container's declared span answered it (or
+    /// refused it by its own named wall). `None` on the stories with
+    /// no horizontal half: the AT's unit scrolls and value steps ride
+    /// their vertical vocabulary untouched, the content's own clamp
+    /// is a height's story — the absence honest, never a guessed
+    /// zero. Additive at version 1 (the additive-field rule the
+    /// wire's scroll event carries): clients that ignore unknown
+    /// fields are unaffected.
+    pub horizontal: Option<HorizontalScrollFact>,
+}
+
+/// The horizontal half of one scroll ask's record (M89, ADR-0093):
+/// the axis's own story, the same shape the vertical fields ride —
+/// the outcome beside the landed offset, the ask beside both (the
+/// M44 rule at the scroll tier, spoken per axis), the wall the
+/// clamp pinned (ADR-0055's second kill rule, per axis). The record's
+/// `horizontal` carries it as a whole: one additive field, the fact
+/// never split across three loose scalars a reader could
+/// mis-pair with the vertical story.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct HorizontalScrollFact {
+    /// What the container's clamp answered on the horizontal axis —
+    /// delivered, or the named refusal species (an undeclared span
+    /// answers `no_scrollable_content`, the wall named where the
+    /// consumer can read it).
+    pub outcome: ScrollOutcome,
+    /// The offset the container holds on the horizontal axis as the
+    /// record resolves — the clamp's result on a delivery, the
+    /// untouched offset on a refusal.
+    pub offset: f32,
+    /// The finite offset the horizontal ask wanted, before the clamp
+    /// moved it — the ask beside the landing, per axis. `None` when
+    /// the ask never became a finite scalar (the funnel's wall).
+    pub requested: Option<f32>,
+    /// The wall the clamp pinned the horizontal landing at — `None`
+    /// when the landing is the ask, on every landing mid-range, and
+    /// on every refusal (a write that moved nothing pinned nothing).
+    pub pinned: Option<RangeBound>,
 }
 
 /// The text-write action vocabulary (M55, ADR-0061): the three

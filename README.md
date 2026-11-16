@@ -86,7 +86,7 @@ cargo test --workspace                                          # headless: real
 > `ALACER_SOFTWARE=1` presents through softbuffer — the platform honors it at startup
 > (`BackendPreference::software_env`) whichever backend the app asked for; any other value is
 > refused with a named warning, never guessed. CI and the headless tests already run this path:
-> no mock renderer, no mock event loop. The full 64-example catalog lives in
+> no mock renderer, no mock event loop. The full 67-example catalog lives in
 > [docs/examples.md](https://github.com/elcoosp/alacer/blob/main/docs/examples.md).
 
 ## How it works
@@ -436,7 +436,7 @@ tree (`query(role).named(..)`, `press`, `find_all`) — never widget internals.
 ## Learn more
 
 - [Architecture](https://github.com/elcoosp/alacer/blob/main/docs/architecture.md) — design axioms, the ten-pass contract, rendering, accessibility, DX, performance, roadmap and kill criteria
-- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — eighty-eight decision records, from workspace discipline to the M80 scope
+- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — eighty-eight decision records, from workspace discipline to the M81 scope
 - [Examples catalog](https://github.com/elcoosp/alacer/blob/main/docs/examples.md) — every example with the contract it exercises
 - [Migrating from Iced](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-iced.md) · [from egui](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-egui.md) — mental-model mappings, interop limits stated plainly
 - [Inspector protocol](https://github.com/elcoosp/alacer/blob/main/docs/inspector-protocol.md) — the versioned WebSocket contract behind `alacer-inspect`

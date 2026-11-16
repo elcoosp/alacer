@@ -62,6 +62,10 @@ impl SettingSeam for SimulatedOs {
     fn reduced_motion(&self) -> bool {
         self.motion.load(Ordering::Relaxed)
     }
+
+    fn high_contrast(&self) -> bool {
+        false
+    }
 }
 
 /// A probe that paints its whole bounds from the resolved *motion*
@@ -199,6 +203,10 @@ impl SettingSeam for DarkMotionOs {
     }
 
     fn reduced_motion(&self) -> bool {
+        false
+    }
+
+    fn high_contrast(&self) -> bool {
         false
     }
 }

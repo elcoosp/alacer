@@ -519,6 +519,11 @@
       "id": "scroll_route_100_bring_into_view_1k",
       "baseline": "scroll/route_100_bring_into_view_1k",
       "scope": "same-host"
+    },
+    {
+      "id": "scroll_route_100_horizontal_bring_into_view_1k",
+      "baseline": "scroll/route_100_horizontal_bring_into_view_1k",
+      "scope": "same-host"
     }
   ],
   "test_enforced_gates": [

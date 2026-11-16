@@ -144,6 +144,17 @@ impl<'a> ElementProps<'a> {
             _ => None,
         }
     }
+
+    /// A paint-closure prop (`on_paint: Painter::new(|ctx| …)` — M82): the
+    /// custom-paint callback a canvas element runs at paint time. The
+    /// shared closure clones by `Rc` — identity comparisons ride it.
+    #[must_use]
+    pub fn painter(&self, name: &str) -> Option<crate::view::SharedPainter> {
+        match self.props.get(name)? {
+            crate::view::PropValue::Painter(painter) => Some(painter.shared()),
+            _ => None,
+        }
+    }
 }
 
 /// A boxed text-carrying handler, ready to hang on a widget.

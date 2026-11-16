@@ -341,6 +341,27 @@ pub enum EventResponse {
     Handled,
 }
 
+/// The container's answer to a bring-into-view ask (M88, ADR-0092): the
+/// landing beside the outcome, the clamp's arithmetic carried as data —
+/// the M27 rule at the scroll tier, the same shape the focus walk's
+/// [`crate::passes::FocusLanding`] answers by. `offset` is the landed
+/// offset the container holds (the clamp's result on a delivery, the
+/// untouched offset on a refusal); `pinned` names the wall the clamp
+/// turned the ask back at (the ADR-0055 rule the ask doors answer by —
+/// `None` when the landing is the ask, on every landing mid-range, and
+/// on every refusal).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ScrollLanding {
+    /// What the container's clamp answered — delivered, or the named
+    /// refusal species ([`crate::inspect::ScrollRefusal`]).
+    pub outcome: crate::inspect::ScrollOutcome,
+    /// The offset the container holds as the answer resolves.
+    pub offset: f32,
+    /// The wall the clamp pinned a past ask at (`min`/`max`), `None`
+    /// when the landing is the ask or nothing moved.
+    pub pinned: Option<crate::inspect::RangeBound>,
+}
+
 /// The retained widget contract.
 ///
 /// Widgets are never re-created on state change (§6.1): they are created once,
@@ -378,6 +399,26 @@ pub trait Widget: 'static {
     /// real candidates instead of walking every node each frame.
     fn is_scroll_container(&self) -> bool {
         false
+    }
+
+    /// The container's half of the bring-into-view door (M88, ADR-0092):
+    /// the pipeline reads the bounds ledger it already owns, computes the
+    /// minimal offset that lands the aimed node fully inside this
+    /// container's viewport, and hands the ask here — the widget answers
+    /// by its own clamp arithmetic (the span walls, the named refusals),
+    /// the range living where the widget keeps it, never the pipeline
+    /// guessing at a private span. The landing is data ([`ScrollLanding`],
+    /// the M27 rule at the scroll tier); the door notes the ask on the
+    /// scroll log under [`crate::inspect::ScrollAction::BringIntoView`],
+    /// the route stamps filling the container and the aimed node the
+    /// widget cannot know (the M43 rule at the scroll tier). `None` when
+    /// this widget claims the scroll slot ([`Self::is_scroll_container`])
+    /// without shipping the door — the pipeline answers
+    /// [`crate::passes::ScrollIntoViewRefusal::NoScrollDoor`] on that
+    /// answer, the contract gap named where the consumer can read it.
+    fn bring_into_view(&mut self, ask: f32) -> Option<ScrollLanding> {
+        let _ = ask;
+        None
     }
 
     /// The widget's intrinsic measure request, consumed by the layout engine's

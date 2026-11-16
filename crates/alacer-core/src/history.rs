@@ -85,15 +85,19 @@ pub struct EditEntry {
 }
 
 impl EditEntry {
-    /// The entry's inserted length, in UTF-16 units.
+    /// The entry's inserted length, in UTF-16 units (crate-internal:
+    /// the journal's coalescing and replay arithmetic, no external
+    /// caller — the pub surface is the record's own facts).
     #[must_use]
-    pub fn inserted_units(&self) -> usize {
+    fn inserted_units(&self) -> usize {
         utf16::len_utf16(&self.inserted)
     }
 
-    /// The entry's removed length, in UTF-16 units.
+    /// The entry's removed length, in UTF-16 units (crate-internal:
+    /// the journal's coalescing and replay arithmetic, no external
+    /// caller — the pub surface is the record's own facts).
     #[must_use]
-    pub fn removed_units(&self) -> usize {
+    fn removed_units(&self) -> usize {
         utf16::len_utf16(&self.removed)
     }
 }

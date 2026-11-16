@@ -632,7 +632,10 @@ pub enum ScrollIntoViewRefusal {
 /// that moved beside the container's own answer ([`crate::widget::
 /// ScrollLanding`], flattened — the door adds the identity the widget's
 /// door cannot know, the M43 rule's shape: the widget answers its range,
-/// the route names the control the ask rode).
+/// the route names the control the ask rode). Since M89 (ADR-0093) the
+/// flat fields answer the *vertical* axis and the horizontal axis's own
+/// answer rides beside them ([`crate::widget::ScrollAxisLanding`], the
+/// same shape flattened from the container's answer).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ScrollIntoViewLanding {
     /// The nearest scrollable ancestor whose offset moved — the
@@ -648,6 +651,10 @@ pub struct ScrollIntoViewLanding {
     /// The wall the clamp pinned a past ask at (`min`/`max`), `None`
     /// when the landing is the ask or nothing moved.
     pub pinned: Option<crate::inspect::RangeBound>,
+    /// The horizontal axis's own answer (M89, ADR-0093), beside the
+    /// vertical — the same clamp arithmetic, the container's own
+    /// declared span, the refusals named per axis.
+    pub horizontal: crate::widget::ScrollAxisLanding,
 }
 
 /// The bring-into-view door's answer (M88, ADR-0092) — the M27 rule
@@ -1352,8 +1359,20 @@ impl PassPipeline {
     /// ([`crate::widget::Widget::bring_into_view`]): the clamp
     /// arithmetic — the span walls, the named refusals — answers where
     /// the range lives, never the pipeline guessing at a widget-private
-    /// span. The vertical tier only: the scroll vocabulary's offset is
-    /// a scalar, and the horizontal asks are a different cut's fact.
+    /// span. Since M89 (ADR-0093) the ask carries both halves
+    /// ([`crate::widget::BringIntoViewAsk`]): the vertical half exactly
+    /// the M88 ask, the horizontal half beside it priced by the same
+    /// edge-pin convention from the same ledger read — left of the
+    /// window scrolls to the left edge, right of it to the right edge,
+    /// a rect wider than the viewport pins its left edge, and the axis
+    /// that already holds the node asks its own identity (the clamp
+    /// delivering the offset it holds). The container answers each axis
+    /// by its own declared span; the landing reports both, the
+    /// refusals named per axis — a container whose horizontal span was
+    /// never declared answers
+    /// [`crate::inspect::ScrollRefusal::NoScrollableContent`] on the x
+    /// half while the vertical half lands, the honest wall where the
+    /// consumer can read it.
     ///
     /// The answer is data at every landing (the M27 rule at the scroll
     /// tier): a [`ScrollIntoViewOutcome::Landed`] carrying the
@@ -1419,37 +1438,8 @@ impl PassPipeline {
             );
             return ScrollIntoViewOutcome::Refused(ScrollIntoViewRefusal::NotLaidOut);
         };
-        // The ask's price, from the ledger: the node's content-space
-        // rect rides the bounds' own difference — both the container
-        // and its descendants ride the same compose translation (the
-        // container inside its own subtree), so the difference is the
-        // content position, invariant under every offset the bounds
-        // already reflect; asks composed in one batch price against
-        // the geometry that is, never stale pixels.
-        let current = self.arena.widget(container).scroll_offset().y;
-        let content_top = child_abs.origin.y - container_abs.origin.y;
-        let content_bottom = content_top + child_abs.size.height;
-        let viewport_height = container_abs.size.height;
-        let visible_top = content_top - current;
-        let visible_bottom = content_bottom - current;
-        // Already fully inside: the honest no-op — nothing to ask, the
-        // container never disturbed, no record (the idle frame's own
-        // rule at this tier).
-        if visible_top >= 0.0 && visible_bottom <= viewport_height {
-            tracing::trace!(
-                target: "alacer::scroll",
-                node = node.raw(),
-                "visible: the aimed node sits fully inside the viewport — nothing to move, nothing queued"
-            );
+        let Some(ask) = self.price_two_axis_ask(container, node, child_abs, container_abs) else {
             return ScrollIntoViewOutcome::Visible;
-        }
-        // The minimal ask: above the window scrolls to the top edge
-        // (a rect taller than the viewport pins its top edge), below
-        // it scrolls to the bottom edge.
-        let ask = if visible_top < 0.0 {
-            content_top
-        } else {
-            content_bottom - viewport_height
         };
         // The stamps (M43, ADR-0049, the M50 discipline at the scroll
         // tier): the route knows the container it resolved and the
@@ -1475,12 +1465,15 @@ impl PassPipeline {
             );
             return ScrollIntoViewOutcome::Refused(ScrollIntoViewRefusal::NoScrollDoor);
         };
-        if landing.outcome == crate::inspect::ScrollOutcome::Delivered {
+        if landing.outcome == crate::inspect::ScrollOutcome::Delivered
+            || landing.horizontal.outcome == crate::inspect::ScrollOutcome::Delivered
+        {
             // The same currency the wheel's dispatch merges on
             // consumption (§7.2 pass 10): the repaint and the a11y
             // bounds re-announce ride the one batch, compose
             // translating the moved descendants without a measure
-            // call.
+            // call. Either axis's delivery moves pixels — the mask
+            // rides the axis that answered.
             self.arena
                 .merge_mask(container, crate::Change::PAINT.union(crate::Change::A11Y));
         }
@@ -1489,6 +1482,7 @@ impl PassPipeline {
             node = node.raw(),
             container = container.raw(),
             offset = landing.offset,
+            offset_x = landing.horizontal.offset,
             "the bring-into-view ask answered beside the container's own clamp"
         );
         ScrollIntoViewOutcome::Landed(ScrollIntoViewLanding {
@@ -1496,6 +1490,69 @@ impl PassPipeline {
             outcome: landing.outcome,
             offset: landing.offset,
             pinned: landing.pinned,
+            horizontal: landing.horizontal,
+        })
+    }
+
+    /// The two-axis ask's price (M89, ADR-0093), from the ledger the
+    /// door already owns: the node's content-space rect rides the
+    /// bounds' own difference on both axes, each priced by the same
+    /// edge-pin convention — above/left of the window scrolls to that
+    /// edge (a rect taller/wider than the viewport pins its top/left
+    /// edge), below/right to the bottom/right edge, and the axis that
+    /// already holds the node asks its own identity, the clamp
+    /// delivering the offset it holds. `None` when the node sits fully
+    /// inside on both axes — the honest no-op the door answers
+    /// `Visible` with, nothing to ask, the container never disturbed.
+    fn price_two_axis_ask(
+        &self,
+        container: NodeId,
+        node: NodeId,
+        child_abs: crate::geom::Rect,
+        container_abs: crate::geom::Rect,
+    ) -> Option<crate::widget::BringIntoViewAsk> {
+        let offsets = self.arena.widget(container).scroll_offset();
+        let current_y = offsets.y;
+        let current_x = offsets.x;
+        let content_top = child_abs.origin.y - container_abs.origin.y;
+        let content_bottom = content_top + child_abs.size.height;
+        let viewport_height = container_abs.size.height;
+        let visible_top = content_top - current_y;
+        let visible_bottom = content_bottom - current_y;
+        let content_left = child_abs.origin.x - container_abs.origin.x;
+        let content_right = content_left + child_abs.size.width;
+        let viewport_width = container_abs.size.width;
+        let visible_left = content_left - current_x;
+        let visible_right = content_right - current_x;
+        if visible_top >= 0.0
+            && visible_bottom <= viewport_height
+            && visible_left >= 0.0
+            && visible_right <= viewport_width
+        {
+            tracing::trace!(
+                target: "alacer::scroll",
+                node = node.raw(),
+                "visible: the aimed node sits fully inside the viewport — nothing to move, nothing queued"
+            );
+            return None;
+        }
+        let ask_y = if visible_top < 0.0 {
+            content_top
+        } else if visible_bottom > viewport_height {
+            content_bottom - viewport_height
+        } else {
+            current_y
+        };
+        let ask_x = if visible_left < 0.0 {
+            content_left
+        } else if visible_right > viewport_width {
+            content_right - viewport_width
+        } else {
+            current_x
+        };
+        Some(crate::widget::BringIntoViewAsk {
+            vertical: ask_y,
+            horizontal: ask_x,
         })
     }
 

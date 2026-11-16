@@ -83,7 +83,21 @@ impl SoftbufferPresenter {
     ) -> Result<(), ::softbuffer::SoftBufferError> {
         let mut buffer = self.surface.buffer_mut()?;
         let argb = pixmap_to_argb(pixmap);
-        let len = usize::try_from(self.width * self.height).unwrap_or(0);
+        // The copy length: the surface's pixel count — the multiply
+        // checked where it could overflow, the fallback warned instead
+        // of presenting a silently blank frame (the observability
+        // convention; unreachable for real windows, the warn the
+        // receipt if it ever is).
+        let len = if let Some(pixels) = self.width.checked_mul(self.height) {
+            usize::try_from(pixels).unwrap_or(0)
+        } else {
+            tracing::warn!(
+                width = self.width,
+                height = self.height,
+                "the surface's pixel count overflows; presenting nothing this frame"
+            );
+            0
+        };
         buffer.copy_from_slice(&argb[..len.min(argb.len())]);
         buffer.present()?;
         Ok(())

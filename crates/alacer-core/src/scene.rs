@@ -86,10 +86,12 @@ pub trait PaintSink {
 /// pass — one dynamic call per frame, never per node — and every widget
 /// paints the roles its app did not override from the copy it holds.
 /// Beside the palette it carries the frame's resolved OS facts
-/// (ADR-0080, ADR-0083, ADR-0085): the installed
+/// (ADR-0080, ADR-0083, ADR-0085, ADR-0087): the installed
 /// [`crate::settings::SettingSeam`]'s dark-mode, reduced-motion, and
-/// high-contrast answers, resolved the same once-per-pass shape, the
-/// role-independent decisions the vocabulary consults.
+/// high-contrast answers, and its accent-color answer riding its
+/// presence (`None` is the honest absence), resolved the same
+/// once-per-pass shape, the role-independent decisions the vocabulary
+/// consults.
 pub struct PaintCtx<'a> {
     sink: &'a mut dyn PaintSink,
     origin: Point,
@@ -99,19 +101,21 @@ pub struct PaintCtx<'a> {
     dark: bool,
     reduced_motion: bool,
     high_contrast: bool,
+    accent: Option<Color>,
 }
 
 impl<'a> PaintCtx<'a> {
     /// Creates a context painting at `origin` over `size`, with an optional
     /// clip, resolving paint roles from `palette`, the OS's dark-mode
     /// fact from `dark`, the OS's reduced-motion fact from
-    /// `reduced_motion`, and the OS's high-contrast fact from
-    /// `high_contrast` (the paint pass resolves the installed seams once
-    /// per pass; direct callers without a theme resolve the canon palette
-    /// and the canon facts).
+    /// `reduced_motion`, the OS's high-contrast fact from
+    /// `high_contrast`, and the OS's accent-color fact from `accent`
+    /// (riding its presence — `None` is the honest absence; the paint
+    /// pass resolves the installed seams once per pass; direct callers
+    /// without a theme resolve the canon palette and the canon facts).
     #[expect(
         clippy::too_many_arguments,
-        reason = "the constructor mirrors the context's own resolved facts — the palette beside the OS facts the pass resolved once each; packing them into a bundle would trade every direct caller's readability for nothing (the M79 cut grew the fact beside the two)"
+        reason = "the constructor mirrors the context's own resolved facts — the palette beside the OS facts the pass resolved once each; packing them into a bundle would trade every direct caller's readability for nothing (the M79 cut grew the fact beside the two, the M81 cut the accent beside the three)"
     )]
     #[must_use]
     pub fn new(
@@ -123,6 +127,7 @@ impl<'a> PaintCtx<'a> {
         dark: bool,
         reduced_motion: bool,
         high_contrast: bool,
+        accent: Option<Color>,
     ) -> Self {
         Self {
             sink,
@@ -133,6 +138,7 @@ impl<'a> PaintCtx<'a> {
             dark,
             reduced_motion,
             high_contrast,
+            accent,
         }
     }
 
@@ -181,6 +187,19 @@ impl<'a> PaintCtx<'a> {
     #[must_use]
     pub const fn high_contrast(&self) -> bool {
         self.high_contrast
+    }
+
+    /// The frame's resolved OS fact beside the three (ADR-0087): the
+    /// accent-color answer the installed setting seam gave this pass —
+    /// the fact a widget consults when tint itself is the question (an
+    /// accent that follows the OS's pick, a selection riding it), the
+    /// same once-per-pass shape the dark, motion, and contrast facts
+    /// ride, never a per-node call. The fact rides its presence: `None`
+    /// is the honest absence — a platform that reports no accent
+    /// answers `None`, never a guessed color.
+    #[must_use]
+    pub const fn accent_color(&self) -> Option<Color> {
+        self.accent
     }
 
     /// Records one quad, translated to absolute coordinates.
@@ -335,6 +354,7 @@ mod tests {
             false,
             false,
             false,
+            None,
         );
 
         ctx.push_quad(Quad::filled(

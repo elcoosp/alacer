@@ -9,6 +9,71 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M85 — the kiosk lock: the composition that follows nothing (ADR-0089)**:
+  ADR-0081's rule cashed a second time beside the
+  provided-implementation rule (§13.3) — through M84 a palette the
+  OS's facts could not move had two half-doors (the manual
+  `set_theme` hold that loses on the next flip, the canon lock that
+  locks only the canon palette) — so the composition tier grows the
+  lock over any palette:
+  [`KioskComposer::locked`](crates/alacer-core/src/settings.rs)
+  (const, one `Palette` for every fact permutation, all sixteen
+  bit-flips pinned by the settings tier's unit tests), the lock's
+  flip the equality check's idle answer (the flip lands, one
+  `SettingRecord` streams, the theme tier streams none — the composed
+  answer *is* the palette already installed), the manual `set_theme`
+  ask winning while it holds and the next flip winning it back (the
+  `ThemeRecord` tagged `kiosk`, the reach beside it), the m85 suite
+  pinning the story in pixels and records, the corpus growing
+  90 → 91 by the coordinated rule (`settings/kiosk_flip_no_op`), and
+  [`examples/kiosk.rs`](crates/alacer/examples/kiosk.rs) the consumer
+  demonstration.
+- **M84 — the allocation ledger: the warm-frame budget enforced (ADR-0088)**:
+  architecture A7's consequence shipped as the instrument it always
+  named — through M83 the workspace named dhat in its
+  adopted-dependencies list and no crate adopted it, and the
+  instrument found the truth: a static UI's warm tick churned 2
+  blocks / 288 bytes (the tick's ledger buffer dying with every
+  `FrameReport`). The hook is adopted
+  ([`dhat::Alloc`](crates/alacer-testing/src/alloc.rs), A2 — steal
+  proven cores; own only the composition) and the budget's
+  vocabulary composed beside it
+  ([`AllocLedger`](crates/alacer-testing/src/alloc.rs) the armed
+  window, [`AllocStats`](crates/alacer-testing/src/alloc.rs) the
+  snapshots, [`AllocDelta`](crates/alacer-testing/src/alloc.rs) the
+  answers); the pass ledger's buffer rides back into the pipeline
+  and the warm frame's report carries the canonical idle ledger by
+  `Arc` handle
+  ([`FrameReport::passes`](crates/alacer-core/src/passes.rs)) — the
+  warm tick now answers **zero heap allocations**, to the byte,
+  pinned by
+  [`tests/m84_exit_criteria.rs`](crates/alacer-testing/tests/m84_exit_criteria.rs)
+  and the corpus growing 86 → 90 by the coordinated rule
+  (`alloc/warm_frame_zero_alloc` beside the ledger's own priced
+  costs),
+  [`examples/alloc_budget.rs`](crates/alacer/examples/alloc_budget.rs)
+  the consumer demonstration.
+- **M83 — the inspector at the assembly site: `attach_inspector` (ADR-0010)**:
+  the recorder into the observer slot in one call —
+  [`attach_inspector`](crates/alacer-inspect/src/attach.rs) binds the
+  server before the pipeline installs it (a refused attach changes
+  nothing), the reader handle answers the causal facts in-process,
+  and [`examples/inspector_attach.rs`](crates/alacer/examples/inspector_attach.rs)
+  the one-call demonstration (the URL printed, the accept loop
+  serving on its own thread).
+- **M82 — the canvas: the app's own paint closure (ADR-0008's identity rule)**:
+  the paint seam grows the app-facing painter:
+  [`Canvas`](crates/alacer-widgets/src/canvas.rs) mounts a hoisted
+  painter closure, [`PaintCtx`](crates/alacer-core/src/scene.rs)
+  handing the resolved facts beside the clip stack, the painter's
+  primitives appending through the paint pass's own commit, and the
+  flux bridge's `bind_value` queueing the canvas's `PAINT` mask —
+  the repaint currency every widget shares, at the app's own
+  surface; the identity rule (ADR-8) prices the hoisted painter as
+  an idle frame (a re-render that keeps the painter closure
+  re-records nothing), and
+  [`examples/canvas.rs`](crates/alacer/examples/canvas.rs) drives the
+  route from the consumer side.
 - **M81 — the setting seam grows the accent fact, the composition follows it (ADR-0087)**:
   ADR-0085's own pre-registered re-open rule cashed a third time, grown
   by ADR-0086's own rule beside it — through M80 a widget that wanted

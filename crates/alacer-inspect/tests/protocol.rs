@@ -358,7 +358,8 @@ fn setting_events_carry_the_documented_flat_shape() {
     // rule: clients that ignore unknown kinds unaffected). The bools
     // are the facts; since M76 (ADR-0082) the broadcast's node count
     // rides beside them, and since M77 (ADR-0083) the reduced-motion
-    // fact rides beside the dark one — the additive fields the
+    // fact rides beside the dark one, and since M79 (ADR-0085) the
+    // high-contrast fact rides beside the two — the additive fields the
     // versioning rule admits at version 1, the lengths rule's shape
     // (the ids never ride).
     use alacer_core::inspect::SettingRecord;
@@ -367,6 +368,7 @@ fn setting_events_carry_the_documented_flat_shape() {
     let flip = wire_setting(&SettingRecord {
         dark: true,
         reduced_motion: false,
+        high_contrast: false,
         repainted: 7,
     });
     let json = serde_json::to_string(&flip).expect("flip json");
@@ -374,18 +376,21 @@ fn setting_events_carry_the_documented_flat_shape() {
         json.contains(r#""kind":"setting""#)
             && json.contains(r#""dark":true"#)
             && json.contains(r#""reduced_motion":false"#)
+            && json.contains(r#""high_contrast":false"#)
             && json.contains(r#""repainted":7"#),
         "the flip's facts and its reach, named plain: {json}"
     );
     let flip = wire_setting(&SettingRecord {
         dark: false,
         reduced_motion: true,
+        high_contrast: true,
         repainted: 0,
     });
     let json = serde_json::to_string(&flip).expect("flip json");
     assert!(
         json.contains(r#""dark":false"#)
             && json.contains(r#""reduced_motion":true"#)
+            && json.contains(r#""high_contrast":true"#)
             && json.contains(r#""repainted":0"#),
         "the light flip names its own facts and reach: {json}"
     );

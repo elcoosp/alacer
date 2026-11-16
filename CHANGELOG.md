@@ -9,6 +9,33 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ### Added
 
+- **M81 — the setting seam grows the accent fact, the composition follows it (ADR-0087)**:
+  ADR-0085's own pre-registered re-open rule cashed a third time, grown
+  by ADR-0086's own rule beside it — through M80 a widget that wanted
+  the OS's accent preference guessed or polled, and a composition that
+  wanted to tint by it reached for the platform's adapter, the reach
+  ADR-0081 forbids — so the seam grows the fact beside the three:
+  [`SettingSeam::accent_color`](crates/alacer-core/src/settings.rs)
+  answers `Option<Color>` (required, one seam one door never a second
+  seam per fact, the fact riding its presence — `None` the honest
+  absence, never a guessed color), the door's flip check comparing all
+  four facts (the accent-only flip the M79 check swallowed lands now),
+  the fact resolving once per paint pass into
+  [`PaintCtx::accent_color`](crates/alacer-core/src/scene.rs),
+  [`SettingRecord`](crates/alacer-core/src/inspect.rs) growing the
+  field beside the facts, the wire growing the additive `accent`
+  field at version 1 (the documented `#RRGGBBAA` hex, `null` the
+  absence, the embedded client rendering it), the composition
+  resolving by it beside the three
+  ([`SettingComposer::palette`](crates/alacer-core/src/settings.rs)
+  growing the fact by ADR-0086's own shape,
+  [`CanonComposer`](crates/alacer-core/src/settings.rs) grown in
+  signature unchanged in behavior), the winit adapter answering the
+  honest absence (ADR-0083's adapter rule), and
+  [`examples/accent_follow.rs`](crates/alacer/examples/accent_follow.rs)
+  the consumer demonstration (the accent-follow composition tinting
+  its accent roles from the fact); the corpus grows 85 → 86 by the
+  coordinated rule (`settings/door_flip_accent`).
 - **M80 — the composition follows the facts (ADR-0086)**:
   ADR-0083's second pre-registered re-open rule, grown by ADR-0085's
   own cut — through M79 the composition resolved against the dark fact

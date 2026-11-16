@@ -341,15 +341,62 @@ pub enum EventResponse {
     Handled,
 }
 
-/// The container's answer to a bring-into-view ask (M88, ADR-0092): the
-/// landing beside the outcome, the clamp's arithmetic carried as data —
-/// the M27 rule at the scroll tier, the same shape the focus walk's
-/// [`crate::passes::FocusLanding`] answers by. `offset` is the landed
+/// The bring-into-view ask's two halves (M89, ADR-0093): the
+/// content-space target offsets the pipeline priced per axis — the
+/// vertical half exactly the M88 ask, the horizontal half beside it
+/// priced by the same edge-pin convention from the bounds ledger the
+/// door already owns. One ask, both axes: the container's door
+/// answers each by its own declared span (the clamp arithmetic, the
+/// named walls), never the pipeline guessing at a widget-private
+/// range.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BringIntoViewAsk {
+    /// The vertical half: the content-space target offset the minimal
+    /// vertical scroll prices (the M88 ask — above the window scrolls
+    /// to the top edge, below it to the bottom edge, a rect taller
+    /// than the viewport pins its top edge).
+    pub vertical: f32,
+    /// The horizontal half beside it (M89, ADR-0093): the content-space
+    /// target offset the minimal horizontal scroll prices — left of
+    /// the window scrolls to the left edge, right of it to the right
+    /// edge, a rect wider than the viewport pins its left edge.
+    pub horizontal: f32,
+}
+
+/// One axis's answer to a bring-into-view ask (M89, ADR-0093): the
+/// clamp's arithmetic carried as data for that axis — the M27 rule at
+/// the scroll tier, the shape [`ScrollLanding`] rode before the door
+/// grew the axis. `offset` is the landed offset the container holds
+/// on the axis (the clamp's result on a delivery, the untouched
+/// offset on a refusal); `pinned` names the wall the clamp turned the
+/// ask back at (the ADR-0055 rule the ask doors answer by — `None`
+/// when the landing is the ask, on every landing mid-range, and on
+/// every refusal).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ScrollAxisLanding {
+    /// What the container's clamp answered on this axis — delivered,
+    /// or the named refusal species ([`crate::inspect::ScrollRefusal`]).
+    pub outcome: crate::inspect::ScrollOutcome,
+    /// The offset the container holds on this axis as the answer
+    /// resolves.
+    pub offset: f32,
+    /// The wall the clamp pinned a past ask at (`min`/`max`), `None`
+    /// when the landing is the ask or nothing moved.
+    pub pinned: Option<crate::inspect::RangeBound>,
+}
+
+/// The container's answer to a bring-into-view ask (M88, ADR-0092):
+/// the landing beside the outcome, the clamp's arithmetic carried as
+/// data — the M27 rule at the scroll tier, the same shape the focus
+/// walk's [`crate::passes::FocusLanding`] answers by. `offset` is the landed
 /// offset the container holds (the clamp's result on a delivery, the
 /// untouched offset on a refusal); `pinned` names the wall the clamp
 /// turned the ask back at (the ADR-0055 rule the ask doors answer by —
 /// `None` when the landing is the ask, on every landing mid-range, and
-/// on every refusal).
+/// on every refusal). Since M89 (ADR-0093) the fields answer the
+/// *vertical* axis and the horizontal axis's own answer rides beside
+/// them ([`ScrollAxisLanding`], the same shape, the same rules — the
+/// additive shape the scroll record's own halves ride).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ScrollLanding {
     /// What the container's clamp answered — delivered, or the named
@@ -360,6 +407,10 @@ pub struct ScrollLanding {
     /// The wall the clamp pinned a past ask at (`min`/`max`), `None`
     /// when the landing is the ask or nothing moved.
     pub pinned: Option<crate::inspect::RangeBound>,
+    /// The horizontal axis's own answer (M89, ADR-0093), beside the
+    /// vertical — priced by the same door, clamped by the same
+    /// arithmetic, refused by its own declared span.
+    pub horizontal: ScrollAxisLanding,
 }
 
 /// The retained widget contract.
@@ -407,8 +458,13 @@ pub trait Widget: 'static {
     /// container's viewport, and hands the ask here — the widget answers
     /// by its own clamp arithmetic (the span walls, the named refusals),
     /// the range living where the widget keeps it, never the pipeline
-    /// guessing at a private span. The landing is data ([`ScrollLanding`],
-    /// the M27 rule at the scroll tier); the door notes the ask on the
+    /// guessing at a private span. Since M89 (ADR-0093) the ask carries
+    /// both halves ([`BringIntoViewAsk`]): the vertical half exactly the
+    /// M88 ask, the horizontal half beside it priced by the same
+    /// edge-pin convention — and the container answers each axis by its
+    /// own declared span, the landing reporting both ([`ScrollLanding`]'s
+    /// vertical fields beside [`ScrollAxisLanding`]). The landing is data
+    /// (the M27 rule at the scroll tier); the door notes the ask on the
     /// scroll log under [`crate::inspect::ScrollAction::BringIntoView`],
     /// the route stamps filling the container and the aimed node the
     /// widget cannot know (the M43 rule at the scroll tier). `None` when
@@ -416,7 +472,7 @@ pub trait Widget: 'static {
     /// without shipping the door — the pipeline answers
     /// [`crate::passes::ScrollIntoViewRefusal::NoScrollDoor`] on that
     /// answer, the contract gap named where the consumer can read it.
-    fn bring_into_view(&mut self, ask: f32) -> Option<ScrollLanding> {
+    fn bring_into_view(&mut self, ask: BringIntoViewAsk) -> Option<ScrollLanding> {
         let _ = ask;
         None
     }

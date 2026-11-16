@@ -247,7 +247,7 @@ fn m20_the_capture_case_joins_the_corpus_by_the_coordinated_rule() {
 
     assert_eq!(
         baselines["bench_count"],
-        serde_json::json!(86),
+        serde_json::json!(91),
         "the corpus's pins moved to 57 at M22's measurement run (the one-cycle drift the coordinated rule prices)"
     );
     let benches = baselines["benches"].as_object().expect("benches object");
@@ -261,7 +261,7 @@ fn m20_the_capture_case_joins_the_corpus_by_the_coordinated_rule() {
     let gates = contracts["regressions"].as_array().expect("regressions");
     assert_eq!(
         gates.len(),
-        86,
+        91,
         "every case carries exactly one regression gate"
     );
     assert!(
@@ -288,13 +288,13 @@ fn m20_the_capture_case_joins_the_corpus_by_the_coordinated_rule() {
     ] {
         let source = read_workspace_file(&format!("crates/alacer-testing/tests/{suite}"));
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 86;"),
-            "{suite} must pin the 84-case corpus"
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 91;"),
+            "{suite} must pin the 91-case corpus"
         );
     }
     let m19 = read_workspace_file("crates/alacer-testing/tests/m19_exit_criteria.rs");
     assert!(
-        m19.contains("All 86 criterion cases") && m19.contains("serde_json::json!(86)"),
+        m19.contains("All 91 criterion cases") && m19.contains("serde_json::json!(91)"),
         "the m19 suite's pins moved with the corpus"
     );
 }
@@ -307,11 +307,11 @@ fn m20_the_living_documents_re_agree() {
     // status line and the register count moved with the M23 cut.
     let readme = read_workspace_file("README.md");
     for fragment in [
-        "All 86 criterion cases",
+        "All 91 criterion cases",
         "Since M20 the value tier is a widget",
         "version-0.17.0",
-        "M0 through M81",
-        "eighty-eight decision records",
+        "M0 through M85",
+        "ninety decision records",
         "`Slider`",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");

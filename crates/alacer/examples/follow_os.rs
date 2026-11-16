@@ -1,23 +1,32 @@
 //! The composition door driven from the consumer side (§7.2 pass 8,
-//! ADR-0081): the palette that *follows* the OS's dark-mode fact is a
-//! seam — the app installs one
-//! [`alacer_core::settings::SettingComposer`] through
+//! ADR-0081): the palette that *follows* the OS's facts is a seam — the
+//! app installs one [`alacer_core::settings::SettingComposer`] through
 //! `PassPipeline::set_composer`, the door resolves the composed palette
-//! against the fact that *is* (the install answers `false` where the
-//! fact already resolves it), and every flip that lands through
+//! against the facts that *are* (the install answers `false` where they
+//! already resolve it), and every flip that lands through
 //! `PassPipeline::set_settings` re-resolves it — the composed palette
 //! mounting as the installed theme the roles borrow, one
 //! `InspectEvent::Theme` tagged with the composer's own name streaming
 //! beside the flip's `InspectEvent::Setting` (the drain reads setting →
-//! theme: the fact first, the palette that fact composed second). The
-//! app's own `set_theme` ask wins until the next flip — the
+//! theme: the facts first, the palette those facts composed second).
+//! The app's own `set_theme` ask wins until the next flip — the
 //! composition owns the palette only when the OS moves.
 //!
+//! Since M80 (ADR-0086, ADR-0083's second pre-registered re-open rule
+//! grown by ADR-0085's cut) the composition resolves by *all three*
+//! facts — the composer's signature grew beside `dark`: a palette that
+//! calms when the OS asks for reduced motion answers by the fact at
+//! the same two resolution points the door already owned (the install,
+//! every landed flip), never by reaching into the platform's adapter.
+//!
 //! The demo walks the beats before the window opens, simulating the OS
-//! fact the adapter pushes: the *Duet* composition installs over the
+//! facts the adapter pushes: the *Duet* composition installs over the
 //! canon default (the honest no-op — the duet's light answer *is* the
 //! canon palette), the OS flips *dark* and the composed dark palette
-//! lands beside the fact, a second *dark* ask is the honest no-op
+//! lands beside the fact, the OS then asks for *reduced motion* while
+//! dark is still and the composition re-resolves the calm dark palette
+//! (the palette that calms with the fact — the landing the dark-only
+//! composition could not answer), a repeated ask is the honest no-op
 //! (`false`, no facts, an idle frame), and *light* lands — the
 //! composition resolving the canon palette again. A role probe paints
 //! `ctx.palette().accent` (the palette the widgets borrow — the pixel
@@ -47,15 +56,20 @@ use alacer_text::ThreadLocalMeasurer;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 /// The viewport the demo's beats settle into (the trail demos' shape).
 const VIEWPORT: Size = Size::new(480.0, 340.0);
 
-/// The fact the demo's simulated OS holds — a plain `Copy` datum, the
-/// shape any adapter rides (the platform's [`alacer_platform::WinitSettings`]
-/// is the winit one; the demo's is its own, so the beats run headless).
+/// The facts the demo's simulated OS holds — one seam, the shape any
+/// adapter rides (the platform's [`alacer_platform::WinitSettings`] is
+/// the winit one; the demo's is its own, so the beats run headless).
+/// The dark fact rides the beats' asks, the motion fact rides an
+/// atomic the beats toggle, the contrast fact stays the honest absence
+/// (ADR-0085).
 struct SimulatedOs {
     dark: bool,
+    motion: Arc<AtomicBool>,
 }
 
 impl SettingSeam for SimulatedOs {
@@ -63,35 +77,59 @@ impl SettingSeam for SimulatedOs {
         self.dark
     }
 
-    /// The simulated OS reports no motion preference — the demo flips
-    /// the dark fact alone, the honest absence the winit adapter
-    /// answers too (ADR-0083).
     fn reduced_motion(&self) -> bool {
+        self.motion.load(Ordering::Relaxed)
+    }
+
+    fn high_contrast(&self) -> bool {
         false
     }
 }
 
-/// The demo's composition (ADR-0081): the canon palette for light, a
-/// *duet* dark palette beside it — every dark role distinct from the
-/// canon's, so a composed swap is pixel-evident. The composer reads no
-/// platform state: the pipeline hands it the fact, it answers a
-/// palette — the pure function the composition tier owns.
+/// The demo's composition (ADR-0081, ADR-0086): the canon palette for
+/// light, a *duet* dark palette beside it — and the *calm* duet dark
+/// when the OS asks for reduced motion, the palette that calms with
+/// the fact. Every role distinct from the canon's, so a composed swap
+/// is pixel-evident. The composer reads no platform state: the
+/// pipeline hands it the facts, it answers a palette — the pure
+/// function the composition tier owns.
 struct DuetComposer;
 
+/// The duet dark palette while motion is allowed (the M75 demo's
+/// answer, verbatim).
+const DUET_DARK: Palette = Palette {
+    surface: alacer_core::Color::rgb(16, 18, 24),
+    panel: alacer_core::Color::rgb(28, 31, 40),
+    accent: alacer_core::Color::rgb(255, 176, 64),
+    accent_pressed: alacer_core::Color::rgb(226, 152, 44),
+    selection: alacer_core::Color::rgb(255, 176, 64).with_alpha(72),
+    text: alacer_core::Color::rgb(226, 230, 238),
+    text_muted: alacer_core::Color::rgb(142, 150, 168),
+    border: alacer_core::Color::rgb(56, 62, 80),
+    on_accent: alacer_core::Color::rgb(24, 16, 6),
+};
+
+/// The duet-calm dark palette the composition resolves when the OS
+/// asks for reduced motion — every role resolved, the accent quieted
+/// (the palette that calms with the fact).
+const DUET_CALM: Palette = Palette {
+    surface: alacer_core::Color::rgb(18, 20, 26),
+    panel: alacer_core::Color::rgb(30, 33, 42),
+    accent: alacer_core::Color::rgb(180, 168, 120),
+    accent_pressed: alacer_core::Color::rgb(160, 148, 104),
+    selection: alacer_core::Color::rgb(180, 168, 120).with_alpha(72),
+    text: alacer_core::Color::rgb(220, 224, 232),
+    text_muted: alacer_core::Color::rgb(140, 148, 164),
+    border: alacer_core::Color::rgb(58, 64, 82),
+    on_accent: alacer_core::Color::rgb(26, 22, 10),
+};
+
 impl SettingComposer for DuetComposer {
-    fn palette(&self, dark: bool) -> Palette {
-        if dark {
-            Palette {
-                surface: alacer_core::Color::rgb(16, 18, 24),
-                panel: alacer_core::Color::rgb(28, 31, 40),
-                accent: alacer_core::Color::rgb(255, 176, 64),
-                accent_pressed: alacer_core::Color::rgb(226, 152, 44),
-                selection: alacer_core::Color::rgb(255, 176, 64).with_alpha(72),
-                text: alacer_core::Color::rgb(226, 230, 238),
-                text_muted: alacer_core::Color::rgb(142, 150, 168),
-                border: alacer_core::Color::rgb(56, 62, 80),
-                on_accent: alacer_core::Color::rgb(24, 16, 6),
-            }
+    fn palette(&self, dark: bool, reduced_motion: bool, _high_contrast: bool) -> Palette {
+        if dark && reduced_motion {
+            DUET_CALM
+        } else if dark {
+            DUET_DARK
         } else {
             Palette::CANON
         }
@@ -211,9 +249,11 @@ fn settle(pipeline: &mut PassPipeline) {
 /// The demo's beats, walked before the window opens: the *Duet*
 /// composition installs over the canon default (the honest no-op), the
 /// OS flips *dark* and the composed palette lands beside the fact, the
-/// second *dark* ask is the honest no-op, *light* lands — the
+/// OS asks for *reduced motion* where dark is still — the composition
+/// re-resolving the calm palette by the facts that landed — the
+/// repeated ask is the honest no-op, and *light* lands — the
 /// composition resolving the canon palette again.
-fn run_beats(pipeline: &mut PassPipeline) {
+fn run_beats(pipeline: &mut PassPipeline, motion: &Arc<AtomicBool>) {
     settle(pipeline);
 
     // Beat one: the app installs the composition door — the duet's
@@ -230,7 +270,10 @@ fn run_beats(pipeline: &mut PassPipeline) {
     // Beat two: the OS flips dark — the flip lands, the composed dark
     // palette lands beside it (the theme fact tagged "duet" streaming
     // behind the setting fact), the whole tree repaints once.
-    let landed = pipeline.set_settings(Box::new(SimulatedOs { dark: true }));
+    let landed = pipeline.set_settings(Box::new(SimulatedOs {
+        dark: true,
+        motion: Arc::clone(motion),
+    }));
     settle(pipeline);
     tracing::info!(
         target: "alacer::follow_os",
@@ -238,25 +281,46 @@ fn run_beats(pipeline: &mut PassPipeline) {
         "beat 2: the OS flipped dark — the composed dark palette landed beside the fact"
     );
 
-    // Beat three: the same fact again — the door answers `false`, no
-    // broadcast, no facts (the idle-frame property, A1's rule at the
-    // setting tier). The honest absence: the log grows by nothing.
-    let landed = pipeline.set_settings(Box::new(SimulatedOs { dark: true }));
+    // Beat three: the OS asks for reduced motion where dark is still —
+    // the motion-only flip lands, and the composition re-resolves by
+    // the facts that landed: the calm palette mounts riding the flip's
+    // own broadcast (ADR-0086 — the palette that calms with the fact).
+    motion.store(true, Ordering::Relaxed);
+    let landed = pipeline.set_settings(Box::new(SimulatedOs {
+        dark: true,
+        motion: Arc::clone(motion),
+    }));
     settle(pipeline);
     tracing::info!(
         target: "alacer::follow_os",
         landed,
-        "beat 3: the no-op flip answered false — the log grew by nothing"
+        "beat 3: the OS asked for reduced motion — the composition calmed the dark palette"
     );
 
-    // Beat four: the OS pushes light back — the composition resolves
-    // the canon palette again, the second composed swap on the same log.
+    // Beat four: the same facts again — the door answers `false`, no
+    // broadcast, no facts (the idle-frame property, A1's rule at the
+    // setting tier). The honest absence: the log grows by nothing.
+    let landed = pipeline.set_settings(Box::new(SimulatedOs {
+        dark: true,
+        motion: Arc::clone(motion),
+    }));
+    settle(pipeline);
+    tracing::info!(
+        target: "alacer::follow_os",
+        landed,
+        "beat 4: the no-op flip answered false — the log grew by nothing"
+    );
+
+    // Beat five: the OS pushes light back — the composition resolves
+    // the canon palette again, the composed swaps' third row on the
+    // same log.
+    motion.store(false, Ordering::Relaxed);
     let landed = pipeline.set_settings(Box::new(CanonSettings));
     settle(pipeline);
     tracing::info!(
         target: "alacer::follow_os",
         landed,
-        "beat 4: the OS pushed light back — the composition resolved the canon palette"
+        "beat 5: the OS pushed light back — the composition resolved the canon palette"
     );
 }
 
@@ -288,7 +352,7 @@ fn main() {
     let _ = pipeline.add_child(
         root,
         Label::new(
-            "The palette follows the OS's dark-mode fact — the app composes it, the pipeline swaps it.",
+            "The palette follows the OS's facts — the app composes it, the pipeline swaps it.",
         )
         .boxed(),
     );
@@ -304,12 +368,14 @@ fn main() {
     // The beats: the OS's flips land through the adapter's door, the
     // composition resolves beside each, the records stream — the log's
     // own facts, read back on exit.
-    run_beats(&mut pipeline);
+    let motion = Arc::new(AtomicBool::new(false));
+    run_beats(&mut pipeline, &motion);
 
     for record in flips.borrow().iter() {
         tracing::info!(
             target: "alacer::follow_os",
             dark = record.dark,
+            reduced_motion = record.reduced_motion,
             "the trail streamed this OS flip"
         );
     }

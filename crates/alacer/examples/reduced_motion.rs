@@ -66,6 +66,10 @@ impl SettingSeam for SimulatedOs {
     fn high_contrast(&self) -> bool {
         false
     }
+
+    fn accent_color(&self) -> Option<alacer_core::color::Color> {
+        None
+    }
 }
 
 /// A probe that paints its whole bounds from the resolved *motion*
@@ -208,6 +212,10 @@ impl SettingSeam for DarkMotionOs {
 
     fn high_contrast(&self) -> bool {
         false
+    }
+
+    fn accent_color(&self) -> Option<alacer_core::color::Color> {
+        None
     }
 }
 

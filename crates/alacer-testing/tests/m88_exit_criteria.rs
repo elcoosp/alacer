@@ -44,7 +44,7 @@ use alacer_core::scene::{PaintCtx, Quad};
 use alacer_core::style::{Size2, Style};
 use alacer_core::widget::{LabelSource, Role, Widget};
 use alacer_testing::TestHarness;
-use alacer_widgets::{BoxedWidget as _, Column, List};
+use alacer_widgets::{Column, List};
 
 /// The probe at the top of the list's content — the pixel the
 /// scroll-back beat reads.
@@ -185,7 +185,7 @@ fn mount_probes(harness: &mut TestHarness, content_height: f32) -> Mounted {
         }
         .boxed(),
     );
-    let mut last = far;
+    let mut tail = far;
     for index in 0..FILLERS {
         let node = harness.add_child(
             list_node,
@@ -196,7 +196,7 @@ fn mount_probes(harness: &mut TestHarness, content_height: f32) -> Mounted {
             }
             .boxed(),
         );
-        last = node;
+        tail = node;
         let _ = index;
     }
     handle.set_content_height(content_height);
@@ -206,7 +206,7 @@ fn mount_probes(harness: &mut TestHarness, content_height: f32) -> Mounted {
         list_node,
         top,
         far,
-        last,
+        last: tail,
         handle,
     }
 }
@@ -704,7 +704,7 @@ fn m88_the_corpus_grew_by_the_coordinated_rule() {
         std::fs::read_to_string(workspace.join("crates/alacer-testing/tests/m5_exit_criteria.rs"))
             .expect("the m5 suite exists");
     assert!(
-        m5.contains("const EXPECTED_BENCH_COUNT: usize = 94;"),
+        m5.contains("const EXPECTED_BENCH_COUNT: usize = 95;"),
         "the m5 suite's corpus pin re-agrees with the grown corpus"
     );
 }

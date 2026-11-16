@@ -147,8 +147,8 @@ pub use text_seam::{GlyphRun, PlacedGlyph, TextSeam};
 pub use theme::{CanonPalette, Palette, ThemeSeam};
 pub use trail::{TRAIL_RING_CAP, TrailLog};
 pub use widget::{
-    A11yAction, EventResponse, LabelSource, Role, ScrollLanding, ScrollUnit, TableSlot,
-    TextSelection, ToggleState, Widget,
+    A11yAction, BringIntoViewAsk, EventResponse, LabelSource, Role, ScrollAxisLanding,
+    ScrollLanding, ScrollUnit, TableSlot, TextSelection, ToggleState, Widget,
 };
 
 /// The Alacer prelude: import this once and the framework vocabulary is in scope.
@@ -163,9 +163,9 @@ pub mod prelude {
     pub use crate::flux::{Flux, RenderBinding};
     pub use crate::geom::{Point, Rect, Size, Vector};
     pub use crate::inspect::{
-        ActionRecord, ClipboardRecord, GestureRecord, InspectEvent, InspectObserver,
-        KeyEditOutcome, KeyEditRecord, KeyEditRefusal, KeyRecord, PreeditRecord, ScrollRecord,
-        SettingRecord, Tee, TextWriteRecord, ThemeRecord, ValueRecord,
+        ActionRecord, ClipboardRecord, GestureRecord, HorizontalScrollFact, InspectEvent,
+        InspectObserver, KeyEditOutcome, KeyEditRecord, KeyEditRefusal, KeyRecord, PreeditRecord,
+        ScrollRecord, SettingRecord, Tee, TextWriteRecord, ThemeRecord, ValueRecord,
     };
     pub use crate::keymap::{Chord, Keymap, KeymapConsult, KeymapSeam};
     pub use crate::mask::Change;
@@ -178,7 +178,8 @@ pub mod prelude {
     pub use crate::theme::{CanonPalette, Palette, ThemeSeam};
     pub use crate::trail::{TRAIL_RING_CAP, TrailLog};
     pub use crate::widget::{
-        EventResponse, LabelSource, Role, TableSlot, TextSelection, ToggleState, Widget,
+        BringIntoViewAsk, EventResponse, LabelSource, Role, ScrollAxisLanding, TableSlot,
+        TextSelection, ToggleState, Widget,
     };
 }
 
@@ -221,6 +222,7 @@ mod tests {
     fn role_names_cover_every_variant() {
         let roles = [
             Role::Decoration,
+            Role::Canvas,
             Role::Container,
             Role::Label,
             Role::Button,

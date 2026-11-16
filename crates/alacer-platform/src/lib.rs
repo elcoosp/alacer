@@ -934,6 +934,19 @@ impl alacer_core::settings::SettingSeam for WinitSettings {
     fn high_contrast(&self) -> bool {
         false
     }
+
+    /// winit reports no accent-color fact — the OS's accent lives
+    /// below the windowing layer's vocabulary, the same
+    /// below-the-vocabulary position the motion and contrast facts
+    /// hold — so the adapter answers the honest absence (ADR-0087
+    /// rides ADR-0083's adapter rule: a platform that reports no fact
+    /// answers the absence, never a guess; `None` is the fact riding
+    /// its presence, never a guessed color). An app that reads the
+    /// accent through its own channels installs its own seam through
+    /// the same door.
+    fn accent_color(&self) -> Option<alacer_core::color::Color> {
+        None
+    }
 }
 
 impl ApplicationHandler<PlatformEvent> for AlacerApp {

@@ -46,7 +46,7 @@
 | 50-event pointer storm                                | **1** coalesced dispatch (**40.43×**)           | `input_storm_batching` budget                                                                          |
 | 10k-node churn frame vs egui, same host               | 1.10 ms vs 20.7 ms full frame (**18.8×**)       | 5-run medians, declared rig (`benchmarks/rig.json`)                                                    |
 | …vs Masonry                                           | 1.10 ms vs 4.6 ms full pass pipeline (**4.2×**) | same rig, `scripts/run_comparison.py`                                                                  |
-| All 85 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
+| All 86 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
 
 _Competitor rows compare Alacer's incremental frame against their full frame/pass — every row in
 `benchmarks/comparisons/results.json` is labeled with its scope._
@@ -297,9 +297,10 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `reduced_motion`                                     | the OS's reduced-motion fact rides the same seam: the motion-only flip lands, the probe paints from the fact, the log names both facts |
 | `high_contrast`                                      | the OS's high-contrast fact rides the same seam: the contrast-only flip lands, the probe paints from the fact, the log names all three facts |
 | `follow_os`                                          | the palette follows the OS: one composer, the facts beside dark — the composition door swaps it on every flip and calms it when motion asks, the log answers |
+| `accent_follow`                                      | the OS's accent fact rides the same seam: the accent-only flip lands, the composition tints the palette's accent roles from the fact, the log names all four facts |
 | `todo` / `data_table`                                | the canons: a11y tree, record/replay, grid slots, keyboard navigation            |
 
-<details><summary><b>63 examples, grouped (64 ship; recording live in the catalog)</b></summary>
+<details><summary><b>64 examples, grouped (65 ship; recording live in the catalog)</b></summary>
 
 **Start here**
 
@@ -325,7 +326,8 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `theme_swap` | the M73 theme seam driven from the consumer side: the palette the widgets borrow swaps through the app's own door — *Canon*, *Midnight*, *High contrast* — the status line reading the palette's tag back, the *trail* label mirroring the streamed `Theme` record (the no-op swap's honest absence beside it, and since M78 the swap's reach beside the tag on every row) |
 | `patch_trail` | the M72 view tier driven from the consumer side: the *Add row* button's keyed mount, the no-op re-render's honest silence (the idle frame on the log), and the *Remove row* press beside the streamed `ViewPatch` records — the four counts on each row, the *trail* label mirroring what the log streamed |
 | `dark_mode` | the M74 OS setting seam driven from the consumer side: the simulated OS's flips ride the adapter's door — dark lands and repaints every node, the second ask is the honest no-op, light lands beside them — the fact probe painting from `ctx.dark()` (the fact never munging the palette), the *trail* label mirroring the streamed `Setting` records — the fact beside the broadcast count it repainted (ADR-0082) |
-| `follow_os` | the M75 composition door driven from the consumer side: the *Duet* composition — canon for light, a duet dark beside it — installs over the canon default (the honest no-op), and the simulated OS's flips compose the palette through `PassPipeline::set_composer` — the role probe painting from `ctx.palette().accent` (the palette the widgets borrow moving when — and only when — the composition resolves it), the fact probe painting from `ctx.dark()` beside it, the *trail* label mirroring the streamed `Theme` records tagged `duet` (the manual `set_theme` door winning until the next flip) | and since M80 the motion-only flip composing the *calm* duet dark beside them (the palette that calms with the fact) and since M80 the motion-only flip's calm composition beside them (ADR-0086)
+| `follow_os` | the M75 composition door driven from the consumer side: the *Duet* composition — canon for light, a duet dark beside it — installs over the canon default (the honest no-op), and the simulated OS's flips compose the palette through `PassPipeline::set_composer` — the role probe painting from `ctx.palette().accent` (the palette the widgets borrow moving when — and only when — the composition resolves it), the fact probe painting from `ctx.dark()` beside it, the *trail* label mirroring the streamed `Theme` records tagged `duet` (the manual `set_theme` door winning until the next flip); since M80 the motion-only flip composes the *calm* duet dark beside them (the palette that calms with the fact, ADR-0086) |
+| `accent_follow` | the M81 accent fact driven from the consumer side: the OS reports an accent where the three bool facts are still — the landing the three-fact check swallowed — the accent-follow composition tinting the palette's accent roles from the fact (the role probe painting from `ctx.palette().accent`), the accent probe painting from `ctx.accent_color()` beside it (the fact riding its presence — the absence ink, never a guessed color), the *trail* label mirroring the streamed `Setting` records named by all four facts and the `Theme` records tagged `accent-follow` |
 | `reduced_motion` | the M77 motion fact driven from the consumer side: the OS asks for reduced motion where the dark fact is still — the landing the dark-only check swallowed — the motion probe painting from `ctx.reduced_motion()` (the animated bar it pins static), the second ask the honest no-op, the *trail* label mirroring the streamed `Setting` records named by both facts |
 | `high_contrast` | the M79 contrast fact driven from the consumer side: the OS asks for high contrast where the dark and motion facts are still — the landing the two-fact check swallowed — the contrast probe painting from `ctx.high_contrast()` (the hairline the fact raises), the second ask the honest no-op, the *trail* label mirroring the streamed `Setting` records named by all three facts |
 
@@ -422,7 +424,7 @@ tree (`query(role).named(..)`, `press`, `find_all`) — never widget internals.
 ## Status
 
 > [!NOTE]
-> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M80 of `docs/architecture.md` are
+> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M81 of `docs/architecture.md` are
 > complete, but the API still moves between minor versions. MSRV **1.99**, edition **2024**.
 
 | Platform            | CI coverage                                                                                                                                                           |
@@ -434,7 +436,7 @@ tree (`query(role).named(..)`, `press`, `find_all`) — never widget internals.
 ## Learn more
 
 - [Architecture](https://github.com/elcoosp/alacer/blob/main/docs/architecture.md) — design axioms, the ten-pass contract, rendering, accessibility, DX, performance, roadmap and kill criteria
-- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — eighty-seven decision records, from workspace discipline to the M80 scope
+- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — eighty-eight decision records, from workspace discipline to the M80 scope
 - [Examples catalog](https://github.com/elcoosp/alacer/blob/main/docs/examples.md) — every example with the contract it exercises
 - [Migrating from Iced](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-iced.md) · [from egui](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-egui.md) — mental-model mappings, interop limits stated plainly
 - [Inspector protocol](https://github.com/elcoosp/alacer/blob/main/docs/inspector-protocol.md) — the versioned WebSocket contract behind `alacer-inspect`

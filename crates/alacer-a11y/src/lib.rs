@@ -61,6 +61,10 @@ pub fn map_role(role: Role) -> AccessKitRole {
         Role::TableRow => AccessKitRole::Row,
         Role::TableCell => AccessKitRole::Cell,
         Role::ColumnHeader => AccessKitRole::ColumnHeader,
+        // The canvas (M82): a free-form custom-paint surface. AccessKit's
+        // canvas role says exactly that — the AT announces the name and
+        // nothing more; a canvas has no write door and no value tier.
+        Role::Canvas => AccessKitRole::Canvas,
         // The announcement region (§11.6, ADR-0024): the polite case's ARIA
         // role ("status"). The assertive case re-roles to "alert" in
         // [`map_announcement_role`], where the politeness is known.

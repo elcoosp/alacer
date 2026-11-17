@@ -1535,6 +1535,8 @@ mod tests {
                 placeholder: None,
                 value_range: None,
                 scroll_orientation: None,
+                numeric_value: None,
+                secure_entry: false,
             }],
         });
         sink.apply(

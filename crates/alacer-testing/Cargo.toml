@@ -85,3 +85,7 @@ harness = false
 [[bench]]
 name = "derive"
 harness = false
+
+[[bench]]
+name = "toggles"
+harness = false

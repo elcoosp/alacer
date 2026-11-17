@@ -32,6 +32,8 @@ fn snapshot_1k() -> Arc<TreeSnapshot> {
         selection: None,
         live: None,
         enabled: true,
+        description: None,
+        placeholder: None,
     });
     for id in 1..NODES {
         nodes.push(TreeNode {
@@ -49,6 +51,8 @@ fn snapshot_1k() -> Arc<TreeSnapshot> {
             selection: None,
             live: None,
             enabled: true,
+            description: None,
+            placeholder: None,
         });
     }
     Arc::new(TreeSnapshot {

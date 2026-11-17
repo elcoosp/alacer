@@ -1533,6 +1533,7 @@ mod tests {
                 enabled: true,
                 description: None,
                 placeholder: None,
+                value_range: None,
             }],
         });
         sink.apply(

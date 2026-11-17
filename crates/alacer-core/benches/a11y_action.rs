@@ -138,6 +138,35 @@ fn set_value_actions() -> Vec<A11yAction> {
         .collect()
 }
 
+/// The routed arena the cases price: the pipeline on the injected
+/// stack layout with the null journal and sink, a 1,000-node chain
+/// mounted and laid out once, and the deepest-last node's id — the
+/// worst-case target forcing the full pre-order walk per routed
+/// action.
+fn routed_pipeline() -> (PassPipeline, u64) {
+    let mut pipeline = PassPipeline::new(
+        Flux::new(),
+        Box::new(StackLayout),
+        Box::new(NullJournal),
+        Box::new(NullA11y),
+    );
+    let root = pipeline.mount_root(Box::new(FixedBox {
+        size: Size::new(800.0, 0.0),
+    }));
+    let mut last_child = root;
+    for _ in 0..1000 {
+        last_child = pipeline.add_child(
+            root,
+            Box::new(FixedBox {
+                size: Size::new(20.0, 0.4),
+            }),
+        );
+    }
+    pipeline.tick(VIEWPORT).expect("bench layout");
+    let target = deepest_target(root, last_child);
+    (pipeline, target)
+}
+
 fn bench_a11y_action_route(c: &mut Criterion) {
     let mut group = c.benchmark_group("a11y_action");
     group.throughput(Throughput::Elements(
@@ -145,26 +174,7 @@ fn bench_a11y_action_route(c: &mut Criterion) {
     ));
 
     group.bench_function("route_100_actions_1k", |b| {
-        let mut pipeline = PassPipeline::new(
-            Flux::new(),
-            Box::new(StackLayout),
-            Box::new(NullJournal),
-            Box::new(NullA11y),
-        );
-        let root = pipeline.mount_root(Box::new(FixedBox {
-            size: Size::new(800.0, 0.0),
-        }));
-        let mut last_child = root;
-        for _ in 0..1000 {
-            last_child = pipeline.add_child(
-                root,
-                Box::new(FixedBox {
-                    size: Size::new(20.0, 0.4),
-                }),
-            );
-        }
-        pipeline.tick(VIEWPORT).expect("bench layout");
-        let target = deepest_target(root, last_child);
+        let (mut pipeline, target) = routed_pipeline();
 
         b.iter(|| {
             let mut consumed = 0;
@@ -178,26 +188,7 @@ fn bench_a11y_action_route(c: &mut Criterion) {
     });
 
     group.bench_function("route_100_setvalue_1k", |b| {
-        let mut pipeline = PassPipeline::new(
-            Flux::new(),
-            Box::new(StackLayout),
-            Box::new(NullJournal),
-            Box::new(NullA11y),
-        );
-        let root = pipeline.mount_root(Box::new(FixedBox {
-            size: Size::new(800.0, 0.0),
-        }));
-        let mut last_child = root;
-        for _ in 0..1000 {
-            last_child = pipeline.add_child(
-                root,
-                Box::new(FixedBox {
-                    size: Size::new(20.0, 0.4),
-                }),
-            );
-        }
-        pipeline.tick(VIEWPORT).expect("bench layout");
-        let target = deepest_target(root, last_child);
+        let (mut pipeline, target) = routed_pipeline();
         let actions = set_value_actions();
 
         b.iter(|| {
@@ -217,31 +208,40 @@ fn bench_a11y_action_route(c: &mut Criterion) {
     // The route must stay the mixed route's order of cost as the action
     // tier answers on the log, never a priced observation.
     group.bench_function("route_100_presses_1k", |b| {
-        let mut pipeline = PassPipeline::new(
-            Flux::new(),
-            Box::new(StackLayout),
-            Box::new(NullJournal),
-            Box::new(NullA11y),
-        );
-        let root = pipeline.mount_root(Box::new(FixedBox {
-            size: Size::new(800.0, 0.0),
-        }));
-        let mut last_child = root;
-        for _ in 0..1000 {
-            last_child = pipeline.add_child(
-                root,
-                Box::new(FixedBox {
-                    size: Size::new(20.0, 0.4),
-                }),
-            );
-        }
-        pipeline.tick(VIEWPORT).expect("bench layout");
-        let target = deepest_target(root, last_child);
+        let (mut pipeline, target) = routed_pipeline();
 
         b.iter(|| {
             let mut consumed = 0;
             for _ in 0..ACTIONS {
                 if pipeline.dispatch_a11y_action(target, black_box(A11yAction::DefaultPress)) {
+                    consumed += 1;
+                }
+            }
+            black_box(consumed);
+        });
+    });
+
+    // The AT's horizontal vocabulary (M91, ADR-0095): 100 horizontal
+    // asks — `ScrollLeft`/`ScrollRight` by the requested unit, mixed
+    // like the M10 pair's own bench — routed through pass 10 on the
+    // same 1,000-node arena at the same worst-case target. The
+    // vocabulary's growth must stay the mixed route's order of cost:
+    // the same walk, the same door hook, the horizontal pair priced
+    // exactly like the vertical one — never a re-materialization of
+    // the a11y tree, never a second route.
+    group.bench_function("route_100_horizontal_actions_1k", |b| {
+        let (mut pipeline, target) = routed_pipeline();
+
+        b.iter(|| {
+            let mut consumed = 0;
+            for i in 0..ACTIONS {
+                let ask = match i % 4 {
+                    0 => A11yAction::ScrollRight(ScrollUnit::Item),
+                    1 => A11yAction::ScrollLeft(ScrollUnit::Page),
+                    2 => A11yAction::ScrollRight(ScrollUnit::Page),
+                    _ => A11yAction::ScrollLeft(ScrollUnit::Item),
+                };
+                if pipeline.dispatch_a11y_action(target, black_box(ask)) {
                     consumed += 1;
                 }
             }

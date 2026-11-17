@@ -95,6 +95,14 @@
       "op": "<=",
       "budget": 1.25,
       "cite": "the span rides the snapshot the name rides, ADR-0101: the copy the node builds beside the label's own \u2014 the measured ratio 1.16x, the budget pricing the measured class"
+    },
+    {
+      "id": "orientation_snapshot_overhead",
+      "numerator": "orientation/snapshot_1k_vertical",
+      "denominator": "toggle/snapshot_1k_binary",
+      "op": "<=",
+      "budget": 1.25,
+      "cite": "the axis word rides the snapshot the name rides, ADR-0102: the enum's option the node builds beside the label's own \u2014 the measured ratio 0.92x on the dev host, the budget pricing the measured class, never a noise-floor claim"
     }
   ],
   "regressions": [
@@ -641,6 +649,11 @@
     {
       "id": "range_snapshot_1k_ranged",
       "baseline": "range/snapshot_1k_ranged",
+      "scope": "same-host"
+    },
+    {
+      "id": "orientation_snapshot_1k_vertical",
+      "baseline": "orientation/snapshot_1k_vertical",
       "scope": "same-host"
     }
   ],

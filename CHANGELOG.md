@@ -7,6 +7,15 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ## [Unreleased]
 
+### M94 — the checkbox grows the mixed state (ADR-0098)
+
+- The vocabulary's declared-but-unproduced state cashed: `ToggleState::Mixed` — "partially checked (tri-state parents)" — has ridden the a11y sink's M6 mapping since the tree could announce it, and no widget has ever produced one; the select-all parent was a story the tree could carry and the widget set could not tell. The producer ships: [`Checkbox::state`](crates/alacer-widgets/src/checkbox.rs) mounts the tri-state beside the binary `checked` door it keeps, `toggle_state()` and `is_mixed()` read it, and `toggled()` answers the full vocabulary the tree announces.
+- The resolution rule is the cut's own decision: the mixed state is a *summary*, never a third bit — every user door (the pointer's click, the keyboard's Space, the AT's default press) resolves a mixed summary **fully checked**, the handler receiving the resolved boolean and the second press toggling the resolved bit like any checkbox. The programmatic door ([`Checkbox::set_state`](crates/alacer-widgets/src/checkbox.rs)) writes the summary verbatim — the view-reconciliation path the patch tier drives, firing no handler, the write tier queueing its own masks (the m22 discipline).
+- The painter tells the tri-state truth: the mixed box fills with the accent and draws the horizontal dash — deterministic quads beside the check mark's strokes, the same font-free discipline the snapshot corpus ships by, the look telling the truth the tree carries (the M22 rule at the paint tier).
+- The view DSL grows the `state:` word (`"on"` / `"off"` / `"mixed"`): the checkbox element's create and patch parse the vocabulary, unknown words refused by absence (the patcher applies only the props it understands), the binary `checked` flag keeping its contract beside the word.
+- The corpus grew 101 → 103 by the coordinated rule: `toggle/snapshot_1k_tri_state` beside `toggle/snapshot_1k_binary` — the same roles, the same names, the same 1,000-node arenas through the real pipeline's a11y snapshot pass — the `toggle_tri_state_overhead` ratio budget (≤ 1.10×) holding the summary's cost at the route's noise floor. The m-suite pins re-agree at 103.
+- [`examples/tri_state.rs`](crates/alacer/examples/tri_state.rs) drives the beats from the consumer side: the parent's summary recomputing from the tasks on every re-render, the resolution cascading in one write batch, and the patch channel answering with exactly one scoped re-render (the todo canon's own shape).
+
 ### M92 — the `#[derive(Widget)]` form (ADR-0096)
 
 - Architecture §19 Q5's own option cashed: the required pair — the role, the name, the `Any` upcast — is the exact boilerplate the option existed to retire, and the derive grows into `alacer-macro` beside the `rsx!` compiler it already hosts. The expansion is the required pair and nothing else: `role()`, `label()`, and `as_any_mut()` in its documented `{ self }` shape — every other method rides the trait's own default, the derived widget exactly as honest as the hand-written one beside it.

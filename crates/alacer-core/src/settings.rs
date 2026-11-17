@@ -833,6 +833,41 @@ mod tests {
         assert_eq!(SettingComposer::name(&shaped), "shaped");
     }
 
+    /// The motion and contrast pins hold their facts too (ADR-0090's
+    /// shape, its builders all consumed): the shape pinning reduced
+    /// motion and high contrast substitutes them before the base
+    /// resolves — a calm, high-contrast kiosk surface the OS's motion
+    /// and contrast flips never move — and the facts the shape leaves
+    /// unpinned ride through.
+    #[test]
+    fn the_shape_pins_the_motion_and_contrast_facts_too() {
+        const SHAPE: FactShape = FactShape::FOLLOW_ALL
+            .pin_reduced_motion(true)
+            .pin_high_contrast(true);
+        let shaped = ShapedComposer::over(Box::new(FactEchoComposer), SHAPE);
+        for bits in 0_u8..4 {
+            let reduced_motion = bits & 1 != 0;
+            let high_contrast = bits & 2 != 0;
+            let answer =
+                SettingComposer::palette(&shaped, false, reduced_motion, high_contrast, None);
+            assert_eq!(
+                answer.panel,
+                Color::rgb(1, 1, 1),
+                "the pinned motion fact never reached the base (bits {bits})"
+            );
+            assert_eq!(
+                answer.border,
+                Color::rgb(1, 1, 1),
+                "the pinned contrast fact never reached the base (bits {bits})"
+            );
+            assert_eq!(
+                answer.surface,
+                Color::rgb(0, 0, 0),
+                "the unpinned dark fact rides through (bits {bits})"
+            );
+        }
+    }
+
     /// The shape that holds nothing is the base itself: every fact
     /// rides to the composition unchanged, the answered palette the
     /// base's own answer (the no-lock shape the no-op install rides).

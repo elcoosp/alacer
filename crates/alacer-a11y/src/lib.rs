@@ -291,6 +291,24 @@ impl AccessKitSink {
                 access_node.set_numeric_value_step(step);
             }
         }
+        // The orientation tier (M98, ADR-0102): the scroll container's
+        // declared axis — AccessKit's `Orientation` property, ARIA's
+        // `aria-orientation`, the word the AT's arrows read before they
+        // ride. The honest absence maps to the absence: a container that
+        // declared both axes says the word ARIA spells `undefined` (the
+        // spec's own name for "both axes") — the property stays unset
+        // rather than a wrong half, and AccessKit's enum carries no
+        // both variant to guess with.
+        if let Some(orientation) = node.scroll_orientation {
+            access_node.set_orientation(match orientation {
+                alacer_core::widget::ScrollOrientation::Vertical => {
+                    accesskit::Orientation::Vertical
+                }
+                alacer_core::widget::ScrollOrientation::Horizontal => {
+                    accesskit::Orientation::Horizontal
+                }
+            });
+        }
         // The availability tier (M22, ADR-0028): the widget's `enabled`
         // answer becomes AccessKit's `disabled` flag, so the AT reads an
         // unavailable control instead of announcing an action the widget
@@ -461,6 +479,7 @@ mod tests {
                     description: None,
                     placeholder: None,
                     value_range: None,
+                    scroll_orientation: None,
                 },
                 TreeNode {
                     id: child_hash,
@@ -477,6 +496,7 @@ mod tests {
                     description: None,
                     placeholder: None,
                     value_range: None,
+                    scroll_orientation: None,
                 },
                 TreeNode {
                     id: other_hash,
@@ -493,6 +513,7 @@ mod tests {
                     description: None,
                     placeholder: None,
                     value_range: None,
+                    scroll_orientation: None,
                 },
             ],
         }
@@ -603,6 +624,7 @@ mod tests {
             description: None,
             placeholder: None,
             value_range: None,
+            scroll_orientation: None,
         });
         sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
         let update = sink.last_update().expect("update");
@@ -745,6 +767,7 @@ mod tests {
                     description: None,
                     placeholder: None,
                     value_range: None,
+                    scroll_orientation: None,
                 },
                 TreeNode {
                     id: 2,
@@ -761,6 +784,7 @@ mod tests {
                     description: None,
                     placeholder: None,
                     value_range: None,
+                    scroll_orientation: None,
                 },
                 TreeNode {
                     id: 3,
@@ -777,6 +801,7 @@ mod tests {
                     description: None,
                     placeholder: None,
                     value_range: None,
+                    scroll_orientation: None,
                 },
             ],
         };
@@ -823,6 +848,7 @@ mod tests {
                     description: Some("Saves the draft and queues it".into()),
                     placeholder: None,
                     value_range: None,
+                    scroll_orientation: None,
                 },
                 TreeNode {
                     id: 2,
@@ -839,6 +865,7 @@ mod tests {
                     description: None,
                     placeholder: None,
                     value_range: None,
+                    scroll_orientation: None,
                 },
             ],
         };
@@ -887,6 +914,7 @@ mod tests {
                     value_range: Some(
                         alacer_core::widget::ValueRange::new(0.0, 100.0).with_step(5.0),
                     ),
+                    scroll_orientation: None,
                 },
                 TreeNode {
                     id: 2,
@@ -905,6 +933,7 @@ mod tests {
                     // The report declares its span and honestly lacks a
                     // step: the absence is the absence.
                     value_range: Some(alacer_core::widget::ValueRange::new(0.0, 100.0)),
+                    scroll_orientation: None,
                 },
                 TreeNode {
                     id: 3,
@@ -921,6 +950,7 @@ mod tests {
                     description: None,
                     placeholder: None,
                     value_range: None,
+                    scroll_orientation: None,
                 },
             ],
         };
@@ -951,6 +981,119 @@ mod tests {
         );
         assert_eq!(bare.max_numeric_value(), None);
         assert_eq!(bare.numeric_value_step(), None);
+    }
+
+    /// The orientation tier (M98, ADR-0102): the scroll container's
+    /// declared axis maps onto AccessKit's `Orientation` property, and
+    /// the honest absence maps to the absence — a container that
+    /// declared both axes (ARIA's `undefined`) sets nothing, never a
+    /// wrong half.
+    #[test]
+    fn the_orientation_maps_onto_the_property() {
+        let mut sink = AccessKitSink::new();
+        let snap = TreeSnapshot {
+            root: Some(1),
+            nodes: vec![
+                TreeNode {
+                    id: 1,
+                    role: Role::ScrollArea,
+                    label: "Inbox".into(),
+                    bounds: None,
+                    children: Vec::new(),
+                    value: None,
+                    toggled: None,
+                    table_slot: None,
+                    selection: None,
+                    live: None,
+                    enabled: true,
+                    description: None,
+                    placeholder: None,
+                    value_range: None,
+                    // The vertical-only constructor's declaration.
+                    scroll_orientation: Some(alacer_core::widget::ScrollOrientation::Vertical),
+                },
+                TreeNode {
+                    id: 2,
+                    role: Role::ScrollArea,
+                    label: "Sheet".into(),
+                    bounds: None,
+                    children: Vec::new(),
+                    value: None,
+                    toggled: None,
+                    table_slot: None,
+                    selection: None,
+                    live: None,
+                    enabled: true,
+                    description: None,
+                    placeholder: None,
+                    value_range: None,
+                    scroll_orientation: Some(alacer_core::widget::ScrollOrientation::Horizontal),
+                },
+                TreeNode {
+                    id: 3,
+                    role: Role::ScrollArea,
+                    label: "Canvas pages".into(),
+                    bounds: None,
+                    children: Vec::new(),
+                    value: None,
+                    toggled: None,
+                    table_slot: None,
+                    selection: None,
+                    live: None,
+                    enabled: true,
+                    description: None,
+                    placeholder: None,
+                    value_range: None,
+                    // The two-axis constructor's answer: both axes, the
+                    // absence ARIA spells `undefined`.
+                    scroll_orientation: None,
+                },
+                TreeNode {
+                    id: 4,
+                    role: Role::Button,
+                    label: "Save".into(),
+                    bounds: None,
+                    children: Vec::new(),
+                    value: None,
+                    toggled: None,
+                    table_slot: None,
+                    selection: None,
+                    live: None,
+                    enabled: true,
+                    description: None,
+                    placeholder: None,
+                    value_range: None,
+                    scroll_orientation: None,
+                },
+            ],
+        };
+        sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
+
+        let update = sink.last_update().expect("update");
+        let vertical = find_in_update(update, 1).expect("vertical node");
+        assert_eq!(
+            vertical.orientation(),
+            Some(accesskit::Orientation::Vertical),
+            "the declared y axis is the tree's truth"
+        );
+        let horizontal = find_in_update(update, 2).expect("horizontal node");
+        assert_eq!(
+            horizontal.orientation(),
+            Some(accesskit::Orientation::Horizontal),
+            "the declared x axis maps beside it"
+        );
+        let both = find_in_update(update, 3).expect("two-axis node");
+        assert_eq!(
+            both.orientation(),
+            None,
+            "a two-axis scroller announces the absence, never a wrong half"
+        );
+        let bare = find_in_update(update, 4).expect("bare node");
+        assert_eq!(
+            bare.orientation(),
+            None,
+            "a non-scroll role inherits the absence"
+        );
     }
 
     // -------------------------------------------------------------------

@@ -1531,6 +1531,8 @@ mod tests {
                 selection: None,
                 live: None,
                 enabled: true,
+                description: None,
+                placeholder: None,
             }],
         });
         sink.apply(

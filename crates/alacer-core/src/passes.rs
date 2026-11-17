@@ -138,6 +138,12 @@ pub struct TreeNode {
     /// `Placeholder` property). `None` is the honest absence — an empty
     /// string is the absence, not an empty hint.
     pub placeholder: Option<String>,
+    /// The widget's declared value range (M97, ADR-0101): the span every
+    /// value-tier write funnels through, carried as AccessKit's
+    /// `MinNumericValue` / `MaxNumericValue` beside the
+    /// `NumericValueStep`. `None` is the honest absence — a widget with
+    /// no span announces nothing, never a guessed default.
+    pub value_range: Option<crate::widget::ValueRange>,
 }
 
 /// The full accessibility snapshot of the widget tree, built by pass 9.
@@ -3831,6 +3837,7 @@ impl PassPipeline {
                 enabled: slot.widget().enabled(),
                 description: slot.widget().description().map(str::to_owned),
                 placeholder: slot.widget().placeholder().map(str::to_owned),
+                value_range: slot.widget().value_range(),
             };
             if snapshot.root.is_none() {
                 snapshot.root = Some(node.id);
@@ -3867,6 +3874,7 @@ impl PassPipeline {
                 // the announcement *is* its content (the honest absence).
                 description: None,
                 placeholder: None,
+                value_range: None,
             });
         }
         snapshot

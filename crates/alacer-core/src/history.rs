@@ -191,7 +191,13 @@ pub(crate) fn set_edit_trail_enabled(enabled: bool) {
 /// guessed at the note site (the value trail's own stamp, ADR-0049's
 /// rule at the journal tier); a record queued outside any route rides
 /// its honest absence, and a dropped guard leaves no stale identity.
-fn note(record: EditRecord) {
+///
+/// Public since the trail convention's sweep: every sibling trail door
+/// (`note_action`, `note_text_write`, `note_scroll`, …) is `pub` — a
+/// consumer assembling its own journal engine (the seam is public on
+/// purpose) notes its facts through the same door the production host
+/// notes its own, instead of a private twin.
+pub fn note_history(record: EditRecord) {
     TRAIL_ENABLED.with(|enabled| {
         if !enabled.get() {
             return;
@@ -299,7 +305,7 @@ impl EditHistory {
             let excess = self.undo.len() - self.capacity;
             self.undo.drain(0..excess);
         }
-        note(EditRecord {
+        note_history(EditRecord {
             action: EditAction::Record,
             coalesced,
             refused: false,
@@ -336,7 +342,7 @@ impl EditHistory {
     /// carries the refusal beside the depths it did not move (ADR-0037).
     pub fn undo(&mut self, text: &mut String) -> Option<(usize, usize)> {
         let Some(entry) = self.undo.pop() else {
-            note(EditRecord {
+            note_history(EditRecord {
                 action: EditAction::Undo,
                 coalesced: false,
                 refused: true,
@@ -353,7 +359,7 @@ impl EditHistory {
         );
         text.replace_range(range, &entry.removed);
         self.redo.push(entry.clone());
-        note(EditRecord {
+        note_history(EditRecord {
             action: EditAction::Undo,
             coalesced: false,
             refused: false,
@@ -371,7 +377,7 @@ impl EditHistory {
     /// refusal beside the depths it did not move (ADR-0037).
     pub fn redo(&mut self, text: &mut String) -> Option<(usize, usize)> {
         let Some(entry) = self.redo.pop() else {
-            note(EditRecord {
+            note_history(EditRecord {
                 action: EditAction::Redo,
                 coalesced: false,
                 refused: true,
@@ -384,7 +390,7 @@ impl EditHistory {
         let range = utf16::byte_range(text, entry.at_utf16, entry.at_utf16 + entry.removed_units());
         text.replace_range(range, &entry.inserted);
         self.undo.push(entry.clone());
-        note(EditRecord {
+        note_history(EditRecord {
             action: EditAction::Redo,
             coalesced: false,
             refused: false,
@@ -401,7 +407,7 @@ impl EditHistory {
     pub fn reset(&mut self) {
         self.undo.clear();
         self.redo.clear();
-        note(EditRecord {
+        note_history(EditRecord {
             action: EditAction::Reset,
             coalesced: false,
             refused: false,

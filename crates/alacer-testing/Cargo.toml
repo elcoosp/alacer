@@ -89,3 +89,11 @@ harness = false
 [[bench]]
 name = "toggles"
 harness = false
+
+[[bench]]
+name = "descriptions"
+harness = false
+
+[[bench]]
+name = "placeholders"
+harness = false

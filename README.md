@@ -42,11 +42,11 @@
 
 | Contract                                              | Baseline                                        | Enforced by                                                                                            |
 | ----------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Incremental relayout, 10 000 nodes @ 10 % style churn | **14.60×** vs full rebuild                      | ≥ 2× gate, `alacer-layout/tests/w1_gate.rs`                                                            |
-| 50-event pointer storm                                | **1** coalesced dispatch (**40.43×**)           | `input_storm_batching` budget                                                                          |
+| Incremental relayout, 10 000 nodes @ 10 % style churn | **14.30×** vs full rebuild                      | ≥ 2× gate, `alacer-layout/tests/w1_gate.rs`                                                            |
+| 50-event pointer storm                                | **1** coalesced dispatch (**39.71×**)           | `input_storm_batching` budget                                                                          |
 | 10k-node churn frame vs egui, same host               | 1.10 ms vs 20.7 ms full frame (**18.8×**)       | 5-run medians, declared rig (`benchmarks/rig.json`)                                                    |
 | …vs Masonry                                           | 1.10 ms vs 4.6 ms full pass pipeline (**4.2×**) | same rig, `scripts/run_comparison.py`                                                                  |
-| All 109 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
+| All 110 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
 
 _Competitor rows compare Alacer's incremental frame against their full frame/pass — every row in
 `benchmarks/comparisons/results.json` is labeled with its scope._
@@ -167,6 +167,7 @@ Accessibility is not a layer bolted on — it is the tree's own vocabulary:
 | **Description** (M95)  | The help text beside the name: `description()` on the trait, `Button`/`Checkbox`/`TextInput` carrying it, AccessKit's `Description` property mapped in the same snapshot; the `description:` word patches the tree's truth with exactly `A11Y` — the pixels never pay for a fact the painter did not write | 0099      |
 | **Placeholder** (M96)  | The hint an empty field announces: the painted hint rides the tree (`Placeholder` property), an empty placeholder the honest absence; the `placeholder:` word patch pays both masks — the paint beside the re-announcement — and the write that lands where the hint is queues nothing | 0100      |
 | **Range** (M97)        | The declared span every value-tier write funnels through: `value_range()` on the trait, `Slider`/`Progress` carrying it, AccessKit's `MinNumericValue`/`MaxNumericValue` beside the step mapped in the same snapshot — the AT reads "42 of 0..100, step 5", not a bare number; `None` the honest absence | 0101      |
+| **Orientation** (M98)  | The declared axis a scroll container's scrolls ride: `scroll_orientation()` on the trait, `List` carrying the constructor's word, AccessKit's `Orientation` property mapped in the same snapshot — the AT reads "vertical" before the arrows ride, the two-axis answer the honest absence ARIA spells `undefined`; `None` the honest absence | 0102      |
 
 Since M20 the value tier is a widget — the `Slider` answers drag, arrows and AT writes from one
 funnel. Since M21 the value is reportable too — the read-only `Progress` names the door that has
@@ -174,8 +175,9 @@ no write. Since M22 the availability tier is widget vocabulary — one `enabled`
 refuses behind, the AT reading the flag before it tries. Since M95 the tree carries the help text
 too — `description()` beside the name it explains — and since M96 the placeholder the empty field
 paints, and since M97 the range the value tier clamps into — `value_range()` beside the walls
-every write lands inside, the AT reading the span, not a bare number — the AT reading all of it
-in the snapshot every other fact rides.
+every write lands inside, the AT reading the span, not a bare number — and since M98 the axis the
+scrolls ride — `scroll_orientation()` beside the constructors that declared it, the AT reading the
+track, not a guess — the AT reading all of it in the snapshot every other fact rides.
 
 ## Focus & shortcuts
 
@@ -247,7 +249,7 @@ fans the recorder's wire out beside the in-process reader, two doors behind one 
 
 - **Frame-batched input (M8).** Raw pointer events queue into `alacer_core::input::EventCoalescer`:
 compatible moves merge, same-direction wheel deltas accumulate on both axes, the tick routes
-one batch — a storm costs one frame of work, not N events (the 40.43× contract above).
+one batch — a storm costs one frame of work, not N events (the 39.71× contract above).
 - **Drag capture (M19).** A press implicitly captures its deepest accepting hit — moves and the
   release keep arriving past the widget's frame; the wheel still follows the hover; with no press
   in flight, routing is the hit test exactly as before (ADR-0025, `drag_capture` example). Since M19 the drag holds its target — the moves and the release keep arriving at the captured ancestor past the widget's own frame, and the wheel still follows the hover.
@@ -307,7 +309,7 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `accent_follow`                                      | the OS's accent fact rides the same seam: the accent-only flip lands, the composition tints the palette's accent roles from the fact, the log names all four facts |
 | `todo` / `data_table`                                | the canons: a11y tree, record/replay, grid slots, keyboard navigation            |
 
-<details><summary><b>74 examples, grouped (81 ship; recording, alloc_budget, input_budget, derive_widget, layout_probe, and tri_state live in the catalog)</b></summary>
+<details><summary><b>75 examples, grouped (82 ship; recording, alloc_budget, input_budget, derive_widget, layout_probe, and tri_state live in the catalog)</b></summary>
 
 **Start here**
 
@@ -365,6 +367,7 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `descriptions` | the M95 description tier driven from the consumer side: the described canon (button, checkbox, input) beside the honest absences, and the *Rewrite help* press — the description-only patch the pixels never pay for (the a11y-only prop class, exactly `A11Y`), the status line mirroring what the tree carries |
 | `placeholders` | the M96 placeholder tier driven from the consumer side: the hinted field beside the bare one (the honest absence), and the *Swap hint* press paying both masks the tier costs — the paint beside the re-announcement (the a11y-*also* prop class) |
 | `ranges` | the M97 range tier driven from the consumer side: the ranged slider beside the honest-absence report, and the *Snap to max* press landing on the wall the tree carries — the write the range constrains |
+| `orientation` | the M98 orientation tier driven from the consumer side: the vertical list's declared axis beside the two-axis list's honest absence (both axes, ARIA's `undefined`), and the scrolls that move the offsets while the axis words stay — the declaration is the constructor's |
 
 **Values & availability**
 
@@ -442,7 +445,7 @@ tree (`query(role).named(..)`, `press`, `all`) — never widget internals.
 ## Status
 
 > [!NOTE]
-> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M96 of `docs/architecture.md` are
+> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M98 of `docs/architecture.md` are
 > complete, but the API still moves between minor versions. MSRV **1.99**, edition **2024**.
 
 | Platform            | CI coverage                                                                                                                                                           |
@@ -454,7 +457,7 @@ tree (`query(role).named(..)`, `press`, `all`) — never widget internals.
 ## Learn more
 
 - [Architecture](https://github.com/elcoosp/alacer/blob/main/docs/architecture.md) — design axioms, the ten-pass contract, rendering, accessibility, DX, performance, roadmap and kill criteria
-- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred decision records, from workspace discipline to the M96 scope
+- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred and three decision records, from workspace discipline to the M98 scope
 - [Examples catalog](https://github.com/elcoosp/alacer/blob/main/docs/examples.md) — every example with the contract it exercises
 - [Migrating from Iced](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-iced.md) · [from egui](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-egui.md) — mental-model mappings, interop limits stated plainly
 - [Inspector protocol](https://github.com/elcoosp/alacer/blob/main/docs/inspector-protocol.md) — the versioned WebSocket contract behind `alacer-inspect`

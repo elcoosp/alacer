@@ -255,6 +255,14 @@ impl Widget for Progress {
         ))
     }
 
+    /// The numeric tier (M99, ADR-0103): the number behind the reported
+    /// value's spoken word — the read half of the value tier answers the
+    /// `aria-valuenow` beside the `aria-valuetext` the M3 contract
+    /// already carried. The same widening `f32` → `f64` is exact.
+    fn numeric_value(&self) -> Option<f64> {
+        Some(f64::from(self.reported()))
+    }
+
     fn paint(&self, ctx: &mut PaintCtx<'_>) {
         let width = ctx.size().width;
         let ratio = self.ratio();

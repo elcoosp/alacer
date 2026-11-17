@@ -288,19 +288,6 @@ impl DataTableHandles {
         self.root.update(&view, pipeline)
     }
 
-    /// Reads the current rows (test introspection).
-    ///
-    /// # Panics
-    ///
-    /// Panics when the signal's owner is gone (a dropped flux — an app bug).
-    pub fn with_rows<R>(&self, f: impl FnOnce(&[Vec<String>]) -> R) -> R {
-        let rows = self
-            .rows
-            .try_get_untracked()
-            .expect("the rows signal's owner is alive");
-        f(&rows)
-    }
-
     /// Appends one row — one write batch.
     pub fn push_row(&self, cells: Vec<String>) {
         Flux::batch_of(|| {

@@ -46,7 +46,7 @@
 | 50-event pointer storm                                | **1** coalesced dispatch (**40.43×**)           | `input_storm_batching` budget                                                                          |
 | 10k-node churn frame vs egui, same host               | 1.10 ms vs 20.7 ms full frame (**18.8×**)       | 5-run medians, declared rig (`benchmarks/rig.json`)                                                    |
 | …vs Masonry                                           | 1.10 ms vs 4.6 ms full pass pipeline (**4.2×**) | same rig, `scripts/run_comparison.py`                                                                  |
-| All 97 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
+| All 101 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
 
 _Competitor rows compare Alacer's incremental frame against their full frame/pass — every row in
 `benchmarks/comparisons/results.json` is labeled with its scope._
@@ -86,7 +86,7 @@ cargo test --workspace                                          # headless: real
 > `ALACER_SOFTWARE=1` presents through softbuffer — the platform honors it at startup
 > (`BackendPreference::software_env`) whichever backend the app asked for; any other value is
 > refused with a named warning, never guessed. CI and the headless tests already run this path:
-> no mock renderer, no mock event loop. The full 75-example catalog lives in
+> no mock renderer, no mock event loop. The full 77-example catalog lives in
 > [docs/examples.md](https://github.com/elcoosp/alacer/blob/main/docs/examples.md).
 
 ## How it works
@@ -135,7 +135,7 @@ present paths; single-backend and pipeline-only builds are supported shapes, war
 `-D warnings`; a preference whose backend the build compiled out refuses honestly at startup
 (`PlatformError::BackendUnavailable`, ADR-0040) — the feature matrix is CI-enforced. wgpu
 rasterizes rounded-rect SDFs and glyphs from a CPU coverage atlas; softbuffer blends the same
-bitmaps through tiny-skia. Both implement identical damage semantics.
+bitmaps through tiny-skia. Both implement identical damage semantics. Two more features complete the set: `hot-reload` links the `subsecond` patching runtime (ADR-7), and `ci-bundle` is every non-default shape at once — both backends beside the hot-reload wiring — the one-word matrix `--features ci-bundle` covers instead of `--all-features`.
 
 **The frame ledger.** Since M23 the frame carries a public ledger: the journal reports its own
 commits, drops and live layers through `PassPipeline::journal_stats` — one write batch ⇒ one
@@ -300,7 +300,7 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `accent_follow`                                      | the OS's accent fact rides the same seam: the accent-only flip lands, the composition tints the palette's accent roles from the fact, the log names all four facts |
 | `todo` / `data_table`                                | the canons: a11y tree, record/replay, grid slots, keyboard navigation            |
 
-<details><summary><b>72 examples, grouped (75 ship; recording, alloc_budget, and input_budget live in the catalog)</b></summary>
+<details><summary><b>72 examples, grouped (77 ship; recording, alloc_budget, input_budget, derive_widget, and layout_probe live in the catalog)</b></summary>
 
 **Start here**
 
@@ -432,7 +432,7 @@ tree (`query(role).named(..)`, `press`, `all`) — never widget internals.
 ## Status
 
 > [!NOTE]
-> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M91 of `docs/architecture.md` are
+> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M93 of `docs/architecture.md` are
 > complete, but the API still moves between minor versions. MSRV **1.99**, edition **2024**.
 
 | Platform            | CI coverage                                                                                                                                                           |
@@ -444,7 +444,7 @@ tree (`query(role).named(..)`, `press`, `all`) — never widget internals.
 ## Learn more
 
 - [Architecture](https://github.com/elcoosp/alacer/blob/main/docs/architecture.md) — design axioms, the ten-pass contract, rendering, accessibility, DX, performance, roadmap and kill criteria
-- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — ninety-six decision records, from workspace discipline to the M91 scope
+- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — ninety-eight decision records, from workspace discipline to the M93 scope
 - [Examples catalog](https://github.com/elcoosp/alacer/blob/main/docs/examples.md) — every example with the contract it exercises
 - [Migrating from Iced](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-iced.md) · [from egui](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-egui.md) — mental-model mappings, interop limits stated plainly
 - [Inspector protocol](https://github.com/elcoosp/alacer/blob/main/docs/inspector-protocol.md) — the versioned WebSocket contract behind `alacer-inspect`

@@ -382,8 +382,15 @@ impl Widget for List {
         // `ScrollUp`/`ScrollDown` travel by the requested unit (an item is
         // one line, a page is the viewport), and `Increment`/`Decrement`
         // step by a page, the honest value-step for a scrollbar whose value
-        // *is* the offset. The pipeline merges `PAINT | A11Y` on consumption
-        // (§7.2 pass 10), so bounds re-announce without a measure call.
+        // *is* the offset. Since M91 (ADR-0095) the vocabulary grew the
+        // horizontal pair beside them — `ScrollLeft`/`ScrollRight` travel
+        // by the same unit contract on the x axis (an item is one line, a
+        // page is the viewport's *width*), consumed by the same clamp
+        // arithmetic every door answers by, the record's species naming
+        // the ask and the horizontal fact carrying its story beside the
+        // vertical identity. The pipeline merges `PAINT | A11Y` on
+        // consumption (§7.2 pass 10), so bounds re-announce without a
+        // measure call.
         //
         // Since M50 (ADR-0056) every answered ask streams its fact on the
         // scroll log too — the landed offset beside the ask, the wall the
@@ -392,14 +399,20 @@ impl Widget for List {
         // silent: a question outside the tier is not a tier fact (the
         // ADR-0046 rule the scroll tier rides).
         let mut state = self.state.lock().expect("scroll state");
-        let (down, action_species) = match action {
-            A11yAction::ScrollDown(_) => (true, ScrollAction::ScrollDown),
-            A11yAction::ScrollUp(_) => (false, ScrollAction::ScrollUp),
+        // The axis the ask travels: the vertical pair and the value
+        // steps ride the y axis (M10), the horizontal pair the x axis
+        // beside them (M91, ADR-0095) — the enum's own rule, the pair
+        // gaining its consuming widget in the same cut.
+        let (down, action_species, horizontal) = match action {
+            A11yAction::ScrollDown(_) => (true, ScrollAction::ScrollDown, false),
+            A11yAction::ScrollUp(_) => (false, ScrollAction::ScrollUp, false),
+            A11yAction::ScrollRight(_) => (true, ScrollAction::ScrollRight, true),
+            A11yAction::ScrollLeft(_) => (false, ScrollAction::ScrollLeft, true),
             // The step asks (the scrollbar's value *is* the offset, M10)
             // name their own species on the record — the AT's ask, the
             // scroll tier's answer (M50, ADR-0056).
-            A11yAction::Increment => (true, ScrollAction::Increment),
-            A11yAction::Decrement => (false, ScrollAction::Decrement),
+            A11yAction::Increment => (true, ScrollAction::Increment, false),
+            A11yAction::Decrement => (false, ScrollAction::Decrement, false),
             // The value tier (M11, ADR-0017) is not a scroll area's
             // contract — refused, never munged into a scroll, and never
             // a scroll fact (the tier boundary the log prices).
@@ -414,13 +427,59 @@ impl Widget for List {
         // way, and the vocabulary's own contract names it — the step
         // steps a page, always (M10, ADR-0016).
         let unit = match action {
-            A11yAction::ScrollDown(unit) | A11yAction::ScrollUp(unit) => unit,
+            A11yAction::ScrollDown(unit)
+            | A11yAction::ScrollUp(unit)
+            | A11yAction::ScrollLeft(unit)
+            | A11yAction::ScrollRight(unit) => unit,
             _ => ScrollUnit::Page,
         };
+        // The unit's distance: an item is one line, a page is the
+        // viewport — the viewport's *width* on the x axis (M91,
+        // ADR-0095), the height the y axis has always kept.
         let distance = match unit {
             ScrollUnit::Item => A11Y_LINE,
-            ScrollUnit::Page => state.viewport_height,
+            ScrollUnit::Page => {
+                if horizontal {
+                    state.viewport_width
+                } else {
+                    state.viewport_height
+                }
+            }
         };
+        // The horizontal asks ride their own half: the clamp answers
+        // on the declared width span, the record's vertical fields
+        // carry the identity answer (the axis unasked holds the offset
+        // it had — the same convention the content door's width half
+        // answers by), the x story riding the record's horizontal half
+        // beside the species naming the ask.
+        if horizontal {
+            let ask = if down {
+                state.offset_x + distance
+            } else {
+                state.offset_x - distance
+            };
+            let held = state.offset();
+            let (x_outcome, x_landed, x_pinned) = answer_horizontal_ask(&mut state, ask);
+            drop(state);
+            alacer_core::scroll::note_scroll(ScrollRecord {
+                action: action_species,
+                outcome: ScrollOutcome::Delivered,
+                offset: held,
+                requested: None,
+                target: None,
+                pinned: None,
+                unit: Some(unit),
+                lines: None,
+                aimed: None,
+                horizontal: Some(HorizontalScrollFact {
+                    outcome: x_outcome,
+                    offset: x_landed,
+                    requested: ask.is_finite().then_some(ask),
+                    pinned: x_pinned,
+                }),
+            });
+            return true;
+        }
         let ask = if down {
             state.offset + distance
         } else {
@@ -656,6 +715,52 @@ impl ListHandle {
         });
     }
 
+    /// Programmatic horizontal scroll — the app's own two-axis handle
+    /// door (M90, ADR-0094), ADR-0093's third re-open rule cashed: the
+    /// x half beside [`ListHandle::scroll_to`], priced by the same
+    /// clamp arithmetic every door here answers by (the declared width
+    /// span, the named walls, the refusals). The record is the same
+    /// named-wall record the vertical door streams — the x story
+    /// riding its horizontal half (ADR-0056's axis rule) — while the
+    /// vertical fields ride the identity answer: the axis unasked
+    /// holds the offset it had, delivered, no ask beside it (the same
+    /// convention the M89 content door's width half answers by). A
+    /// vertical-only list answers `no_scrollable_content` against its
+    /// undeclared span (the honest wall, never a guessed x scroll).
+    /// The door rides no route, so the record's stamp carries the
+    /// honest absence (the M43 rule: the app's handle knows no node id
+    /// at all).
+    ///
+    /// # Panics
+    ///
+    /// If the shared scroll state's lock is poisoned — a panicked writer
+    /// means the frame is corrupt either way.
+    pub fn scroll_to_x(&self, offset: f32) {
+        let mut state = self.state.lock().expect("scroll state");
+        let held = state.offset();
+        let (x_outcome, x_landed, x_pinned) = answer_horizontal_ask(&mut state, offset);
+        drop(state);
+        alacer_core::scroll::note_scroll(ScrollRecord {
+            action: ScrollAction::ScrollTo,
+            // The vertical half rides the identity answer: the height
+            // story was not this record's ask.
+            outcome: ScrollOutcome::Delivered,
+            offset: held,
+            requested: None,
+            target: None,
+            pinned: None,
+            unit: None,
+            lines: None,
+            aimed: None,
+            horizontal: Some(HorizontalScrollFact {
+                outcome: x_outcome,
+                offset: x_landed,
+                requested: offset.is_finite().then_some(offset),
+                pinned: x_pinned,
+            }),
+        });
+    }
+
     /// Current offset.
     ///
     /// # Panics
@@ -677,12 +782,6 @@ impl ListHandle {
     #[must_use]
     pub fn offset_x(&self) -> f32 {
         self.state.lock().expect("scroll state").offset_x()
-    }
-
-    /// The raw state (harness introspection).
-    #[must_use]
-    pub fn state(&self) -> Arc<Mutex<ScrollState>> {
-        Arc::clone(&self.state)
     }
 }
 
@@ -752,6 +851,29 @@ mod tests {
     }
 
     #[test]
+    fn scroll_to_x_respects_bounds_and_leaves_y_alone() {
+        let list = List::two_axis(100.0, 100.0);
+        let handle = list.handle();
+        handle.set_content_height(300.0);
+        handle.set_content_width(250.0);
+        handle.scroll_to_x(200.0);
+        assert_eq!(handle.offset_x(), 150.0, "250 content - 100 viewport");
+        assert_eq!(handle.offset(), 0.0, "the y axis rides the identity");
+        handle.scroll_to_x(-50.0);
+        assert_eq!(handle.offset_x(), 0.0);
+        // A vertical-only list answers the x ask honestly.
+        let vertical = List::new(100.0);
+        let vertical_handle = vertical.handle();
+        vertical_handle.set_content_height(300.0);
+        vertical_handle.scroll_to_x(50.0);
+        assert_eq!(
+            vertical_handle.offset_x(),
+            0.0,
+            "no declared span, no scroll"
+        );
+    }
+
+    #[test]
     fn scroll_offset_surfaces_for_compose() {
         let list = List::new(50.0);
         let handle = list.handle();
@@ -761,15 +883,19 @@ mod tests {
     }
 
     #[test]
-    fn state_is_shareable() {
+    fn state_is_shareable_through_the_handle() {
+        // The sharing contract, read through the doors instead of the
+        // raw state (the M91 sweep removed the dead `state()` accessor
+        // — the doc called it harness introspection and no harness ever
+        // called it): the handle's write shows through the widget's
+        // compose read, one `Arc` between them.
         let list = List::new(80.0);
         let handle = list.handle();
-        let a = handle.state();
-        let b = list.handle().state();
-        a.lock().expect("state").offset = 12.0;
+        handle.set_content_height(200.0);
+        handle.scroll_to(12.0);
         assert_eq!(
-            b.lock().expect("state").offset(),
-            12.0,
+            list.scroll_offset(),
+            Vector::new(0.0, 12.0),
             "handle and widget share state"
         );
     }

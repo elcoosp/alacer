@@ -63,16 +63,35 @@ impl MountedView {
                 .any(|(a, b)| a.0 != b.0 || a.1 != b.1)
     }
 
+    /// Whether an *a11y-only* prop differs — the M95 prop class (ADR-0099):
+    /// text props whose truth the pixels never carry (the `description`
+    /// word). Both snapshots must carry the word: the patcher applies only
+    /// the props the view holds, so a one-sided word is either the create
+    /// write or the honest absence (the canvas painter's own rule), never
+    /// a change.
+    fn a11y_props_changed(&self, new: &ViewNode) -> bool {
+        A11Y_WORDS.iter().chain(A11Y_ALSO_WORDS.iter()).any(|word| {
+            let (Some(old), Some(new)) = (self.text_prop(word), node_text_prop(new, word)) else {
+                return false;
+            };
+            old != new
+        })
+    }
+
     /// Whether any *visual* (non-handler, non-binding) prop value
     /// differs — the mask and accounting hint: handler churn repaints
     /// nothing, and a binding re-hang is the patcher's own no-op (the
     /// bound label's rule at the value tier, ADR-0038 — the value a
     /// binding carries rides the flux bridge's masks, never the
-    /// re-render that re-hung it).
+    /// re-render that re-hung it). Since M95 the a11y-only prop class
+    /// sits beside the exclusions: a description's truth moves the tree,
+    /// never the pixels, and paints for nothing here.
     fn visual_props_changed(&self, new: &ViewNode) -> bool {
         self.props.len() != new.props.len()
             || self.props.iter().zip(new.props.iter()).any(|(a, b)| {
                 (a.0 != b.0 || a.1 != b.1)
+                    && !A11Y_WORDS.contains(&a.0.as_ref())
+                    && !A11Y_WORDS.contains(&b.0.as_ref())
                     && !matches!(
                         a.1,
                         crate::view::PropValue::Handler(_)
@@ -93,6 +112,44 @@ impl MountedView {
                     )
             })
     }
+
+    /// The text value this snapshot carries for `word`, `None` when the
+    /// snapshot holds no text prop of that name.
+    fn text_prop(&self, word: &str) -> Option<&str> {
+        self.props
+            .iter()
+            .rev()
+            .find_map(|(name, value)| match (name.as_ref(), value) {
+                (n, crate::view::PropValue::Text(text)) if n == word => Some(text.as_str()),
+                _ => None,
+            })
+    }
+}
+
+/// The a11y-only prop words (M95, ADR-0099): the text props whose truth
+/// the pixels never carry. A change on one queues exactly
+/// [`alacer_core::Change::A11Y`] — the re-announcement without the
+/// repaint — and counts in the patch report (the M72 rule: one fact per
+/// patch that moved something).
+const A11Y_WORDS: [&str; 1] = ["description"];
+
+/// The a11y-*also* prop words (M96, ADR-0100): text props the pixels
+/// DO carry — the painter paints the hint while the value is empty — so
+/// a change on one keeps the visual masks (the patcher's own `true`)
+/// beside the re-announcement the a11y class adds. The tree's truth and
+/// the painted hint move together, each tier paying its own mask.
+const A11Y_ALSO_WORDS: [&str; 1] = ["placeholder"];
+
+/// The text value `node` carries for `word`, `None` when the node holds
+/// no text prop of that name (the snapshot's own read, at the node).
+fn node_text_prop<'a>(node: &'a ViewNode, word: &str) -> Option<&'a str> {
+    node.props
+        .iter()
+        .rev()
+        .find_map(|(name, value)| match (name.as_ref(), value) {
+            (n, crate::view::PropValue::Text(text)) if n == word => Some(text.as_str()),
+            _ => None,
+        })
 }
 
 /// What one [`ViewRoot::update`] did — the reconciler's accounting.
@@ -276,6 +333,9 @@ impl ViewRoot {
         report: &mut PatchReport,
     ) -> MountedView {
         let visual_changed = old.visual_props_changed(new);
+        // The a11y-only class (M95, ADR-0099): the tree's truth the
+        // pixels never carry — its mask is the re-announcement alone.
+        let a11y_changed = old.a11y_props_changed(new);
         if old.props_changed(new) {
             // Apply the full prop set (idempotent setters) — the patcher
             // re-hangs handlers and rewrites visuals in one call.
@@ -286,6 +346,11 @@ impl ViewRoot {
             pipeline
                 .arena_mut()
                 .merge_mask(old.node, Change::LAYOUT.union(Change::PAINT));
+        }
+        if a11y_changed {
+            pipeline.arena_mut().merge_mask(old.node, Change::A11Y);
+        }
+        if visual_changed || a11y_changed {
             report.patched += 1;
         }
         let children = self.diff_children(old.children, &new.children, old.node, pipeline, report);

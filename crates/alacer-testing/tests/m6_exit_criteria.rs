@@ -32,7 +32,7 @@ use std::path::PathBuf;
 /// Growing the corpus is the coordinated three-edit rule of ADR-0011:
 /// bench, contracts.json gate, baseline regeneration — plus this pin and
 /// the M5 pin.
-const EXPECTED_BENCH_COUNT: usize = 109;
+const EXPECTED_BENCH_COUNT: usize = 110;
 
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))

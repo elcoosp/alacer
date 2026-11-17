@@ -140,7 +140,8 @@ impl std::error::Error for BackendError {
 }
 
 /// The GPU glyph atlas: 8-bit coverage, shelf-packed, full-clear on overflow
-/// (the documented M0 eviction policy; LRU lands with M3, §9.4).
+/// (the shipped M0 eviction policy; §9.4's LRU re-open stays pre-registered,
+/// never a shipped promise).
 struct Atlas {
     texture: wgpu::Texture,
     width: u32,

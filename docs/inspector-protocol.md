@@ -444,10 +444,15 @@ refusals named.
   `wheel` (a notch the coalescer accumulated upstream, §10.2),
   `scroll_up`/`scroll_down` (the AT's scroll command, traveling by the
   requested unit — one item is one line, one page the viewport,
-  ADR-0016), `increment`/`decrement` (the honest value-step for a
+  ADR-0016), `scroll_left`/`scroll_right` (M91/ADR-0095, additive: the
+  AT's horizontal vocabulary beside the vertical pair — the same unit
+  contract on the x axis, one page the viewport's *width*),
+  `increment`/`decrement` (the honest value-step for a
   scrollbar whose value *is* the offset — one page), or `scroll_to`
-  (the app's own programmatic door, no route behind it) — and since M51 the content's own story rides the same vocabulary: `content_clamp` (ADR-0057, the price ADR-0056's third kill rule pre-registered — the clamp `set_content_height` answers when the content shrank under the offset; the clamp is the content's story, not the ask's). Since M52 the unit scrolls name their asker's unit in the event's `unit` field (ADR-0058). And since M88 the geometry-driven ask rides the same vocabulary: `bring_into_view` (ADR-0092 — the pipeline's door prices the minimal offset from the bounds ledger and hands it to the container's own clamp; the event's `aimed` field names the node the ask was for).
-- `horizontal` (M89/ADR-0093, additive): the horizontal half of the ask's own story — `{outcome, refusal, offset, requested, pinned}`, the same flat rule per axis; `null` on the stories with no horizontal half (the AT's unit scrolls ride their vertical vocabulary untouched).
+  (the app's own programmatic door, no route behind it; since M90 the
+  door's x half — `scroll_to_x` — rides the same species, the x story
+  on the event's `horizontal` field) — and since M51 the content's own story rides the same vocabulary: `content_clamp` (ADR-0057, the price ADR-0056's third kill rule pre-registered — the clamp `set_content_height` answers when the content shrank under the offset; the clamp is the content's story, not the ask's). Since M52 the unit scrolls name their asker's unit in the event's `unit` field (ADR-0058). And since M88 the geometry-driven ask rides the same vocabulary: `bring_into_view` (ADR-0092 — the pipeline's door prices the minimal offset from the bounds ledger and hands it to the container's own clamp; the event's `aimed` field names the node the ask was for).
+- `horizontal` (M89/ADR-0093, additive): the horizontal half of the ask's own story — `{outcome, refusal, offset, requested, pinned}`, the same flat rule per axis; `null` on the stories with no horizontal half (the vertical unit scrolls ride their vertical vocabulary untouched; the M91 horizontal pair's own story rides here, the vertical fields beside it the identity answer).
 - `outcome` — what the scroll area answered: `delivered` (the offset
   the clamp produced — a landing the clamp moved, the ask answered, or
   the wall held) or `refused` (the ask moved nothing — the M28

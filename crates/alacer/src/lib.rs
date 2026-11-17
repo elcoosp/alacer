@@ -47,6 +47,11 @@ pub use alacer_core as core;
 pub use alacer_inspect as inspect;
 pub use alacer_layout as layout;
 pub use alacer_macro::rsx;
+// The `Widget` derive rides the same module as the `rsx!` compiler (the
+// macro crate), beside the trait it implements — the serde pattern: one
+// name, two namespaces. The trait is the type-namespace import the core
+// prelude below brings; the derive is the macro-namespace import here.
+pub use alacer_macro::Widget;
 pub use alacer_platform as platform;
 pub use alacer_render as render;
 pub use alacer_testing as testing;
@@ -69,6 +74,9 @@ pub mod prelude {
         A11yAction, EventResponse, GlyphSource, LabelSource, MeasureFn, PaintSink, Role,
         ScrollUnit, Widget,
     };
+    // The derive beside the trait it implements: one `#[derive(Widget)]`
+    // away from the hand-written pair (§11.1, ADR-0096).
+    pub use alacer_macro::Widget;
     pub use alacer_view::{HotView, PatchReport, ViewNode, ViewRoot};
     pub use alacer_widgets::default_registry;
 }

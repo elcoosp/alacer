@@ -425,7 +425,7 @@ fn m26_the_living_documents_re_agree() {
     let readme = read_workspace_file("README.md");
     for fragment in [
         "version-0.17.0",
-        "M0 through M94",
+        "M0 through M96",
         "ninety-nine decision records",
         "Since M26 the walk reads the window too",
     ] {
@@ -486,7 +486,7 @@ fn m26_the_living_documents_re_agree() {
             "crates/alacer-testing/tests/{suite}_exit_criteria.rs"
         ));
         assert!(
-            source.contains("M0 through M94") && source.contains("99 decision records"),
+            source.contains("M0 through M96") && source.contains("99 decision records"),
             "the {suite} suite's README and register pins moved with the documents"
         );
     }
@@ -606,13 +606,13 @@ fn m26_the_corpus_pins_moved_with_the_routes() {
             "crates/alacer-testing/tests/{suite}_exit_criteria.rs"
         ));
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 103;"),
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 108;"),
             "the {suite} suite's corpus pin moved with the routes"
         );
     }
     let m7 = read_workspace_file("crates/alacer-testing/tests/m7_exit_criteria.rs");
     assert!(
-        m7.contains("bench_count, 103,"),
+        m7.contains("bench_count, 108,"),
         "the m7 suite's corpus pin moved with the routes"
     );
     let m8 = read_workspace_file("crates/alacer-testing/tests/m8_exit_criteria.rs");
@@ -654,7 +654,7 @@ fn m26_the_corpus_pins_moved_with_the_routes() {
     // cut (the coordinated rule: bench, gates, baseline, pins together).
     assert_eq!(
         gates.len(),
-        103,
+        108,
         "the contract set carries the corpus the pins promise"
     );
     for route in [

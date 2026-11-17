@@ -1196,7 +1196,9 @@ impl Widget for TextInput {
             | A11yAction::Increment
             | A11yAction::Decrement
             | A11yAction::ScrollUp(_)
-            | A11yAction::ScrollDown(_) => return false,
+            | A11yAction::ScrollDown(_)
+            | A11yAction::ScrollLeft(_)
+            | A11yAction::ScrollRight(_) => return false,
         };
         if !self.enabled {
             // The closed door's fact: the availability tier refused the

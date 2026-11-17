@@ -244,6 +244,9 @@ impl AccessKitSink {
     /// vocabulary rides along: toggle state becomes the `Toggled` property,
     /// and table slots become the grid attributes (row/column counts and
     /// zero-based indexes) that make a table navigable, not just visible.
+    /// Since M95 (ADR-0099) the description rides along too: the help text
+    /// beside the name, the `Description` property the AT reads when the
+    /// name alone does not answer.
     fn access_node(node: &alacer_core::passes::TreeNode) -> Node {
         let mut access_node = Node::new(map_role(node.role));
         access_node.set_label(node.label.as_str());
@@ -259,6 +262,21 @@ impl AccessKitSink {
         }
         if let Some(value) = &node.value {
             access_node.set_value(value.as_str());
+        }
+        // The description tier (M95, ADR-0099): the help text beside the
+        // name — AccessKit's `Description` property, ARIA's
+        // `aria-description`. The honest absence maps to the absence: a
+        // widget with nothing to explain sets nothing, and the AT reads
+        // the node exactly as it read the tree M94 handed over.
+        if let Some(description) = &node.description {
+            access_node.set_description(description.as_str());
+        }
+        // The placeholder tier (M96, ADR-0100): the hint an empty
+        // editable announces before the user types — AccessKit's
+        // `Placeholder` property. The honest absence maps to the
+        // absence: a field with no hint sets nothing.
+        if let Some(placeholder) = &node.placeholder {
+            access_node.set_placeholder(placeholder.as_str());
         }
         // The availability tier (M22, ADR-0028): the widget's `enabled`
         // answer becomes AccessKit's `disabled` flag, so the AT reads an
@@ -427,6 +445,8 @@ mod tests {
                     selection: None,
                     live: None,
                     enabled: true,
+                    description: None,
+                    placeholder: None,
                 },
                 TreeNode {
                     id: child_hash,
@@ -440,6 +460,8 @@ mod tests {
                     selection: None,
                     live: None,
                     enabled: true,
+                    description: None,
+                    placeholder: None,
                 },
                 TreeNode {
                     id: other_hash,
@@ -453,6 +475,8 @@ mod tests {
                     selection: None,
                     live: None,
                     enabled: true,
+                    description: None,
+                    placeholder: None,
                 },
             ],
         }
@@ -560,6 +584,8 @@ mod tests {
             selection: None,
             live: Some(alacer_core::announce::Politeness::Assertive),
             enabled: true,
+            description: None,
+            placeholder: None,
         });
         sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
         let update = sink.last_update().expect("update");
@@ -699,6 +725,8 @@ mod tests {
                     selection: None,
                     live: None,
                     enabled: true,
+                    description: None,
+                    placeholder: None,
                 },
                 TreeNode {
                     id: 2,
@@ -712,6 +740,8 @@ mod tests {
                     selection: None,
                     live: None,
                     enabled: true,
+                    description: None,
+                    placeholder: None,
                 },
                 TreeNode {
                     id: 3,
@@ -725,6 +755,8 @@ mod tests {
                     selection: None,
                     live: None,
                     enabled: true,
+                    description: None,
+                    placeholder: None,
                 },
             ],
         };
@@ -745,6 +777,64 @@ mod tests {
         assert_eq!(checkbox.toggled(), Some(Toggled::True), "checked state");
         assert_eq!(checkbox.row_index(), Some(1), "cell row position");
         assert_eq!(checkbox.column_index(), Some(2), "cell column position");
+    }
+
+    /// The description tier (M95, ADR-0099): the snapshot's help text maps
+    /// onto AccessKit's `Description` property, and the honest absence
+    /// maps to the absence — a node without a description sets nothing.
+    #[test]
+    fn the_description_maps_onto_the_description_property() {
+        let mut sink = AccessKitSink::new();
+        let snap = TreeSnapshot {
+            root: Some(1),
+            nodes: vec![
+                TreeNode {
+                    id: 1,
+                    role: Role::Button,
+                    label: "Publish".into(),
+                    bounds: None,
+                    children: Vec::new(),
+                    value: None,
+                    toggled: None,
+                    table_slot: None,
+                    selection: None,
+                    live: None,
+                    enabled: true,
+                    description: Some("Saves the draft and queues it".into()),
+                    placeholder: None,
+                },
+                TreeNode {
+                    id: 2,
+                    role: Role::Button,
+                    label: "Cancel".into(),
+                    bounds: None,
+                    children: Vec::new(),
+                    value: None,
+                    toggled: None,
+                    table_slot: None,
+                    selection: None,
+                    live: None,
+                    enabled: true,
+                    description: None,
+                    placeholder: None,
+                },
+            ],
+        };
+        sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
+
+        let update = sink.last_update().expect("update");
+        let described = find_in_update(update, 1).expect("described node");
+        assert_eq!(
+            described.description().map(str::to_string).as_deref(),
+            Some("Saves the draft and queues it"),
+            "the AT reads the help text beside the name"
+        );
+        let undescribed = find_in_update(update, 2).expect("undescribed node");
+        assert_eq!(
+            undescribed.description(),
+            None,
+            "the honest absence sets nothing"
+        );
     }
 
     // -------------------------------------------------------------------

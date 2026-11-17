@@ -568,6 +568,39 @@ pub trait Widget: 'static {
         true
     }
 
+    /// The widget's description for the a11y tree (M95, ADR-0099): the
+    /// help text a screen reader reads when the name alone does not
+    /// answer "what does this control do?" — AccessKit's `Description`
+    /// property, ARIA's `aria-description`, mapped by `alacer-a11y` in
+    /// the same snapshot every other property rides. The name is the
+    /// control's identity; the description is its *instruction* — a
+    /// format ("the 16 digits on the front"), a consequence ("saves the
+    /// draft"), the sentence the label is too short to carry.
+    ///
+    /// `None` is the honest absence (the ADR-0087 presence rule at the
+    /// description tier): a widget with nothing to explain announces
+    /// nothing, never a guess — the tree M94 handed over. Actionable
+    /// controls override this; containers and reports inherit the
+    /// default.
+    fn description(&self) -> Option<&str> {
+        None
+    }
+
+    /// The widget's placeholder for the a11y tree (M96, ADR-0100): the
+    /// hint text an empty editable announces before the user types —
+    /// AccessKit's `Placeholder` property, ARIA's `aria-placeholder`,
+    /// mapped by `alacer-a11y` in the same snapshot every other property
+    /// rides. Through M95 the field painted the hint and the tree could
+    /// not say it: the declared-but-unreported gap, the M94 pattern at
+    /// the placeholder tier.
+    ///
+    /// `None` is the honest absence (the ADR-0087 presence rule at the
+    /// placeholder tier): a field with no hint announces nothing, never
+    /// a guess — an empty string is the absence, not an empty hint.
+    fn placeholder(&self) -> Option<&str> {
+        None
+    }
+
     /// The widget's toggle state for the a11y tree (M6): checkboxes report
     /// their checked state so screen readers announce "checked"/"not
     /// checked". Non-toggle roles return `None`.

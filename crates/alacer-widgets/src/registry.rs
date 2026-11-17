@@ -271,9 +271,26 @@ fn prop_index(props: &ElementProps<'_>, name: &str) -> Option<usize> {
 // The M6 canon elements
 // ---------------------------------------------------------------------------
 
+/// The checkbox's tri-state `state` word (M94, ADR-0098): `"on"` /
+/// `"off"` / `"mixed"` — the vocabulary the tree announces, unknown words
+/// refused by absence (the patcher applies only the props it understands,
+/// the canvas painter's own rule).
+fn toggle_state_word(word: &str) -> Option<alacer_core::widget::ToggleState> {
+    match word {
+        "on" => Some(alacer_core::widget::ToggleState::On),
+        "off" => Some(alacer_core::widget::ToggleState::Off),
+        "mixed" => Some(alacer_core::widget::ToggleState::Mixed),
+        _ => None,
+    }
+}
+
 fn checkbox_create(props: &ElementProps<'_>) -> crate::Checkbox {
     let mut checkbox = crate::Checkbox::new(props.text("name").unwrap_or_default());
-    if let Some(checked) = props.flag("checked") {
+    if let Some(word) = props.text("state")
+        && let Some(state) = toggle_state_word(word)
+    {
+        checkbox = checkbox.state(state);
+    } else if let Some(checked) = props.flag("checked") {
         checkbox = checkbox.checked(checked);
     }
     if let Some(handler) = props.flag_handler("on_toggle") {
@@ -291,7 +308,12 @@ fn checkbox_patch(checkbox: &mut crate::Checkbox, props: &ElementProps<'_>) -> b
         checkbox.set_name(name);
         visual = true;
     }
-    if let Some(checked) = props.flag("checked") {
+    if let Some(word) = props.text("state")
+        && let Some(state) = toggle_state_word(word)
+    {
+        checkbox.set_state(state);
+        visual = true;
+    } else if let Some(checked) = props.flag("checked") {
         checkbox.set_checked(checked);
         visual = true;
     }

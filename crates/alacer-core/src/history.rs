@@ -70,18 +70,25 @@ use std::collections::VecDeque;
 /// selection the edit consumed (`before`) and the one it left (`after`),
 /// so an undo restores not just the text but the range the user was
 /// extending when they made the edit (the M11 vocabulary, ADR-0017).
+///
+/// Crate-internal (the M91 sweep's own finding): the journal stores the
+/// entries privately and `record`/`undo`/`redo` take and return the
+/// record-level facts, so no consumer can ever obtain an `EditEntry` —
+/// the struct was `pub` with nothing to reach it, dead public surface
+/// that read as an API promise the vocabulary never kept. The pub
+/// surface is the record's own facts.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EditEntry {
+pub(crate) struct EditEntry {
     /// The replaced span's start, in UTF-16 units of the field's value.
-    pub at_utf16: usize,
+    at_utf16: usize,
     /// The text the edit removed from the span (empty for a pure insert).
-    pub removed: String,
+    removed: String,
     /// The text the edit inserted into the span (empty for a pure delete).
-    pub inserted: String,
+    inserted: String,
     /// The `(anchor, caret)` selection before the edit, UTF-16 units.
-    pub selection_before: (usize, usize),
+    selection_before: (usize, usize),
     /// The `(anchor, caret)` selection after the edit, UTF-16 units.
-    pub selection_after: (usize, usize),
+    selection_after: (usize, usize),
 }
 
 impl EditEntry {

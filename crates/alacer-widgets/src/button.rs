@@ -11,6 +11,9 @@ use alacer_core::widget::{EventResponse, LabelSource, Role, Widget};
 /// An actionable button (role `Button`, name mandatory — ADR-5).
 pub struct Button {
     label: String,
+    /// The help text the a11y tree carries beside the name (M95,
+    /// ADR-0099); `None` is the honest absence.
+    description: Option<String>,
     pressed: bool,
     enabled: Enabled,
     /// The app's fill override; `None` borrows the theme's accent role
@@ -53,6 +56,7 @@ impl Button {
     pub fn new(label: impl Into<String>) -> Self {
         Self {
             label: label.into(),
+            description: None,
             pressed: false,
             enabled: Enabled::Fixed(true),
             fill: None,
@@ -88,6 +92,16 @@ impl Button {
     #[must_use]
     pub fn on_click(mut self, handler: impl FnMut() + 'static) -> Self {
         self.on_click = Some(Box::new(handler));
+        self
+    }
+
+    /// The description (M95, ADR-0099): the help text the a11y tree
+    /// carries beside the name — the instruction the label is too short
+    /// to carry (a format, a consequence, the "what does this do?"
+    /// sentence). Without it the button announces the honest absence.
+    #[must_use]
+    pub fn description(mut self, description: impl Into<String>) -> Self {
+        self.description = Some(description.into());
         self
     }
 
@@ -158,6 +172,19 @@ impl Button {
         self.label = label.into();
     }
 
+    /// The one description write (M95, ADR-0099, view reconciliation):
+    /// `None` clears to the honest absence. Report whether the text
+    /// moved — the caller requests `A11Y` only when this answers `true`,
+    /// so a write that lands where the text already is queues nothing
+    /// (the M21 idle-frame property, at the description tier).
+    pub fn set_description(&mut self, description: Option<String>) -> bool {
+        if self.description == description {
+            return false;
+        }
+        self.description = description;
+        true
+    }
+
     /// Sets the fill (and pressed fill) in place (view reconciliation) —
     /// an explicit override, immune to rethemes.
     pub fn set_fill(&mut self, fill: Color) {
@@ -188,6 +215,12 @@ impl Widget for Button {
 
     fn label(&self) -> LabelSource {
         LabelSource::text(self.label.clone())
+    }
+
+    /// The description tier (M95, ADR-0099): the help text beside the
+    /// name, the honest absence when the button has nothing to explain.
+    fn description(&self) -> Option<&str> {
+        self.description.as_deref()
     }
 
     /// The availability tier (M22, ADR-0028): the flag the a11y tree
@@ -589,5 +622,37 @@ mod tests {
         binding.set(true);
         assert!(bound.is_enabled(), "the read is live");
         assert!(bound.is_enabled() == Widget::enabled(&bound), "one truth");
+    }
+
+    #[test]
+    fn the_description_rides_the_trait_and_the_write_reports_the_move() {
+        // M95, ADR-0099: the honest absence by default, the help text the
+        // builder mounts, and the one write whose moved answer is the
+        // only mask the tier costs.
+        let mut button = Button::new("Publish");
+        assert_eq!(
+            Widget::description(&button),
+            None,
+            "an undescribed button announces the absence"
+        );
+        button = button.description("Saves the draft and queues it");
+        assert_eq!(
+            Widget::description(&button),
+            Some("Saves the draft and queues it"),
+            "the help text the tree carries beside the name"
+        );
+        assert!(
+            !button.set_description(Some("Saves the draft and queues it".to_string())),
+            "the idle write answers false — no masks"
+        );
+        assert!(
+            button.set_description(None),
+            "clearing to the absence moved"
+        );
+        assert_eq!(Widget::description(&button), None);
+        assert!(
+            !button.set_description(None),
+            "the absence is already there"
+        );
     }
 }

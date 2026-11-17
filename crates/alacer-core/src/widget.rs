@@ -31,7 +31,10 @@ pub enum Role {
     ListItem,
     /// A collection of list items.
     List,
-    /// A binary toggle control (the todo canon's item switch, M6).
+    /// A toggle control (the todo canon's item switch, M6): the binary
+    /// pair plus, since M94 (ADR-0098), the tri-state summary — a
+    /// checkbox holding `ToggleState::Mixed` is the select-all parent,
+    /// "some of the children are"; every user door resolves it.
     CheckBox,
     /// A value control (the slider, M20): a bounded scalar the user sets
     /// by drag or arrow keys and the AT sets through the value tier

@@ -128,6 +128,16 @@ pub struct TreeNode {
     /// that must refuse — the AT reads the truth (AccessKit's `disabled`
     /// property), the same snapshot every other property rides.
     pub enabled: bool,
+    /// The widget's description (M95, ADR-0099): the help text the AT
+    /// reads beside the name (AccessKit's `Description` property).
+    /// `None` is the honest absence — a widget with nothing to explain
+    /// announces nothing, never a guess.
+    pub description: Option<String>,
+    /// The widget's placeholder (M96, ADR-0100): the hint an empty
+    /// editable announces before the user types (AccessKit's
+    /// `Placeholder` property). `None` is the honest absence — an empty
+    /// string is the absence, not an empty hint.
+    pub placeholder: Option<String>,
 }
 
 /// The full accessibility snapshot of the widget tree, built by pass 9.
@@ -3819,6 +3829,8 @@ impl PassPipeline {
                 selection: slot.widget().selection(),
                 live: None,
                 enabled: slot.widget().enabled(),
+                description: slot.widget().description().map(str::to_owned),
+                placeholder: slot.widget().placeholder().map(str::to_owned),
             };
             if snapshot.root.is_none() {
                 snapshot.root = Some(node.id);
@@ -3851,6 +3863,10 @@ impl PassPipeline {
                 selection: None,
                 live: Some(politeness),
                 enabled: true,
+                // The pipeline's own node: the region explains nothing —
+                // the announcement *is* its content (the honest absence).
+                description: None,
+                placeholder: None,
             });
         }
         snapshot

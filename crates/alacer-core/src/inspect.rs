@@ -852,6 +852,22 @@ pub enum ScrollAction {
     /// The AT's `ScrollDown`: a scroll area's scroll command, traveling
     /// by the requested unit (M10, ADR-0016).
     ScrollDown,
+    /// The AT's `ScrollLeft` (M91, ADR-0095): the horizontal
+    /// vocabulary beside the vertical pair — a scroll area's scroll
+    /// command on the x axis, traveling by the requested unit (an item
+    /// is one line, a page is the viewport's width). The record's
+    /// horizontal fact carries the ask's story beside the vertical
+    /// fields riding the identity answer (the axis unasked, the same
+    /// convention the content door's width half answers by).
+    ScrollLeft,
+    /// The AT's `ScrollRight` (M91, ADR-0095): the horizontal
+    /// vocabulary beside the vertical pair — a scroll area's scroll
+    /// command on the x axis, traveling by the requested unit (an item
+    /// is one line, a page is the viewport's width). The record's
+    /// horizontal fact carries the ask's story beside the vertical
+    /// fields riding the identity answer (the axis unasked, the same
+    /// convention the content door's width half answers by).
+    ScrollRight,
     /// The AT's `Increment`: the honest value-step for a scrollbar
     /// whose value *is* the offset — one page (M10, ADR-0016).
     Increment,
@@ -893,6 +909,8 @@ impl ScrollAction {
             Self::Wheel => "wheel",
             Self::ScrollUp => "scroll_up",
             Self::ScrollDown => "scroll_down",
+            Self::ScrollLeft => "scroll_left",
+            Self::ScrollRight => "scroll_right",
             Self::Increment => "increment",
             Self::Decrement => "decrement",
             Self::ScrollTo => "scroll_to",

@@ -455,6 +455,18 @@ impl Widget for Slider {
         Some(format!("{}", self.value))
     }
 
+    /// The range tier (M97, ADR-0101): the span every door — drag, arrows,
+    /// the AT's own acts — funnels through is the span the tree announces.
+    /// The step rides beside the walls: the snap arithmetic is a declared
+    /// fact (the `Slider::new`/`step()` invariant), never a guessed
+    /// default. The widening `f32` → `f64` is exact.
+    fn value_range(&self) -> Option<alacer_core::ValueRange> {
+        Some(
+            alacer_core::ValueRange::new(f64::from(self.min), f64::from(self.max))
+                .with_step(f64::from(self.step)),
+        )
+    }
+
     fn paint(&self, ctx: &mut PaintCtx<'_>) {
         let width = ctx.size().width;
         let ratio = self.ratio();

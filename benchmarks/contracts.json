@@ -103,6 +103,22 @@
       "op": "<=",
       "budget": 1.25,
       "cite": "the axis word rides the snapshot the name rides, ADR-0102: the enum's option the node builds beside the label's own \u2014 the measured ratio 0.92x on the dev host, the budget pricing the measured class, never a noise-floor claim"
+    },
+    {
+      "id": "numeric_snapshot_overhead",
+      "numerator": "numeric/snapshot_1k_valued",
+      "denominator": "toggle/snapshot_1k_binary",
+      "op": "<=",
+      "budget": 1.25,
+      "cite": "the number rides the snapshot the text rides, ADR-0103: the f64 option the node builds beside the label's own \u2014 the measured ratio 1.20x on the dev host, the budget pricing the measured class, never a noise-floor claim"
+    },
+    {
+      "id": "secure_snapshot_overhead",
+      "numerator": "secure/snapshot_1k_secured",
+      "denominator": "placeholder/snapshot_1k_bare",
+      "op": "<=",
+      "budget": 1.25,
+      "cite": "the secure word rides the snapshot the field rides, ADR-0104: the bool and the mask the node builds beside the value's own copy \u2014 the measured ratio 0.95x on the dev host, the budget pricing the measured class, never a noise-floor claim"
     }
   ],
   "regressions": [
@@ -654,6 +670,16 @@
     {
       "id": "orientation_snapshot_1k_vertical",
       "baseline": "orientation/snapshot_1k_vertical",
+      "scope": "same-host"
+    },
+    {
+      "id": "numeric_snapshot_1k_valued",
+      "baseline": "numeric/snapshot_1k_valued",
+      "scope": "same-host"
+    },
+    {
+      "id": "secure_snapshot_1k_secured",
+      "baseline": "secure/snapshot_1k_secured",
       "scope": "same-host"
     }
   ],

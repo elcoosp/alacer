@@ -371,7 +371,7 @@ fn m25_the_living_documents_re_agree() {
     let readme = read_workspace_file("README.md");
     for fragment in [
         "version-0.17.0",
-        "M0 through M94",
+        "M0 through M96",
         "ninety-nine decision records",
         "Since M25 the walk is bounded too",
     ] {
@@ -432,7 +432,7 @@ fn m25_the_living_documents_re_agree() {
             "crates/alacer-testing/tests/{suite}_exit_criteria.rs"
         ));
         assert!(
-            source.contains("M0 through M94") && source.contains("ninety-nine decision records"),
+            source.contains("M0 through M96") && source.contains("ninety-nine decision records"),
             "the {suite} suite's README pins moved with the documents"
         );
         assert!(
@@ -499,7 +499,7 @@ fn m25_the_surface_rides_the_same_cut() {
     // coherent tree — the drift the M25 sweep repairs.
     let m7 = read_workspace_file("crates/alacer-testing/tests/m7_exit_criteria.rs");
     assert!(
-        m7.contains("M0 through M94"),
+        m7.contains("M0 through M96"),
         "the m7 suite's milestone pin moved with the documents"
     );
 

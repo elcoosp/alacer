@@ -46,7 +46,7 @@
 | 50-event pointer storm                                | **1** coalesced dispatch (**40.43×**)           | `input_storm_batching` budget                                                                          |
 | 10k-node churn frame vs egui, same host               | 1.10 ms vs 20.7 ms full frame (**18.8×**)       | 5-run medians, declared rig (`benchmarks/rig.json`)                                                    |
 | …vs Masonry                                           | 1.10 ms vs 4.6 ms full pass pipeline (**4.2×**) | same rig, `scripts/run_comparison.py`                                                                  |
-| All 103 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
+| All 108 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
 
 _Competitor rows compare Alacer's incremental frame against their full frame/pass — every row in
 `benchmarks/comparisons/results.json` is labeled with its scope._
@@ -86,7 +86,7 @@ cargo test --workspace                                          # headless: real
 > `ALACER_SOFTWARE=1` presents through softbuffer — the platform honors it at startup
 > (`BackendPreference::software_env`) whichever backend the app asked for; any other value is
 > refused with a named warning, never guessed. CI and the headless tests already run this path:
-> no mock renderer, no mock event loop. The full 78-example catalog lives in
+> no mock renderer, no mock event loop. The full 80-example catalog lives in
 > [docs/examples.md](https://github.com/elcoosp/alacer/blob/main/docs/examples.md).
 
 ## How it works
@@ -164,11 +164,15 @@ Accessibility is not a layer bolted on — it is the tree's own vocabulary:
 | **Live speech** (M18)  | `announce` ships state changes that own no widget through a reserved live-region node: polite or assertive, present from the first frame, last write wins, refusals honest                                                                          | 0024      |
 | **Values** (M20/M21)   | `Slider` is writable through one funnel — drag, arrows, AT `SetValue`/`Increment`/`Decrement` — clamped and snapped inside the widget; `Progress` is read-only: the app writes it, every AT action refuses (no write door)                          | 0026/0027 |
 | **Availability** (M22) | One `enabled` truth on the trait: unavailable controls are never Tab stops, focus is evicted, every door refuses (pointer wall, keyboard/IME silence, AT refusal), AccessKit reads `disabled` before it tries, the muted paint tells the same truth | 0028      |
+| **Description** (M95)  | The help text beside the name: `description()` on the trait, `Button`/`Checkbox`/`TextInput` carrying it, AccessKit's `Description` property mapped in the same snapshot; the `description:` word patches the tree's truth with exactly `A11Y` — the pixels never pay for a fact the painter did not write | 0099      |
+| **Placeholder** (M96)  | The hint an empty field announces: the painted hint rides the tree (`Placeholder` property), an empty placeholder the honest absence; the `placeholder:` word patch pays both masks — the paint beside the re-announcement — and the write that lands where the hint is queues nothing | 0100      |
 
 Since M20 the value tier is a widget — the `Slider` answers drag, arrows and AT writes from one
 funnel. Since M21 the value is reportable too — the read-only `Progress` names the door that has
 no write. Since M22 the availability tier is widget vocabulary — one `enabled` truth every door
-refuses behind, the AT reading the flag before it tries.
+refuses behind, the AT reading the flag before it tries. Since M95 the tree carries the help text
+too — `description()` beside the name it explains — and since M96 the placeholder the empty field
+paints, the AT reading both in the snapshot every other fact rides.
 
 ## Focus & shortcuts
 
@@ -300,7 +304,7 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `accent_follow`                                      | the OS's accent fact rides the same seam: the accent-only flip lands, the composition tints the palette's accent roles from the fact, the log names all four facts |
 | `todo` / `data_table`                                | the canons: a11y tree, record/replay, grid slots, keyboard navigation            |
 
-<details><summary><b>72 examples, grouped (78 ship; recording, alloc_budget, input_budget, derive_widget, layout_probe, and tri_state live in the catalog)</b></summary>
+<details><summary><b>74 examples, grouped (80 ship; recording, alloc_budget, input_budget, derive_widget, layout_probe, and tri_state live in the catalog)</b></summary>
 
 **Start here**
 
@@ -355,6 +359,8 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `a11y_echo` | the adapter's echo driven from the consumer side: the activation route rides — the erased sink downcast, the full-tree build — and the *trail* label mirrors what the log streamed ("the AT answered with the full tree (N nodes)"), the reconnect beat beside it streaming a second echo, one fact per build (the flood rule at a tier whose events are rare), the M64 tee carrying the label and the in-process reader behind one slot |
 | `a11y_sink_custom` | a consumer-owned `A11ySink`: the tree deltas your backend receives, printed as they land — the seam the platform's AccessKit adapter rides, swapped for your own |
 | `action_trail` | the M69 activation trail driven from the consumer side: the press that lands naming its control, the held-down button's wall naming itself (`unavailable`), the heading's doorless silence naming itself (`no_door`) — the collapsed `false` split — the slider's step between them streaming no action fact (one fact per trail), and the M70 beats beside them: the keyboard's Space activation naming its rider on the same log |
+| `descriptions` | the M95 description tier driven from the consumer side: the described canon (button, checkbox, input) beside the honest absences, and the *Rewrite help* press — the description-only patch the pixels never pay for (the a11y-only prop class, exactly `A11Y`), the status line mirroring what the tree carries |
+| `placeholders` | the M96 placeholder tier driven from the consumer side: the hinted field beside the bare one (the honest absence), and the *Swap hint* press paying both masks the tier costs — the paint beside the re-announcement (the a11y-*also* prop class) |
 
 **Values & availability**
 
@@ -432,7 +438,7 @@ tree (`query(role).named(..)`, `press`, `all`) — never widget internals.
 ## Status
 
 > [!NOTE]
-> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M94 of `docs/architecture.md` are
+> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M96 of `docs/architecture.md` are
 > complete, but the API still moves between minor versions. MSRV **1.99**, edition **2024**.
 
 | Platform            | CI coverage                                                                                                                                                           |
@@ -444,7 +450,7 @@ tree (`query(role).named(..)`, `press`, `all`) — never widget internals.
 ## Learn more
 
 - [Architecture](https://github.com/elcoosp/alacer/blob/main/docs/architecture.md) — design axioms, the ten-pass contract, rendering, accessibility, DX, performance, roadmap and kill criteria
-- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — ninety-nine decision records, from workspace discipline to the M94 scope
+- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred decision records, from workspace discipline to the M96 scope
 - [Examples catalog](https://github.com/elcoosp/alacer/blob/main/docs/examples.md) — every example with the contract it exercises
 - [Migrating from Iced](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-iced.md) · [from egui](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-egui.md) — mental-model mappings, interop limits stated plainly
 - [Inspector protocol](https://github.com/elcoosp/alacer/blob/main/docs/inspector-protocol.md) — the versioned WebSocket contract behind `alacer-inspect`

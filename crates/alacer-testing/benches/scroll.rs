@@ -175,7 +175,70 @@ fn bench_scroll_route(c: &mut Criterion) {
         });
     });
 
+    // The handle door's x half (M90, ADR-0094): the same two-axis
+    // stack, the asks driven the way an app drives them — the handle
+    // inside the mutate-guard `request` seam, the PAINT | A11Y merge
+    // surfacing the programmatic scroll as the frame work it is (the
+    // M23 shape, ADR-0093's call-site composition rule). One hundred
+    // asks alternate the x range's two walls, so every landing moves
+    // the whole visible band — the compose translation, the paint
+    // re-emission, and the a11y bounds refresh priced at their real
+    // magnitude each tick. The gate keeps the app's own x door in the
+    // offset-priced class: the ask is a scalar the clamp answers, the
+    // frame the landing's own translation — never a re-layout.
+    group.bench_function("route_100_handle_scroll_x_1k", |b| {
+        // The handle rides the stack only as its constructor — the
+        // asks go through the mutate seam, the way the app's own code
+        // drives the door.
+        let (harness, _handle, list_node) = mount_two_axis_stack();
+
+        // The x range's two walls: the span the declared width keeps
+        // (1000 - 800), asked end to end so no landing is a no-op.
+        let span = ROW_WIDTH - TWO_AXIS_VIEWPORT_WIDTH;
+        let mut harness = harness;
+        b.iter(|| {
+            for index in 0..ROUTES {
+                let ask = if index % 2 == 0 { span } else { 0.0 };
+                let mut guard = harness.pipeline_mut().arena_mut().mutate(list_node);
+                if let Some(list) = guard.widget_mut().as_any_mut().downcast_mut::<List>() {
+                    list.handle().scroll_to_x(ask);
+                }
+                guard.request(
+                    alacer_core::mask::Change::PAINT.union(alacer_core::mask::Change::A11Y),
+                );
+                drop(guard);
+                black_box(harness.tick());
+            }
+        });
+    });
+
     group.finish();
+}
+
+/// The two-axis stack the horizontal cases price: 1,000 wide rows in
+/// a 1,000 px × 600 px two-axis viewport, the content spans declared
+/// through the handle, the rows keeping the width their styles
+/// declare (never the stretch the default column would give them).
+fn mount_two_axis_stack() -> (TestHarness, alacer_widgets::ListHandle, alacer_core::NodeId) {
+    let mut harness = TestHarness::new(900.0, 600.0);
+    let mut list = List::two_axis(TWO_AXIS_VIEWPORT_WIDTH, VIEWPORT);
+    list.style_mut().align = alacer_core::style::CrossAxisAlignment::Start;
+    let handle = list.handle();
+    let list_node = harness.mount(list.boxed());
+    for _ in 0..FILLER {
+        let _ = harness.add_child(
+            list_node,
+            WideRow {
+                height: ROW_HEIGHT,
+                width: ROW_WIDTH,
+            }
+            .boxed(),
+        );
+    }
+    handle.set_content_height(usize_to_f32(FILLER) * ROW_HEIGHT);
+    handle.set_content_width(ROW_WIDTH);
+    harness.settle();
+    (harness, handle, list_node)
 }
 
 criterion_group!(benches, bench_scroll_route);

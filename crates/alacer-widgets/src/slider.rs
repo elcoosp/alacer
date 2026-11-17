@@ -467,6 +467,14 @@ impl Widget for Slider {
         )
     }
 
+    /// The numeric tier (M99, ADR-0103): the number behind the value's
+    /// spoken word — the scalar the funnel holds, `aria-valuenow` beside
+    /// the `aria-valuetext` the M3 contract already carried. The same
+    /// widening `f32` → `f64` is exact.
+    fn numeric_value(&self) -> Option<f64> {
+        Some(f64::from(self.value))
+    }
+
     fn paint(&self, ctx: &mut PaintCtx<'_>) {
         let width = ctx.size().width;
         let ratio = self.ratio();

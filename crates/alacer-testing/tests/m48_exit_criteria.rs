@@ -270,7 +270,7 @@ fn m48_the_living_documents_re_agree_at_the_cut() {
     // m-suite pins move across the chain together — the workspace's
     // one-milestone-per-minor rule counting the cut's entries).
     assert!(
-        readme.contains("M0 through M94") && readme.contains("ninety-nine decision records"),
+        readme.contains("M0 through M96") && readme.contains("ninety-nine decision records"),
         "the README's status block and count re-agree at the cut"
     );
     assert!(

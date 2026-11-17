@@ -231,7 +231,7 @@ fn m69_the_living_documents_re_agree() {
     // the demonstration.
     let readme = read_workspace_file("README.md");
     for fragment in [
-        "M0 through M94",
+        "M0 through M96",
         "ninety-nine decision records",
         "Since M69 the activation ask answers on the log",
     ] {
@@ -277,7 +277,7 @@ fn m69_the_living_documents_re_agree() {
     // The sibling suites' pins ride the same cut (one sweep, no drift).
     let m68 = read_workspace_file("crates/alacer-testing/tests/m68_exit_criteria.rs");
     assert!(
-        m68.contains("M0 through M94"),
+        m68.contains("M0 through M96"),
         "the m68 suite's pins moved with the documents"
     );
 }

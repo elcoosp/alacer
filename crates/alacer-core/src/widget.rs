@@ -201,6 +201,37 @@ impl ScrollUnit {
     }
 }
 
+/// The single axis a scroll container declares its scrolls to ride
+/// (M98, ADR-0102; the AccessKit `Orientation` shape, mirrored in core
+/// so the DAG stays adapter-free — ADR-9).
+///
+/// The vocabulary is deliberately two-variant: it names a *single-axis*
+/// declaration, the word ARIA's `aria-orientation` carries. A container
+/// that declared both axes (the two-axis list, ADR-0093) has no
+/// single-axis word to say — its honest answer is the trait door's
+/// `None`, the absence ARIA spells `undefined`. The enum never guesses
+/// an axis the constructor did not name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScrollOrientation {
+    /// The declared scrolls ride the y axis — the vertical track.
+    Vertical,
+    /// The declared scrolls ride the x axis — the horizontal track.
+    Horizontal,
+}
+
+impl ScrollOrientation {
+    /// The orientation's name, the wire vocabulary's `snake_case` tag
+    /// (the same naming rule [`ScrollUnit::name`] rides — the
+    /// protocol's stable, documented field values).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Vertical => "vertical",
+            Self::Horizontal => "horizontal",
+        }
+    }
+}
+
 /// A range of text, expressed in the contract's unit — **UTF-16 code
 /// units** into the widget's value (§10.3; the same unit as the caret).
 ///
@@ -654,6 +685,24 @@ pub trait Widget: 'static {
     /// guessed default. The value tier's controls override this; every
     /// other role inherits the default.
     fn value_range(&self) -> Option<ValueRange> {
+        None
+    }
+
+    /// The single axis a scroll container declares its scrolls to ride
+    /// (M98, ADR-0102) — the word the AT's arrows read before they
+    /// ride: ARIA's `aria-orientation`, AccessKit's `Orientation`
+    /// property. Since M89 (ADR-0093) a scroll container declares its
+    /// axes at construction and every scroll door answers per axis;
+    /// since M98 the tree says which.
+    ///
+    /// `None` is the honest absence (the ADR-0087 presence rule at the
+    /// orientation tier): a container that declared both axes has no
+    /// single-axis word to say — ARIA's `undefined` is the spec's own
+    /// word for "both axes", and the sink sets nothing rather than a
+    /// wrong half. A widget that is no scroll container at all inherits
+    /// the default. Scroll containers override this; every other role
+    /// inherits it too.
+    fn scroll_orientation(&self) -> Option<ScrollOrientation> {
         None
     }
 

@@ -25,6 +25,9 @@ use alacer_core::widget::{A11yAction, EventResponse, LabelSource, Role, ToggleSt
 /// vocabulary — the binary pair plus the mixed summary (M94, ADR-0098).
 pub struct Checkbox {
     name: String,
+    /// The help text the a11y tree carries beside the name (M95,
+    /// ADR-0099); `None` is the honest absence.
+    description: Option<String>,
     state: ToggleState,
     enabled: bool,
     on_toggle: Option<Box<dyn FnMut(bool)>>,
@@ -45,6 +48,7 @@ impl Checkbox {
     pub fn new(name: impl Into<String>) -> Self {
         Self {
             name: name.into(),
+            description: None,
             state: ToggleState::Off,
             enabled: true,
             on_toggle: None,
@@ -88,6 +92,15 @@ impl Checkbox {
     #[must_use]
     pub fn on_toggle(mut self, handler: impl FnMut(bool) + 'static) -> Self {
         self.on_toggle = Some(Box::new(handler));
+        self
+    }
+
+    /// The description (M95, ADR-0099): the help text the a11y tree
+    /// carries beside the name — the instruction the label is too short
+    /// to carry. Without it the checkbox announces the honest absence.
+    #[must_use]
+    pub fn description(mut self, description: impl Into<String>) -> Self {
+        self.description = Some(description.into());
         self
     }
 
@@ -173,6 +186,19 @@ impl Checkbox {
         self.name = name.into();
     }
 
+    /// The one description write (M95, ADR-0099, view reconciliation):
+    /// `None` clears to the honest absence. Report whether the text
+    /// moved — the caller requests `A11Y` only when this answers `true`,
+    /// so a write that lands where the text already is queues nothing
+    /// (the M21 idle-frame property, at the description tier).
+    pub fn set_description(&mut self, description: Option<String>) -> bool {
+        if self.description == description {
+            return false;
+        }
+        self.description = description;
+        true
+    }
+
     /// Replaces the toggle handler in place (view reconciliation). `None`
     /// detaches it.
     pub fn set_on_toggle(&mut self, handler: Option<Box<dyn FnMut(bool)>>) {
@@ -228,6 +254,12 @@ impl Widget for Checkbox {
 
     fn label(&self) -> LabelSource {
         LabelSource::text(self.name.clone())
+    }
+
+    /// The description tier (M95, ADR-0099): the help text beside the
+    /// name, the honest absence when the checkbox has nothing to explain.
+    fn description(&self) -> Option<&str> {
+        self.description.as_deref()
     }
 
     fn style(&self) -> Style {
@@ -667,5 +699,49 @@ mod tests {
         assert!(!checkbox.set_enabled(false), "already unavailable");
         assert!(checkbox.set_enabled(true), "the write moved");
         assert!(checkbox.is_enabled());
+    }
+
+    #[test]
+    fn the_description_rides_the_trait_and_the_write_reports_the_move() {
+        // M95, ADR-0099: the honest absence by default, the help text the
+        // builder mounts, and the one write whose moved answer is the
+        // only mask the tier costs.
+        let mut checkbox = Checkbox::new("Ship in bulk");
+        assert_eq!(
+            Widget::description(&checkbox),
+            None,
+            "an undescribed checkbox announces the absence"
+        );
+        checkbox = checkbox.description("Marks every open order");
+        assert_eq!(
+            Widget::description(&checkbox),
+            Some("Marks every open order"),
+            "the help text the tree carries beside the name"
+        );
+
+        // The write that landed where the text already is, then the write
+        // that moved (the M21 idle-frame property, at the description
+        // tier).
+        assert!(
+            !checkbox.set_description(Some("Marks every open order".to_string())),
+            "the idle write answers false — no masks"
+        );
+        assert!(
+            checkbox.set_description(Some("Marks every *sealed* order".to_string())),
+            "the moved write answers true"
+        );
+        assert_eq!(
+            Widget::description(&checkbox),
+            Some("Marks every *sealed* order")
+        );
+        assert!(
+            checkbox.set_description(None),
+            "clearing to the absence moved"
+        );
+        assert_eq!(Widget::description(&checkbox), None);
+        assert!(
+            !checkbox.set_description(None),
+            "the absence is already there"
+        );
     }
 }

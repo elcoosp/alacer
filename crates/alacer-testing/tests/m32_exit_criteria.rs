@@ -206,7 +206,7 @@ fn m32_the_bound_progress_keeps_the_binding_across_rebuilds() {
 fn m32_the_living_documents_re_agree() {
     let readme = read_workspace_file("README.md");
     for fragment in [
-        "M0 through M94",
+        "M0 through M96",
         "ninety-nine decision records",
         "`progress` are `rsx!` elements",
     ] {
@@ -234,7 +234,7 @@ fn m32_the_living_documents_re_agree() {
     // The sibling suites' pins ride the same cut (one sweep, no drift).
     let m70 = read_workspace_file("crates/alacer-testing/tests/m70_exit_criteria.rs");
     assert!(
-        m70.contains("M0 through M94"),
+        m70.contains("M0 through M96"),
         "the m70 suite's pins moved with the documents"
     );
 }

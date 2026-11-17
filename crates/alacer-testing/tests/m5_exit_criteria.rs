@@ -31,11 +31,12 @@ use std::path::PathBuf;
 /// clipboard route — ADR-0020 + the M15 undo/redo route — ADR-0021 + the
 /// M35 keymap's mixed route — ADR-0041 + the M63 trail reader's route and
 /// ring cases — ADR-0069 + the M64 tee's fan-out — ADR-0070 + the M73
-/// theme tier's note pair and no-op door — ADR-0079). Growing the
+/// theme tier's note pair and no-op door — ADR-0079 + the M94 toggle
+/// route's tri-state pair — ADR-0098). Growing the
 /// corpus is the coordinated bench + contracts.json + baseline-regeneration
 /// rule, reviewed here and by the M6–M12 suites (which assert this pin
 /// agrees with their own).
-const EXPECTED_BENCH_COUNT: usize = 101;
+const EXPECTED_BENCH_COUNT: usize = 103;
 
 /// The one criterion-expressible architecture budget in M5's contract set:
 /// the W1 gate (§18 M2, ADR-0008).

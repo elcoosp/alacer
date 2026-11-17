@@ -1186,6 +1186,17 @@ impl Widget for TextInput {
         Some(self.text.clone())
     }
 
+    /// The secure tier (M100, ADR-0104): the field the app declared
+    /// secure since M4 is the word the tree says — AccessKit's
+    /// `PasswordInput` role, the value the tree resolves the mask pass
+    /// 9 builds from the committed value. The declaration is the
+    /// constructor's (`secure()`), constructor-immutable: there is no
+    /// `set_secure` door, the way the IME purpose itself is
+    /// constructor-immutable.
+    fn secure_entry(&self) -> bool {
+        self.purpose == ImePurpose::Secure
+    }
+
     /// The availability tier (M22, ADR-0028): the flag the a11y tree
     /// carries — an unavailable input reports itself before the AT tries
     /// the edit it will refuse.

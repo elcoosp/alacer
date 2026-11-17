@@ -134,7 +134,7 @@ fn the_refusal_rides_the_record() {
     let records = ledger.calls();
     let last = records.last().expect("the refused call's record");
     let message = match &last.outcome {
-        Err(message) => message.as_str(),
+        Err(error) => error.message.as_str(),
         Ok(()) => panic!("the refusal rides the record"),
     };
     println!("beat 3: the refusal landed — the record carries: {message}");

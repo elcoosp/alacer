@@ -144,6 +144,12 @@ pub struct TreeNode {
     /// `NumericValueStep`. `None` is the honest absence — a widget with
     /// no span announces nothing, never a guessed default.
     pub value_range: Option<crate::widget::ValueRange>,
+    /// The scroll container's declared axis (M98, ADR-0102): the
+    /// single-axis word the AT's arrows read before they ride, carried
+    /// as AccessKit's `Orientation` property. `None` is the honest
+    /// absence — a container that declared both axes says the absence
+    /// ARIA spells `undefined`, never a guessed half.
+    pub scroll_orientation: Option<crate::widget::ScrollOrientation>,
 }
 
 /// The full accessibility snapshot of the widget tree, built by pass 9.
@@ -3838,6 +3844,7 @@ impl PassPipeline {
                 description: slot.widget().description().map(str::to_owned),
                 placeholder: slot.widget().placeholder().map(str::to_owned),
                 value_range: slot.widget().value_range(),
+                scroll_orientation: slot.widget().scroll_orientation(),
             };
             if snapshot.root.is_none() {
                 snapshot.root = Some(node.id);
@@ -3875,6 +3882,7 @@ impl PassPipeline {
                 description: None,
                 placeholder: None,
                 value_range: None,
+                scroll_orientation: None,
             });
         }
         snapshot

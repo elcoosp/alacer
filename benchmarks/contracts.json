@@ -61,6 +61,11 @@
       "scope": "same-host"
     },
     {
+      "id": "a11y_action_route_100_horizontal_actions_1k",
+      "baseline": "a11y_action/route_100_horizontal_actions_1k",
+      "scope": "same-host"
+    },
+    {
       "id": "a11y_action_route_100_setvalue_1k",
       "baseline": "a11y_action/route_100_setvalue_1k",
       "scope": "same-host"
@@ -523,6 +528,11 @@
     {
       "id": "scroll_route_100_horizontal_bring_into_view_1k",
       "baseline": "scroll/route_100_horizontal_bring_into_view_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "scroll_route_100_handle_scroll_x_1k",
+      "baseline": "scroll/route_100_handle_scroll_x_1k",
       "scope": "same-host"
     }
   ],

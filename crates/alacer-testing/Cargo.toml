@@ -81,3 +81,7 @@ harness = false
 [[bench]]
 name = "scroll"
 harness = false
+
+[[bench]]
+name = "derive"
+harness = false

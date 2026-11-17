@@ -62,7 +62,10 @@ fn ranges_view(level: &FluxRwSignal<f32>, wake: &Rc<dyn Fn()>) -> ViewNode {
             .prop(
                 "on_change",
                 PropValue::NumberHandler(Rc::new(RefCell::new({
-                    let level = level.clone();
+                    // The signal is `Copy` — copy it out of the reference
+                    // the view builder holds, no clone ceremony (the
+                    // pedantic rule the facade's examples answer).
+                    let level = *level;
                     let wake = Rc::clone(wake);
                     move |value: f32| {
                         Flux::batch_of(|| level.set(value));
@@ -91,7 +94,8 @@ fn ranges_view(level: &FluxRwSignal<f32>, wake: &Rc<dyn Fn()>) -> ViewNode {
 
     // The *Snap to max* door: the write lands on the wall the tree
     // carries — the clamp's answer and the announced span agreeing.
-    let next_level = level.clone();
+    // The signal is `Copy`; copy it out of the view builder's reference.
+    let next_level = *level;
     let next_wake = Rc::clone(wake);
     root = root.child(
         ViewNode::element("button")

@@ -144,6 +144,23 @@ pub struct TreeNode {
     /// `NumericValueStep`. `None` is the honest absence — a widget with
     /// no span announces nothing, never a guessed default.
     pub value_range: Option<crate::widget::ValueRange>,
+    /// The widget's numeric now (M99, ADR-0103): the number behind the
+    /// value's spoken word — the scalar the value tier's funnel holds,
+    /// carried as AccessKit's `NumericValue` property beside the text
+    /// the tree already carried (ARIA's `aria-valuenow` beside its
+    /// `aria-valuetext`). `None` is the honest absence — a widget whose
+    /// value is prose announces no number, never a parsed guess.
+    pub numeric_value: Option<f64>,
+    /// The field's declared secret entry (M100, ADR-0104): the
+    /// constructor word the IME contract has carried since M4, carried
+    /// as AccessKit's `PasswordInput` role. The value the node carries
+    /// beside the flag is the mask — one masking character per code
+    /// point of the committed value, never the secret itself (the
+    /// clipboard trail's payload rule, ADR-0045, at the tree tier).
+    /// `false` is the honest absence — a field that declared nothing is
+    /// no secure field, and the tree reads exactly as it read before
+    /// the tier.
+    pub secure_entry: bool,
     /// The scroll container's declared axis (M98, ADR-0102): the
     /// single-axis word the AT's arrows read before they ride, carried
     /// as AccessKit's `Orientation` property. `None` is the honest
@@ -3825,17 +3842,37 @@ impl PassPipeline {
         clip
     }
 
+    /// The mask a secure entry's tree value carries (M100, ADR-0104):
+    /// one masking character per code point of the committed value —
+    /// the shape the AT reads, never the secret itself. AccessKit's own
+    /// contract: a `PasswordInput` node's value "must only contain
+    /// masking characters"; the tree is a fact surface, and a secret is
+    /// a payload no tree carries (the clipboard trail's rule, ADR-0045,
+    /// at the tree tier).
+    fn mask_secret(value: &str) -> String {
+        "•".repeat(value.chars().count())
+    }
+
     /// Builds the a11y snapshot from the arena (pass 9 input).
     fn build_tree_snapshot(&self) -> TreeSnapshot {
         let mut snapshot = TreeSnapshot::default();
         self.arena.for_each_pre_order(&mut |id, slot| {
+            // The secure tier (M100, ADR-0104): the constructor word the
+            // field declared rides the snapshot, and the value the tree
+            // resolves for a secured field is the mask the word prices —
+            // the length the AT reads, never the secret itself.
+            let secure_entry = slot.widget().secure_entry();
+            let value = match slot.widget().value() {
+                Some(value) if secure_entry => Some(Self::mask_secret(&value)),
+                other => other,
+            };
             let node = crate::passes::TreeNode {
                 id: self.id_hash(id),
                 role: slot.widget().role(),
                 label: slot.widget().label().resolve(),
                 bounds: slot.bounds,
                 children: slot.children.iter().map(|c| self.id_hash(*c)).collect(),
-                value: slot.widget().value(),
+                value,
                 toggled: slot.widget().toggled(),
                 table_slot: slot.widget().table_slot(),
                 selection: slot.widget().selection(),
@@ -3844,6 +3881,8 @@ impl PassPipeline {
                 description: slot.widget().description().map(str::to_owned),
                 placeholder: slot.widget().placeholder().map(str::to_owned),
                 value_range: slot.widget().value_range(),
+                numeric_value: slot.widget().numeric_value(),
+                secure_entry,
                 scroll_orientation: slot.widget().scroll_orientation(),
             };
             if snapshot.root.is_none() {
@@ -3882,6 +3921,8 @@ impl PassPipeline {
                 description: None,
                 placeholder: None,
                 value_range: None,
+                numeric_value: None,
+                secure_entry: false,
                 scroll_orientation: None,
             });
         }

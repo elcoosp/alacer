@@ -688,6 +688,45 @@ pub trait Widget: 'static {
         None
     }
 
+    /// The widget's numeric now for the a11y tree (M99, ADR-0103): the
+    /// number behind the value's spoken word — the scalar the value
+    /// tier's funnel holds, carried as AccessKit's `NumericValue`
+    /// property, ARIA's `aria-valuenow`, riding the text the tree
+    /// already carried as the value's `aria-valuetext`. Through M98 the
+    /// tree said the value as text ("40") and not the number (40): the
+    /// automation and voice-control tier that reads the range widgets
+    /// as numbers read prose — the gap ADR-0101's re-open rule
+    /// pre-registered verbatim, cashed at the numeric tier.
+    ///
+    /// `None` is the honest absence (the ADR-0087 presence rule at the
+    /// numeric tier): a widget whose value is prose announces no number,
+    /// never a parsed guess — a text field's "16 digits" is not 16, and
+    /// a valueless role announces nothing. The value tier's controls
+    /// override this; every other role inherits the default.
+    fn numeric_value(&self) -> Option<f64> {
+        None
+    }
+
+    /// Whether the widget is a field of secret entry (M100, ADR-0104):
+    /// the flag behind the constructor word [`ImePurpose::Secure`] the
+    /// IME contract has carried since M4 — the field the platform's IME
+    /// already treats as a password, suppresses echo and suggestions
+    /// for. The tree says the word: AccessKit's `PasswordInput` role,
+    /// the declaration every platform AT announces ("secure text
+    /// entry"), and the value the tree resolves for the field is the
+    /// mask pass 9 builds from it — one masking character per code
+    /// point, never the secret itself (AccessKit's own contract: a
+    /// `PasswordInput` node's value "must only contain masking
+    /// characters").
+    ///
+    /// The default is the honest absence: a widget that declared
+    /// nothing is no secure field, and a non-input role answers nothing.
+    /// Editable controls override this; every other role inherits the
+    /// default.
+    fn secure_entry(&self) -> bool {
+        false
+    }
+
     /// The single axis a scroll container declares its scrolls to ride
     /// (M98, ADR-0102) — the word the AT's arrows read before they
     /// ride: ARIA's `aria-orientation`, AccessKit's `Orientation`

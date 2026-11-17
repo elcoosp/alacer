@@ -368,7 +368,7 @@ fn m72_the_late_observer_reads_the_patches_from_installation() {
 fn m72_the_living_documents_re_agree() {
     let readme = read_workspace_file("README.md");
     for fragment in [
-        "M0 through M94",
+        "M0 through M96",
         "ninety-nine decision records",
         "Since M72 the view's patches answer on the log too",
     ] {
@@ -415,7 +415,7 @@ fn m72_the_living_documents_re_agree() {
     let baselines = parse_workspace_json("benchmarks/baselines/baselines.json");
     assert_eq!(
         baselines["bench_count"],
-        serde_json::json!(103),
+        serde_json::json!(108),
         "the published corpus carries the four new cases the two cuts promised"
     );
     for case in [
@@ -435,12 +435,12 @@ fn m72_the_living_documents_re_agree() {
     // suite's corpus const re-agrees with the published data.
     let m71 = read_workspace_file("crates/alacer-testing/tests/m71_exit_criteria.rs");
     assert!(
-        m71.contains("M0 through M94"),
+        m71.contains("M0 through M96"),
         "the m71 suite's pins moved with the documents"
     );
     let m5 = read_workspace_file("crates/alacer-testing/tests/m5_exit_criteria.rs");
     assert!(
-        m5.contains("const EXPECTED_BENCH_COUNT: usize = 103;"),
+        m5.contains("const EXPECTED_BENCH_COUNT: usize = 108;"),
         "the m5 suite's corpus const re-agrees with the published baseline"
     );
 }

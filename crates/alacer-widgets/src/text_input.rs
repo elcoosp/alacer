@@ -38,6 +38,9 @@ const TEXT_INSET: f32 = 2.0;
 pub struct TextInput {
     /// The accessible name (a screen reader says "Search, edit text").
     name: String,
+    /// The help text the a11y tree carries beside the name (M95,
+    /// ADR-0099); `None` is the honest absence.
+    description: Option<String>,
     /// The committed text (UTF-8; all offsets below are UTF-16).
     text: String,
     /// The caret as a UTF-16 offset into `text` (the contract's unit).
@@ -104,6 +107,7 @@ impl TextInput {
     pub fn new(name: impl Into<String>) -> Self {
         Self {
             name: name.into(),
+            description: None,
             text: String::new(),
             caret_utf16: 0,
             anchor_utf16: 0,
@@ -142,6 +146,16 @@ impl TextInput {
     #[must_use]
     pub fn placeholder(mut self, placeholder: impl Into<String>) -> Self {
         self.placeholder = placeholder.into();
+        self
+    }
+
+    /// The description (M95, ADR-0099): the help text the a11y tree
+    /// carries beside the name — the instruction the placeholder cannot
+    /// carry (a format, a rule, the "what belongs here?" sentence).
+    /// Without it the input announces the honest absence.
+    #[must_use]
+    pub fn description(mut self, description: impl Into<String>) -> Self {
+        self.description = Some(description.into());
         self
     }
 
@@ -261,8 +275,31 @@ impl TextInput {
     }
 
     /// Replaces the placeholder in place (view reconciliation).
-    pub fn set_placeholder(&mut self, placeholder: impl Into<String>) {
-        self.placeholder = placeholder.into();
+    /// The one placeholder write (M96, ADR-0100, view reconciliation):
+    /// report whether the hint moved — the caller requests the write's
+    /// own masks only when this answers `true`, so a write that lands
+    /// where the hint already is queues nothing (the M21 idle-frame
+    /// property, at the placeholder tier).
+    pub fn set_placeholder(&mut self, placeholder: impl Into<String>) -> bool {
+        let placeholder = placeholder.into();
+        if self.placeholder == placeholder {
+            return false;
+        }
+        self.placeholder = placeholder;
+        true
+    }
+
+    /// The one description write (M95, ADR-0099, view reconciliation):
+    /// `None` clears to the honest absence. Report whether the text
+    /// moved — the caller requests `A11Y` only when this answers `true`,
+    /// so a write that lands where the text already is queues nothing
+    /// (the M21 idle-frame property, at the description tier).
+    pub fn set_description(&mut self, description: Option<String>) -> bool {
+        if self.description == description {
+            return false;
+        }
+        self.description = description;
+        true
     }
 
     /// Replaces the change handler in place (view reconciliation). `None`
@@ -1123,6 +1160,24 @@ impl Widget for TextInput {
 
     fn label(&self) -> LabelSource {
         LabelSource::text(self.name.clone())
+    }
+
+    /// The description tier (M95, ADR-0099): the help text beside the
+    /// name, the honest absence when the input has nothing to explain.
+    fn description(&self) -> Option<&str> {
+        self.description.as_deref()
+    }
+
+    /// The placeholder tier (M96, ADR-0100): the hint the field paints
+    /// while the value is empty is the hint the tree announces — the
+    /// declared-but-unreported gap cashed. An empty placeholder is the
+    /// honest absence, never an empty hint.
+    fn placeholder(&self) -> Option<&str> {
+        if self.placeholder.is_empty() {
+            None
+        } else {
+            Some(self.placeholder.as_str())
+        }
     }
 
     /// The M3 a11y contract: editable widgets expose their content (the
@@ -2753,5 +2808,49 @@ mod tests {
         assert!(!input.set_enabled(false), "already unavailable");
         assert!(input.set_enabled(true), "the write moved");
         assert!(input.is_enabled());
+    }
+
+    #[test]
+    fn the_description_and_placeholder_rides_the_tree_contract() {
+        // M95, ADR-0099: the description's honest absence, the mounted
+        // help text, the write's moved answer.
+        let mut input = TextInput::new("Card number");
+        assert_eq!(Widget::description(&input), None);
+        assert_eq!(
+            Widget::placeholder(&input),
+            None,
+            "no hint, no absence faked"
+        );
+        input = input
+            .description("The 16 digits on the front of the card")
+            .placeholder("0000 0000 0000 0000");
+        assert_eq!(
+            Widget::description(&input),
+            Some("The 16 digits on the front of the card")
+        );
+        assert!(
+            !input.set_description(Some("The 16 digits on the front of the card".to_string())),
+            "the idle description write answers false"
+        );
+        assert!(
+            input.set_description(None),
+            "the moved description write answers true"
+        );
+        assert_eq!(Widget::description(&input), None);
+
+        // M96, ADR-0100: the hint the field paints is the hint the tree
+        // announces; an empty placeholder is the honest absence, never an
+        // empty hint. The one write reports the move.
+        assert_eq!(
+            Widget::placeholder(&input),
+            Some("0000 0000 0000 0000"),
+            "the painted hint is the tree's truth"
+        );
+        assert!(
+            !input.set_placeholder("0000 0000 0000 0000"),
+            "the idle hint write answers false — no masks"
+        );
+        assert!(input.set_placeholder(""), "clearing to the absence moved");
+        assert_eq!(Widget::placeholder(&input), None);
     }
 }

@@ -40,8 +40,11 @@ pub struct LayoutCallRecord {
     /// The call's outcome: delivered, or the wrapped engine's own
     /// error — the error context the seam's `Result` contract ships,
     /// carried into the ledger (ADR-0023's honesty: a refusal reads as
-    /// itself, never a bare flag).
-    pub outcome: Result<(), String>,
+    /// itself, never a bare flag). The typed error rides the ledger
+    /// unchanged: `LayoutError` is `Clone + PartialEq`, so the record
+    /// carries the failure the engine answered with — the failing node
+    /// beside the prose — never a string-erased shadow of it.
+    pub outcome: Result<(), LayoutError>,
 }
 
 /// The reading handle over the recording engine's ledger (the trail
@@ -168,7 +171,7 @@ impl LayoutEngine for RecordingLayout {
             viewport,
             outcome: match &outcome {
                 Ok(()) => Ok(()),
-                Err(error) => Err(error.to_string()),
+                Err(error) => Err(error.clone()),
             },
         };
         self.ledger.borrow_mut().push(record);
@@ -296,7 +299,7 @@ mod tests {
             records[0]
                 .outcome
                 .as_ref()
-                .is_err_and(|message| message.contains("refused the style")),
+                .is_err_and(|error| error.message.contains("refused the style")),
             "the error's own message rides the record: {:?}",
             records[0].outcome
         );

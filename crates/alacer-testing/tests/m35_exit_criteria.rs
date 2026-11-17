@@ -344,7 +344,7 @@ fn m35_the_surface_rides_the_same_cut() {
     );
     let readme = std::fs::read_to_string(root.join("README.md")).expect("README");
     assert!(
-        readme.contains("M0 through M94") && readme.contains("ninety-nine decision records"),
+        readme.contains("M0 through M96") && readme.contains("ninety-nine decision records"),
         "the README's status block and ADR count re-agree at M35"
     );
     let architecture = std::fs::read_to_string(root.join("docs/architecture.md"))
@@ -360,7 +360,7 @@ fn m35_the_surface_rides_the_same_cut() {
     let m5 = std::fs::read_to_string(root.join("crates/alacer-testing/tests/m5_exit_criteria.rs"))
         .expect("the m5 suite");
     assert!(
-        m5.contains("const EXPECTED_BENCH_COUNT: usize = 103;"),
+        m5.contains("const EXPECTED_BENCH_COUNT: usize = 108;"),
         "the m5 suite's corpus pin stands at 63"
     );
 

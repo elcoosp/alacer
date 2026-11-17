@@ -107,6 +107,9 @@ fn label_patch(label: &mut crate::Label, props: &ElementProps<'_>) -> bool {
 
 fn button_create(props: &ElementProps<'_>) -> crate::Button {
     let mut button = crate::Button::new(props.text("text").unwrap_or_default());
+    if let Some(description) = props.text("description") {
+        button = button.description(description);
+    }
     if let Some(handler) = props.handler("on_click") {
         button = button.on_click(handler);
     }
@@ -124,6 +127,12 @@ fn button_patch(button: &mut crate::Button, props: &ElementProps<'_>) -> bool {
     if let Some(text) = props.text("text") {
         button.set_label(text);
         visual = true;
+    }
+    // The description word (M95, ADR-0099): the tree's truth the pixels
+    // never carry — the patch tier queues `A11Y` from the prop class, the
+    // write itself reporting whether it moved (the idle-frame property).
+    if let Some(description) = props.text("description") {
+        button.set_description(Some(description.to_string()));
     }
     if let Some(color) = props.color("color") {
         button.set_fill(color);
@@ -296,6 +305,9 @@ fn checkbox_create(props: &ElementProps<'_>) -> crate::Checkbox {
     if let Some(handler) = props.flag_handler("on_toggle") {
         checkbox = checkbox.on_toggle(handler);
     }
+    if let Some(description) = props.text("description") {
+        checkbox = checkbox.description(description);
+    }
     if let Some(color) = props.color("accent") {
         checkbox = checkbox.accent(color);
     }
@@ -317,6 +329,12 @@ fn checkbox_patch(checkbox: &mut crate::Checkbox, props: &ElementProps<'_>) -> b
         checkbox.set_checked(checked);
         visual = true;
     }
+    // The description word (M95, ADR-0099): the tree's truth the pixels
+    // never carry — the patch tier queues `A11Y` from the prop class, the
+    // write itself reporting whether it moved (the idle-frame property).
+    if let Some(description) = props.text("description") {
+        checkbox.set_description(Some(description.to_string()));
+    }
     if let Some(handler) = props.flag_handler("on_toggle") {
         checkbox.set_on_toggle(Some(handler));
     }
@@ -327,6 +345,9 @@ fn text_input_create(props: &ElementProps<'_>) -> crate::TextInput {
     let mut input = crate::TextInput::new(props.text("name").unwrap_or_default());
     if let Some(placeholder) = props.text("placeholder") {
         input = input.placeholder(placeholder);
+    }
+    if let Some(description) = props.text("description") {
+        input = input.description(description);
     }
     if props.flag("secure") == Some(true) {
         input = input.secure();
@@ -347,8 +368,16 @@ fn text_input_patch(input: &mut crate::TextInput, props: &ElementProps<'_>) -> b
         visual = true;
     }
     if let Some(placeholder) = props.text("placeholder") {
-        input.set_placeholder(placeholder);
-        visual = true;
+        // The write that moved is the only mask the tier costs (the M21
+        // idle-frame property); the view's a11y-*also* class adds the
+        // re-announcement beside the paint (M96, ADR-0100).
+        visual |= input.set_placeholder(placeholder);
+    }
+    // The description word (M95, ADR-0099): the tree's truth the pixels
+    // never carry — the patch tier queues `A11Y` from the prop class, the
+    // write itself reporting whether it moved (the idle-frame property).
+    if let Some(description) = props.text("description") {
+        input.set_description(Some(description.to_string()));
     }
     if let Some(handler) = props.text_handler("on_changed") {
         input.set_on_changed(Some(handler));

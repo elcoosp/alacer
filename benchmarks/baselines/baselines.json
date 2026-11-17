@@ -14,7 +14,7 @@
     "cpu_count": "2",
     "fingerprint": "ee37c3efc5995352"
   },
-  "bench_count": 101,
+  "bench_count": 103,
   "benches": {
     "a11y/full_rebuild_1k": {
       "median_ns": 92499.67399115533,
@@ -620,6 +620,18 @@
       "median_ns": 580996.5398550725,
       "mean_ns": 585749.3872267971,
       "median_abs_dev_ns": 5851.913458081425,
+      "samples": 100
+    },
+    "toggle/snapshot_1k_tri_state": {
+      "median_ns": 208641.0598739496,
+      "mean_ns": 209187.9076594364,
+      "median_abs_dev_ns": 1477.1063705453475,
+      "samples": 100
+    },
+    "toggle/snapshot_1k_binary": {
+      "median_ns": 214997.55436698717,
+      "mean_ns": 216032.5110342147,
+      "median_abs_dev_ns": 2362.284927315886,
       "samples": 100
     }
   }

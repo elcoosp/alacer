@@ -242,6 +242,19 @@ impl Widget for Progress {
         Some(format!("{}", self.reported()))
     }
 
+    /// The range tier (M97, ADR-0101): the span the app declared — the
+    /// clamp every report rides — is the span the tree announces. The
+    /// step is the honest absence: a report declares where its value
+    /// lives, not how far one act moves it (there is no stepping door on
+    /// a read-only report), and the tier never guesses a default. The
+    /// widening `f32` → `f64` is exact.
+    fn value_range(&self) -> Option<alacer_core::ValueRange> {
+        Some(alacer_core::ValueRange::new(
+            f64::from(self.min),
+            f64::from(self.max),
+        ))
+    }
+
     fn paint(&self, ctx: &mut PaintCtx<'_>) {
         let width = ctx.size().width;
         let ratio = self.ratio();

@@ -595,7 +595,7 @@ fn m75_the_living_documents_re_agree() {
         "the README status reflects the living cut — the chain cannot drift"
     );
     assert!(
-        readme.contains("All 108 criterion cases"),
+        readme.contains("All 109 criterion cases"),
         "the README quotes the baselines.json bench_count the composition tier grew"
     );
     let architecture = read_workspace_file("docs/architecture.md");
@@ -612,7 +612,7 @@ fn m75_the_living_documents_re_agree() {
     ))
     .expect("the baselines parse");
     assert_eq!(
-        baselines["bench_count"], 108,
+        baselines["bench_count"], 109,
         "the published corpus carries the composition tier's pricing"
     );
 }

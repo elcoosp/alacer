@@ -1,10 +1,17 @@
-//! The checkbox: the todo canon's toggle control (M6).
+//! The checkbox: the todo canon's toggle control (M6), grown the tri-state
+//! summary (M94, ADR-0098). Three ways to toggle, one contract: a click,
+//! the Space key while focused, and the AccessKit default action all
+//! resolve the same state and request the same masks — `PAINT | A11Y` —
+//! so the mark repaints and the a11y tree re-announces the state. The
+//! widget never writes a11y directly (A1: masks are the only currency).
 //!
-//! Three ways to toggle, one contract: a click, the Space key while focused,
-//! and the AccessKit default action all flip the same bit and request the
-//! same masks — `PAINT | A11Y` — so the check mark repaints and the a11y
-//! tree re-announces the state. The widget never writes a11y directly (A1:
-//! masks are the only currency).
+//! The mixed state is a *summary*, never a third bit (ADR-0098's
+//! resolution rule): a checkbox holding `ToggleState::Mixed` — the
+//! select-all parent's "some of the children are" — answers every user
+//! door by resolving fully checked, the way every toolkit's tri-state
+//! parent behaves. Only the programmatic door
+//! ([`Checkbox::set_state`], the view-reconciliation path) writes the
+//! summary back; user doors resolve it.
 
 use alacer_core::color::Color;
 use alacer_core::events::{EventCtx, KeyEvent, PointerEvent};
@@ -13,11 +20,12 @@ use alacer_core::scene::PaintCtx;
 use alacer_core::style::{MeasureSpec, Style, TextSpec};
 use alacer_core::widget::{A11yAction, EventResponse, LabelSource, Role, ToggleState, Widget};
 
-/// A binary toggle with a mandatory name (ADR-5: an unnamed checkbox is
-/// unusable with a screen reader).
+/// A toggle with a mandatory name (ADR-5: an unnamed checkbox is
+/// unusable with a screen reader) and the full [`ToggleState`]
+/// vocabulary — the binary pair plus the mixed summary (M94, ADR-0098).
 pub struct Checkbox {
     name: String,
-    checked: bool,
+    state: ToggleState,
     enabled: bool,
     on_toggle: Option<Box<dyn FnMut(bool)>>,
     focused: bool,
@@ -37,7 +45,7 @@ impl Checkbox {
     pub fn new(name: impl Into<String>) -> Self {
         Self {
             name: name.into(),
-            checked: false,
+            state: ToggleState::Off,
             enabled: true,
             on_toggle: None,
             focused: false,
@@ -57,10 +65,21 @@ impl Checkbox {
         self
     }
 
-    /// Initial checked state.
+    /// Initial checked state — the binary door: `true` checked, `false`
+    /// unchecked. The tri-state summary rides [`Checkbox::state`].
     #[must_use]
     pub fn checked(mut self, checked: bool) -> Self {
-        self.checked = checked;
+        self.state = ToggleState::from(checked);
+        self
+    }
+
+    /// Initial tri-state (M94, ADR-0098): `ToggleState::Mixed` mounts the
+    /// summary — the select-all parent's "some of the children are".
+    /// Every user door resolves it (the resolution rule: the first press
+    /// lands fully checked); only [`Checkbox::set_state`] writes it back.
+    #[must_use]
+    pub fn state(mut self, state: ToggleState) -> Self {
+        self.state = state;
         self
     }
 
@@ -95,10 +114,25 @@ impl Checkbox {
         self
     }
 
-    /// Current checked state (test introspection).
+    /// Current checked state (test introspection): `true` only when the
+    /// box is fully checked — the mixed summary reads `false` here; read
+    /// [`Checkbox::toggle_state`] for the tri-state truth.
     #[must_use]
     pub const fn is_checked(&self) -> bool {
-        self.checked
+        matches!(self.state, ToggleState::On)
+    }
+
+    /// Whether the box holds the mixed summary (test introspection).
+    #[must_use]
+    pub const fn is_mixed(&self) -> bool {
+        matches!(self.state, ToggleState::Mixed)
+    }
+
+    /// The full tri-state the box carries (test introspection, M94
+    /// ADR-0098): the vocabulary the a11y tree announces.
+    #[must_use]
+    pub const fn toggle_state(&self) -> ToggleState {
+        self.state
     }
 
     /// The availability the widget reports — the same flag the M22
@@ -120,9 +154,18 @@ impl Checkbox {
     }
 
     /// Sets the checked state in place (view reconciliation). Fires no
-    /// handler — programmatic state, not a user toggle.
+    /// handler — programmatic state, not a user toggle. The tri-state
+    /// summary rides [`Checkbox::set_state`].
     pub fn set_checked(&mut self, checked: bool) {
-        self.checked = checked;
+        self.state = ToggleState::from(checked);
+    }
+
+    /// Sets the full tri-state in place (view reconciliation, M94
+    /// ADR-0098): the app's select-all write lands the summary the tree
+    /// announces. Fires no handler — programmatic state, never a user
+    /// door, so the resolution rule does not apply.
+    pub fn set_state(&mut self, state: ToggleState) {
+        self.state = state;
     }
 
     /// Replaces the accessible name in place (view reconciliation).
@@ -136,18 +179,25 @@ impl Checkbox {
         self.on_toggle = handler;
     }
 
-    /// The one toggle path: flip the bit, fire the handler with the new
-    /// state, request the masks the change costs. The availability tier
-    /// guards the funnel's single entry (M22, ADR-0028): an unavailable
-    /// checkbox refuses, never munges (the M11 rule).
+    /// The one toggle path: resolve the state, fire the handler with the
+    /// new checked flag, request the masks the change costs. The
+    /// availability tier guards the funnel's single entry (M22,
+    /// ADR-0028): an unavailable checkbox refuses, never munges (the M11
+    /// rule). The resolution rule (M94, ADR-0098): a mixed summary
+    /// resolves fully checked — the user's first press lands "all", the
+    /// resolved control toggles like any checkbox after it.
     fn toggle(&mut self, ctx: &mut EventCtx) {
         if !self.enabled {
             return;
         }
-        self.checked = !self.checked;
+        self.state = match self.state {
+            ToggleState::Off | ToggleState::Mixed => ToggleState::On,
+            ToggleState::On => ToggleState::Off,
+        };
         ctx.request(alacer_core::Change::PAINT.union(alacer_core::Change::A11Y));
+        let resolved = self.is_checked();
         if let Some(handler) = &mut self.on_toggle {
-            handler(self.checked);
+            handler(resolved);
         }
     }
 
@@ -188,7 +238,7 @@ impl Widget for Checkbox {
     }
 
     fn toggled(&self) -> Option<ToggleState> {
-        Some(ToggleState::from(self.checked))
+        Some(self.state)
     }
 
     /// The availability tier (M22, ADR-0028): the flag the a11y tree
@@ -218,13 +268,19 @@ impl Widget for Checkbox {
             palette.text_muted
         };
 
-        // The track: an outlined square; filled with the accent when checked.
+        // The track: an outlined square; filled with the accent whenever
+        // the box carries a state (the mixed summary fills like the
+        // checked pair — the dash tells the two apart, M94 ADR-0098).
         ctx.push_quad(alacer_core::scene::Quad {
             rect: alacer_core::geom::Rect::new(
                 Point::new(0.0, box_top),
                 alacer_core::geom::Size::new(box_side, box_side),
             ),
-            color: if self.checked { accent } else { palette.panel },
+            color: if self.state == ToggleState::Off {
+                palette.panel
+            } else {
+                accent
+            },
             corner_radius: 4.0,
             border_color: if self.focused { accent } else { palette.border },
             border_width: if self.focused { 2.0 } else { 1.5 },
@@ -233,7 +289,9 @@ impl Widget for Checkbox {
 
         // The check mark: two accent strokes drawn as quads — deterministic
         // pixels with no glyph dependency (snapshot corpus stays font-free).
-        if self.checked {
+        // The mixed summary draws the horizontal dash instead: the same
+        // quad discipline, the summary's own truth in pixels.
+        if self.state == ToggleState::On {
             let inset = box_side * 0.26;
             let stroke = 2.5;
             let left = Point::new(inset * 0.8, box_top + box_side * 0.52);
@@ -249,6 +307,17 @@ impl Widget for Checkbox {
             );
             ctx.push_quad(alacer_core::scene::Quad::filled(down, Color::WHITE));
             ctx.push_quad(alacer_core::scene::Quad::filled(up, Color::WHITE));
+        } else if self.state == ToggleState::Mixed {
+            let stroke = 2.5;
+            let dash_width = box_side * 0.5;
+            let dash = alacer_core::geom::Rect::new(
+                Point::new(
+                    (box_side - dash_width) * 0.5,
+                    box_top + (box_side - stroke) * 0.5,
+                ),
+                alacer_core::geom::Size::new(dash_width, stroke),
+            );
+            ctx.push_quad(alacer_core::scene::Quad::filled(dash, Color::WHITE));
         }
 
         // The label, right of the box.
@@ -285,12 +354,19 @@ impl Widget for Checkbox {
             return false;
         }
         if action == A11yAction::DefaultPress {
-            // The a11y path has no EventCtx; masks land on the next widget
-            // event or the frame's PAINT churn — the toggle itself is
-            // handler-first, exactly like Button's press path.
-            self.checked = !self.checked;
+            // The a11y path has no EventCtx; the dispatch funnel queues
+            // `PAINT | A11Y` itself when the door consumes — the toggle
+            // itself is handler-first, exactly like Button's press path.
+            // The resolution rule (M94, ADR-0098): the AT's press
+            // resolves a mixed summary fully checked, the same answer
+            // the pointer's and keyboard's doors give.
+            self.state = match self.state {
+                ToggleState::Off | ToggleState::Mixed => ToggleState::On,
+                ToggleState::On => ToggleState::Off,
+            };
+            let resolved = self.is_checked();
             if let Some(handler) = &mut self.on_toggle {
-                handler(self.checked);
+                handler(resolved);
             }
             return true;
         }
@@ -350,7 +426,7 @@ mod tests {
     use alacer_core::events::{EventCtx, Key, KeyEvent, KeyState, Modifiers, PointerEvent};
     use alacer_core::geom::Point;
     use alacer_core::mask::Change;
-    use alacer_core::widget::{A11yAction, EventResponse, Role, Widget};
+    use alacer_core::widget::{A11yAction, EventResponse, Role, ToggleState, Widget};
 
     fn space() -> KeyEvent {
         KeyEvent {
@@ -469,6 +545,81 @@ mod tests {
     fn table_slot_defaults_to_none() {
         let checkbox = Checkbox::new("Done");
         assert_eq!(checkbox.table_slot(), None);
+    }
+
+    #[test]
+    fn the_mixed_summary_carries_and_resolves_by_every_door() {
+        // M94, ADR-0098: the summary mounts, the tree announces it, and
+        // every user door resolves it fully checked — never a third bit.
+        let mut checkbox = Checkbox::new("Select all").state(ToggleState::Mixed);
+        assert_eq!(checkbox.toggle_state(), ToggleState::Mixed);
+        assert!(checkbox.is_mixed());
+        assert!(!checkbox.is_checked(), "the summary is not the bool pair");
+
+        // The AT's press resolves.
+        assert!(checkbox.on_a11y_action(A11yAction::DefaultPress));
+        assert_eq!(
+            checkbox.toggle_state(),
+            ToggleState::On,
+            "the AT's press lands fully checked"
+        );
+
+        // A fresh summary resolves through the pointer's click.
+        let mut checkbox = Checkbox::new("Select all").state(ToggleState::Mixed);
+        let mut ctx = EventCtx::new();
+        let down = PointerEvent::Down {
+            position: Point::new(4.0, 4.0),
+            button: alacer_core::events::MouseButton::Left,
+            click_count: 1,
+        };
+        let up = PointerEvent::Up {
+            position: Point::new(4.0, 4.0),
+            button: alacer_core::events::MouseButton::Left,
+        };
+        let _ = checkbox.on_pointer_event(&mut ctx, &down);
+        let _ = checkbox.on_pointer_event(&mut ctx, &up);
+        assert_eq!(checkbox.toggle_state(), ToggleState::On);
+
+        // And the keyboard's Space resolves it too.
+        let mut checkbox = Checkbox::new("Select all").state(ToggleState::Mixed);
+        let mut ctx = EventCtx::new();
+        let _ = checkbox.on_key_event(&mut ctx, &space());
+        assert_eq!(checkbox.toggle_state(), ToggleState::On);
+    }
+
+    #[test]
+    fn the_resolution_fires_the_handler_with_the_resolved_bool() {
+        let seen = std::rc::Rc::new(std::cell::Cell::new(None));
+        let sink = std::rc::Rc::clone(&seen);
+        let mut checkbox = Checkbox::new("Select all")
+            .state(ToggleState::Mixed)
+            .on_toggle(move |checked| sink.set(Some(checked)));
+        let mut ctx = EventCtx::new();
+        let _ = checkbox.on_key_event(&mut ctx, &space());
+        assert_eq!(
+            seen.get(),
+            Some(true),
+            "the handler saw the resolved boolean, never a third bit"
+        );
+    }
+
+    #[test]
+    fn programmatic_set_state_writes_the_summary_without_a_door() {
+        let mut checkbox = Checkbox::new("Select all").on_toggle(|_| panic!("no user door ran"));
+        checkbox.set_state(ToggleState::Mixed);
+        assert_eq!(checkbox.toggle_state(), ToggleState::Mixed);
+        assert!(
+            checkbox.is_mixed(),
+            "the programmatic write lands the summary verbatim"
+        );
+        checkbox.set_checked(true);
+        assert_eq!(checkbox.toggle_state(), ToggleState::On);
+        checkbox.set_checked(false);
+        assert_eq!(
+            checkbox.toggle_state(),
+            ToggleState::Off,
+            "the binary door keeps its own contract"
+        );
     }
 
     #[test]

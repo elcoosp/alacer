@@ -580,6 +580,8 @@ impl Widget for Slider {
             A11yAction::DefaultPress
             | A11yAction::ScrollUp(_)
             | A11yAction::ScrollDown(_)
+            | A11yAction::ScrollLeft(_)
+            | A11yAction::ScrollRight(_)
             | A11yAction::ReplaceSelectedText(_)
             | A11yAction::SetTextSelection(_) => return false,
         };

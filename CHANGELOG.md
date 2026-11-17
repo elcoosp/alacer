@@ -7,6 +7,25 @@ generated from Conventional Commits by [git-cliff](https://git-cliff.org).
 
 ## [Unreleased]
 
+### M90 — the handle grows the x half (ADR-0094)
+
+- The app's own two-axis handle door: `ListHandle::scroll_to_x` beside `scroll_to` — ADR-0093's third re-open rule cashed, the x ask priced by the same clamp arithmetic every door answers by (the declared width span, the named walls, the honest refusals).
+- The record is the same named-wall record: the x story rides its horizontal half (ADR-0056's axis rule) beside the vertical fields riding the identity answer — the axis unasked holds the offset it had, delivered, no ask beside it (the M89 content door's own convention). The stamps ride their honest absence: the app door knows no node id (the M43 rule at the x half).
+- The visible motion composes at the mutate-guard `request` seam (the M23 shape, ADR-0093's call-site composition rule): `arena.mutate(node)` + `request(PAINT | A11Y)` — the seam every programmatic scroll surfaces through; the bare handle door's record half is the M50 suite's own shape.
+- A vertical-only list answers `no_scrollable_content` against its undeclared span — the honest wall met at the handle's own door; a non-finite ask refuses before the arithmetic (`non_finite_ask`).
+- The corpus grew 95 → 96 by the coordinated rule: `scroll/route_100_handle_scroll_x_1k` — the app's own x door driven the way apps drive it, one hundred wall-to-wall asks, the gate holding the handle door in the offset-priced class. The m-suite pins re-agree at 96.
+- `examples/handle_scroll_x.rs` drives the beats from the consumer side: the landing composed at the seam, the record's horizontal half, the wall pinning a past run, and the vertical-only refusal.
+
+### M91 — the AT's horizontal vocabulary (ADR-0095)
+
+- The action enum grew the pair beside the unit scrolls: `A11yAction::ScrollLeft(ScrollUnit)`/`A11yAction::ScrollRight(ScrollUnit)` — ADR-0093's second re-open rule cashed, the same unit contract the vertical pair travels by (an item is one line, a page is the viewport's *width*). Every variant gained its consuming widget in the same cut (the enum's own rule).
+- The scroll area consumes the pair by the same clamp arithmetic on the declared width span: the record's species names the ask (`ScrollAction::ScrollLeft`/`ScrollRight`, the wire tags `scroll_left`/`scroll_right` flowing additively), the horizontal fact carries the story beside the vertical identity, and the unit rides the record exactly as the vertical pair's asks ride theirs.
+- The boundary's mapping carries AccessKit's pair through (`Action::ScrollLeft`/`Action::ScrollRight`, the request's unit carried through) — the vocabulary the AT's reader always spoke, never dropped unmapped again.
+- The value tier refuses the pair in the same cut: the slider, the progress bar, and the text field refuse the horizontal ask — a question outside the tier is not a tier fact (the ADR-0046 rule), the refusal arms growing with the enum.
+- The vertical-only container refuses the horizontal ask honestly (`no_scrollable_content`), the vertical vocabulary beside it landing untouched — the pair grew beside the vertical vocabulary, never over it (the M89 contract re-pinned at this cut).
+- The corpus grew 96 → 97 by the coordinated rule: `a11y_action/route_100_horizontal_actions_1k` — the horizontal pair routed through pass 10 on the same 1,000-node arena at the same worst-case target, the gate holding it in the mixed route's cost class. The m-suite pins re-agree at 97.
+- `examples/at_horizontal.rs` drives the beats from the consumer side: the walk by its unit, the record's species, the vertical-only refusal, and the value tier's refusal.
+
 ### M89 — the two-axis door (ADR-0093)
 
 - The bring-into-view door grew the axis beside the ask: `BringIntoViewAsk` carries both halves, `Widget::bring_into_view` answers each axis by its own declared span, and `ScrollLanding` reports the horizontal axis's own answer beside the vertical fields.

@@ -53,14 +53,24 @@
       "numerator": "derive/snapshot_1k_derived",
       "denominator": "derive/snapshot_1k_handwritten",
       "op": "<=",
-      "budget": 1.1
+      "budget": 1.1,
+      "cite": "architecture \u00a719 Q5's own option cashed, ADR-0096: the derive is the hand-written impl \u2014 the generated pair riding the same frame"
     },
     {
       "id": "recording_wrapper_overhead",
       "numerator": "recording/wrapper_1k_dirty_10pct",
       "denominator": "recording/bare_wrapper_1k_dirty_10pct",
       "op": "<=",
-      "budget": 1.15
+      "budget": 1.15,
+      "cite": "the instrument prices itself, never the engine, ADR-0097: the wrapper's cost at the route's noise floor (the A7 rule at the layout tier)"
+    },
+    {
+      "id": "toggle_tri_state_overhead",
+      "numerator": "toggle/snapshot_1k_tri_state",
+      "denominator": "toggle/snapshot_1k_binary",
+      "op": "<=",
+      "budget": 1.1,
+      "cite": "the summary rides the binary toggle's frame, ADR-0098: the dash the painter draws is the only difference the pipeline prices"
     }
   ],
   "regressions": [
@@ -567,6 +577,16 @@
     {
       "id": "recording_bare_wrapper_1k_dirty_10pct",
       "baseline": "recording/bare_wrapper_1k_dirty_10pct",
+      "scope": "same-host"
+    },
+    {
+      "id": "toggle_snapshot_1k_tri_state",
+      "baseline": "toggle/snapshot_1k_tri_state",
+      "scope": "same-host"
+    },
+    {
+      "id": "toggle_snapshot_1k_binary",
+      "baseline": "toggle/snapshot_1k_binary",
       "scope": "same-host"
     }
   ],

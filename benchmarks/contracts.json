@@ -87,6 +87,14 @@
       "op": "<=",
       "budget": 1.25,
       "cite": "the hint rides the snapshot the name rides, ADR-0100: the second bounded copy the node builds beside the label's own \u2014 the measured ratio 1.19x, the budget pricing the measured class"
+    },
+    {
+      "id": "range_snapshot_overhead",
+      "numerator": "range/snapshot_1k_ranged",
+      "denominator": "toggle/snapshot_1k_binary",
+      "op": "<=",
+      "budget": 1.25,
+      "cite": "the span rides the snapshot the name rides, ADR-0101: the copy the node builds beside the label's own \u2014 the measured ratio 1.16x, the budget pricing the measured class"
     }
   ],
   "regressions": [
@@ -628,6 +636,11 @@
     {
       "id": "inspect_tick_with_recorder_attached",
       "baseline": "inspect/tick_with_recorder_attached",
+      "scope": "same-host"
+    },
+    {
+      "id": "range_snapshot_1k_ranged",
+      "baseline": "range/snapshot_1k_ranged",
       "scope": "same-host"
     }
   ],

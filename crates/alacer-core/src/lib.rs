@@ -187,8 +187,8 @@ pub mod prelude {
     pub use crate::theme::{CanonPalette, Palette, ThemeSeam};
     pub use crate::trail::{TRAIL_RING_CAP, TrailLog};
     pub use crate::widget::{
-        BringIntoViewAsk, EventResponse, LabelSource, Role, ScrollAxisLanding, TableSlot,
-        TextSelection, ToggleState, Widget,
+        BringIntoViewAsk, EventResponse, LabelSource, Role, ScrollAxisLanding, ScrollOrientation,
+        ScrollUnit, TableSlot, TextSelection, ToggleState, Widget,
     };
 }
 

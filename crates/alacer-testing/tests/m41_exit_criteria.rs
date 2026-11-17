@@ -334,7 +334,7 @@ fn m41_the_living_documents_re_agree_at_m41() {
     // pins moving M41 → M43 and 48 → 50 across the chain — M42 and
     // M43 landing in one cut).
     assert!(
-        readme.contains("M0 through M94") && readme.contains("ninety-nine decision records"),
+        readme.contains("M0 through M96") && readme.contains("ninety-nine decision records"),
         "the README's status block and count re-agree at M43"
     );
     assert!(

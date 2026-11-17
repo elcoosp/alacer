@@ -293,7 +293,7 @@ fn m11_the_corpus_grows_to_49_by_the_coordinated_rule() {
     ] {
         let source = read_workspace_file(suite);
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 95;"),
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 97;"),
             "{suite} must pin the 94-case corpus"
         );
     }

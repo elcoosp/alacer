@@ -351,6 +351,43 @@ pub enum TableSlot {
     },
 }
 
+/// The bounded scalar's declared span (M97, ADR-0101): the range every
+/// value-tier write funnels through, carried neutrally to the a11y sink.
+/// `alacer-a11y` maps `min`/`max` onto AccessKit's `MinNumericValue` /
+/// `MaxNumericValue` properties — ARIA's `aria-valuemin` /
+/// `aria-valuemax` — and `step`, when the widget declares one, onto
+/// `NumericValueStep`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ValueRange {
+    /// The range's lower wall: the smallest value every door lands on.
+    pub min: f64,
+    /// The range's upper wall: the largest value every door lands on.
+    pub max: f64,
+    /// The amount one step moves (`None` when the widget declares no
+    /// step — the honest absence, never a guessed default).
+    pub step: Option<f64>,
+}
+
+impl ValueRange {
+    /// A span with no step: the report half's shape (the progress
+    /// declares where its value lives, not how far one act moves it).
+    #[must_use]
+    pub const fn new(min: f64, max: f64) -> Self {
+        Self {
+            min,
+            max,
+            step: None,
+        }
+    }
+
+    /// Attaches the step one act moves (the slider's snap arithmetic).
+    #[must_use]
+    pub const fn with_step(mut self, step: f64) -> Self {
+        self.step = Some(step);
+        self
+    }
+}
+
 /// What happened to a routed event.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum EventResponse {
@@ -598,6 +635,25 @@ pub trait Widget: 'static {
     /// placeholder tier): a field with no hint announces nothing, never
     /// a guess — an empty string is the absence, not an empty hint.
     fn placeholder(&self) -> Option<&str> {
+        None
+    }
+
+    /// The widget's declared value range for the a11y tree (M97,
+    /// ADR-0101): the span every value-tier write funnels through — the
+    /// clamp-and-snap arithmetic the drag, the arrows, and the AT's own
+    /// acts all ride — carried as AccessKit's `MinNumericValue` /
+    /// `MaxNumericValue` properties beside the `NumericValueStep` the
+    /// slider declares (ARIA's `aria-valuemin` / `aria-valuemax` / the
+    /// step). Through M96 the tree said the value ("42") and not the
+    /// span — whether that was the middle of 0..100 or the top of
+    /// 0..50 — the declared-but-unreported gap, the M94 pattern at the
+    /// range tier.
+    ///
+    /// `None` is the honest absence (the ADR-0087 presence rule at the
+    /// range tier): a widget with no span announces nothing, never a
+    /// guessed default. The value tier's controls override this; every
+    /// other role inherits the default.
+    fn value_range(&self) -> Option<ValueRange> {
         None
     }
 

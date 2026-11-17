@@ -169,9 +169,12 @@ impl LabelSource {
     }
 }
 
-/// How far an [`A11yAction::ScrollUp`] or [`A11yAction::ScrollDown`] should
+/// How far an [`A11yAction::ScrollUp`], [`A11yAction::ScrollDown`],
+/// [`A11yAction::ScrollLeft`], or [`A11yAction::ScrollRight`] should
 /// travel, normalized across platforms (the AccessKit `ScrollUnit` shape,
-/// mirrored in core so the DAG stays adapter-free — ADR-9).
+/// mirrored in core so the DAG stays adapter-free — ADR-9). Since M91
+/// (ADR-0095) the unit travels the horizontal pair too: an item is one
+/// line, a page is the viewport — the viewport's *width* on the x axis.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScrollUnit {
     /// A single item of a list (one line, the platform's 40 px wheel notch).
@@ -252,6 +255,18 @@ pub enum A11yAction {
     ScrollUp(ScrollUnit),
     /// Scroll down by `unit` (the AT's scroll command on a scroll area).
     ScrollDown(ScrollUnit),
+    /// Scroll left by `unit` (M91, ADR-0095): the AT's horizontal
+    /// vocabulary beside the vertical pair — the same unit contract
+    /// (an item is one line, a page is the viewport's width), consumed
+    /// by the scroll area's own clamp arithmetic on the declared width
+    /// span.
+    ScrollLeft(ScrollUnit),
+    /// Scroll right by `unit` (M91, ADR-0095): the AT's horizontal
+    /// vocabulary beside the vertical pair — the same unit contract
+    /// (an item is one line, a page is the viewport's width), consumed
+    /// by the scroll area's own clamp arithmetic on the declared width
+    /// span.
+    ScrollRight(ScrollUnit),
     /// Replace the widget's whole value and reset the selection (M11,
     /// ADR-0017) — the AccessKit `SetValue` mapping, faithful to the AT's
     /// request.
@@ -279,6 +294,8 @@ impl A11yAction {
             Self::Decrement => "decrement",
             Self::ScrollUp(_) => "scroll_up",
             Self::ScrollDown(_) => "scroll_down",
+            Self::ScrollLeft(_) => "scroll_left",
+            Self::ScrollRight(_) => "scroll_right",
             Self::SetValue(_) => "set_value",
             Self::ReplaceSelectedText(_) => "replace_selected_text",
             Self::SetTextSelection(_) => "set_text_selection",

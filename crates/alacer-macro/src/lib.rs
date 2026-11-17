@@ -1,5 +1,7 @@
 //! The `rsx!` view DSL compiler (§13.1, ADR-0000: the proc-macro lands with
-//! M1 on top of the reconciliation algorithm).
+//! M1 on top of the reconciliation algorithm) and the `Widget` derive
+//! (§11.1, ADR-0096: the a11y contract's required pair generated at the
+//! type).
 //!
 //! Grammar (M1 subset, documented in ADR-0007):
 //!
@@ -35,6 +37,277 @@ pub fn rsx(input: TokenStream) -> TokenStream {
     let tokens: TokenStream2 = input.into();
     let expanded = compile_root(&tokens).unwrap_or_else(syn::Error::into_compile_error);
     expanded.into()
+}
+
+/// Generates the [`Widget`](::alacer_core::Widget) contract's required pair —
+/// the semantic role and the accessible name — plus the `Any` upcast, from
+/// two `#[widget(...)]` attributes on the struct (§11.1, ADR-0096: the
+/// `#[derive(Widget)]` form architecture §19 Q5 pre-registered as the
+/// ergonomics option):
+///
+/// ```ignore
+/// #[derive(Widget)]
+/// #[widget(role = "button", label = "Save")]
+/// struct SaveButton;
+///
+/// #[derive(Widget)]
+/// #[widget(role = "container", label = from_children)]
+/// struct Panel;
+/// ```
+///
+/// `role` speaks `Role::name`'s vocabulary — the words the whole framework
+/// prints (`button`, `container`, `text_input`, `scroll_area`, …) — and is
+/// required: a derived widget never guesses a semantic. `label` is required
+/// too, in one of two honest forms: a string (`LabelSource::text`), or the
+/// `from_children` keyword (`LabelSource::FromChildren`, the container
+/// aggregation contract Column and Table declare themselves). Every other
+/// trait method rides its default, so a derived widget is exactly as honest
+/// as the hand-written one beside it — reachable, named, and refused by the
+/// same answers.
+///
+/// # Panics
+///
+/// Never panics: malformed input is reported as a compile error at the
+/// offending span (the ADR-0025 diagnostic species — the error names what
+/// stood where, and the fix rides the message).
+#[proc_macro_derive(Widget, attributes(widget))]
+pub fn widget(input: TokenStream) -> TokenStream {
+    let tokens: TokenStream2 = input.into();
+    let expanded = syn::parse2::<syn::DeriveInput>(tokens)
+        .and_then(|input| expand_widget_derive(&input))
+        .unwrap_or_else(syn::Error::into_compile_error);
+    expanded.into()
+}
+
+/// One `#[widget(...)]` attribute's parsed answer: the role word and the
+/// name form, carried with the spans the errors quote.
+#[derive(Default)]
+struct WidgetArgs {
+    /// `role = "…"` — the variant word and the span it stood at.
+    role: Option<(String, proc_macro2::Span)>,
+    /// `label = "…"` or `label = from_children`, with the span it stood at.
+    label: Option<(LabelForm, proc_macro2::Span)>,
+}
+
+/// The two honest name forms the derive speaks.
+enum LabelForm {
+    /// A fixed-text source (`LabelSource::text`).
+    Text(String),
+    /// The container aggregation contract (`LabelSource::FromChildren`).
+    FromChildren,
+}
+
+impl Parse for WidgetArgs {
+    fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
+        let mut args = Self::default();
+        while !input.is_empty() {
+            let key: proc_macro2::Ident = input.parse().map_err(|_| {
+                syn::Error::new(
+                    input.span(),
+                    "the `#[widget]` attribute takes `role = \"...\"` and \
+                     `label = \"...\" | from_children` entries, comma-separated; \
+                     help: every entry is a `key = value` pair",
+                )
+            })?;
+            let _eq: syn::Token![=] = input.parse()?;
+            match key.to_string().as_str() {
+                "role" => {
+                    if args.role.is_some() {
+                        return Err(syn::Error::new(
+                            key.span(),
+                            "one `role` per widget: the semantic is declared once",
+                        ));
+                    }
+                    let word: syn::LitStr = input.parse().map_err(|_| {
+                        syn::Error::new(
+                            key.span(),
+                            "the role is a string literal naming `Role::name`'s \
+                                 vocabulary; help: `#[widget(role = \"button\")]`",
+                        )
+                    })?;
+                    args.role = Some((word.value(), word.span()));
+                }
+                "label" => {
+                    if args.label.is_some() {
+                        return Err(syn::Error::new(
+                            key.span(),
+                            "one `label` per widget: the name is declared once",
+                        ));
+                    }
+                    if input.peek(syn::LitStr) {
+                        let text: syn::LitStr = input.parse()?;
+                        args.label = Some((LabelForm::Text(text.value()), text.span()));
+                    } else if input.peek(syn::Ident) {
+                        let keyword: proc_macro2::Ident = input.parse()?;
+                        if keyword == "from_children" {
+                            args.label = Some((LabelForm::FromChildren, keyword.span()));
+                        } else {
+                            return Err(syn::Error::new(
+                                keyword.span(),
+                                "the label is a string literal or the `from_children` \
+                                 keyword; help: containers aggregate their descendants' \
+                                 names with `#[widget(label = from_children)]`",
+                            ));
+                        }
+                    } else {
+                        return Err(syn::Error::new(
+                            key.span(),
+                            "the label is a string literal or the `from_children` keyword",
+                        ));
+                    }
+                }
+                other => {
+                    return Err(syn::Error::new(
+                        key.span(),
+                        format!(
+                            "unknown `#[widget]` entry `{other}`; \
+                             help: the attribute takes `role` and `label`"
+                        ),
+                    ));
+                }
+            }
+            if !input.is_empty() {
+                let _: syn::Token![,] = input.parse()?;
+            }
+        }
+        Ok(args)
+    }
+}
+
+/// The attribute word → the [`Role`](::alacer_core::Role) variant: the
+/// vocabulary is `Role::name`'s own — the words the snapshot's role field,
+/// the CI walker's diagnostics, and the whole framework print.
+fn role_variant(word: &str, span: proc_macro2::Span) -> syn::Result<proc_macro2::Ident> {
+    let variant = match word {
+        "decoration" => "Decoration",
+        "container" => "Container",
+        "label" => "Label",
+        "button" => "Button",
+        "text_input" => "TextInput",
+        "scroll_area" => "ScrollArea",
+        "list_item" => "ListItem",
+        "list" => "List",
+        "checkbox" => "CheckBox",
+        "slider" => "Slider",
+        "progress_indicator" => "ProgressIndicator",
+        "table" => "Table",
+        "table_row" => "TableRow",
+        "table_cell" => "TableCell",
+        "column_header" => "ColumnHeader",
+        "canvas" => "Canvas",
+        // The pipeline's reserved region is never a widget's role: the
+        // pipeline builds the node itself (§11.6, ADR-0024) — the refusal
+        // names the rule, not just the word.
+        "live_region" => {
+            return Err(syn::Error::new(
+                span,
+                "`live_region` is never a widget's role: the pipeline builds the \
+                 live region itself (ADR-0024); help: name the widget's own \
+                 semantic — the vocabulary is `Role::name`'s",
+            ));
+        }
+        other => {
+            return Err(syn::Error::new(
+                span,
+                format!(
+                    "unknown role `{other}`; help: the derive speaks `Role::name`'s \
+                     vocabulary — decoration, container, label, button, text_input, \
+                     scroll_area, list_item, list, checkbox, slider, \
+                     progress_indicator, table, table_row, table_cell, \
+                     column_header, canvas"
+                ),
+            ));
+        }
+    };
+    Ok(proc_macro2::Ident::new(variant, span))
+}
+
+/// The derive's expansion: the required pair (`role`, `label`) and the `Any`
+/// upcast in its documented `{ self }` shape — and nothing else, every other
+/// method riding the trait's own default.
+fn expand_widget_derive(input: &syn::DeriveInput) -> syn::Result<TokenStream2> {
+    let name = &input.ident;
+    if !matches!(input.data, syn::Data::Struct(_)) {
+        return Err(syn::Error::new(
+            name.span(),
+            "the Widget derive takes a struct, found an enum or union; \
+             help: name the widget's fields on a struct",
+        ));
+    }
+    if !input.generics.params.is_empty() || input.generics.where_clause.is_some() {
+        return Err(syn::Error::new(
+            name.span(),
+            "the Widget derive takes a plain struct — no generics yet: the \
+             generic impl would need bounds the attribute cannot express; \
+             help: derive on the concrete type",
+        ));
+    }
+
+    // Fold every `#[widget(...)]` attribute's entries; duplicates refuse
+    // with the second occurrence's span (declared once, named once).
+    let mut args = WidgetArgs::default();
+    for attribute in &input.attrs {
+        if !attribute.path().is_ident("widget") {
+            continue;
+        }
+        let parsed: WidgetArgs = attribute.parse_args()?;
+        if let Some(role) = parsed.role {
+            if args.role.is_some() {
+                return Err(syn::Error::new(
+                    role.1,
+                    "one `role` per widget: the semantic is declared once",
+                ));
+            }
+            args.role = Some(role);
+        }
+        if let Some(label) = parsed.label {
+            if args.label.is_some() {
+                return Err(syn::Error::new(
+                    label.1,
+                    "one `label` per widget: the name is declared once",
+                ));
+            }
+            args.label = Some(label);
+        }
+    }
+
+    let Some((role_word, role_span)) = args.role else {
+        return Err(syn::Error::new(
+            name.span(),
+            "the Widget derive needs the widget's semantic role: add \
+             `#[widget(role = \"...\")]`; help: the vocabulary is `Role::name`'s \
+             — button, container, label, text_input, scroll_area, …",
+        ));
+    };
+    let role = role_variant(&role_word, role_span)?;
+
+    let label = match args.label {
+        Some((LabelForm::Text(text), _)) => quote! { ::alacer_core::LabelSource::text(#text) },
+        Some((LabelForm::FromChildren, _)) => quote! { ::alacer_core::LabelSource::FromChildren },
+        None => {
+            return Err(syn::Error::new(
+                name.span(),
+                "the Widget derive needs the widget's accessible name: add \
+                 `#[widget(label = \"...\")]`, or `#[widget(label = from_children)]` \
+                 when the container's name aggregates its descendants; help: an \
+                 unnamed widget is the a11y walker's offender (§11.1)",
+            ));
+        }
+    };
+
+    Ok(quote! {
+        impl ::alacer_core::Widget for #name {
+            fn role(&self) -> ::alacer_core::Role {
+                ::alacer_core::Role::#role
+            }
+            fn label(&self) -> ::alacer_core::LabelSource {
+                #label
+            }
+            fn as_any_mut(&mut self) -> &mut dyn ::std::any::Any {
+                self
+            }
+        }
+    })
 }
 
 /// One compiled body item: a prop, a child, or accumulated text content.
@@ -478,5 +751,222 @@ mod expansion_debug {
             "the if chain is one child"
         );
         assert!(if_tree.contains("if show"), "the condition survives");
+    }
+}
+
+#[cfg(test)]
+mod derive_expansion_debug {
+    use super::expand_widget_derive;
+
+    fn expand(source: &str) -> String {
+        let input: syn::DeriveInput = syn::parse_str(source).expect("derive input parses");
+        expand_widget_derive(&input).expect("expansion").to_string()
+    }
+
+    #[test]
+    fn the_pair_expands_to_the_required_trait_methods() {
+        let expanded = expand("#[widget(role = \"button\", label = \"Save\")] struct SaveButton;")
+            .replace(' ', "");
+        assert!(
+            expanded.contains("impl::alacer_core::WidgetforSaveButton"),
+            "the impl targets the named struct: {expanded}"
+        );
+        assert!(
+            expanded.contains("->::alacer_core::Role{::alacer_core::Role::Button}"),
+            "the role lands verbatim from the vocabulary: {expanded}"
+        );
+        assert!(
+            expanded.contains(
+                "->::alacer_core::LabelSource{::alacer_core::LabelSource::text(\"Save\")}"
+            ),
+            "a string label rides LabelSource::text: {expanded}"
+        );
+        assert!(
+            expanded.contains("fnas_any_mut(&mutself)->&mutdyn::std::any::Any{self}"),
+            "the Any hatch rides the trait's documented identity shape: {expanded}"
+        );
+    }
+
+    #[test]
+    fn every_role_word_maps_to_its_variant() {
+        let words = [
+            ("decoration", "Decoration"),
+            ("container", "Container"),
+            ("label", "Label"),
+            ("button", "Button"),
+            ("text_input", "TextInput"),
+            ("scroll_area", "ScrollArea"),
+            ("list_item", "ListItem"),
+            ("list", "List"),
+            ("checkbox", "CheckBox"),
+            ("slider", "Slider"),
+            ("progress_indicator", "ProgressIndicator"),
+            ("table", "Table"),
+            ("table_row", "TableRow"),
+            ("table_cell", "TableCell"),
+            ("column_header", "ColumnHeader"),
+            ("canvas", "Canvas"),
+        ];
+        for (word, variant) in words {
+            let source = format!("#[widget(role = \"{word}\", label = \"x\")] struct W;");
+            let expanded = expand(&source).replace(' ', "");
+            assert!(
+                expanded.contains(&format!("::alacer_core::Role::{variant}")),
+                "`{word}` maps to Role::{variant}: {expanded}"
+            );
+        }
+    }
+
+    #[test]
+    fn from_children_rides_the_container_contract() {
+        let expanded =
+            expand("#[widget(role = \"container\", label = from_children)] struct Panel;")
+                .replace(' ', "");
+        assert!(
+            expanded.contains("::alacer_core::LabelSource::FromChildren"),
+            "the keyword emits the container aggregation contract: {expanded}"
+        );
+    }
+
+    #[test]
+    fn unit_structs_and_tuple_structs_take_the_pair() {
+        for source in [
+            "#[widget(role = \"label\", label = \"n\")] struct Unit;",
+            "#[widget(role = \"label\", label = \"n\")] struct Tuple(f32);",
+            "#[widget(role = \"label\", label = \"n\")] struct Named { size: f32 }",
+        ] {
+            let expanded = expand(source).replace(' ', "");
+            assert!(
+                expanded.contains("::alacer_core::Role::Label"),
+                "every struct shape expands: {source}"
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod derive_tests {
+    use super::expand_widget_derive;
+
+    fn expand(source: &str) -> Result<String, String> {
+        let input: syn::DeriveInput = syn::parse_str(source).expect("derive input parses");
+        expand_widget_derive(&input)
+            .map(|tokens| tokens.to_string())
+            .map_err(|error| error.to_string())
+    }
+
+    fn expect_err(result: Result<String, String>) -> String {
+        match result {
+            Ok(tokens) => panic!("expected an error, got an expansion: {tokens}"),
+            Err(error) => error,
+        }
+    }
+
+    #[test]
+    fn a_missing_role_names_the_attribute() {
+        let error = expect_err(expand("#[widget(label = \"x\")] struct W;"));
+        assert!(
+            error.contains("role"),
+            "the error names the attribute: {error}"
+        );
+        assert!(error.contains("help:"), "the fix rides the error: {error}");
+    }
+
+    #[test]
+    fn a_missing_label_names_the_two_honest_forms() {
+        let error = expect_err(expand("#[widget(role = \"container\")] struct W;"));
+        assert!(
+            error.contains("label"),
+            "the error names the attribute: {error}"
+        );
+        assert!(
+            error.contains("from_children"),
+            "the container form is offered: {error}"
+        );
+    }
+
+    #[test]
+    fn an_unknown_role_names_the_vocabulary() {
+        let error = expect_err(expand(
+            "#[widget(role = \"toolbar\", label = \"x\")] struct W;",
+        ));
+        assert!(
+            error.contains("toolbar"),
+            "the error quotes the word: {error}"
+        );
+        assert!(
+            error.contains("button"),
+            "the vocabulary rides the error: {error}"
+        );
+    }
+
+    #[test]
+    fn live_region_is_refused_with_its_reason() {
+        let error = expect_err(expand(
+            "#[widget(role = \"live_region\", label = \"x\")] struct W;",
+        ));
+        assert!(
+            error.contains("live region"),
+            "the reason is the ADR-0024 rule: {error}"
+        );
+    }
+
+    #[test]
+    fn a_duplicate_role_is_named() {
+        let error = expect_err(expand(
+            "#[widget(role = \"button\", label = \"x\")] #[widget(role = \"slider\")] struct W;",
+        ));
+        assert!(
+            error.contains("one `role`"),
+            "the duplicate is named: {error}"
+        );
+    }
+
+    #[test]
+    fn an_unknown_widget_key_is_named() {
+        let error = expect_err(expand(
+            "#[widget(role = \"button\", label = \"x\", paint = \"y\")] struct W;",
+        ));
+        assert!(
+            error.contains("paint"),
+            "the unknown key is quoted: {error}"
+        );
+    }
+
+    #[test]
+    fn a_non_string_role_names_the_species() {
+        let error = expect_err(expand("#[widget(role = button, label = \"x\")] struct W;"));
+        assert!(
+            error.contains("string literal"),
+            "the expected species is named: {error}"
+        );
+    }
+
+    #[test]
+    fn a_non_string_label_names_the_species() {
+        let error = expect_err(expand("#[widget(role = \"button\", label = 42)] struct W;"));
+        assert!(
+            error.contains("string literal") || error.contains("from_children"),
+            "the expected species is named: {error}"
+        );
+    }
+
+    #[test]
+    fn enums_and_unions_are_refused() {
+        let error = expect_err(expand(
+            "#[widget(role = \"button\", label = \"x\")] enum W { A }",
+        ));
+        assert!(error.contains("struct"), "the species is named: {error}");
+    }
+
+    #[test]
+    fn generics_are_refused_with_the_limitation_named() {
+        let error = expect_err(expand(
+            "#[widget(role = \"button\", label = \"x\")] struct W<T> { value: T }",
+        ));
+        assert!(
+            error.contains("generic"),
+            "the limitation is named, not stumbled into: {error}"
+        );
     }
 }

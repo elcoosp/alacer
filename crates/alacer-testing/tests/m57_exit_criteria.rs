@@ -206,7 +206,7 @@ fn m57_the_living_documents_re_agree() {
     // the demonstration.
     let readme = read_workspace_file("README.md");
     for fragment in [
-        "M0 through M94",
+        "M0 through M96",
         "ninety-nine decision records",
         "Since M57 the boundary's drops stream their fact too",
     ] {
@@ -256,7 +256,7 @@ fn m57_the_living_documents_re_agree() {
     // the chain too — one sweep, no drift).
     let m56 = read_workspace_file("crates/alacer-testing/tests/m56_exit_criteria.rs");
     assert!(
-        m56.contains("M0 through M94"),
+        m56.contains("M0 through M96"),
         "the m56 suite's pins moved with the documents"
     );
 }

@@ -484,7 +484,7 @@ fn m42_the_living_documents_re_agree_at_m42() {
     // M42 and M43 landing in one cut, the workspace's one-milestone-
     // per-minor rule counting them as the minor's two entries).
     assert!(
-        readme.contains("M0 through M94") && readme.contains("ninety-nine decision records"),
+        readme.contains("M0 through M96") && readme.contains("ninety-nine decision records"),
         "the README's status block and count re-agree at M43"
     );
     assert!(

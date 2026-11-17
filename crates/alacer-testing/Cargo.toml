@@ -97,3 +97,7 @@ harness = false
 [[bench]]
 name = "placeholders"
 harness = false
+
+[[bench]]
+name = "ranges"
+harness = false

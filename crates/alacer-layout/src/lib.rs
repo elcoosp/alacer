@@ -12,8 +12,10 @@
 pub mod host;
 pub mod incremental;
 pub mod measure_cache;
+pub mod recording;
 pub mod style_map;
 
 pub use host::{LayoutHost, SpecCell};
 pub use incremental::{DirtyReason, closest_common_ancestor};
 pub use measure_cache::LruMeasureCache;
+pub use recording::{LayoutCallRecord, LayoutLedger, RecordingLayout};

@@ -8,8 +8,8 @@ use alacer_core::inspect::{
 };
 use alacer_core::style::Style;
 use alacer_core::widget::{
-    A11yAction, BringIntoViewAsk, EventResponse, LabelSource, Role, ScrollAxisLanding, ScrollUnit,
-    Widget,
+    A11yAction, BringIntoViewAsk, EventResponse, LabelSource, Role, ScrollAxisLanding,
+    ScrollOrientation, ScrollUnit, Widget,
 };
 use std::cmp::Ordering;
 use std::sync::{Arc, Mutex};
@@ -259,6 +259,23 @@ impl Widget for List {
     fn scroll_offset(&self) -> Vector {
         let state = self.state.lock().expect("scroll state");
         Vector::new(state.offset_x, state.offset)
+    }
+
+    /// The declared axis (M98, ADR-0102): the constructor's own word —
+    /// [`List::new`] names the y axis its only story, so the tree says
+    /// `vertical`; [`List::two_axis`] declared both axes, and a
+    /// two-axis scroller has no single-axis word to say — ARIA's
+    /// `undefined` is the spec's own word for "both", the honest
+    /// absence. The viewport half is the constructor's declaration (the
+    /// handle's doors move the offsets and the content spans, never the
+    /// viewport it was built with), so the answer is constructor-fixed.
+    fn scroll_orientation(&self) -> Option<ScrollOrientation> {
+        let state = self.state.lock().expect("scroll state");
+        if state.viewport_width > 0.0 {
+            None
+        } else {
+            Some(ScrollOrientation::Vertical)
+        }
     }
 
     fn is_scroll_container(&self) -> bool {

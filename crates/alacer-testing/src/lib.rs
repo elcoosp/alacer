@@ -29,7 +29,7 @@ use alacer_core::arena::NodeId;
 use alacer_core::events::{EventCtx, MouseButton, PointerEvent};
 use alacer_core::flux::Flux;
 use alacer_core::geom::{Point, Rect, Size};
-use alacer_core::passes::PassPipeline;
+use alacer_core::passes::{LayoutEngine, PassPipeline};
 use alacer_core::trail::TrailLog;
 use alacer_core::widget::{A11yAction, Role, Widget};
 use alacer_layout::LayoutHost;
@@ -62,12 +62,42 @@ impl TestHarness {
         alacer_core::clipboard::install(
             Rc::clone(&clipboard) as Rc<dyn alacer_core::clipboard::ClipboardSeam>
         );
-        let flux = Flux::new();
         let layout = LayoutHost::new(Arc::new(ThreadLocalMeasurer));
+        Self::assemble(width, height, Box::new(layout), clipboard)
+    }
+
+    /// A harness with a caller-supplied layout engine — the
+    /// assembly-site door the instruments ride (ADR-0097): the recording
+    /// ledger, a consumer's own injected engine, any [`LayoutEngine`]
+    /// the test wants the real pipeline to drive. The seams install
+    /// first, exactly as [`Self::new`] does; only the layout stage is
+    /// the caller's.
+    #[must_use]
+    pub fn with_layout(width: f32, height: f32, engine: Box<dyn LayoutEngine>) -> Self {
+        // The seam installs live here too — the caller's engine is free
+        // to measure text (ADR-9: the harness is an assembly site).
+        alacer_core::text_seam::install(Rc::new(ThreadLocalTextSeam));
+        let clipboard = Rc::new(alacer_core::clipboard::MemoryClipboard::default());
+        alacer_core::clipboard::install(
+            Rc::clone(&clipboard) as Rc<dyn alacer_core::clipboard::ClipboardSeam>
+        );
+        Self::assemble(width, height, engine, clipboard)
+    }
+
+    /// The shared assembly: seams installed, the caller's layout stage,
+    /// the provided journal, sink, and raster (the constructors' one
+    /// body — the harness is an assembly site, not two).
+    fn assemble(
+        width: f32,
+        height: f32,
+        layout: Box<dyn LayoutEngine>,
+        clipboard: Rc<alacer_core::clipboard::MemoryClipboard>,
+    ) -> Self {
+        let flux = Flux::new();
         let journal = SceneJournalImpl::new();
         let a11y = AccessKitSink::new();
         Self {
-            pipeline: PassPipeline::new(flux, Box::new(layout), Box::new(journal), Box::new(a11y)),
+            pipeline: PassPipeline::new(flux, layout, Box::new(journal), Box::new(a11y)),
             viewport: Size::new(width, height),
             renderer: SoftwareRenderer::new(),
             glyph_source: ThreadLocalGlyphSource,

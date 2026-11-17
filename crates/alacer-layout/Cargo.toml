@@ -33,3 +33,7 @@ harness = false
 [[bench]]
 name = "w2_text"
 harness = false
+
+[[bench]]
+name = "recording"
+harness = false

@@ -278,6 +278,19 @@ impl AccessKitSink {
         if let Some(placeholder) = &node.placeholder {
             access_node.set_placeholder(placeholder.as_str());
         }
+        // The range tier (M97, ADR-0101): the span every value-tier write
+        // funnels through — AccessKit's `MinNumericValue` /
+        // `MaxNumericValue` properties, ARIA's `aria-valuemin` /
+        // `aria-valuemax`, with the declared step beside them when the
+        // widget declares one. The honest absence maps to the absence: a
+        // widget with no span sets nothing, never a guessed default.
+        if let Some(range) = &node.value_range {
+            access_node.set_min_numeric_value(range.min);
+            access_node.set_max_numeric_value(range.max);
+            if let Some(step) = range.step {
+                access_node.set_numeric_value_step(step);
+            }
+        }
         // The availability tier (M22, ADR-0028): the widget's `enabled`
         // answer becomes AccessKit's `disabled` flag, so the AT reads an
         // unavailable control instead of announcing an action the widget
@@ -447,6 +460,7 @@ mod tests {
                     enabled: true,
                     description: None,
                     placeholder: None,
+                    value_range: None,
                 },
                 TreeNode {
                     id: child_hash,
@@ -462,6 +476,7 @@ mod tests {
                     enabled: true,
                     description: None,
                     placeholder: None,
+                    value_range: None,
                 },
                 TreeNode {
                     id: other_hash,
@@ -477,6 +492,7 @@ mod tests {
                     enabled: true,
                     description: None,
                     placeholder: None,
+                    value_range: None,
                 },
             ],
         }
@@ -586,6 +602,7 @@ mod tests {
             enabled: true,
             description: None,
             placeholder: None,
+            value_range: None,
         });
         sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
         let update = sink.last_update().expect("update");
@@ -727,6 +744,7 @@ mod tests {
                     enabled: true,
                     description: None,
                     placeholder: None,
+                    value_range: None,
                 },
                 TreeNode {
                     id: 2,
@@ -742,6 +760,7 @@ mod tests {
                     enabled: true,
                     description: None,
                     placeholder: None,
+                    value_range: None,
                 },
                 TreeNode {
                     id: 3,
@@ -757,6 +776,7 @@ mod tests {
                     enabled: true,
                     description: None,
                     placeholder: None,
+                    value_range: None,
                 },
             ],
         };
@@ -802,6 +822,7 @@ mod tests {
                     enabled: true,
                     description: Some("Saves the draft and queues it".into()),
                     placeholder: None,
+                    value_range: None,
                 },
                 TreeNode {
                     id: 2,
@@ -817,6 +838,7 @@ mod tests {
                     enabled: true,
                     description: None,
                     placeholder: None,
+                    value_range: None,
                 },
             ],
         };
@@ -835,6 +857,100 @@ mod tests {
             None,
             "the honest absence sets nothing"
         );
+    }
+
+    /// The range tier (M97, ADR-0101): the snapshot's declared span maps
+    /// onto AccessKit's `MinNumericValue` / `MaxNumericValue` properties
+    /// beside the `NumericValueStep` when the widget declares one, and
+    /// the honest absence maps to the absence — a node without a span
+    /// sets nothing, never a guessed default.
+    #[test]
+    fn the_range_maps_onto_the_numeric_properties() {
+        let mut sink = AccessKitSink::new();
+        let snap = TreeSnapshot {
+            root: Some(1),
+            nodes: vec![
+                TreeNode {
+                    id: 1,
+                    role: Role::Slider,
+                    label: "Volume".into(),
+                    bounds: None,
+                    children: Vec::new(),
+                    value: Some("40".into()),
+                    toggled: None,
+                    table_slot: None,
+                    selection: None,
+                    live: None,
+                    enabled: true,
+                    description: None,
+                    placeholder: None,
+                    value_range: Some(
+                        alacer_core::widget::ValueRange::new(0.0, 100.0).with_step(5.0),
+                    ),
+                },
+                TreeNode {
+                    id: 2,
+                    role: Role::ProgressIndicator,
+                    label: "Upload".into(),
+                    bounds: None,
+                    children: Vec::new(),
+                    value: Some("30".into()),
+                    toggled: None,
+                    table_slot: None,
+                    selection: None,
+                    live: None,
+                    enabled: true,
+                    description: None,
+                    placeholder: None,
+                    // The report declares its span and honestly lacks a
+                    // step: the absence is the absence.
+                    value_range: Some(alacer_core::widget::ValueRange::new(0.0, 100.0)),
+                },
+                TreeNode {
+                    id: 3,
+                    role: Role::Button,
+                    label: "Cancel".into(),
+                    bounds: None,
+                    children: Vec::new(),
+                    value: None,
+                    toggled: None,
+                    table_slot: None,
+                    selection: None,
+                    live: None,
+                    enabled: true,
+                    description: None,
+                    placeholder: None,
+                    value_range: None,
+                },
+            ],
+        };
+        sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
+
+        let update = sink.last_update().expect("update");
+        let slider = find_in_update(update, 1).expect("slider node");
+        assert_eq!(slider.min_numeric_value(), Some(0.0), "the lower wall");
+        assert_eq!(slider.max_numeric_value(), Some(100.0), "the upper wall");
+        assert_eq!(
+            slider.numeric_value_step(),
+            Some(5.0),
+            "the declared step rides beside the walls"
+        );
+        let progress = find_in_update(update, 2).expect("progress node");
+        assert_eq!(progress.min_numeric_value(), Some(0.0));
+        assert_eq!(progress.max_numeric_value(), Some(100.0));
+        assert_eq!(
+            progress.numeric_value_step(),
+            None,
+            "a report with no step announces the absence, never a default"
+        );
+        let bare = find_in_update(update, 3).expect("bare node");
+        assert_eq!(
+            bare.min_numeric_value(),
+            None,
+            "the honest absence sets nothing"
+        );
+        assert_eq!(bare.max_numeric_value(), None);
+        assert_eq!(bare.numeric_value_step(), None);
     }
 
     // -------------------------------------------------------------------

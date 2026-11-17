@@ -14,7 +14,7 @@
     "cpu_count": "2",
     "fingerprint": "ee37c3efc5995352"
   },
-  "bench_count": 97,
+  "bench_count": 101,
   "benches": {
     "a11y/full_rebuild_1k": {
       "median_ns": 92499.67399115533,
@@ -596,6 +596,30 @@
       "median_ns": 6431815.25,
       "mean_ns": 6494584.2925,
       "median_abs_dev_ns": 40986.939584836364,
+      "samples": 100
+    },
+    "derive/snapshot_1k_derived": {
+      "median_ns": 185680.0510651629,
+      "mean_ns": 188609.50964459367,
+      "median_abs_dev_ns": 1147.923822646531,
+      "samples": 100
+    },
+    "derive/snapshot_1k_handwritten": {
+      "median_ns": 192507.9727949599,
+      "mean_ns": 199614.5564532036,
+      "median_abs_dev_ns": 4044.4732608105282,
+      "samples": 100
+    },
+    "recording/wrapper_1k_dirty_10pct": {
+      "median_ns": 582657.8289473684,
+      "mean_ns": 585226.3357341789,
+      "median_abs_dev_ns": 5639.688662414244,
+      "samples": 100
+    },
+    "recording/bare_wrapper_1k_dirty_10pct": {
+      "median_ns": 580996.5398550725,
+      "mean_ns": 585749.3872267971,
+      "median_abs_dev_ns": 5851.913458081425,
       "samples": 100
     }
   }

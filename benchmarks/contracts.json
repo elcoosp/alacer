@@ -47,6 +47,20 @@
       "op": "<=",
       "budget": 2.5,
       "cite": "architecture \u00a718 M64 exit gate, ADR-0070: two doors behind the tee cost at most 2.5\u00d7 the unobserved route \u2014 each door rides the observe branch the slot already pays (A7), the fan-out never a second pass over the route"
+    },
+    {
+      "id": "derive_zero_overhead",
+      "numerator": "derive/snapshot_1k_derived",
+      "denominator": "derive/snapshot_1k_handwritten",
+      "op": "<=",
+      "budget": 1.1
+    },
+    {
+      "id": "recording_wrapper_overhead",
+      "numerator": "recording/wrapper_1k_dirty_10pct",
+      "denominator": "recording/bare_wrapper_1k_dirty_10pct",
+      "op": "<=",
+      "budget": 1.15
     }
   ],
   "regressions": [
@@ -533,6 +547,26 @@
     {
       "id": "scroll_route_100_handle_scroll_x_1k",
       "baseline": "scroll/route_100_handle_scroll_x_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "derive_snapshot_1k_derived",
+      "baseline": "derive/snapshot_1k_derived",
+      "scope": "same-host"
+    },
+    {
+      "id": "derive_snapshot_1k_handwritten",
+      "baseline": "derive/snapshot_1k_handwritten",
+      "scope": "same-host"
+    },
+    {
+      "id": "recording_wrapper_1k_dirty_10pct",
+      "baseline": "recording/wrapper_1k_dirty_10pct",
+      "scope": "same-host"
+    },
+    {
+      "id": "recording_bare_wrapper_1k_dirty_10pct",
+      "baseline": "recording/bare_wrapper_1k_dirty_10pct",
       "scope": "same-host"
     }
   ],

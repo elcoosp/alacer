@@ -380,11 +380,11 @@ fn m78_the_wire_names_the_count() {
 fn m78_the_living_documents_re_agree() {
     let readme = read_workspace_file("README.md");
     assert!(
-        readme.contains("M0 through M94"),
+        readme.contains("M0 through M96"),
         "the README status reflects the living cut — the chain cannot drift"
     );
     assert!(
-        readme.contains("All 103 criterion cases"),
+        readme.contains("All 108 criterion cases"),
         "the README quotes the baselines.json bench_count the count tier grew"
     );
     let architecture = read_workspace_file("docs/architecture.md");
@@ -405,7 +405,7 @@ fn m78_the_living_documents_re_agree() {
     ))
     .expect("the baselines parse");
     assert_eq!(
-        baselines["bench_count"], 103,
+        baselines["bench_count"], 108,
         "the published corpus carries the count tier's pricing"
     );
 }

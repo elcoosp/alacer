@@ -435,11 +435,11 @@ fn m80_the_fact_agnostic_composer_stays_the_no_op() {
 fn m80_the_living_documents_re_agree() {
     let readme = read_workspace_file("README.md");
     assert!(
-        readme.contains("M0 through M91"),
+        readme.contains("M0 through M93"),
         "the README status reflects the living cut — the chain cannot drift"
     );
     assert!(
-        readme.contains("All 97 criterion cases"),
+        readme.contains("All 101 criterion cases"),
         "the README quotes the baselines.json bench_count the composition's pricing rides"
     );
     let architecture = read_workspace_file("docs/architecture.md");
@@ -452,7 +452,7 @@ fn m80_the_living_documents_re_agree() {
         "the architecture carries the fact-following composition's decision"
     );
     assert!(
-        architecture.contains("96 decision records"),
+        architecture.contains("98 decision records"),
         "the register grew the M80 row"
     );
     let baselines = serde_json::from_str::<serde_json::Value>(&read_workspace_file(
@@ -470,7 +470,7 @@ fn m80_the_living_documents_re_agree() {
     );
     let m79 = read_workspace_file("crates/alacer-testing/tests/m79_exit_criteria.rs");
     assert!(
-        m79.contains("M0 through M91"),
+        m79.contains("M0 through M93"),
         "the m79 suite's pins moved with the documents"
     );
 }

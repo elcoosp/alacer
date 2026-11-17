@@ -101,3 +101,7 @@ harness = false
 [[bench]]
 name = "ranges"
 harness = false
+
+[[bench]]
+name = "orientation"
+harness = false

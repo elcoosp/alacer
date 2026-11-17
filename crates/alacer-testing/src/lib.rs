@@ -185,7 +185,11 @@ impl TestHarness {
     /// Panics if the renderer cannot allocate the viewport pixmap.
     #[must_use]
     pub fn pixels(&mut self) -> Pixmap {
-        let scene = self.pipeline.tick(self.viewport).expect("layout").scene;
+        let scene = self
+            .pipeline
+            .tick(self.viewport)
+            .expect("harness layout must succeed")
+            .scene;
         self.renderer
             .render(
                 &scene,
@@ -490,7 +494,9 @@ impl TestHarness {
         let path = blessed_dir().join(format!("{name}.png"));
         if std::env::var_os("ALACER_BLESS").is_some_and(|v| v == "1") {
             let _ = std::fs::create_dir_all(blessed_dir());
-            pixmap.save_png(&path).expect("bless write");
+            pixmap
+                .save_png(&path)
+                .expect("the blessed snapshot must be writable");
             return;
         }
         let bytes = std::fs::read(&path).unwrap_or_else(|e| {

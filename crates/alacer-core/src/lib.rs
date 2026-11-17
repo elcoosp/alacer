@@ -97,6 +97,7 @@ pub use a11y_echo::A11Y_ECHO_TRAIL_CAP;
 pub use action::ACTION_TRAIL_CAP;
 pub use announce::{ANNOUNCEMENT_NODE_HASH, Announcement, Politeness};
 pub use arena::{Arena, NodeId, WidgetMut};
+pub use clipboard::CLIPBOARD_TRAIL_CAP;
 pub use color::Color;
 pub use damage::{DAMAGE_REGION_BUDGET, Damage, DamageBuilder};
 pub use events::{
@@ -105,6 +106,8 @@ pub use events::{
 pub use flux::{Flux, FluxCounters, FluxRwSignal, FluxWriter, RenderBinding};
 pub use frame_refusal::FRAME_REFUSAL_TRAIL_CAP;
 pub use geom::{Point, Rect, Size, Vector};
+pub use gesture::GESTURE_TRAIL_CAP;
+pub use history::EDIT_TRAIL_CAP;
 pub use input::EventCoalescer;
 pub use inspect::{
     A11yEchoRecord, ActionAsk, ActionOutcome, ActionRecord, ActionRefusal, ActionRider, BindingId,
@@ -118,6 +121,7 @@ pub use inspect::{
     TextWriteRefusal, TextWriteSource, ThemeRecord, ValueAction, ValueOutcome, ValueRecord,
     ValueRefusal, ViewPatchRecord,
 };
+pub use key_edit::KEY_EDIT_TRAIL_CAP;
 pub use keymap::{Chord, Keymap, KeymapConsult, KeymapSeam};
 pub use mask::Change;
 pub use passes::{
@@ -125,7 +129,12 @@ pub use passes::{
     ImeRequest, LayoutEngine, LayoutError, PassKind, PassPipeline, PassRun, SceneJournal,
     ScrollIntoViewLanding, ScrollIntoViewOutcome, ScrollIntoViewRefusal, TreeNode, TreeSnapshot,
 };
+pub use preedit::PREEDIT_TRAIL_CAP;
+pub use route_drop::ROUTE_DROP_TRAIL_CAP;
+pub use scroll::SCROLL_TRAIL_CAP;
+pub use text_write::TEXT_WRITE_TRAIL_CAP;
 pub use theme::THEME_TRAIL_CAP;
+pub use value::VALUE_TRAIL_CAP;
 pub use view_patch::VIEW_PATCH_TRAIL_CAP;
 // The reactive trait seam: the framework's signal handles are
 // `reactive_graph`'s, so its read/write traits ride the same re-export
@@ -148,7 +157,7 @@ pub use theme::{CanonPalette, Palette, ThemeSeam};
 pub use trail::{TRAIL_RING_CAP, TrailLog};
 pub use widget::{
     A11yAction, BringIntoViewAsk, EventResponse, LabelSource, Role, ScrollAxisLanding,
-    ScrollLanding, ScrollUnit, TableSlot, TextSelection, ToggleState, Widget,
+    ScrollLanding, ScrollUnit, TableSlot, TextSelection, ToggleState, ValueRange, Widget,
 };
 
 /// The Alacer prelude: import this once and the framework vocabulary is in scope.

@@ -704,7 +704,7 @@ fn m88_the_corpus_grew_by_the_coordinated_rule() {
         std::fs::read_to_string(workspace.join("crates/alacer-testing/tests/m5_exit_criteria.rs"))
             .expect("the m5 suite exists");
     assert!(
-        m5.contains("const EXPECTED_BENCH_COUNT: usize = 101;"),
+        m5.contains("const EXPECTED_BENCH_COUNT: usize = 103;"),
         "the m5 suite's corpus pin re-agrees with the grown corpus"
     );
 }

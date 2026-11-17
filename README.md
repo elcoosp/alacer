@@ -46,7 +46,7 @@
 | 50-event pointer storm                                | **1** coalesced dispatch (**39.71×**)           | `input_storm_batching` budget                                                                          |
 | 10k-node churn frame vs egui, same host               | 1.10 ms vs 20.7 ms full frame (**18.8×**)       | 5-run medians, declared rig (`benchmarks/rig.json`)                                                    |
 | …vs Masonry                                           | 1.10 ms vs 4.6 ms full pass pipeline (**4.2×**) | same rig, `scripts/run_comparison.py`                                                                  |
-| All 110 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
+| All 112 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
 
 _Competitor rows compare Alacer's incremental frame against their full frame/pass — every row in
 `benchmarks/comparisons/results.json` is labeled with its scope._
@@ -86,7 +86,7 @@ cargo test --workspace                                          # headless: real
 > `ALACER_SOFTWARE=1` presents through softbuffer — the platform honors it at startup
 > (`BackendPreference::software_env`) whichever backend the app asked for; any other value is
 > refused with a named warning, never guessed. CI and the headless tests already run this path:
-> no mock renderer, no mock event loop. The full 81-example catalog lives in
+> no mock renderer, no mock event loop. The full 84-example catalog lives in
 > [docs/examples.md](https://github.com/elcoosp/alacer/blob/main/docs/examples.md).
 
 ## How it works
@@ -168,6 +168,8 @@ Accessibility is not a layer bolted on — it is the tree's own vocabulary:
 | **Placeholder** (M96)  | The hint an empty field announces: the painted hint rides the tree (`Placeholder` property), an empty placeholder the honest absence; the `placeholder:` word patch pays both masks — the paint beside the re-announcement — and the write that lands where the hint is queues nothing | 0100      |
 | **Range** (M97)        | The declared span every value-tier write funnels through: `value_range()` on the trait, `Slider`/`Progress` carrying it, AccessKit's `MinNumericValue`/`MaxNumericValue` beside the step mapped in the same snapshot — the AT reads "42 of 0..100, step 5", not a bare number; `None` the honest absence | 0101      |
 | **Orientation** (M98)  | The declared axis a scroll container's scrolls ride: `scroll_orientation()` on the trait, `List` carrying the constructor's word, AccessKit's `Orientation` property mapped in the same snapshot — the AT reads "vertical" before the arrows ride, the two-axis answer the honest absence ARIA spells `undefined`; `None` the honest absence | 0102      |
+| **Numeric** (M99)      | The number behind the value's spoken word: `numeric_value()` on the trait, `Slider`/`Progress` carrying the scalar their funnel holds, AccessKit's `NumericValue` property mapped in the same snapshot — the AT reads 40 (`aria-valuenow`) beside "40" (`aria-valuetext`), a prose value never parsed into a guessed number; `None` the honest absence | 0103      |
+| **Secure** (M100)      | The field's declared secret entry: `secure_entry()` on the trait, `TextInput` carrying the constructor's word, AccessKit's `PasswordInput` role mapped in the same snapshot — the AT announces "secure text entry", the value the tree resolves the mask (one masking character per code point, never the secret); `false` the honest absence | 0104      |
 
 Since M20 the value tier is a widget — the `Slider` answers drag, arrows and AT writes from one
 funnel. Since M21 the value is reportable too — the read-only `Progress` names the door that has
@@ -177,7 +179,11 @@ too — `description()` beside the name it explains — and since M96 the placeh
 paints, and since M97 the range the value tier clamps into — `value_range()` beside the walls
 every write lands inside, the AT reading the span, not a bare number — and since M98 the axis the
 scrolls ride — `scroll_orientation()` beside the constructors that declared it, the AT reading the
-track, not a guess — the AT reading all of it in the snapshot every other fact rides.
+track, not a guess — and since M99 the number behind the spoken word — `numeric_value()` beside
+the text the tree already said, the AT reading 40 where the prose read "40" — and since M100 the
+field's secret entry — `secure_entry()` beside the constructor that declared it, the tree saying
+`PasswordInput` and carrying the mask, never the secret — the AT reading all of it in the
+snapshot every other fact rides.
 
 ## Focus & shortcuts
 
@@ -309,7 +315,7 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `accent_follow`                                      | the OS's accent fact rides the same seam: the accent-only flip lands, the composition tints the palette's accent roles from the fact, the log names all four facts |
 | `todo` / `data_table`                                | the canons: a11y tree, record/replay, grid slots, keyboard navigation            |
 
-<details><summary><b>75 examples, grouped (82 ship; recording, alloc_budget, input_budget, derive_widget, layout_probe, and tri_state live in the catalog)</b></summary>
+<details><summary><b>78 examples, grouped (84 ship; recording, alloc_budget, input_budget, derive_widget, layout_probe, and tri_state live in the catalog)</b></summary>
 
 **Start here**
 
@@ -368,6 +374,8 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `placeholders` | the M96 placeholder tier driven from the consumer side: the hinted field beside the bare one (the honest absence), and the *Swap hint* press paying both masks the tier costs — the paint beside the re-announcement (the a11y-*also* prop class) |
 | `ranges` | the M97 range tier driven from the consumer side: the ranged slider beside the honest-absence report, and the *Snap to max* press landing on the wall the tree carries — the write the range constrains |
 | `orientation` | the M98 orientation tier driven from the consumer side: the vertical list's declared axis beside the two-axis list's honest absence (both axes, ARIA's `undefined`), and the scrolls that move the offsets while the axis words stay — the declaration is the constructor's |
+| `numeric` | the M99 numeric tier driven from the consumer side: the slider's and the report's numbers riding the funnel beside the text they answer (`aria-valuenow` beside the `aria-valuetext`), and the *Snap to max* write that moves both shapes of one answer together |
+| `secure` | the M100 secure tier driven from the consumer side: the secured field's `PasswordInput` word beside the bare field's honest absence, the *Fill* write landing the mask the tree carries (the length, never the value), and the status line mirroring the word the tree says |
 
 **Values & availability**
 
@@ -445,7 +453,7 @@ tree (`query(role).named(..)`, `press`, `all`) — never widget internals.
 ## Status
 
 > [!NOTE]
-> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M98 of `docs/architecture.md` are
+> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M100 of `docs/architecture.md` are
 > complete, but the API still moves between minor versions. MSRV **1.99**, edition **2024**.
 
 | Platform            | CI coverage                                                                                                                                                           |
@@ -457,7 +465,7 @@ tree (`query(role).named(..)`, `press`, `all`) — never widget internals.
 ## Learn more
 
 - [Architecture](https://github.com/elcoosp/alacer/blob/main/docs/architecture.md) — design axioms, the ten-pass contract, rendering, accessibility, DX, performance, roadmap and kill criteria
-- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred and three decision records, from workspace discipline to the M98 scope
+- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred and five decision records, from workspace discipline to the M100 scope
 - [Examples catalog](https://github.com/elcoosp/alacer/blob/main/docs/examples.md) — every example with the contract it exercises
 - [Migrating from Iced](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-iced.md) · [from egui](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-egui.md) — mental-model mappings, interop limits stated plainly
 - [Inspector protocol](https://github.com/elcoosp/alacer/blob/main/docs/inspector-protocol.md) — the versioned WebSocket contract behind `alacer-inspect`

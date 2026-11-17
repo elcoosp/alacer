@@ -846,6 +846,12 @@ fn map_action_request(
         Action::Decrement => Some(Core::Decrement),
         Action::ScrollUp => Some(Core::ScrollUp(unit(request.data.as_ref()))),
         Action::ScrollDown => Some(Core::ScrollDown(unit(request.data.as_ref()))),
+        // The AT's horizontal vocabulary (M91, ADR-0095): the pair
+        // maps like its vertical siblings — the request's unit carried
+        // through, the consuming widget the same scroll area the
+        // vertical pair rides.
+        Action::ScrollLeft => Some(Core::ScrollLeft(unit(request.data.as_ref()))),
+        Action::ScrollRight => Some(Core::ScrollRight(unit(request.data.as_ref()))),
         Action::SetValue => value(request, request.data.as_ref()).map(Core::SetValue),
         Action::ReplaceSelectedText => {
             value(request, request.data.as_ref()).map(Core::ReplaceSelectedText)

@@ -252,6 +252,7 @@ dependencies = [
  "alacer-widgets",
  "arboard",
  "bytemuck",
+ "criterion",
  "pollster",
  "raw-window-handle",
  "softbuffer",

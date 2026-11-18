@@ -235,6 +235,26 @@ pub struct TreeNode {
     /// `false` is the honest absence — a container that declared
     /// nothing announces no capacity, never a guessed one.
     pub multiselectable: bool,
+    /// The collection member's expanded word (M110, ADR-0114): whether
+    /// the member opens and closes — the disclosure the AT reads beside
+    /// the picks the selected tier already carried (AccessKit's
+    /// `Expanded` property, ARIA's `aria-expanded`). The word prices
+    /// nothing but the word: the member's doors answer exactly as they
+    /// always did. The trio is the honest shape (the ADR-0087 presence
+    /// rule at the tier, the selected shape): `None` the member that
+    /// opens and closes not — the absence ARIA spells `undefined`,
+    /// never a guessed `false`; `Some(false)` the member standing
+    /// collapsed; `Some(true)` the member standing open.
+    pub expanded: Option<bool>,
+    /// The field's auto-complete word (M111, ADR-0115): the suggestion
+    /// contract the field's completions ride — the word the AT reads
+    /// beside the hint the placeholder tier already carried
+    /// (AccessKit's `AutoComplete` property, ARIA's
+    /// `aria-autocomplete`). The word prices nothing but the word: the
+    /// field's doors answer exactly as they always did. `None` is the
+    /// honest absence — a field that declared nothing announces no
+    /// suggestion contract, never a guessed mode.
+    pub auto_complete: Option<crate::widget::AutoCompleteKind>,
 }
 
 /// The full accessibility snapshot of the widget tree, built by pass 9.
@@ -4002,6 +4022,8 @@ impl PassPipeline {
                 invalid: slot.widget().invalid(),
                 selected: slot.widget().selected(),
                 multiselectable: slot.widget().multiselectable(),
+                expanded: slot.widget().expanded(),
+                auto_complete: slot.widget().auto_complete(),
             };
             if snapshot.root.is_none() {
                 snapshot.root = Some(node.id);
@@ -4057,6 +4079,12 @@ impl PassPipeline {
                 // The pipeline's own node: no capacity word — the
                 // region carries no collection to size.
                 multiselectable: false,
+                // The pipeline's own node: no disclosure word — the
+                // region opens and closes not.
+                expanded: None,
+                // The pipeline's own node: no suggestion contract —
+                // the announcement is the region's content.
+                auto_complete: None,
             });
         }
         snapshot

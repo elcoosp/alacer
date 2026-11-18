@@ -46,7 +46,7 @@
 | 50-event pointer storm                                | **1** coalesced dispatch (**39.71×**)           | `input_storm_batching` budget                                                                          |
 | 10k-node churn frame vs egui, same host               | 1.10 ms vs 20.7 ms full frame (**18.8×**)       | 5-run medians, declared rig (`benchmarks/rig.json`)                                                    |
 | …vs Masonry                                           | 1.10 ms vs 4.6 ms full pass pipeline (**4.2×**) | same rig, `scripts/run_comparison.py`                                                                  |
-| All 118 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
+| All 120 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
 
 _Competitor rows compare Alacer's incremental frame against their full frame/pass — every row in
 `benchmarks/comparisons/results.json` is labeled with its scope._
@@ -86,7 +86,7 @@ cargo test --workspace                                          # headless: real
 > `ALACER_SOFTWARE=1` presents through softbuffer — the platform honors it at startup
 > (`BackendPreference::software_env`) whichever backend the app asked for; any other value is
 > refused with a named warning, never guessed. CI and the headless tests already run this path:
-> no mock renderer, no mock event loop. The full 86-example catalog lives in
+> no mock renderer, no mock event loop. The full 91-example catalog lives in
 > [docs/examples.md](https://github.com/elcoosp/alacer/blob/main/docs/examples.md).
 
 ## How it works
@@ -447,6 +447,8 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | --------------- | ----------------------------------------------------------------------------------------------------- |
 | `time_seam` | the M103 clock seam driven from the consumer side: the app's only time read is one seam read (`TimeSeam` beside `MonotonicClock` and `ManualClock`), the deterministic label the advance names exactly (`1.500 s elapsed`, every run), the canon clock answering the same code and never going backwards |
 | `frame_clock` | the M104 frame pricing driven from the consumer side: the fallback's two unequal totals (the wall clock's own honesty), the stepping clock's byte-identical pass ledger printed as a table, the frozen clock's deterministic zero — the timed frame as data the seam decides |
+| `read_only` | the M105 read-only tier driven from the consumer side: the locked license field beside the editable draft, the unlock door moving the word live, the walls the doors' own vocabulary and the read doors answering beside them |
+| `required` | the M106 required tier driven from the consumer side: the form contract's word beside the values it rides (the required field, slider, checkbox and the optional note), required not a wall — every door answering as it always did |
 | `a11y_queries` | the a11y query API as a runnable walkthrough: find by role and name, press through the AT's own `DefaultPress` door, click at the tree's own bounds, read the label's word back — the tree, never the internals |
 
 </details>
@@ -468,7 +470,7 @@ is the query API as a runnable walkthrough.
 ## Status
 
 > [!NOTE]
-> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M104 of `docs/architecture.md` are
+> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M106 of `docs/architecture.md` are
 > complete, but the API still moves between minor versions. MSRV **1.99**, edition **2024**.
 
 | Platform            | CI coverage                                                                                                                                                           |
@@ -480,7 +482,7 @@ is the query API as a runnable walkthrough.
 ## Learn more
 
 - [Architecture](https://github.com/elcoosp/alacer/blob/main/docs/architecture.md) — design axioms, the ten-pass contract, rendering, accessibility, DX, performance, roadmap and kill criteria
-- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred and nine decision records, from workspace discipline to the M104 scope
+- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred and eleven decision records, from workspace discipline to the M106 scope
 - [Examples catalog](https://github.com/elcoosp/alacer/blob/main/docs/examples.md) — every example with the contract it exercises
 - [Migrating from Iced](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-iced.md) · [from egui](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-egui.md) — mental-model mappings, interop limits stated plainly
 - [Inspector protocol](https://github.com/elcoosp/alacer/blob/main/docs/inspector-protocol.md) — the versioned WebSocket contract behind `alacer-inspect`

@@ -165,3 +165,7 @@ harness = false
 [[bench]]
 name = "has_popup"
 harness = false
+
+[[bench]]
+name = "role_description"
+harness = false

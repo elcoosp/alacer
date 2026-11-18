@@ -33,6 +33,11 @@ pub struct Checkbox {
     /// The required tier's flag (M106, ADR-0110): the word the AT
     /// reads before it asks, the doors unchanged beside it.
     required: bool,
+    /// The invalid tier's word (M107, ADR-0111): whether the answer
+    /// fails the form's contract, and of what kind — the rejection
+    /// the AT reads while the user edits, the doors unchanged beside
+    /// it. `None` the honest absence.
+    invalid: Option<alacer_core::InvalidKind>,
     on_toggle: Option<Box<dyn FnMut(bool)>>,
     focused: bool,
     /// The app's accent override; `None` borrows the theme's accent
@@ -55,6 +60,7 @@ impl Checkbox {
             state: ToggleState::Off,
             enabled: true,
             required: false,
+            invalid: None,
             on_toggle: None,
             focused: false,
             accent: None,
@@ -81,6 +87,19 @@ impl Checkbox {
     #[must_use]
     pub fn required(mut self) -> Self {
         self.required = true;
+        self
+    }
+
+    /// Mounts the checkbox invalid (M107, ADR-0111): the form's
+    /// rejection declared — AccessKit's `Invalid` property (ARIA's
+    /// `aria-invalid`) says "this one is not valid as given" to the AT
+    /// while the user edits, the kind (`true` / `grammar` /
+    /// `spelling`) riding beside the word. The word prices nothing but
+    /// the word: the checkbox's doors answer exactly as they always
+    /// did.
+    #[must_use]
+    pub fn invalid(mut self, invalid: alacer_core::InvalidKind) -> Self {
+        self.invalid = Some(invalid);
         self
     }
 
@@ -301,6 +320,14 @@ impl Widget for Checkbox {
     /// it.
     fn required(&self) -> bool {
         self.required
+    }
+
+    /// The invalid tier (M107, ADR-0111): the word the tree says
+    /// beside the form's rejection — "this one is not valid as given",
+    /// the kind beside it, the AT reading it while the user edits. The
+    /// doors answer unchanged beside it.
+    fn invalid(&self) -> Option<alacer_core::InvalidKind> {
+        self.invalid
     }
 
     fn paint(&self, ctx: &mut PaintCtx<'_>) {

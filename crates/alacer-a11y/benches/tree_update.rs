@@ -47,6 +47,8 @@ fn snapshot_1k() -> Arc<TreeSnapshot> {
         multiselectable: false,
         expanded: None,
         auto_complete: None,
+        sort_direction: None,
+        level: None,
     });
     for id in 1..NODES {
         nodes.push(TreeNode {
@@ -79,6 +81,8 @@ fn snapshot_1k() -> Arc<TreeSnapshot> {
             multiselectable: false,
             expanded: None,
             auto_complete: None,
+            sort_direction: None,
+            level: None,
         });
     }
     Arc::new(TreeSnapshot {

@@ -73,6 +73,11 @@ pub struct Slider {
     /// The required tier's flag (M106, ADR-0110): the word the AT
     /// reads before it asks, the doors unchanged beside it.
     required: bool,
+    /// The invalid tier's word (M107, ADR-0111): whether the value
+    /// fails the form's contract, and of what kind — the rejection
+    /// the AT reads while the user edits, the doors unchanged beside
+    /// it. `None` the honest absence.
+    invalid: Option<alacer_core::InvalidKind>,
     on_change: Option<Box<dyn FnMut(f32)>>,
     focused: bool,
     dragging: bool,
@@ -122,6 +127,7 @@ impl Slider {
             value: min,
             enabled: true,
             required: false,
+            invalid: None,
             on_change: None,
             focused: false,
             dragging: false,
@@ -151,6 +157,18 @@ impl Slider {
     #[must_use]
     pub fn required(mut self) -> Self {
         self.required = true;
+        self
+    }
+
+    /// Mounts the slider invalid (M107, ADR-0111): the form's
+    /// rejection declared — AccessKit's `Invalid` property (ARIA's
+    /// `aria-invalid`) says "this one is not valid as given" to the AT
+    /// while the user edits, the kind (`true` / `grammar` /
+    /// `spelling`) riding beside the word. The word prices nothing but
+    /// the word: the slider's doors answer exactly as they always did.
+    #[must_use]
+    pub fn invalid(mut self, invalid: alacer_core::InvalidKind) -> Self {
+        self.invalid = Some(invalid);
         self
     }
 
@@ -600,6 +618,14 @@ impl Widget for Slider {
     /// it.
     fn required(&self) -> bool {
         self.required
+    }
+
+    /// The invalid tier (M107, ADR-0111): the word the tree says
+    /// beside the form's rejection — "this one is not valid as given",
+    /// the kind beside it, the AT reading it while the user edits. The
+    /// doors answer unchanged beside it.
+    fn invalid(&self) -> Option<alacer_core::InvalidKind> {
+        self.invalid
     }
 
     /// The value tier (M20, ADR-0026): `SetValue` parses then rides the

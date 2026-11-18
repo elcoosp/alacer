@@ -167,6 +167,24 @@ pub struct TreeNode {
     /// absence — a container that declared both axes says the absence
     /// ARIA spells `undefined`, never a guessed half.
     pub scroll_orientation: Option<crate::widget::ScrollOrientation>,
+    /// The scroll container's resolved position and extent (M101,
+    /// ADR-0105): where the scroll doors landed and the walls they
+    /// clamp to, carried as AccessKit's `ScrollY` / `ScrollYMin` /
+    /// `ScrollYMax` properties (the `ScrollX` halves beside them on a
+    /// two-axis container). Each axis rides its own honesty: an axis
+    /// whose span is empty carries no position, and a container with
+    /// no live axis at all answers `None` — the honest absence, never
+    /// a guessed zero.
+    pub scroll_position: Option<crate::widget::ScrollPosition>,
+    /// The field's revealed word (M102, ADR-0106): whether a
+    /// declared-secure field's value rides revealed — the "show
+    /// password" toggle's state beside the secure word. The value
+    /// the node carries is the field's ordinary value while the
+    /// word holds (the mask yielding to the reveal), and AccessKit's
+    /// `PasswordInput` mapping yields with it — the sink's own
+    /// contract names it. `false` is the honest absence — the
+    /// masked answer M100 handed over.
+    pub secure_revealed: bool,
 }
 
 /// The full accessibility snapshot of the widget tree, built by pass 9.
@@ -3862,8 +3880,15 @@ impl PassPipeline {
             // resolves for a secured field is the mask the word prices —
             // the length the AT reads, never the secret itself.
             let secure_entry = slot.widget().secure_entry();
+            // The reveal tier (M102, ADR-0106): the mask the secure
+            // word prices yields to the revealed state — a revealed
+            // field's tree value is its ordinary value again, the
+            // pixels and the tree telling one truth (AccessKit's own
+            // contract: the mapping reads `Role::TextInput` once the
+            // password is revealed).
+            let secure_revealed = secure_entry && slot.widget().secure_revealed();
             let value = match slot.widget().value() {
-                Some(value) if secure_entry => Some(Self::mask_secret(&value)),
+                Some(value) if secure_entry && !secure_revealed => Some(Self::mask_secret(&value)),
                 other => other,
             };
             let node = crate::passes::TreeNode {
@@ -3883,7 +3908,9 @@ impl PassPipeline {
                 value_range: slot.widget().value_range(),
                 numeric_value: slot.widget().numeric_value(),
                 secure_entry,
+                secure_revealed,
                 scroll_orientation: slot.widget().scroll_orientation(),
+                scroll_position: slot.widget().scroll_position(),
             };
             if snapshot.root.is_none() {
                 snapshot.root = Some(node.id);
@@ -3923,7 +3950,9 @@ impl PassPipeline {
                 value_range: None,
                 numeric_value: None,
                 secure_entry: false,
+                secure_revealed: false,
                 scroll_orientation: None,
+                scroll_position: None,
             });
         }
         snapshot

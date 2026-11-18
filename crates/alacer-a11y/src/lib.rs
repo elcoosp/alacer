@@ -16,8 +16,8 @@
 //!   pass-3 output every a11y frame.
 
 use accesskit::{
-    Live, Node, NodeId, Rect, Role as AccessKitRole, TextPosition, TextSelection, Toggled, TreeId,
-    TreeInfo, TreeUpdate,
+    Invalid, Live, Node, NodeId, Rect, Role as AccessKitRole, TextPosition, TextSelection, Toggled,
+    TreeId, TreeInfo, TreeUpdate,
 };
 use alacer_core::Role;
 use alacer_core::announce::Politeness;
@@ -401,6 +401,23 @@ impl AccessKitSink {
         if node.required {
             access_node.set_required();
         }
+        // The invalid tier (M107, ADR-0111): the control whose value
+        // fails the form's contract maps AccessKit's `Invalid` property,
+        // ARIA's `aria-invalid` — the rejection the AT reads while the
+        // user edits, the kind (`true` / `grammar` / `spelling`) riding
+        // beside the word. The word prices nothing but the word: the
+        // control's doors answer exactly as they always did. The honest
+        // absence maps to the absence: a control that declared nothing
+        // sets nothing, never a guessed default. The property rides the
+        // same node-only delta as every other property — an invalid
+        // write re-announces exactly that node.
+        if let Some(kind) = node.invalid {
+            access_node.set_invalid(match kind {
+                alacer_core::widget::InvalidKind::True => Invalid::True,
+                alacer_core::widget::InvalidKind::Grammar => Invalid::Grammar,
+                alacer_core::widget::InvalidKind::Spelling => Invalid::Spelling,
+            });
+        }
         if let Some(toggled) = node.toggled {
             access_node.set_toggled(match toggled {
                 alacer_core::widget::ToggleState::Off => Toggled::False,
@@ -568,6 +585,7 @@ mod tests {
                     secure_revealed: false,
                     read_only: false,
                     required: false,
+                    invalid: None,
                 },
                 TreeNode {
                     id: child_hash,
@@ -591,6 +609,7 @@ mod tests {
                     secure_revealed: false,
                     read_only: false,
                     required: false,
+                    invalid: None,
                 },
                 TreeNode {
                     id: other_hash,
@@ -614,6 +633,7 @@ mod tests {
                     secure_revealed: false,
                     read_only: false,
                     required: false,
+                    invalid: None,
                 },
             ],
         }
@@ -796,6 +816,7 @@ mod tests {
             secure_revealed: false,
             read_only: false,
             required: false,
+            invalid: None,
         });
         sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
         let update = sink.last_update().expect("update");
@@ -945,6 +966,7 @@ mod tests {
                     secure_revealed: false,
                     read_only: false,
                     required: false,
+                    invalid: None,
                 },
                 TreeNode {
                     id: 2,
@@ -968,6 +990,7 @@ mod tests {
                     secure_revealed: false,
                     read_only: false,
                     required: false,
+                    invalid: None,
                 },
                 TreeNode {
                     id: 3,
@@ -991,6 +1014,7 @@ mod tests {
                     secure_revealed: false,
                     read_only: false,
                     required: false,
+                    invalid: None,
                 },
             ],
         };
@@ -1044,6 +1068,7 @@ mod tests {
                     secure_revealed: false,
                     read_only: false,
                     required: false,
+                    invalid: None,
                 },
                 TreeNode {
                     id: 2,
@@ -1067,6 +1092,7 @@ mod tests {
                     secure_revealed: false,
                     read_only: false,
                     required: false,
+                    invalid: None,
                 },
             ],
         };
@@ -1092,6 +1118,35 @@ mod tests {
     /// beside the `NumericValueStep` when the widget declares one, and
     /// the honest absence maps to the absence — a node without a span
     /// sets nothing, never a guessed default.
+    /// The all-absence node the mapping tests decorate: every word
+    /// unset, the honest absence the mapping must keep honest.
+    fn plain_node(id: u64, role: Role, label: &str) -> TreeNode {
+        TreeNode {
+            id,
+            role,
+            label: label.into(),
+            bounds: None,
+            children: Vec::new(),
+            value: None,
+            toggled: None,
+            table_slot: None,
+            selection: None,
+            live: None,
+            enabled: true,
+            description: None,
+            placeholder: None,
+            value_range: None,
+            scroll_orientation: None,
+            scroll_position: None,
+            numeric_value: None,
+            secure_entry: false,
+            secure_revealed: false,
+            read_only: false,
+            required: false,
+            invalid: None,
+        }
+    }
+
     #[test]
     fn the_range_maps_onto_the_numeric_properties() {
         let mut sink = AccessKitSink::new();
@@ -1099,78 +1154,20 @@ mod tests {
             root: Some(1),
             nodes: vec![
                 TreeNode {
-                    id: 1,
-                    role: Role::Slider,
-                    label: "Volume".into(),
-                    bounds: None,
-                    children: Vec::new(),
                     value: Some("40".into()),
-                    toggled: None,
-                    table_slot: None,
-                    selection: None,
-                    live: None,
-                    enabled: true,
-                    description: None,
-                    placeholder: None,
                     value_range: Some(
                         alacer_core::widget::ValueRange::new(0.0, 100.0).with_step(5.0),
                     ),
-                    scroll_orientation: None,
-                    scroll_position: None,
-                    numeric_value: None,
-                    secure_entry: false,
-                    secure_revealed: false,
-                    read_only: false,
-                    required: false,
+                    ..plain_node(1, Role::Slider, "Volume")
                 },
                 TreeNode {
-                    id: 2,
-                    role: Role::ProgressIndicator,
-                    label: "Upload".into(),
-                    bounds: None,
-                    children: Vec::new(),
                     value: Some("30".into()),
-                    toggled: None,
-                    table_slot: None,
-                    selection: None,
-                    live: None,
-                    enabled: true,
-                    description: None,
-                    placeholder: None,
                     // The report declares its span and honestly lacks a
                     // step: the absence is the absence.
                     value_range: Some(alacer_core::widget::ValueRange::new(0.0, 100.0)),
-                    scroll_orientation: None,
-                    scroll_position: None,
-                    numeric_value: None,
-                    secure_entry: false,
-                    secure_revealed: false,
-                    read_only: false,
-                    required: false,
+                    ..plain_node(2, Role::ProgressIndicator, "Upload")
                 },
-                TreeNode {
-                    id: 3,
-                    role: Role::Button,
-                    label: "Cancel".into(),
-                    bounds: None,
-                    children: Vec::new(),
-                    value: None,
-                    toggled: None,
-                    table_slot: None,
-                    selection: None,
-                    live: None,
-                    enabled: true,
-                    description: None,
-                    placeholder: None,
-                    value_range: None,
-                    scroll_orientation: None,
-                    scroll_position: None,
-                    numeric_value: None,
-                    secure_entry: false,
-                    secure_revealed: false,
-                    read_only: false,
-                    required: false,
-                },
+                plain_node(3, Role::Button, "Cancel"),
             ],
         };
         sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
@@ -1235,6 +1232,7 @@ mod tests {
                     secure_revealed: false,
                     read_only: false,
                     required: false,
+                    invalid: None,
                 },
                 TreeNode {
                     id: 2,
@@ -1258,6 +1256,7 @@ mod tests {
                     secure_revealed: false,
                     read_only: false,
                     required: false,
+                    invalid: None,
                 },
             ],
         };
@@ -1312,6 +1311,7 @@ mod tests {
                     secure_revealed: false,
                     read_only: false,
                     required: false,
+                    invalid: None,
                 },
                 TreeNode {
                     id: 4,
@@ -1335,6 +1335,7 @@ mod tests {
                     secure_revealed: false,
                     read_only: false,
                     required: false,
+                    invalid: None,
                 },
             ],
         };
@@ -1386,6 +1387,7 @@ mod tests {
                     secure_revealed: false,
                     read_only: false,
                     required: false,
+                    invalid: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -1409,6 +1411,7 @@ mod tests {
                     secure_revealed: false,
                     read_only: false,
                     required: false,
+                    invalid: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -1471,6 +1474,7 @@ mod tests {
                     secure_revealed: false,
                     read_only: false,
                     required: false,
+                    invalid: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -1494,6 +1498,7 @@ mod tests {
                     secure_revealed: false,
                     read_only: false,
                     required: false,
+                    invalid: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -1550,6 +1555,7 @@ mod tests {
                     secure_revealed: true,
                     read_only: false,
                     required: false,
+                    invalid: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -1573,6 +1579,7 @@ mod tests {
                     secure_revealed: false,
                     read_only: false,
                     required: false,
+                    invalid: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },

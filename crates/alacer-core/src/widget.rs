@@ -460,6 +460,25 @@ impl ValueRange {
     }
 }
 
+/// The invalid tier's declared kind (M107, ADR-0111): *how* a control's
+/// value fails the form's contract, carried neutrally to the a11y sink.
+/// `alacer-a11y` maps the word onto AccessKit's `Invalid` property —
+/// ARIA's `aria-invalid` — the variants ARIA's own three values
+/// (`true` / `grammar` / `spelling`), so the AT reads the rejection and
+/// the kind of rejection in one fact.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InvalidKind {
+    /// The bare rejection (`aria-invalid="true"`): the value is not
+    /// valid as given, no prose-error kind named.
+    True,
+    /// A grammatical error the AT may surface natively
+    /// (`aria-invalid="grammar"`).
+    Grammar,
+    /// A spelling error the AT may surface natively
+    /// (`aria-invalid="spelling"`).
+    Spelling,
+}
+
 /// What happened to a routed event.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum EventResponse {
@@ -893,6 +912,35 @@ pub trait Widget: 'static {
     /// override this; every other role inherits the default.
     fn required(&self) -> bool {
         false
+    }
+
+    /// Whether the control's value fails the form's contract (M107,
+    /// ADR-0111): the invalid tier's declared word — AccessKit's
+    /// `Invalid` property, ARIA's `aria-invalid`, mapped by
+    /// `alacer-a11y` in the same snapshot every other property rides,
+    /// the kind ([`InvalidKind`]) riding beside the word. Through M106
+    /// the tree said the form's ask (the required word) and every value
+    /// word beside it, and the word every form vocabulary speaks when
+    /// the value lands wrong ("this one is not valid as given") had no
+    /// tier: the AT announced the ask, the hint, the span — and never
+    /// the rejection — the declared-but-unreported gap, the M94 pattern
+    /// at the invalid tier.
+    ///
+    /// The word prices the word and nothing else: an invalid control's
+    /// doors answer exactly as they always did — invalid is not a wall,
+    /// the value stays editable, the re-submit the app's own contract
+    /// (the AT reads the rejection while the user edits, which is the
+    /// whole point of the word). The kind rides beside the word:
+    /// [`InvalidKind::True`] the bare rejection, [`InvalidKind::Grammar`]
+    /// and [`InvalidKind::Spelling`] the prose-error kinds the AT reads
+    /// natively.
+    ///
+    /// `None` is the honest absence (the ADR-0087 presence rule at the
+    /// invalid tier): a control that declared nothing announces
+    /// nothing, never a guessed default. The value tier's controls
+    /// override this; every other role inherits the default.
+    fn invalid(&self) -> Option<InvalidKind> {
+        None
     }
 
     /// The widget's toggle state for the a11y tree (M6): checkboxes report

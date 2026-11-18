@@ -519,6 +519,47 @@ impl AccessKitSink {
         if let Some(level) = node.level {
             access_node.set_level(level);
         }
+        // The current tier (M114, ADR-0118): the set's current item
+        // maps AccessKit's `AriaCurrent` property, ARIA's
+        // `aria-current` — the currency the AT reads beside the name
+        // and the position the M6 slot already carried. The word
+        // prices nothing but the word: the item's doors answer exactly
+        // as they always did. The kind mirrors AccessKit's own enum
+        // values — one branch with no translation — and the honest
+        // absence (`None`, ARIA's `false`) maps to the absence: an item
+        // that declared nothing sets nothing, never a guessed flavor.
+        // The property rides the same node-only delta as every other
+        // property — a current write re-announces exactly that node.
+        if let Some(kind) = node.current {
+            access_node.set_aria_current(match kind {
+                alacer_core::widget::CurrentKind::True => accesskit::AriaCurrent::True,
+                alacer_core::widget::CurrentKind::Page => accesskit::AriaCurrent::Page,
+                alacer_core::widget::CurrentKind::Step => accesskit::AriaCurrent::Step,
+                alacer_core::widget::CurrentKind::Location => accesskit::AriaCurrent::Location,
+                alacer_core::widget::CurrentKind::Date => accesskit::AriaCurrent::Date,
+                alacer_core::widget::CurrentKind::Time => accesskit::AriaCurrent::Time,
+            });
+        }
+        // The has-popup tier (M115, ADR-0119): the opener's target
+        // maps AccessKit's `HasPopup` property, ARIA's `aria-haspopup`
+        // — the target the AT reads beside the name. The word prices
+        // nothing but the word: the opener's doors answer exactly as
+        // they always did. The kind mirrors AccessKit's own enum
+        // values — one branch with no translation — and the honest
+        // absence (`None`, the attribute unset) maps to the absence: a
+        // control that opens nothing sets nothing, never a guessed
+        // target. The property rides the same node-only delta as every
+        // other property — a has-popup write re-announces exactly that
+        // node.
+        if let Some(kind) = node.has_popup {
+            access_node.set_has_popup(match kind {
+                alacer_core::widget::HasPopupKind::Menu => accesskit::HasPopup::Menu,
+                alacer_core::widget::HasPopupKind::Listbox => accesskit::HasPopup::Listbox,
+                alacer_core::widget::HasPopupKind::Tree => accesskit::HasPopup::Tree,
+                alacer_core::widget::HasPopupKind::Grid => accesskit::HasPopup::Grid,
+                alacer_core::widget::HasPopupKind::Dialog => accesskit::HasPopup::Dialog,
+            });
+        }
         if let Some(toggled) = node.toggled {
             access_node.set_toggled(match toggled {
                 alacer_core::widget::ToggleState::Off => Toggled::False,
@@ -666,94 +707,18 @@ mod tests {
             root: Some(root_hash),
             nodes: vec![
                 TreeNode {
-                    id: root_hash,
-                    role: Role::Container,
-                    label: "app".into(),
                     bounds: Some(Rect::new(Point::zero(), Size::new(200.0, 100.0))),
                     children: vec![child_hash, other_hash],
-                    value: None,
-                    toggled: None,
-                    table_slot: None,
-                    selection: None,
-                    live: None,
-                    enabled: true,
-                    description: None,
-                    placeholder: None,
-                    value_range: None,
-                    scroll_orientation: None,
-                    scroll_position: None,
-                    numeric_value: None,
-                    secure_entry: false,
-                    secure_revealed: false,
-                    read_only: false,
-                    required: false,
-                    invalid: None,
-                    selected: None,
-                    multiselectable: false,
-                    expanded: None,
-                    auto_complete: None,
-                    sort_direction: None,
-                    level: None,
+                    ..bare_node(root_hash, Role::Container, "app")
                 },
                 TreeNode {
-                    id: child_hash,
-                    role: Role::Button,
-                    label: "Save".into(),
                     bounds: Some(Rect::new(Point::new(0.0, 0.0), Size::new(60.0, 24.0))),
-                    children: Vec::new(),
-                    value: None,
-                    toggled: None,
-                    table_slot: None,
-                    selection: None,
-                    live: None,
-                    enabled: true,
-                    description: None,
-                    placeholder: None,
-                    value_range: None,
-                    scroll_orientation: None,
-                    scroll_position: None,
-                    numeric_value: None,
-                    secure_entry: false,
-                    secure_revealed: false,
-                    read_only: false,
-                    required: false,
-                    invalid: None,
-                    selected: None,
-                    multiselectable: false,
-                    expanded: None,
-                    auto_complete: None,
-                    sort_direction: None,
-                    level: None,
+                    ..bare_node(child_hash, Role::Button, "Save")
                 },
                 TreeNode {
-                    id: other_hash,
-                    role: Role::TextInput,
-                    label: "Search".into(),
                     bounds: Some(Rect::new(Point::new(0.0, 30.0), Size::new(60.0, 20.0))),
-                    children: Vec::new(),
                     value: Some("hello".into()),
-                    toggled: None,
-                    table_slot: None,
-                    selection: None,
-                    live: None,
-                    enabled: true,
-                    description: None,
-                    placeholder: None,
-                    value_range: None,
-                    scroll_orientation: None,
-                    scroll_position: None,
-                    numeric_value: None,
-                    secure_entry: false,
-                    secure_revealed: false,
-                    read_only: false,
-                    required: false,
-                    invalid: None,
-                    selected: None,
-                    multiselectable: false,
-                    expanded: None,
-                    auto_complete: None,
-                    sort_direction: None,
-                    level: None,
+                    ..bare_node(other_hash, Role::TextInput, "Search")
                 },
             ],
         }
@@ -1106,6 +1071,81 @@ mod tests {
         );
     }
 
+    #[test]
+    fn the_current_tier_maps_onto_the_aria_current_property() {
+        // M114, ADR-0118: the set's current item maps AccessKit's
+        // `AriaCurrent` property, ARIA's `aria-current` — the currency
+        // the AT reads beside the name and the position the M6 slot
+        // carried. The kind mirrors AccessKit's own enum values (one
+        // branch, no translation), the honest absence (`None` — ARIA's
+        // `false`) sets nothing.
+        let mut sink = AccessKitSink::new();
+        let mut snap = snapshot();
+        snap.nodes[1].current = Some(alacer_core::widget::CurrentKind::Page);
+        sink.apply(
+            std::sync::Arc::new(snap),
+            &alacer_core::passes::A11yDelta {
+                updated: {
+                    let mut ids = FxHashSet::default();
+                    ids.insert(snap_root_and_child().1);
+                    ids
+                },
+                removed: Vec::new(),
+                focus: None,
+                initializes: false,
+            },
+        );
+        let update = sink.last_update().expect("the delta produced an update");
+        let current = update
+            .nodes
+            .iter()
+            .find(|(id, _)| id.0 == snap_root_and_child().1)
+            .map(|(_, node)| node)
+            .expect("the current node is re-emitted");
+        assert_eq!(
+            current.aria_current(),
+            Some(accesskit::AriaCurrent::Page),
+            "the AT reads the declared currency, kind beside it"
+        );
+    }
+
+    #[test]
+    fn the_has_popup_tier_maps_onto_the_has_popup_property() {
+        // M115, ADR-0119: the opener's target maps AccessKit's
+        // `HasPopup` property, ARIA's `aria-haspopup` — the target the
+        // AT reads beside the name. The kind mirrors AccessKit's own
+        // enum values (one branch, no translation), the honest absence
+        // (`None` — the attribute unset) sets nothing.
+        let mut sink = AccessKitSink::new();
+        let mut snap = snapshot();
+        snap.nodes[1].has_popup = Some(alacer_core::widget::HasPopupKind::Menu);
+        sink.apply(
+            std::sync::Arc::new(snap),
+            &alacer_core::passes::A11yDelta {
+                updated: {
+                    let mut ids = FxHashSet::default();
+                    ids.insert(snap_root_and_child().1);
+                    ids
+                },
+                removed: Vec::new(),
+                focus: None,
+                initializes: false,
+            },
+        );
+        let update = sink.last_update().expect("the delta produced an update");
+        let opener = update
+            .nodes
+            .iter()
+            .find(|(id, _)| id.0 == snap_root_and_child().1)
+            .map(|(_, node)| node)
+            .expect("the opener node is re-emitted");
+        assert_eq!(
+            opener.has_popup(),
+            Some(accesskit::HasPopup::Menu),
+            "the AT reads the declared target, kind beside it"
+        );
+    }
+
     /// The `(root, child)` hash pair the `snapshot()` helper mounts.
     fn snap_root_and_child() -> (u64, u64) {
         (111, 222)
@@ -1170,6 +1210,8 @@ mod tests {
             auto_complete: None,
             sort_direction: None,
             level: None,
+            current: None,
+            has_popup: None,
         });
         sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
         let update = sink.last_update().expect("update");
@@ -1321,6 +1363,8 @@ mod tests {
             auto_complete: None,
             sort_direction: None,
             level: None,
+            current: None,
+            has_popup: None,
         }
     }
 
@@ -1406,6 +1450,8 @@ mod tests {
                     auto_complete: None,
                     sort_direction: None,
                     level: None,
+                    current: None,
+                    has_popup: None,
                 },
                 TreeNode {
                     id: 2,
@@ -1436,6 +1482,8 @@ mod tests {
                     auto_complete: None,
                     sort_direction: None,
                     level: None,
+                    current: None,
+                    has_popup: None,
                 },
             ],
         };
@@ -1493,6 +1541,8 @@ mod tests {
             auto_complete: None,
             sort_direction: None,
             level: None,
+            current: None,
+            has_popup: None,
         }
     }
 
@@ -1588,6 +1638,8 @@ mod tests {
                     auto_complete: None,
                     sort_direction: None,
                     level: None,
+                    current: None,
+                    has_popup: None,
                 },
                 TreeNode {
                     id: 2,
@@ -1618,6 +1670,8 @@ mod tests {
                     auto_complete: None,
                     sort_direction: None,
                     level: None,
+                    current: None,
+                    has_popup: None,
                 },
             ],
         };
@@ -1679,6 +1733,8 @@ mod tests {
                     auto_complete: None,
                     sort_direction: None,
                     level: None,
+                    current: None,
+                    has_popup: None,
                 },
                 TreeNode {
                     id: 4,
@@ -1709,6 +1765,8 @@ mod tests {
                     auto_complete: None,
                     sort_direction: None,
                     level: None,
+                    current: None,
+                    has_popup: None,
                 },
             ],
         };
@@ -1767,6 +1825,8 @@ mod tests {
                     auto_complete: None,
                     sort_direction: None,
                     level: None,
+                    current: None,
+                    has_popup: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -1797,6 +1857,8 @@ mod tests {
                     auto_complete: None,
                     sort_direction: None,
                     level: None,
+                    current: None,
+                    has_popup: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -1866,6 +1928,8 @@ mod tests {
                     auto_complete: None,
                     sort_direction: None,
                     level: None,
+                    current: None,
+                    has_popup: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -1896,6 +1960,8 @@ mod tests {
                     auto_complete: None,
                     sort_direction: None,
                     level: None,
+                    current: None,
+                    has_popup: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -1959,6 +2025,8 @@ mod tests {
                     auto_complete: None,
                     sort_direction: None,
                     level: None,
+                    current: None,
+                    has_popup: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -1989,6 +2057,8 @@ mod tests {
                     auto_complete: None,
                     sort_direction: None,
                     level: None,
+                    current: None,
+                    has_popup: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },

@@ -1647,6 +1647,8 @@ mod tests {
                 invalid: None,
                 selected: None,
                 multiselectable: false,
+                expanded: None,
+                auto_complete: None,
             }],
         });
         sink.apply(

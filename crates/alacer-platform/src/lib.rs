@@ -1645,6 +1645,8 @@ mod tests {
                 read_only: false,
                 required: false,
                 invalid: None,
+                selected: None,
+                multiselectable: false,
             }],
         });
         sink.apply(

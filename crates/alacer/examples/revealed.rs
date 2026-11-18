@@ -133,7 +133,7 @@ fn main() {
 
     // The status line: the words the tree says, read back through the
     // snapshot (the consumer's side of the fact the AT reads).
-    let snapshot = pipeline.a11y_snapshot().map(|t| t.clone());
+    let snapshot = pipeline.a11y_snapshot().cloned();
     let line = format!(
         "Passphrase: {} · Shown: {}",
         tree_word(snapshot.as_ref(), "Passphrase"),
@@ -157,7 +157,7 @@ fn main() {
     // seam's request paid for).
     set_revealed(&mut pipeline, shown_id, false);
     settle(&mut pipeline);
-    let snapshot = pipeline.a11y_snapshot().map(|t| t.clone());
+    let snapshot = pipeline.a11y_snapshot().cloned();
     status_signal.set(format!(
         "Passphrase: {} · Shown: {} — the hide restored the masked word",
         tree_word(snapshot.as_ref(), "Passphrase"),
@@ -174,7 +174,7 @@ fn main() {
     // one truth.
     set_revealed(&mut pipeline, shown_id, true);
     settle(&mut pipeline);
-    let snapshot = pipeline.a11y_snapshot().map(|t| t.clone());
+    let snapshot = pipeline.a11y_snapshot().cloned();
     status_signal.set(format!(
         "Passphrase: {} · Shown: {} — the reveal yielded the mask to the value",
         tree_word(snapshot.as_ref(), "Passphrase"),

@@ -38,3 +38,10 @@ softbuffer = { workspace = true, optional = true }
 tracing.workspace = true
 bytemuck = { version = "1", features = ["derive"] }
 pollster = "0.4"
+
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "click_chain"
+harness = false

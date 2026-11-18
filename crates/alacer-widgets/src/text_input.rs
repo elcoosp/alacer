@@ -77,6 +77,14 @@ pub struct TextInput {
     /// `purpose` is `Secure`; a plain field's value was always the
     /// tree's read.
     revealed: bool,
+    /// The read-only tier's flag (M105, ADR-0109): whether the
+    /// field's value is the app's — the write doors refuse with the
+    /// named species, the read doors answer beside the wall.
+    read_only: bool,
+    /// The required tier's flag (M106, ADR-0110): whether the field
+    /// must carry a value before the form's submit fires — the word
+    /// the AT reads before it asks, the doors unchanged beside it.
+    required: bool,
     font_size: f32,
     style: Style,
     on_changed: Option<ChangeHandler>,
@@ -129,6 +137,8 @@ impl TextInput {
             placeholder: String::new(),
             purpose: ImePurpose::Text,
             revealed: false,
+            read_only: false,
+            required: false,
             font_size: crate::theme::FONT_SIZE,
             style: Style::default(),
             on_changed: None,
@@ -153,6 +163,71 @@ impl TextInput {
     pub fn revealed(mut self) -> Self {
         self.revealed = true;
         self
+    }
+
+    /// Mounts the field read-only (M105, ADR-0109): the value is the
+    /// app's, not the user's — the word AccessKit's `ReadOnly` flag
+    /// (ARIA's `aria-readonly`) says to the AT, and the wall every
+    /// user write door prices: typing, deletes, undo, redo, paste,
+    /// cut, the IME's commit and the AT's `SetValue` refuse with the
+    /// named species, the ask the open door would have answered
+    /// streaming behind its record. The read doors answer beside the
+    /// wall — focus holds, the caret walks, the selection answers, the
+    /// copy chord reads — and the app's own [`TextInput::set_value`]
+    /// never asked the field's permission: the tier walls user doors,
+    /// not the app's. The live door is [`TextInput::set_read_only`];
+    /// the availability tier ([`TextInput::enabled`] `false`) stays
+    /// the outer one — a field both held down and read-only names the
+    /// availability wall.
+    #[must_use]
+    pub fn read_only(mut self) -> Self {
+        self.read_only = true;
+        self
+    }
+
+    /// The read-only door (M105, ADR-0109): the app's "the field is
+    /// locked" toggle moved live — the word the tree says follows it
+    /// on the re-announcement the caller's `PAINT | A11Y` request pays
+    /// for (the mutate seam's shape, the way every app-side write
+    /// rides). Report whether the word moved — the caller requests
+    /// `A11Y` only when this answers `true`, so a write that lands
+    /// where the word already is queues nothing (the M21 idle-frame
+    /// property, at the read-only tier).
+    pub fn set_read_only(&mut self, read_only: bool) -> bool {
+        if self.read_only == read_only {
+            return false;
+        }
+        self.read_only = read_only;
+        true
+    }
+
+    /// Mounts the field required (M106, ADR-0110): the form contract's
+    /// declared word — AccessKit's `Required` flag (ARIA's
+    /// `aria-required`) says "this one must be filled" to the AT
+    /// before it asks. The word prices nothing but the word: the
+    /// field's doors answer exactly as they always did (required is
+    /// not a wall — the empty submit is the app's own contract). The
+    /// live door is [`TextInput::set_required`].
+    #[must_use]
+    pub fn required(mut self) -> Self {
+        self.required = true;
+        self
+    }
+
+    /// The required door (M106, ADR-0110): the app's form contract
+    /// moved live — the word the tree says follows it on the
+    /// re-announcement the caller's `PAINT | A11Y` request pays for
+    /// (the mutate seam's shape, the way every app-side write rides).
+    /// Report whether the word moved — the caller requests `A11Y` only
+    /// when this answers `true`, so a write that lands where the word
+    /// already is queues nothing (the M21 idle-frame property, at the
+    /// required tier).
+    pub fn set_required(&mut self, required: bool) -> bool {
+        if self.required == required {
+            return false;
+        }
+        self.required = required;
+        true
     }
 
     /// The reveal door (M102, ADR-0106): the app's "show password"
@@ -977,6 +1052,23 @@ impl TextInput {
         reason = "the keyboard door's match is one readable key-by-key narrative; splitting it would hide the note sites the M58 facts ride"
     )]
     fn edit_key(&mut self, ctx: &mut EventCtx, event: &KeyEvent) -> (bool, bool) {
+        // The read-only tier (M105, ADR-0109): the field's value is the
+        // app's, so the write asks land on the declared word — the ask
+        // the open door would have answered streams behind the wall's
+        // species (the M62 rule at the read-only tier), the shape priced
+        // at nothing, never a munged delivered edit. The classifier
+        // names the edit asks only: the caret's walk, the selection's
+        // chords and the copy chord pass to the match below — a
+        // read-only field reads (the read doors answer beside the
+        // wall). The key is consumed: the field heard its own key, the
+        // wall answered it (the refusal costs an idle frame, the
+        // honesty the action tier already pins).
+        if self.read_only
+            && let Some((action, driver)) = Self::refused_action(event)
+        {
+            self.note_key_refusal(action, driver, alacer_core::KeyEditRefusal::ReadOnly);
+            return (true, true);
+        }
         let shift = event.modifiers.shift;
         let command = event.modifiers.control || event.modifiers.meta;
         // The word chords (ADR-0019): Alt on every platform (GTK's double
@@ -1075,6 +1167,16 @@ impl TextInput {
                 (true, true)
             }
             alacer_core::events::Key::Enter => {
+                // The read-only tier (M105, ADR-0109): the submit's own
+                // shape is a value write — fire, then clear — so a
+                // read-only field answers the whole door with its wall:
+                // the value the app set is the value that stays. The ask
+                // streams no record (the M62 rule: the wall prices edit
+                // asks, and the submit's Enter asks nothing), the key is
+                // still the field's to consume.
+                if self.read_only {
+                    return (true, true);
+                }
                 // The submit seam (M6): fire with the current value, then
                 // clear. The widget mutates only itself (rule 1); the
                 // handler's writes ride the batch the caller chose.
@@ -1106,6 +1208,27 @@ impl TextInput {
     /// pre-M11 path *inserted* the character, which turned Ctrl+A into
     /// typing an 'a' (the bug this method's predecessor deletes).
     fn command_chord(&mut self, ch: char, shift: bool) -> (bool, bool) {
+        // The read-only tier (M105, ADR-0109): the journal's chords are
+        // value writes — undo and redo land the field's depths — so the
+        // declared word turns them away with the ask named (the wall's
+        // own actions, the M62 rule at the journal tier). Copy and
+        // select-all are reads and pass beside the wall.
+        if self.read_only {
+            let refused = match ch.to_ascii_lowercase() {
+                'z' if shift => Some(alacer_core::KeyEditAction::Redo),
+                'z' => Some(alacer_core::KeyEditAction::Undo),
+                'y' => Some(alacer_core::KeyEditAction::Redo),
+                _ => None,
+            };
+            if let Some(action) = refused {
+                self.note_key_refusal(
+                    action,
+                    alacer_core::KeyEditDriver::Keyboard,
+                    alacer_core::KeyEditRefusal::ReadOnly,
+                );
+                return (true, true);
+            }
+        }
         match ch {
             'z' | 'Z' if shift => (self.redo(), true),
             'z' | 'Z' => (self.undo(), true),
@@ -1246,6 +1369,22 @@ impl Widget for TextInput {
         self.enabled
     }
 
+    /// The read-only tier (M105, ADR-0109): the word the tree says
+    /// beside the availability's — the field whose value is the app's.
+    /// The write doors price the wall behind it (the named species);
+    /// the read doors answer beside it.
+    fn read_only(&self) -> bool {
+        self.read_only
+    }
+
+    /// The required tier (M106, ADR-0110): the word the tree says
+    /// beside the form contract — "this one must be filled", the AT
+    /// reading it before it asks. The doors answer unchanged beside
+    /// it.
+    fn required(&self) -> bool {
+        self.required
+    }
+
     /// The M11 a11y contract (ADR-0017): the focused input exposes its
     /// selection — anchor and caret, UTF-16 units — and nothing while a
     /// composition is in flight (the IME owns the canvas; a stale range
@@ -1318,6 +1457,28 @@ impl Widget for TextInput {
                 action: tier,
                 outcome: alacer_core::TextWriteOutcome::Refused(
                     alacer_core::TextWriteRefusal::Unavailable,
+                ),
+                replaced: None,
+                inserted: None,
+                requested: None,
+                selection: TextSelection::new(self.anchor_utf16, self.caret_utf16),
+                target: None,
+                source: alacer_core::TextWriteSource::AtDoor,
+            });
+            return false;
+        }
+        // The read-only tier (M105, ADR-0109): the field's value is the
+        // app's — the write asks (`SetValue`, `ReplaceSelectedText`) land
+        // on the declared word before arithmetic, the selection door
+        // answering beside the wall (a read-only field reads). The ask
+        // streams the write door's own refusal species, the shape riding
+        // the honest absence, the field's selection untouched beside it,
+        // never a munged delivered write.
+        if self.read_only && !matches!(action, A11yAction::SetTextSelection(_)) {
+            alacer_core::text_write::note_text_write(alacer_core::TextWriteRecord {
+                action: tier,
+                outcome: alacer_core::TextWriteOutcome::Refused(
+                    alacer_core::TextWriteRefusal::ReadOnly,
                 ),
                 replaced: None,
                 inserted: None,
@@ -1643,6 +1804,26 @@ impl Widget for TextInput {
                     alacer_core::KeyEditAction::Insert,
                     alacer_core::KeyEditDriver::Ime,
                     alacer_core::KeyEditRefusal::Unavailable,
+                );
+            }
+            return EventResponse::Ignored;
+        }
+        // The read-only tier (M105, ADR-0109): the field's value is the
+        // app's, so no composition enters and the commit the field
+        // turns away streams its ask — the wall's species beside the
+        // IME driver (the availability wall's shape, the inner tier's
+        // species), the shape priced at nothing, never a munged
+        // delivered edit. The IME event is ignored otherwise (nothing
+        // else consumes it; the framework drops it): a composition that
+        // cannot land does not compose.
+        if self.read_only {
+            if let ImeEvent::Commit { text } = event
+                && !text.is_empty()
+            {
+                self.note_key_refusal(
+                    alacer_core::KeyEditAction::Insert,
+                    alacer_core::KeyEditDriver::Ime,
+                    alacer_core::KeyEditRefusal::ReadOnly,
                 );
             }
             return EventResponse::Ignored;

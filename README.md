@@ -46,7 +46,7 @@
 | 50-event pointer storm                                | **1** coalesced dispatch (**39.71×**)           | `input_storm_batching` budget                                                                          |
 | 10k-node churn frame vs egui, same host               | 1.10 ms vs 20.7 ms full frame (**18.8×**)       | 5-run medians, declared rig (`benchmarks/rig.json`)                                                    |
 | …vs Masonry                                           | 1.10 ms vs 4.6 ms full pass pipeline (**4.2×**) | same rig, `scripts/run_comparison.py`                                                                  |
-| All 128 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
+| All 131 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
 
 _Competitor rows compare Alacer's incremental frame against their full frame/pass — every row in
 `benchmarks/comparisons/results.json` is labeled with its scope._
@@ -178,6 +178,9 @@ Accessibility is not a layer bolted on — it is the tree's own vocabulary:
 | **Selected** (M108)    | The collection's pick: `selected()` on the trait answering the honest trio (`None` the member of no selection collection — the absence ARIA spells `undefined`, never a guessed `false`; `Some(false)` the member standing unpicked; `Some(true)` the pick), `TableRow`/`TableCell` carrying the constructor word and the `set_selected` door, AccessKit's `Selected` property mapped in the same snapshot — the word names state, it walls nothing | 0112      |
 | **Multiselectable** (M109) | The collection's capacity: `multiselectable()` on the trait, `Table` carrying the constructor word and the `set_multiselectable` door, AccessKit's `Multiselectable` property mapped in the same snapshot — the AT reads "you can pick more than one" before it reaches the rows (the word names capacity, it walls nothing); `false` the honest absence | 0113      |
 | **Expanded** (M110)    | The collection member's disclosure: `expanded()` on the trait answering the honest trio (`None` the member that opens and closes not — the absence ARIA spells `undefined`, never a guessed `false`; `Some(false)` the member standing collapsed; `Some(true)` the member standing open), `TableRow` carrying the constructor word and the `set_expanded` door, AccessKit's `Expanded` property mapped in the same snapshot — the word names state, it walls nothing, the open and close routes the widget's own | 0114      |
+| **Auto-complete** (M111) | The field's suggestion contract: `auto_complete()` on the trait carrying the kind (`AutoCompleteKind` — AccessKit's own three values: `inline`, `list`, `both`; ARIA's `none` the absence the `Option` spells, never a guessed mode), `TextInput` carrying the constructor word and the `set_auto_complete` door, AccessKit's `AutoComplete` property mapped in the same snapshot — the AT reading "completions available" while the user types, the field staying editable exactly as it always did (the word names a contract, it walls nothing); `None` the honest absence | 0115      |
+| **Sort direction** (M112) | The sorted column's order: `sort_direction()` on the trait carrying the kind (`SortDirection` — AccessKit's own three values: `ascending`, `descending`, `other`; ARIA's `none` the absence the `Option` spells, never a guessed direction), `ColumnHeader` carrying the constructor word and the `set_sort` door, AccessKit's `SortDirection` property mapped in the same snapshot — the AT reading "sorted descending" while it walks the rows, the column's press and focus routes the widget's own (the word names an order, it walls nothing); `None` the honest absence | 0116      |
+| **Level** (M113)      | The nested member's depth: `level()` on the trait answering the zero-based count (AccessKit's own base, the contract naming it verbatim beside ARIA's one-based `aria-level` — one branch with no translation), `TableRow` carrying the constructor word and the `set_level` door, AccessKit's `Level` property mapped in the same snapshot — the AT reading "level 2" while it walks the rows, the member's press and focus routes the widget's own (the word names a depth, it walls nothing); `None` the honest absence, the flat row never a guessed `0` | 0117      |
 
 Since M20 the value tier is a widget — the `Slider` answers drag, arrows and AT writes from one
 funnel. Since M21 the value is reportable too — the read-only `Progress` names the door that has
@@ -204,7 +207,13 @@ M108 the collection's pick and since M109 its capacity — `selected()` and `mul
 beside the rows and tables that declared them, the AT reading the pick and the capacity while it
 walks the collection — and since M110 the member's disclosure — `expanded()` beside the row that
 opens and closes, the trio the honest shape (`undefined` the absence, never a guessed `false`) —
-the AT reading
+and since M111 the field's suggestion contract — `auto_complete()` beside the field that offers
+completions, the kind (`inline`, `list`, `both`) riding beside the word, ARIA's `none` the absence
+the `Option` spells — and since M112 the sorted column's order — `sort_direction()` beside the
+header that declares it, the kind (`ascending`, `descending`, `other`) riding beside the word —
+and since M113 the nested member's depth — `level()` beside the row that stands in a nesting, the
+zero-based count AccessKit's own base, the flat row the honest absence (`None`, never a guessed
+`0`) — the AT reading
 all of it in the snapshot every other fact rides.
 
 ## Focus & shortcuts
@@ -492,7 +501,7 @@ is the query API as a runnable walkthrough.
 ## Status
 
 > [!NOTE]
-> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M111 of `docs/architecture.md` are
+> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M113 of `docs/architecture.md` are
 > complete, but the API still moves between minor versions. MSRV **1.99**, edition **2024**.
 
 | Platform            | CI coverage                                                                                                                                                           |
@@ -504,7 +513,7 @@ is the query API as a runnable walkthrough.
 ## Learn more
 
 - [Architecture](https://github.com/elcoosp/alacer/blob/main/docs/architecture.md) — design axioms, the ten-pass contract, rendering, accessibility, DX, performance, roadmap and kill criteria
-- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred and sixteen decision records, from workspace discipline to the M111 scope
+- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred and eighteen decision records, from workspace discipline to the M111 scope
 - [Examples catalog](https://github.com/elcoosp/alacer/blob/main/docs/examples.md) — every example with the contract it exercises
 - [Migrating from Iced](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-iced.md) · [from egui](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-egui.md) — mental-model mappings, interop limits stated plainly
 - [Inspector protocol](https://github.com/elcoosp/alacer/blob/main/docs/inspector-protocol.md) — the versioned WebSocket contract behind `alacer-inspect`

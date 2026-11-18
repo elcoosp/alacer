@@ -1,10 +1,10 @@
 {
   "schema": 1,
   "description": "Published Alacer performance baseline (M5, ADR-0011): one entry per criterion benchmark case, median/mean/MAD in nanoseconds. Ids are the criterion result directories under target/criterion. Regenerate with scripts/collect_baseline.py after `cargo bench`.",
-  "generated_at": "2026-11-17T17:56:02+00:00",
+  "generated_at": "2026-11-18T15:46:43+00:00",
   "toolchain": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
   "git": {
-    "commit": "51d2d1365ef6adf245adb6d1fad600d45fad4ca7",
+    "commit": "eb9a75048b4229c995ae222a82003b75bbd376e0",
     "dirty": true
   },
   "host": {
@@ -14,7 +14,7 @@
     "cpu_count": "2",
     "fingerprint": "ee37c3efc5995352"
   },
-  "bench_count": 121,
+  "bench_count": 125,
   "benches": {
     "a11y/full_rebuild_1k": {
       "median_ns": 94976.36080368907,
@@ -740,6 +740,30 @@
       "median_ns": 228653.8736979167,
       "mean_ns": 229461.07853005663,
       "median_abs_dev_ns": 3411.6743394306695,
+      "samples": 100
+    },
+    "selected/snapshot_1k_selected": {
+      "median_ns": 168587.68664772727,
+      "mean_ns": 169546.69973286998,
+      "median_abs_dev_ns": 1579.4980229941384,
+      "samples": 100
+    },
+    "selected/snapshot_1k_rows_bare": {
+      "median_ns": 169045.19345238095,
+      "mean_ns": 169901.46596277665,
+      "median_abs_dev_ns": 1719.4290888796245,
+      "samples": 100
+    },
+    "multiselectable/snapshot_1k_multiselectable": {
+      "median_ns": 216059.05528846153,
+      "mean_ns": 216406.76933459795,
+      "median_abs_dev_ns": 2516.615817429255,
+      "samples": 100
+    },
+    "multiselectable/snapshot_1k_tables_bare": {
+      "median_ns": 218858.8875,
+      "mean_ns": 219455.30167500742,
+      "median_abs_dev_ns": 1748.1146913827697,
       "samples": 100
     }
   }

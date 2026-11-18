@@ -273,6 +273,21 @@ pub struct TreeNode {
     /// member that declared nothing announces no depth, never a
     /// guessed `0`.
     pub level: Option<usize>,
+    /// The set's current-item word (M114, ADR-0118): which item of a
+    /// set the reader stands in — the word the AT reads beside the name
+    /// and the position the M6 slot already carried (AccessKit's
+    /// `AriaCurrent` property, ARIA's `aria-current`). The word prices
+    /// nothing but the word: the item's doors answer exactly as they
+    /// always did. `None` is the honest absence — an item that declared
+    /// nothing announces no currency, never a guessed flavor.
+    pub current: Option<crate::widget::CurrentKind>,
+    /// The opener's has-popup word (M115, ADR-0119): what the control
+    /// opens — the word the AT reads beside the name (AccessKit's
+    /// `HasPopup` property, ARIA's `aria-haspopup`). The word prices
+    /// nothing but the word: the opener's doors answer exactly as they
+    /// always did. `None` is the honest absence — a control that opens
+    /// nothing announces no target, never a guessed one.
+    pub has_popup: Option<crate::widget::HasPopupKind>,
 }
 
 /// The full accessibility snapshot of the widget tree, built by pass 9.
@@ -4044,6 +4059,8 @@ impl PassPipeline {
                 auto_complete: slot.widget().auto_complete(),
                 sort_direction: slot.widget().sort_direction(),
                 level: slot.widget().level(),
+                current: slot.widget().current(),
+                has_popup: slot.widget().has_popup(),
             };
             if snapshot.root.is_none() {
                 snapshot.root = Some(node.id);
@@ -4111,6 +4128,12 @@ impl PassPipeline {
                 // The pipeline's own node: no depth to say — the
                 // region nests not.
                 level: None,
+                // The pipeline's own node: no set to stand in — the
+                // region is current for no item.
+                current: None,
+                // The pipeline's own node: nothing to open — the
+                // region speaks its own content.
+                has_popup: None,
             });
         }
         snapshot

@@ -853,6 +853,17 @@ pub struct PassPipeline {
     order_cache: Option<Vec<NodeId>>,
     /// Per-pass wall timing (the M1 gate instrumentation); off by default.
     timings: bool,
+    /// The clock the timing rides (M104, ADR-0108): the time seam the
+    /// [`Self::set_clock`] door installs. `None` in every default path —
+    /// the reads answer the fallback anchor (real monotonic time), the
+    /// shipped shape. A seam clock makes the timed frame deterministic:
+    /// the tests install one and assert the ledger exactly.
+    clock: Option<Box<dyn crate::time::TimeSeam>>,
+    /// The fallback reads' anchor: the pipeline's own construction
+    /// instant. Only differences of reads are priced, so one anchor per
+    /// pipeline is the honest shape — the deltas equal the deltas the
+    /// direct `Instant::now` reads answered, from one fixed origin.
+    clock_anchor: std::time::Instant,
     /// Pass ledger entries for dispatch-driven passes (event, action),
     /// attributed to the next tick's report.
     interframe: Vec<PassRun>,
@@ -938,6 +949,8 @@ impl PassPipeline {
             order_cache: None,
             last_compose_events: 0,
             timings: false,
+            clock: None,
+            clock_anchor: std::time::Instant::now(),
             interframe: Vec::new(),
             idle_ledger: None,
             style_cache: FxHashMap::default(),
@@ -1270,6 +1283,30 @@ impl PassPipeline {
     /// instrumentation; benches and the overhead test turn this on).
     pub fn set_timings(&mut self, on: bool) {
         self.timings = on;
+    }
+
+    /// Installs the clock the timing reads answer (M104, ADR-0108): the
+    /// time seam's own door beside [`Self::set_timings`]. Replaces any
+    /// previous clock — the newest install wins, one door to swap a
+    /// deterministic [`crate::time::ManualClock`] in and the canon real
+    /// time back out. With no clock installed every read answers the
+    /// fallback anchor (the pipeline's construction instant — real
+    /// monotonic time), the shipped shape, so the default build's
+    /// behavior is byte-for-byte the pre-seam tick's.
+    pub fn set_clock(&mut self, clock: Box<dyn crate::time::TimeSeam>) {
+        self.clock = Some(clock);
+    }
+
+    /// One timing read: the installed seam's monotonic nanos, or the
+    /// fallback anchor's elapsed when nothing is installed. Durations
+    /// are differences of two reads (the shape both the pass ledger and
+    /// the chain window ride), so the anchor's origin is arbitrary —
+    /// never a calendar fact.
+    fn read_clock_nanos(&self) -> u64 {
+        match &self.clock {
+            Some(clock) => clock.now_nanos(),
+            None => crate::num::u128_to_u64(self.clock_anchor.elapsed().as_nanos()),
+        }
     }
 
     /// Requests keyboard focus for `node` (resolved by pass 3 next tick).
@@ -1835,12 +1872,12 @@ impl PassPipeline {
         };
         let span =
             tracing::trace_span!(target: "alacer::pass", "pass", pass = PassKind::Event.name());
-        let start = self.timings.then(std::time::Instant::now);
+        let start = self.timings.then(|| self.read_clock_nanos());
         let guard = span.enter();
 
         let (response, target) = self.route_pointer(event, &mut run.ran);
 
-        run.nanos = start.map_or(0, |t| crate::num::u128_to_u64(t.elapsed().as_nanos()));
+        run.nanos = start.map_or(0, |t| self.read_clock_nanos().saturating_sub(t));
         drop(guard);
         self.interframe.push(run);
         self.notify_input(Self::pointer_kind(event), target);
@@ -2065,7 +2102,7 @@ impl PassPipeline {
         };
         let span =
             tracing::trace_span!(target: "alacer::pass", "pass", pass = PassKind::Event.name());
-        let start = self.timings.then(std::time::Instant::now);
+        let start = self.timings.then(|| self.read_clock_nanos());
         let guard = span.enter();
 
         let mut response = EventResponse::Ignored;
@@ -2173,7 +2210,7 @@ impl PassPipeline {
             run.ran = true;
         }
 
-        run.nanos = start.map_or(0, |t| crate::num::u128_to_u64(t.elapsed().as_nanos()));
+        run.nanos = start.map_or(0, |t| self.read_clock_nanos().saturating_sub(t));
         drop(guard);
         self.interframe.push(run);
         self.notify_input(InputKind::Key, self.focused);
@@ -2192,7 +2229,7 @@ impl PassPipeline {
         };
         let span =
             tracing::trace_span!(target: "alacer::pass", "pass", pass = PassKind::Event.name());
-        let start = self.timings.then(std::time::Instant::now);
+        let start = self.timings.then(|| self.read_clock_nanos());
         let guard = span.enter();
 
         let mut response = EventResponse::Ignored;
@@ -2253,7 +2290,7 @@ impl PassPipeline {
             });
         }
 
-        run.nanos = start.map_or(0, |t| crate::num::u128_to_u64(t.elapsed().as_nanos()));
+        run.nanos = start.map_or(0, |t| self.read_clock_nanos().saturating_sub(t));
         drop(guard);
         self.interframe.push(run);
         self.notify_input(InputKind::Ime, self.focused);
@@ -2913,7 +2950,7 @@ impl PassPipeline {
         reason = "the ten-pass tick is one readable frame-by-frame narrative; splitting it would hide the pass ordering the contract is about"
     )]
     pub fn tick(&mut self, viewport: Size) -> Result<FrameReport, LayoutError> {
-        let total_start = self.timings.then(std::time::Instant::now);
+        let total_start = self.timings.then(|| self.read_clock_nanos());
 
         // The a11y-echo drain (§13.3, ADR-0073): the adapter tier's facts
         // — the full-tree echo a connect or reconnect answered — ride the
@@ -3265,7 +3302,7 @@ impl PassPipeline {
                     node: None,
                 });
             };
-            let start = self.timings.then(std::time::Instant::now);
+            let start = self.timings.then(|| self.read_clock_nanos());
             // The engine seam's own failure (ADR-0023's error shape):
             // the same note site the no-root bug rides — the species is
             // the stage's, the node the engine named, verbatim. The
@@ -3281,7 +3318,7 @@ impl PassPipeline {
                 });
                 return Err(error);
             }
-            layout_work = start.map_or(0, |t| crate::num::u128_to_u64(t.elapsed().as_nanos()));
+            layout_work = start.map_or(0, |t| self.read_clock_nanos().saturating_sub(t));
             self.counters.layout_runs += 1;
         }
         ledger.push(self.run_pass(PassKind::Layout, |_| layout_ran));
@@ -3318,9 +3355,9 @@ impl PassPipeline {
         let mut compose_work = 0_u64;
         ledger.push(self.run_pass(PassKind::Compose, |s| {
             if compose_due {
-                let start = s.timings.then(std::time::Instant::now);
+                let start = s.timings.then(|| s.read_clock_nanos());
                 translated = s.compose_scrolls();
-                compose_work = start.map_or(0, |t| crate::num::u128_to_u64(t.elapsed().as_nanos()));
+                compose_work = start.map_or(0, |t| s.read_clock_nanos().saturating_sub(t));
                 s.last_compose_events = s.counters.events_routed;
             }
             compose_due
@@ -3348,7 +3385,7 @@ impl PassPipeline {
         let mut damage = DamageBuilder::new();
         ledger.push(self.run_pass(PassKind::Paint, |s| {
             if paint_ran {
-                let start = s.timings.then(std::time::Instant::now);
+                let start = s.timings.then(|| s.read_clock_nanos());
                 if structure_changed {
                     s.journal.clear();
                     s.order_cache = None;
@@ -3362,7 +3399,7 @@ impl PassPipeline {
                 let snapshot = std::sync::Arc::new(s.journal.snapshot(order));
                 s.scene_cache = Some(std::sync::Arc::clone(&snapshot));
                 scene = Some(snapshot);
-                paint_work = start.map_or(0, |t| crate::num::u128_to_u64(t.elapsed().as_nanos()));
+                paint_work = start.map_or(0, |t| s.read_clock_nanos().saturating_sub(t));
             }
             paint_ran
         }));
@@ -3404,7 +3441,7 @@ impl PassPipeline {
         ledger.push(self.run_pass(PassKind::Accessibility, |s| {
             if a11y_ran {
                 s.announcement_dirty = false;
-                let start = s.timings.then(std::time::Instant::now);
+                let start = s.timings.then(|| s.read_clock_nanos());
                 let snapshot = std::sync::Arc::new(s.build_tree_snapshot());
                 let mut delta = A11yDelta {
                     updated: a11y_set.clone(),
@@ -3424,7 +3461,7 @@ impl PassPipeline {
                 }
                 s.a11y.apply(std::sync::Arc::clone(&snapshot), &delta);
                 a11y_delta = delta;
-                a11y_work = start.map_or(0, |t| crate::num::u128_to_u64(t.elapsed().as_nanos()));
+                a11y_work = start.map_or(0, |t| s.read_clock_nanos().saturating_sub(t));
                 s.counters.a11y_runs += 1;
             }
             a11y_ran
@@ -3434,8 +3471,7 @@ impl PassPipeline {
             run.nanos = a11y_work;
         }
 
-        let total_nanos =
-            total_start.map_or(0, |t| crate::num::u128_to_u64(t.elapsed().as_nanos()));
+        let total_nanos = total_start.map_or(0, |t| self.read_clock_nanos().saturating_sub(t));
         // A frame that skipped paint replays the cached materialization —
         // the cheap replay IS the journal's point (§9.1): no walk, no
         // primitive clones, one Arc clone (§14.3's warm path).
@@ -3492,10 +3528,10 @@ impl PassPipeline {
     /// `body` returns whether the pass had work.
     fn run_pass(&mut self, kind: PassKind, body: impl FnOnce(&mut Self) -> bool) -> PassRun {
         let span = tracing::trace_span!(target: "alacer::pass", "pass", pass = kind.name());
-        let start = self.timings.then(std::time::Instant::now);
+        let start = self.timings.then(|| self.read_clock_nanos());
         let guard = span.enter();
         let ran = body(self);
-        let nanos = start.map_or(0, |t| crate::num::u128_to_u64(t.elapsed().as_nanos()));
+        let nanos = start.map_or(0, |t| self.read_clock_nanos().saturating_sub(t));
         drop(guard);
         PassRun {
             kind,
@@ -4274,6 +4310,142 @@ mod tests {
 
     fn viewport() -> Size {
         Size::new(200.0, 400.0)
+    }
+
+    // ------------------------------------------------------------------
+    // M104 (ADR-0108): the tick's clock rides the time seam — the pass
+    // ledger's wall pricing answers whatever clock the pipeline holds.
+    // A seam clock makes the timed frame exact: every read one step past
+    // the last, two ticks pricing identically, a frozen clock pricing
+    // zero — no sleeps, no hoping the scheduler agrees.
+    // ------------------------------------------------------------------
+
+    /// The seam the tests install: every read one step past the last — a
+    /// clock the test controls without sleeping, the deterministic
+    /// frame's own shape.
+    struct StepClock {
+        nanos: std::cell::Cell<u64>,
+        step: u64,
+    }
+
+    impl StepClock {
+        fn new(step: u64) -> Self {
+            Self {
+                nanos: std::cell::Cell::new(0),
+                step,
+            }
+        }
+    }
+
+    impl crate::time::TimeSeam for StepClock {
+        fn now_nanos(&self) -> u64 {
+            let next = self.nanos.get().saturating_add(self.step);
+            self.nanos.set(next);
+            next
+        }
+    }
+
+    /// The pass ledger's prices, plainly — the determinism the seam
+    /// claims, as data.
+    fn ledger_prices(report: &super::FrameReport) -> Vec<u64> {
+        report.passes.iter().map(|run| run.nanos).collect()
+    }
+
+    #[test]
+    fn a_seam_clock_prices_two_ticks_identically() {
+        let mut p = pipeline();
+        p.set_timings(true);
+        p.set_clock(Box::new(StepClock::new(1_000_000)));
+        let _root = p.mount_root(Box::new(Fixed {
+            size: Size::new(400.0, 800.0),
+        }));
+
+        let first = p.tick(viewport()).expect("the first timed frame");
+        let second = p.tick(viewport()).expect("the second timed frame");
+        let third = p.tick(viewport()).expect("the third timed frame");
+
+        let first_prices = ledger_prices(&first);
+        assert!(
+            !first_prices.is_empty() && first_prices.iter().all(|nanos| *nanos > 0),
+            "the structural frame runs every pass: every read priced"
+        );
+        for nanos in first_prices.iter().chain(ledger_prices(&second).iter()) {
+            assert_eq!(
+                nanos % 1_000_000,
+                0,
+                "every pass prices whole steps of the seam's own read ({nanos})"
+            );
+        }
+        assert_eq!(
+            first.total_nanos % 1_000_000,
+            0,
+            "the frame's total prices whole steps too"
+        );
+        assert_eq!(
+            ledger_prices(&second),
+            ledger_prices(&third),
+            "two idle ticks of the same tree price identically — the seam's determinism, as data"
+        );
+    }
+
+    #[test]
+    fn a_frozen_manual_clock_prices_the_tick_zero() {
+        let mut p = pipeline();
+        p.set_timings(true);
+        p.set_clock(Box::new(crate::time::ManualClock::new()));
+        let _root = p.mount_root(Box::new(Fixed {
+            size: Size::new(400.0, 800.0),
+        }));
+
+        let report = p.tick(viewport()).expect("the timed frame");
+        for run in report.passes.iter() {
+            assert_eq!(
+                run.nanos, 0,
+                "a clock the test never advanced prices zero — the deterministic frame"
+            );
+        }
+        assert_eq!(
+            report.total_nanos, 0,
+            "the frame's total answers the same frozen clock"
+        );
+    }
+
+    #[test]
+    fn set_clock_replaces_the_installed_clock() {
+        let mut p = pipeline();
+        p.set_timings(true);
+        p.set_clock(Box::new(crate::time::ManualClock::new()));
+        let _root = p.mount_root(Box::new(Fixed {
+            size: Size::new(400.0, 800.0),
+        }));
+        let frozen = p.tick(viewport()).expect("the frozen frame");
+        assert!(
+            frozen.passes.iter().all(|run| run.nanos == 0),
+            "the frozen clock prices zero"
+        );
+
+        p.set_clock(Box::new(StepClock::new(500_000)));
+        let stepped = p.tick(viewport()).expect("the stepped frame");
+        assert!(
+            stepped.passes.iter().all(|run| run.nanos % 500_000 == 0)
+                && stepped.passes.iter().any(|run| run.nanos > 0),
+            "the newest installed clock answers — one door, the last install wins"
+        );
+    }
+
+    #[test]
+    fn without_a_seam_the_tick_still_measures_wall_time() {
+        let mut p = pipeline();
+        p.set_timings(true);
+        let _root = p.mount_root(Box::new(Fixed {
+            size: Size::new(400.0, 800.0),
+        }));
+
+        let report = p.tick(viewport()).expect("the timed frame");
+        assert!(
+            report.total_nanos > 0,
+            "no seam installed: the fallback anchor still measures — the shipped default's shape"
+        );
     }
 
     #[test]

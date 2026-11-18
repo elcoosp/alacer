@@ -427,11 +427,11 @@ fn m76_the_disabled_trail_still_counts() {
 fn m76_the_living_documents_re_agree() {
     let readme = read_workspace_file("README.md");
     assert!(
-        readme.contains("M0 through M111"),
+        readme.contains("M0 through M113"),
         "the README status reflects the living cut — the chain cannot drift"
     );
     assert!(
-        readme.contains("All 128 criterion cases"),
+        readme.contains("All 131 criterion cases"),
         "the README quotes the baselines.json bench_count the count tier grew"
     );
     let architecture = read_workspace_file("docs/architecture.md");
@@ -440,7 +440,7 @@ fn m76_the_living_documents_re_agree() {
         "the architecture carries the count's decision"
     );
     assert!(
-        architecture.contains("a hundred and sixteen decision records"),
+        architecture.contains("a hundred and eighteen decision records"),
         "the register grew the M76 row"
     );
     let baselines = serde_json::from_str::<serde_json::Value>(&read_workspace_file(
@@ -448,7 +448,7 @@ fn m76_the_living_documents_re_agree() {
     ))
     .expect("the baselines parse");
     assert_eq!(
-        baselines["bench_count"], 128,
+        baselines["bench_count"], 131,
         "the published corpus carries the count tier's pricing"
     );
 }

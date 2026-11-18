@@ -149,3 +149,11 @@ harness = false
 [[bench]]
 name = "auto_complete"
 harness = false
+
+[[bench]]
+name = "sort"
+harness = false
+
+[[bench]]
+name = "level"
+harness = false

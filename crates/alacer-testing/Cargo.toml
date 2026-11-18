@@ -121,3 +121,11 @@ harness = false
 [[bench]]
 name = "secure_revealed"
 harness = false
+
+[[bench]]
+name = "read_only"
+harness = false
+
+[[bench]]
+name = "required"
+harness = false

@@ -35,6 +35,10 @@ const TEXT_INSET: f32 = 2.0;
 /// A single-line editable text input (role `TextInput`, name mandatory —
 /// ADR-5; the accessible name is the constructor's, the *value* is the
 /// content).
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "four orthogonal facts the widget owns — the drag arm, the focus ring, the availability flag, and M102's reveal word; grouping them would hide the names the contract speaks"
+)]
 pub struct TextInput {
     /// The accessible name (a screen reader says "Search, edit text").
     name: String,

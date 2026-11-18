@@ -32,7 +32,7 @@ use alacer_widgets::{BoxedWidget as _, Button, Column, TextInput};
 /// (M97), the placeholder route's pair (M96), the description route's
 /// case (M95), the toggle route's pair (M94), the derive route's pair
 /// (M92), and the recording route's pair (M93) on the published corpus.
-const EXPECTED_BENCH_COUNT: usize = 120;
+const EXPECTED_BENCH_COUNT: usize = 121;
 
 /// The suite's own read door into the published corpus: the reveal
 /// route's case — the 1,000-node revealed field arena (the coordinated

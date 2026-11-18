@@ -269,12 +269,12 @@ fn m9_the_activation_response_is_the_sinks_own_full_tree() {
 // The published budget (the M5 coordinated corpus rule)
 // ---------------------------------------------------------------------------
 
-/// The corpus pin, mirroring the coordinated rule: 128 criterion cases —
-/// every tier's, route's and seam's case the M5-M111 chain added, the
-/// auto-complete route's case the newest (ADR-0115). Growing the corpus
+/// The corpus pin, mirroring the coordinated rule: 131 criterion cases —
+/// every tier's, route's and seam's case the M5-M113 chain added, the
+/// level route's case the newest (ADR-0117). Growing the corpus
 /// moves the bench file, contracts.json, the baseline, and the
 /// M5/M6/M7/M8/M9 pins together.
-const EXPECTED_BENCH_COUNT: usize = 128;
+const EXPECTED_BENCH_COUNT: usize = 131;
 
 #[test]
 fn m9_the_a11y_ratio_is_a_published_budget_and_the_corpus_moves_together() {
@@ -326,8 +326,8 @@ fn m9_the_a11y_ratio_is_a_published_budget_and_the_corpus_moves_together() {
     ] {
         let source = read_workspace_file(&format!("crates/alacer-testing/tests/{suite}"));
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 128;"),
-            "{suite} must pin the 128-case corpus"
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 131;"),
+            "{suite} must pin the 131-case corpus"
         );
     }
 }

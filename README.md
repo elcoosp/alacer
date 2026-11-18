@@ -46,7 +46,7 @@
 | 50-event pointer storm                                | **1** coalesced dispatch (**39.71×**)           | `input_storm_batching` budget                                                                          |
 | 10k-node churn frame vs egui, same host               | 1.10 ms vs 20.7 ms full frame (**18.8×**)       | 5-run medians, declared rig (`benchmarks/rig.json`)                                                    |
 | …vs Masonry                                           | 1.10 ms vs 4.6 ms full pass pipeline (**4.2×**) | same rig, `scripts/run_comparison.py`                                                                  |
-| All 125 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
+| All 128 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
 
 _Competitor rows compare Alacer's incremental frame against their full frame/pass — every row in
 `benchmarks/comparisons/results.json` is labeled with its scope._
@@ -172,7 +172,12 @@ Accessibility is not a layer bolted on — it is the tree's own vocabulary:
 | **Secure** (M100)      | The field's declared secret entry: `secure_entry()` on the trait, `TextInput` carrying the constructor's word, AccessKit's `PasswordInput` role mapped in the same snapshot — the AT announces "secure text entry", the value the tree resolves the mask (one masking character per code point, never the secret); `false` the honest absence | 0104      |
 | **Scroll position** (M101) | Where the container *is* on the track it declared: `scroll_position()` on the trait, `List` producing the offset the doors landed beside the wall they clamp to, AccessKit's `ScrollY`/`ScrollYMin`/`ScrollYMax` (the `ScrollX` halves beside them on a two-axis container) mapped in the same snapshot — the AT announces "scrolled 200 of 0..600", an empty span the same wall every scroll door answers `no_scrollable_content` with; `None` the honest absence | 0105      |
 | **Reveal** (M102)       | The toggle behind the mask: `secure_revealed()` on the trait beside `secure_entry()`, `TextInput` carrying the constructor word and the `set_revealed` door, AccessKit's own contract naming the mapping (`Role::TextInput` once revealed) in the same snapshot — the mask yielding to the revealed state, the value the pixels show the value the tree says; `false` the honest absence on every field that declared no secret entry | 0106      |
+| **Read-only** (M105)   | The field whose value is the app's: `read_only()` on the trait, `TextInput` carrying the constructor word and the `set_read_only` door, the walls the doors' own named species (`KeyEditRefusal::ReadOnly` on the typing door and the IME's commit, `TextWriteRefusal::ReadOnly` on the AT's write door) while the read doors answer beside them (focus, caret, selection, copy), AccessKit's `ReadOnly` flag mapped in the same snapshot; `false` the honest absence | 0109      |
+| **Required** (M106)    | The form's ask before the submit fires: `required()` on the trait, `TextInput` carrying the constructor word and the `set_required` door, `Slider`/`Checkbox` joining without a seam change, AccessKit's `Required` flag mapped in the same snapshot — the AT reading "required" before it asks (required is not a wall, the empty submit the app's own contract); `false` the honest absence | 0110      |
 | **Invalid** (M107)      | The rejection behind the form's ask: `invalid()` on the trait carrying the kind (`InvalidKind` — ARIA's own three values: `true`, `grammar`, `spelling`), `TextInput` carrying the constructor word and the `set_invalid` door, `Slider`/`Checkbox` joining without a seam change, AccessKit's `Invalid` property mapped in the same snapshot — the AT reading "invalid" while the user edits, the doors answering exactly as they always did (invalid is not a wall); `None` the honest absence | 0111      |
+| **Selected** (M108)    | The collection's pick: `selected()` on the trait answering the honest trio (`None` the member of no selection collection — the absence ARIA spells `undefined`, never a guessed `false`; `Some(false)` the member standing unpicked; `Some(true)` the pick), `TableRow`/`TableCell` carrying the constructor word and the `set_selected` door, AccessKit's `Selected` property mapped in the same snapshot — the word names state, it walls nothing | 0112      |
+| **Multiselectable** (M109) | The collection's capacity: `multiselectable()` on the trait, `Table` carrying the constructor word and the `set_multiselectable` door, AccessKit's `Multiselectable` property mapped in the same snapshot — the AT reads "you can pick more than one" before it reaches the rows (the word names capacity, it walls nothing); `false` the honest absence | 0113      |
+| **Expanded** (M110)    | The collection member's disclosure: `expanded()` on the trait answering the honest trio (`None` the member that opens and closes not — the absence ARIA spells `undefined`, never a guessed `false`; `Some(false)` the member standing collapsed; `Some(true)` the member standing open), `TableRow` carrying the constructor word and the `set_expanded` door, AccessKit's `Expanded` property mapped in the same snapshot — the word names state, it walls nothing, the open and close routes the widget's own | 0114      |
 
 Since M20 the value tier is a widget — the `Slider` answers drag, arrows and AT writes from one
 funnel. Since M21 the value is reportable too — the read-only `Progress` names the door that has
@@ -189,9 +194,17 @@ field's secret entry — `secure_entry()` beside the constructor that declared i
 ride — `scroll_position()` beside the doors that landed it, the AT reading "200 of 0..600" where
 the axis word named only the track — and since M102 the toggle behind the mask — `secure_revealed()`
 beside the constructor word, the mask yielding to the revealed state, the pixels and the tree telling
-one truth — and since M107 the word behind the form's rejection — `invalid()` beside the ask the
-required tier declared, the kind (`true`, `grammar`, `spelling`) riding beside the word, the AT
-reading "invalid" while the user edits, every door answering exactly as it always did — the AT reading
+one truth — and since M105 the field whose value is the app's — `read_only()` beside the walls the
+doors' own named species, the read doors answering beside them — and since M106 the form's ask —
+`required()` beside the fields and values it rides, the AT reading the declaration before it asks —
+and since M107 the word behind the form's rejection — `invalid()` beside the ask the required tier
+declared, the kind (`true`, `grammar`, `spelling`) riding beside the word, the AT
+reading "invalid" while the user edits, every door answering exactly as it always did — and since
+M108 the collection's pick and since M109 its capacity — `selected()` and `multiselectable()`
+beside the rows and tables that declared them, the AT reading the pick and the capacity while it
+walks the collection — and since M110 the member's disclosure — `expanded()` beside the row that
+opens and closes, the trio the honest shape (`undefined` the absence, never a guessed `false`) —
+the AT reading
 all of it in the snapshot every other fact rides.
 
 ## Focus & shortcuts
@@ -456,6 +469,8 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `required` | the M106 required tier driven from the consumer side: the form contract's word beside the values it rides (the required field, slider, checkbox and the optional note), required not a wall — every door answering as it always did |
 | `selected` | the M108 selected tier driven from the consumer side: the picked row beside the unpicked row and the wordless row, the word naming state and walling nothing — the live door moving the word, pick, unpick, clear |
 | `multiselectable` | the M109 multiselectable tier driven from the consumer side: the multi-pick table beside the single-pick table, the capacity word naming state and walling nothing — the live door moving the word, declare, clear |
+| `expanded` | the M110 expanded tier driven from the consumer side: the folder table whose rows say the disclosure — the open row beside the collapsed row and the wordless row, the word naming state and walling nothing — the live door moving the word, open, collapse, clear |
+| `auto_complete` | the M111 auto-complete tier driven from the consumer side: the listing field beside the inline field and the plain field between them, the contract word naming suggestions and walling nothing — the live door moving the word, list, inline, clear |
 | `a11y_queries` | the a11y query API as a runnable walkthrough: find by role and name, press through the AT's own `DefaultPress` door, click at the tree's own bounds, read the label's word back — the tree, never the internals |
 
 </details>
@@ -477,7 +492,7 @@ is the query API as a runnable walkthrough.
 ## Status
 
 > [!NOTE]
-> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M109 of `docs/architecture.md` are
+> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M111 of `docs/architecture.md` are
 > complete, but the API still moves between minor versions. MSRV **1.99**, edition **2024**.
 
 | Platform            | CI coverage                                                                                                                                                           |
@@ -489,7 +504,7 @@ is the query API as a runnable walkthrough.
 ## Learn more
 
 - [Architecture](https://github.com/elcoosp/alacer/blob/main/docs/architecture.md) — design axioms, the ten-pass contract, rendering, accessibility, DX, performance, roadmap and kill criteria
-- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred and fourteen decision records, from workspace discipline to the M109 scope
+- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred and sixteen decision records, from workspace discipline to the M111 scope
 - [Examples catalog](https://github.com/elcoosp/alacer/blob/main/docs/examples.md) — every example with the contract it exercises
 - [Migrating from Iced](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-iced.md) · [from egui](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-egui.md) — mental-model mappings, interop limits stated plainly
 - [Inspector protocol](https://github.com/elcoosp/alacer/blob/main/docs/inspector-protocol.md) — the versioned WebSocket contract behind `alacer-inspect`

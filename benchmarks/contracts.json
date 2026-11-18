@@ -225,6 +225,24 @@
       "op": "<=",
       "budget": 1.25,
       "cite": "ADR-0117 (M113): the level word rides the snapshot the row rides \u2014 the word's price the one Option the node carries; test-enforced nowhere, measured by criterion"
+    },
+    {
+      "id": "current_snapshot_overhead",
+      "metric": "median_ratio",
+      "numerator": "current/snapshot_1k_currents",
+      "denominator": "current/snapshot_1k_buttons_bare",
+      "op": "<=",
+      "budget": 1.25,
+      "cite": "ADR-0118 (M114): the current word rides the snapshot the button rides \u2014 the word's price the one Option the node carries; test-enforced nowhere, measured by criterion"
+    },
+    {
+      "id": "has_popup_snapshot_overhead",
+      "metric": "median_ratio",
+      "numerator": "has_popup/snapshot_1k_has_popups",
+      "denominator": "current/snapshot_1k_buttons_bare",
+      "op": "<=",
+      "budget": 1.25,
+      "cite": "ADR-0119 (M115): the has-popup word rides the snapshot the button rides \u2014 the word's price the one Option the node carries; test-enforced nowhere, measured by criterion"
     }
   ],
   "regressions": [
@@ -881,6 +899,21 @@
     {
       "id": "level_snapshot_1k_level",
       "baseline": "level/snapshot_1k_level",
+      "scope": "same-host"
+    },
+    {
+      "id": "current_snapshot_1k_currents",
+      "baseline": "current/snapshot_1k_currents",
+      "scope": "same-host"
+    },
+    {
+      "id": "current_snapshot_1k_buttons_bare",
+      "baseline": "current/snapshot_1k_buttons_bare",
+      "scope": "same-host"
+    },
+    {
+      "id": "has_popup_snapshot_1k_has_popups",
+      "baseline": "has_popup/snapshot_1k_has_popups",
       "scope": "same-host"
     }
   ],

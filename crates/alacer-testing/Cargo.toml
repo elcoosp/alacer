@@ -105,19 +105,3 @@ harness = false
 [[bench]]
 name = "orientation"
 harness = false
-
-[[bench]]
-name = "numeric"
-harness = false
-
-[[bench]]
-name = "secure"
-harness = false
-
-[[bench]]
-name = "scroll_position"
-harness = false
-
-[[bench]]
-name = "secure_revealed"
-harness = false

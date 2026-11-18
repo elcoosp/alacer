@@ -36,7 +36,7 @@ use std::path::PathBuf;
 /// corpus is the coordinated bench + contracts.json + baseline-regeneration
 /// rule, reviewed here and by the M6–M12 suites (which assert this pin
 /// agrees with their own).
-const EXPECTED_BENCH_COUNT: usize = 131;
+const EXPECTED_BENCH_COUNT: usize = 134;
 
 /// The one criterion-expressible architecture budget in M5's contract set:
 /// the W1 gate (§18 M2, ADR-0008).

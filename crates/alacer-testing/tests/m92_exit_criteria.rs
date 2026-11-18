@@ -32,7 +32,7 @@ use alacer_widgets::Column;
 /// The suite's corpus pin: the coordinated rule's count at the M93 cut —
 /// the derive route's two cases (M92) beside the recording route's pair
 /// (M93) joining the published corpus in the same cut.
-const EXPECTED_BENCH_COUNT: usize = 128;
+const EXPECTED_BENCH_COUNT: usize = 131;
 
 /// The suite's own read doors into the published corpus: the derive route's
 /// zero-overhead cases (the coordinated rule's bench half, ADR-0096's exit
@@ -244,7 +244,7 @@ fn m92_the_corpus_grew_by_the_coordinated_rule() {
     let m5 = std::fs::read_to_string(root.join("crates/alacer-testing/tests/m5_exit_criteria.rs"))
         .expect("the m5 suite is readable");
     assert!(
-        m5.contains("const EXPECTED_BENCH_COUNT: usize = 128;"),
+        m5.contains("const EXPECTED_BENCH_COUNT: usize = 131;"),
         "the m5 corpus pin re-agrees at the M93 cut"
     );
 }

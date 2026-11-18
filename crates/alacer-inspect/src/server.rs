@@ -68,14 +68,42 @@ impl InspectorServer {
 
     /// Accepts and serves connections forever.
     ///
+    /// Transient accept errors — the aborts, interrupts, would-blocks and
+    /// timeouts a busy listener survives — are named facts on the log and
+    /// the loop keeps serving; anything unrecoverable (a closed descriptor)
+    /// still panics, the documented contract.
+    ///
     /// # Panics
     ///
-    /// Panics when the accept loop fails (a bound listener failing to accept
-    /// is unrecoverable for a devtools server).
+    /// Panics when the accept loop fails unrecoverably (a bound listener
+    /// losing its descriptor is unrecoverable for a devtools server).
     pub fn serve_forever(self) {
         loop {
             let (stream, _peer) = match self.listener.accept() {
                 Ok(accepted) => accepted,
+                // A transient failure is not the listener's death: the OS
+                // refused one handshake (the client aborted, the fd pool ran
+                // dry, the call was interrupted) and the accept loop that
+                // died for it took every later session with it. The species
+                // is named on the log (ADR-0029's observability rule at the
+                // inspector seam) and the loop keeps serving; the
+                // unrecoverable kinds keep the documented panic.
+                Err(error)
+                    if matches!(
+                        error.kind(),
+                        std::io::ErrorKind::ConnectionAborted
+                            | std::io::ErrorKind::Interrupted
+                            | std::io::ErrorKind::WouldBlock
+                            | std::io::ErrorKind::TimedOut
+                    ) =>
+                {
+                    tracing::warn!(
+                        target: "alacer::inspect",
+                        error = %error,
+                        "inspector accept refused one handshake; the loop keeps serving"
+                    );
+                    continue;
+                }
                 Err(error) => panic!("inspector accept failed: {error}"),
             };
             let recorder = self.recorder.clone();

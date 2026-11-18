@@ -42,7 +42,7 @@ use alacer_widgets::{
 /// (M109), the selected route's pair (M108), the invalid route's case
 /// (M107), the required route's case (M106) and every tier's before them
 /// on the published corpus.
-const EXPECTED_BENCH_COUNT: usize = 128;
+const EXPECTED_BENCH_COUNT: usize = 131;
 
 /// The suite's own read door into the published corpus: the expanded
 /// route's pair — the 1,000-node row arena carrying the disclosure word,

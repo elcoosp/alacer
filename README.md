@@ -46,7 +46,7 @@
 | 50-event pointer storm                                | **1** coalesced dispatch (**39.71×**)           | `input_storm_batching` budget                                                                          |
 | 10k-node churn frame vs egui, same host               | 1.10 ms vs 20.7 ms full frame (**18.8×**)       | 5-run medians, declared rig (`benchmarks/rig.json`)                                                    |
 | …vs Masonry                                           | 1.10 ms vs 4.6 ms full pass pipeline (**4.2×**) | same rig, `scripts/run_comparison.py`                                                                  |
-| All 112 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
+| All 114 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
 
 _Competitor rows compare Alacer's incremental frame against their full frame/pass — every row in
 `benchmarks/comparisons/results.json` is labeled with its scope._
@@ -86,7 +86,7 @@ cargo test --workspace                                          # headless: real
 > `ALACER_SOFTWARE=1` presents through softbuffer — the platform honors it at startup
 > (`BackendPreference::software_env`) whichever backend the app asked for; any other value is
 > refused with a named warning, never guessed. CI and the headless tests already run this path:
-> no mock renderer, no mock event loop. The full 84-example catalog lives in
+> no mock renderer, no mock event loop. The full 86-example catalog lives in
 > [docs/examples.md](https://github.com/elcoosp/alacer/blob/main/docs/examples.md).
 
 ## How it works
@@ -170,6 +170,8 @@ Accessibility is not a layer bolted on — it is the tree's own vocabulary:
 | **Orientation** (M98)  | The declared axis a scroll container's scrolls ride: `scroll_orientation()` on the trait, `List` carrying the constructor's word, AccessKit's `Orientation` property mapped in the same snapshot — the AT reads "vertical" before the arrows ride, the two-axis answer the honest absence ARIA spells `undefined`; `None` the honest absence | 0102      |
 | **Numeric** (M99)      | The number behind the value's spoken word: `numeric_value()` on the trait, `Slider`/`Progress` carrying the scalar their funnel holds, AccessKit's `NumericValue` property mapped in the same snapshot — the AT reads 40 (`aria-valuenow`) beside "40" (`aria-valuetext`), a prose value never parsed into a guessed number; `None` the honest absence | 0103      |
 | **Secure** (M100)      | The field's declared secret entry: `secure_entry()` on the trait, `TextInput` carrying the constructor's word, AccessKit's `PasswordInput` role mapped in the same snapshot — the AT announces "secure text entry", the value the tree resolves the mask (one masking character per code point, never the secret); `false` the honest absence | 0104      |
+| **Scroll position** (M101) | Where the container *is* on the track it declared: `scroll_position()` on the trait, `List` producing the offset the doors landed beside the wall they clamp to, AccessKit's `ScrollY`/`ScrollYMin`/`ScrollYMax` (the `ScrollX` halves beside them on a two-axis container) mapped in the same snapshot — the AT announces "scrolled 200 of 0..600", an empty span the same wall every scroll door answers `no_scrollable_content` with; `None` the honest absence | 0105      |
+| **Reveal** (M102)       | The toggle behind the mask: `secure_revealed()` on the trait beside `secure_entry()`, `TextInput` carrying the constructor word and the `set_revealed` door, AccessKit's own contract naming the mapping (`Role::TextInput` once revealed) in the same snapshot — the mask yielding to the revealed state, the value the pixels show the value the tree says; `false` the honest absence on every field that declared no secret entry | 0106      |
 
 Since M20 the value tier is a widget — the `Slider` answers drag, arrows and AT writes from one
 funnel. Since M21 the value is reportable too — the read-only `Progress` names the door that has
@@ -182,8 +184,11 @@ scrolls ride — `scroll_orientation()` beside the constructors that declared it
 track, not a guess — and since M99 the number behind the spoken word — `numeric_value()` beside
 the text the tree already said, the AT reading 40 where the prose read "40" — and since M100 the
 field's secret entry — `secure_entry()` beside the constructor that declared it, the tree saying
-`PasswordInput` and carrying the mask, never the secret — the AT reading all of it in the
-snapshot every other fact rides.
+`PasswordInput` and carrying the mask, never the secret — and since M101 the position the scrolls
+ride — `scroll_position()` beside the doors that landed it, the AT reading "200 of 0..600" where
+the axis word named only the track — and since M102 the toggle behind the mask — `secure_revealed()`
+beside the constructor word, the mask yielding to the revealed state, the pixels and the tree telling
+one truth — the AT reading all of it in the snapshot every other fact rides.
 
 ## Focus & shortcuts
 
@@ -315,7 +320,7 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `accent_follow`                                      | the OS's accent fact rides the same seam: the accent-only flip lands, the composition tints the palette's accent roles from the fact, the log names all four facts |
 | `todo` / `data_table`                                | the canons: a11y tree, record/replay, grid slots, keyboard navigation            |
 
-<details><summary><b>78 examples, grouped (84 ship; recording, alloc_budget, input_budget, derive_widget, layout_probe, and tri_state live in the catalog)</b></summary>
+<details><summary><b>80 examples, grouped (86 ship; recording, alloc_budget, input_budget, derive_widget, layout_probe, and tri_state live in the catalog)</b></summary>
 
 **Start here**
 
@@ -376,6 +381,7 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `orientation` | the M98 orientation tier driven from the consumer side: the vertical list's declared axis beside the two-axis list's honest absence (both axes, ARIA's `undefined`), and the scrolls that move the offsets while the axis words stay — the declaration is the constructor's |
 | `numeric` | the M99 numeric tier driven from the consumer side: the slider's and the report's numbers riding the funnel beside the text they answer (`aria-valuenow` beside the `aria-valuetext`), and the *Snap to max* write that moves both shapes of one answer together |
 | `secure` | the M100 secure tier driven from the consumer side: the secured field's `PasswordInput` word beside the bare field's honest absence, the *Fill* write landing the mask the tree carries (the length, never the value), and the status line mirroring the word the tree says |
+| `revealed` | the M102 reveal tier driven from the consumer side: the masked field beside the revealed one (the ordinary editable word, the value the pixels show), the *Reveal*/*Hide* beats walking the app's mutate-seam door, and the status line mirroring the words the tree says — the mask yielding, and yielding back |
 
 **Values & availability**
 
@@ -434,6 +440,7 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `horizontal_scroll` | the M89 two-axis door driven from the consumer side: the straddling row's ask landing on both axes, the wheel's x run reaching the same clamp, the vertical-only container refusing the x half honestly |
 | `handle_scroll_x` | the M90 app handle's x door driven from the consumer side: `scroll_to_x` beside `scroll_to`, the record's horizontal half beside the vertical identity, the wall pinning a past run, the vertical-only refusal |
 | `at_horizontal` | the M91 AT's horizontal vocabulary driven from the consumer side: `ScrollRight`/`ScrollLeft` by their unit (an item is one line, a page is the viewport's width), the record's species naming the ask, the value tier refusing the pair |
+| `scroll_position` | the M101 scroll position tier driven from the consumer side: the scrolled list's landing beside the wall it clamps to (the AT reading "140 of 0..460"), the bare list's honest absence, and the AT's own page ask the status line reads back — the wheel paying the currency natively |
 
 </details>
 
@@ -453,7 +460,7 @@ tree (`query(role).named(..)`, `press`, `all`) — never widget internals.
 ## Status
 
 > [!NOTE]
-> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M100 of `docs/architecture.md` are
+> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M102 of `docs/architecture.md` are
 > complete, but the API still moves between minor versions. MSRV **1.99**, edition **2024**.
 
 | Platform            | CI coverage                                                                                                                                                           |
@@ -465,7 +472,7 @@ tree (`query(role).named(..)`, `press`, `all`) — never widget internals.
 ## Learn more
 
 - [Architecture](https://github.com/elcoosp/alacer/blob/main/docs/architecture.md) — design axioms, the ten-pass contract, rendering, accessibility, DX, performance, roadmap and kill criteria
-- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred and five decision records, from workspace discipline to the M100 scope
+- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred and seven decision records, from workspace discipline to the M102 scope
 - [Examples catalog](https://github.com/elcoosp/alacer/blob/main/docs/examples.md) — every example with the contract it exercises
 - [Migrating from Iced](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-iced.md) · [from egui](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-egui.md) — mental-model mappings, interop limits stated plainly
 - [Inspector protocol](https://github.com/elcoosp/alacer/blob/main/docs/inspector-protocol.md) — the versioned WebSocket contract behind `alacer-inspect`

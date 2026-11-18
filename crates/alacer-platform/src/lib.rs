@@ -1653,6 +1653,7 @@ mod tests {
                 level: None,
                 current: None,
                 has_popup: None,
+                role_description: None,
             }],
         });
         sink.apply(

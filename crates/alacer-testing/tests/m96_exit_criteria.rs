@@ -23,7 +23,7 @@ use alacer_widgets::{BoxedWidget as _, Column, TextInput};
 /// the placeholder route's honesty pair joining the description route's
 /// case (M95), the toggle route's pair (M94), the derive route's pair
 /// (M92), and the recording route's pair (M93) on the published corpus.
-const EXPECTED_BENCH_COUNT: usize = 120;
+const EXPECTED_BENCH_COUNT: usize = 121;
 
 /// The suite's own read doors into the published corpus: the placeholder
 /// route's pair — the hinted 1,000-node input arena beside the bare one

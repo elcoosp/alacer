@@ -171,6 +171,24 @@
       "op": "<=",
       "budget": 1.25,
       "cite": "ADR-0109 (M105): the read-only word rides the snapshot the field rides \u2014 the flag's price the bool the node carries; test-enforced nowhere, measured by criterion"
+    },
+    {
+      "id": "selected_snapshot_overhead",
+      "metric": "median_ratio",
+      "numerator": "selected/snapshot_1k_selected",
+      "denominator": "selected/snapshot_1k_rows_bare",
+      "op": "<=",
+      "budget": 1.25,
+      "cite": "ADR-0112 (M108): the selected word rides the snapshot the row rides \u2014 the word's price the one Option<bool> the node carries; test-enforced nowhere, measured by criterion"
+    },
+    {
+      "id": "multiselectable_snapshot_overhead",
+      "metric": "median_ratio",
+      "numerator": "multiselectable/snapshot_1k_multiselectable",
+      "denominator": "multiselectable/snapshot_1k_tables_bare",
+      "op": "<=",
+      "budget": 1.25,
+      "cite": "ADR-0113 (M109): the multiselectable word rides the snapshot the container rides \u2014 the word's price the one bool the node carries; test-enforced nowhere, measured by criterion"
     }
   ],
   "regressions": [
@@ -777,6 +795,26 @@
     {
       "id": "invalid_snapshot_1k_invalid",
       "baseline": "invalid/snapshot_1k_invalid",
+      "scope": "same-host"
+    },
+    {
+      "id": "selected_snapshot_1k_selected",
+      "baseline": "selected/snapshot_1k_selected",
+      "scope": "same-host"
+    },
+    {
+      "id": "selected_snapshot_1k_rows_bare",
+      "baseline": "selected/snapshot_1k_rows_bare",
+      "scope": "same-host"
+    },
+    {
+      "id": "multiselectable_snapshot_1k_multiselectable",
+      "baseline": "multiselectable/snapshot_1k_multiselectable",
+      "scope": "same-host"
+    },
+    {
+      "id": "multiselectable_snapshot_1k_tables_bare",
+      "baseline": "multiselectable/snapshot_1k_tables_bare",
       "scope": "same-host"
     }
   ],

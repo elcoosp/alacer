@@ -282,12 +282,7 @@ impl Arena {
     #[must_use]
     #[track_caller]
     pub fn slot(&self, node: NodeId) -> &Slot {
-        let idx = self
-            .index
-            .get(&node)
-            .copied()
-            .unwrap_or_else(|| panic!("{node} is not live"));
-        &self.slots[idx]
+        &self.slots[self.live_slot_index(node)]
     }
 
     /// Whether `node` is a live arena slot (safe to `slot()`, `mutate()`,
@@ -299,12 +294,19 @@ impl Arena {
     }
 
     fn slot_mut(&mut self, node: NodeId) -> &mut Slot {
-        let idx = self
-            .index
+        let idx = self.live_slot_index(node);
+        &mut self.slots[idx]
+    }
+
+    /// The backing index of a live node — the one documented panic point
+    /// both slot doors share (`{node} is not live`, the contract their
+    /// `# Panics` sections name).
+    #[track_caller]
+    fn live_slot_index(&self, node: NodeId) -> usize {
+        self.index
             .get(&node)
             .copied()
-            .unwrap_or_else(|| panic!("{node} is not live"));
-        &mut self.slots[idx]
+            .unwrap_or_else(|| panic!("{node} is not live"))
     }
 
     /// Shared borrow of a live node's widget.

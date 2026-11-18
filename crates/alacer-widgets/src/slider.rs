@@ -59,6 +59,10 @@ use alacer_core::widget::{A11yAction, EventResponse, LabelSource, Role, Widget};
 /// slider reads as a bare number). The value rides the M3 `value()`
 /// contract — the a11y tree carries it, and the AT writes it back through
 /// the value tier.
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "availability, the required word, focus and the armed drag are exactly independent flags by domain definition"
+)]
 pub struct Slider {
     name: String,
     min: f32,
@@ -66,6 +70,9 @@ pub struct Slider {
     step: f32,
     value: f32,
     enabled: bool,
+    /// The required tier's flag (M106, ADR-0110): the word the AT
+    /// reads before it asks, the doors unchanged beside it.
+    required: bool,
     on_change: Option<Box<dyn FnMut(f32)>>,
     focused: bool,
     dragging: bool,
@@ -114,6 +121,7 @@ impl Slider {
             step: 1.0,
             value: min,
             enabled: true,
+            required: false,
             on_change: None,
             focused: false,
             dragging: false,
@@ -132,6 +140,17 @@ impl Slider {
     #[must_use]
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
+        self
+    }
+
+    /// Mounts the slider required (M106, ADR-0110): the form
+    /// contract's declared word — AccessKit's `Required` flag (ARIA's
+    /// `aria-required`) says "this one must carry its value" to the AT
+    /// before it asks. The word prices nothing but the word: the
+    /// slider's doors answer exactly as they always did.
+    #[must_use]
+    pub fn required(mut self) -> Self {
+        self.required = true;
         self
     }
 
@@ -573,6 +592,14 @@ impl Widget for Slider {
     /// the write it will refuse.
     fn enabled(&self) -> bool {
         self.enabled
+    }
+
+    /// The required tier (M106, ADR-0110): the word the tree says
+    /// beside the form contract — "this one must carry its value", the
+    /// AT reading it before it asks. The doors answer unchanged beside
+    /// it.
+    fn required(&self) -> bool {
+        self.required
     }
 
     /// The value tier (M20, ADR-0026): `SetValue` parses then rides the

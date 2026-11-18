@@ -30,6 +30,9 @@ pub struct Checkbox {
     description: Option<String>,
     state: ToggleState,
     enabled: bool,
+    /// The required tier's flag (M106, ADR-0110): the word the AT
+    /// reads before it asks, the doors unchanged beside it.
+    required: bool,
     on_toggle: Option<Box<dyn FnMut(bool)>>,
     focused: bool,
     /// The app's accent override; `None` borrows the theme's accent
@@ -51,6 +54,7 @@ impl Checkbox {
             description: None,
             state: ToggleState::Off,
             enabled: true,
+            required: false,
             on_toggle: None,
             focused: false,
             accent: None,
@@ -66,6 +70,17 @@ impl Checkbox {
     #[must_use]
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
+        self
+    }
+
+    /// Mounts the checkbox required (M106, ADR-0110): the form
+    /// contract's declared word — AccessKit's `Required` flag (ARIA's
+    /// `aria-required`) says "this one must be answered" to the AT
+    /// before it asks. The word prices nothing but the word: the
+    /// checkbox's doors answer exactly as they always did.
+    #[must_use]
+    pub fn required(mut self) -> Self {
+        self.required = true;
         self
     }
 
@@ -278,6 +293,14 @@ impl Widget for Checkbox {
     /// tries the toggle it will refuse.
     fn enabled(&self) -> bool {
         self.enabled
+    }
+
+    /// The required tier (M106, ADR-0110): the word the tree says
+    /// beside the form contract — "this one must be answered", the AT
+    /// reading it before it asks. The doors answer unchanged beside
+    /// it.
+    fn required(&self) -> bool {
+        self.required
     }
 
     fn paint(&self, ctx: &mut PaintCtx<'_>) {

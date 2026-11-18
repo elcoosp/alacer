@@ -133,3 +133,11 @@ harness = false
 [[bench]]
 name = "invalid"
 harness = false
+
+[[bench]]
+name = "selected"
+harness = false
+
+[[bench]]
+name = "multiselectable"
+harness = false

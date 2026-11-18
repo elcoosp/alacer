@@ -9,7 +9,7 @@ use alacer_core::inspect::{
 use alacer_core::style::Style;
 use alacer_core::widget::{
     A11yAction, BringIntoViewAsk, EventResponse, LabelSource, Role, ScrollAxisLanding,
-    ScrollAxisPosition, ScrollOrientation, ScrollPosition, ScrollUnit, Widget,
+    ScrollOrientation, ScrollUnit, Widget,
 };
 use std::cmp::Ordering;
 use std::sync::{Arc, Mutex};
@@ -276,32 +276,6 @@ impl Widget for List {
         } else {
             Some(ScrollOrientation::Vertical)
         }
-    }
-
-    /// The resolved position and extent (M101, ADR-0105): the offsets
-    /// the doors land and the walls the clamps hold, per axis — the
-    /// same spans every scroll door here answers by, read at the a11y
-    /// pass the currency paid for. Each axis rides its own honesty:
-    /// an empty span (the content fits the viewport, or the width
-    /// story was never declared) carries no position — the same wall
-    /// every door answers `no_scrollable_content` with — and a
-    /// container with no live axis at all answers `None`.
-    fn scroll_position(&self) -> Option<ScrollPosition> {
-        let state = self.state.lock().expect("scroll state");
-        let vertical_span = (state.content_height - state.viewport_height).max(0.0);
-        let horizontal_span = (state.content_width - state.viewport_width).max(0.0);
-        let vertical = (!same_offset(vertical_span, 0.0)).then(|| ScrollAxisPosition {
-            offset: state.offset,
-            max: vertical_span,
-        });
-        let horizontal = (!same_offset(horizontal_span, 0.0)).then(|| ScrollAxisPosition {
-            offset: state.offset_x,
-            max: horizontal_span,
-        });
-        (vertical.is_some() || horizontal.is_some()).then(|| ScrollPosition {
-            vertical,
-            horizontal,
-        })
     }
 
     fn is_scroll_container(&self) -> bool {

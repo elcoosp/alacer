@@ -157,8 +157,9 @@ pub use text_seam::{GlyphRun, PlacedGlyph, TextSeam};
 pub use theme::{CanonPalette, Palette, ThemeSeam};
 pub use trail::{TRAIL_RING_CAP, TrailLog};
 pub use widget::{
-    A11yAction, BringIntoViewAsk, EventResponse, InvalidKind, LabelSource, Role, ScrollAxisLanding,
-    ScrollLanding, ScrollUnit, TableSlot, TextSelection, ToggleState, ValueRange, Widget,
+    A11yAction, AutoCompleteKind, BringIntoViewAsk, EventResponse, InvalidKind, LabelSource, Role,
+    ScrollAxisLanding, ScrollLanding, ScrollUnit, TableSlot, TextSelection, ToggleState,
+    ValueRange, Widget,
 };
 
 /// The Alacer prelude: import this once and the framework vocabulary is in scope.

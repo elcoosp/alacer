@@ -46,7 +46,7 @@
 | 50-event pointer storm                                | **1** coalesced dispatch (**39.71×**)           | `input_storm_batching` budget                                                                          |
 | 10k-node churn frame vs egui, same host               | 1.10 ms vs 20.7 ms full frame (**18.8×**)       | 5-run medians, declared rig (`benchmarks/rig.json`)                                                    |
 | …vs Masonry                                           | 1.10 ms vs 4.6 ms full pass pipeline (**4.2×**) | same rig, `scripts/run_comparison.py`                                                                  |
-| All 131 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
+| All 134 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
 
 _Competitor rows compare Alacer's incremental frame against their full frame/pass — every row in
 `benchmarks/comparisons/results.json` is labeled with its scope._
@@ -86,7 +86,7 @@ cargo test --workspace                                          # headless: real
 > `ALACER_SOFTWARE=1` presents through softbuffer — the platform honors it at startup
 > (`BackendPreference::software_env`) whichever backend the app asked for; any other value is
 > refused with a named warning, never guessed. CI and the headless tests already run this path:
-> no mock renderer, no mock event loop. The full 92-example catalog lives in
+> no mock renderer, no mock event loop. The full 100-example catalog lives in
 > [docs/examples.md](https://github.com/elcoosp/alacer/blob/main/docs/examples.md).
 
 ## How it works
@@ -181,6 +181,8 @@ Accessibility is not a layer bolted on — it is the tree's own vocabulary:
 | **Auto-complete** (M111) | The field's suggestion contract: `auto_complete()` on the trait carrying the kind (`AutoCompleteKind` — AccessKit's own three values: `inline`, `list`, `both`; ARIA's `none` the absence the `Option` spells, never a guessed mode), `TextInput` carrying the constructor word and the `set_auto_complete` door, AccessKit's `AutoComplete` property mapped in the same snapshot — the AT reading "completions available" while the user types, the field staying editable exactly as it always did (the word names a contract, it walls nothing); `None` the honest absence | 0115      |
 | **Sort direction** (M112) | The sorted column's order: `sort_direction()` on the trait carrying the kind (`SortDirection` — AccessKit's own three values: `ascending`, `descending`, `other`; ARIA's `none` the absence the `Option` spells, never a guessed direction), `ColumnHeader` carrying the constructor word and the `set_sort` door, AccessKit's `SortDirection` property mapped in the same snapshot — the AT reading "sorted descending" while it walks the rows, the column's press and focus routes the widget's own (the word names an order, it walls nothing); `None` the honest absence | 0116      |
 | **Level** (M113)      | The nested member's depth: `level()` on the trait answering the zero-based count (AccessKit's own base, the contract naming it verbatim beside ARIA's one-based `aria-level` — one branch with no translation), `TableRow` carrying the constructor word and the `set_level` door, AccessKit's `Level` property mapped in the same snapshot — the AT reading "level 2" while it walks the rows, the member's press and focus routes the widget's own (the word names a depth, it walls nothing); `None` the honest absence, the flat row never a guessed `0` | 0117      |
+| **Current** (M114)    | The set's current item: `current()` on the trait carrying the kind (`CurrentKind` — AccessKit's own six values: `true`, `page`, `step`, `location`, `date`, `time`; ARIA's `false`, the attribute's absent default, the absence the `Option` spells, never a guessed flavor), `Button` carrying the constructor word and the `set_current` door, AccessKit's `AriaCurrent` property mapped in the same snapshot — the AT reading "current page" while it walks the nav, the item's press and focus routes the widget's own (the word names a currency, it walls nothing); `None` the honest absence | 0118      |
+| **Has-popup** (M115)   | The opener's target: `has_popup()` on the trait carrying the kind (`HasPopupKind` — AccessKit's own five values: `menu`, `listbox`, `tree`, `grid`, `dialog`; the attribute's unset state the absence the `Option` spells, never a guessed target), `Button` carrying the constructor word and the `set_has_popup` door, AccessKit's `HasPopup` property mapped in the same snapshot — the AT reading "opens a menu" while it walks the toolbar, the opener's press and focus routes the widget's own (the word names a target, it walls nothing); `None` the honest absence | 0119      |
 
 Since M20 the value tier is a widget — the `Slider` answers drag, arrows and AT writes from one
 funnel. Since M21 the value is reportable too — the read-only `Progress` names the door that has
@@ -213,7 +215,12 @@ the `Option` spells — and since M112 the sorted column's order — `sort_direc
 header that declares it, the kind (`ascending`, `descending`, `other`) riding beside the word —
 and since M113 the nested member's depth — `level()` beside the row that stands in a nesting, the
 zero-based count AccessKit's own base, the flat row the honest absence (`None`, never a guessed
-`0`) — the AT reading
+`0`) — and since M114 the set's current item — `current()` beside the button that stands in a nav
+or a wizard, the kind (`true`, `page`, `step`, `location`, `date`, `time`) riding beside the word,
+ARIA's `false` the absence the `Option` spells — and since M115 the opener's target —
+`has_popup()` beside the button that opens something, the kind (`menu`, `listbox`, `tree`,
+`grid`, `dialog`) riding beside the word, the unset attribute the absence the `Option` spells —
+the AT reading
 all of it in the snapshot every other fact rides.
 
 ## Focus & shortcuts
@@ -346,7 +353,7 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `accent_follow`                                      | the OS's accent fact rides the same seam: the accent-only flip lands, the composition tints the palette's accent roles from the fact, the log names all four facts |
 | `todo` / `data_table`                                | the canons: a11y tree, record/replay, grid slots, keyboard navigation            |
 
-<details><summary><b>86 examples, grouped (recording, alloc_budget, input_budget, derive_widget, layout_probe, and tri_state live in the catalog)</b></summary>
+<details><summary><b>90 examples, grouped (recording, alloc_budget, input_budget, derive_widget, layout_probe, sort, level, current, has_popup, and tri_state live in the catalog)</b></summary>
 
 **Start here**
 
@@ -501,7 +508,7 @@ is the query API as a runnable walkthrough.
 ## Status
 
 > [!NOTE]
-> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M113 of `docs/architecture.md` are
+> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M115 of `docs/architecture.md` are
 > complete, but the API still moves between minor versions. MSRV **1.99**, edition **2024**.
 
 | Platform            | CI coverage                                                                                                                                                           |
@@ -513,7 +520,7 @@ is the query API as a runnable walkthrough.
 ## Learn more
 
 - [Architecture](https://github.com/elcoosp/alacer/blob/main/docs/architecture.md) — design axioms, the ten-pass contract, rendering, accessibility, DX, performance, roadmap and kill criteria
-- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred and eighteen decision records, from workspace discipline to the M111 scope
+- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred and twenty decision records, from workspace discipline to the M115 scope
 - [Examples catalog](https://github.com/elcoosp/alacer/blob/main/docs/examples.md) — every example with the contract it exercises
 - [Migrating from Iced](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-iced.md) · [from egui](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-egui.md) — mental-model mappings, interop limits stated plainly
 - [Inspector protocol](https://github.com/elcoosp/alacer/blob/main/docs/inspector-protocol.md) — the versioned WebSocket contract behind `alacer-inspect`

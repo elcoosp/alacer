@@ -43,7 +43,7 @@ use alacer_widgets::{BoxedWidget as _, Button, Column, TextInput};
 /// (M94), the derive route's pair (M92), and the recording route's pair
 /// (M93) — and every case M103 and M104 published — on the published
 /// corpus.
-const EXPECTED_BENCH_COUNT: usize = 131;
+const EXPECTED_BENCH_COUNT: usize = 134;
 
 /// The suite's own read door into the published corpus: the read-only
 /// route's case — the 1,000-node read-only field arena (the coordinated

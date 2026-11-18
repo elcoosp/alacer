@@ -255,6 +255,24 @@ pub struct TreeNode {
     /// honest absence — a field that declared nothing announces no
     /// suggestion contract, never a guessed mode.
     pub auto_complete: Option<crate::widget::AutoCompleteKind>,
+    /// The sorted column's sort word (M112, ADR-0116): the order the
+    /// column holds its rows in — the word the AT reads beside the
+    /// position the M6 slot already carried (AccessKit's
+    /// `SortDirection` property, ARIA's `aria-sort`). The word prices
+    /// nothing but the word: the column's doors answer exactly as they
+    /// always did. `None` is the honest absence — a header that
+    /// declared nothing announces no order, never a guessed direction.
+    pub sort_direction: Option<crate::widget::SortDirection>,
+    /// The nested member's level word (M113, ADR-0117): how deep the
+    /// member stands in its collection — the word the AT reads beside
+    /// the grid position the M6 slot already carried (AccessKit's
+    /// `Level` property, zero-based where ARIA's `aria-level` is
+    /// one-based — the base AccessKit maps, never a silent cast). The
+    /// word prices nothing but the word: the member's doors answer
+    /// exactly as they always did. `None` is the honest absence — a
+    /// member that declared nothing announces no depth, never a
+    /// guessed `0`.
+    pub level: Option<usize>,
 }
 
 /// The full accessibility snapshot of the widget tree, built by pass 9.
@@ -4024,6 +4042,8 @@ impl PassPipeline {
                 multiselectable: slot.widget().multiselectable(),
                 expanded: slot.widget().expanded(),
                 auto_complete: slot.widget().auto_complete(),
+                sort_direction: slot.widget().sort_direction(),
+                level: slot.widget().level(),
             };
             if snapshot.root.is_none() {
                 snapshot.root = Some(node.id);
@@ -4085,6 +4105,12 @@ impl PassPipeline {
                 // The pipeline's own node: no suggestion contract —
                 // the announcement is the region's content.
                 auto_complete: None,
+                // The pipeline's own node: no sorted column — the
+                // region orders nothing.
+                sort_direction: None,
+                // The pipeline's own node: no depth to say — the
+                // region nests not.
+                level: None,
             });
         }
         snapshot

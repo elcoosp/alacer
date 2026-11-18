@@ -837,6 +837,64 @@ pub trait Widget: 'static {
         None
     }
 
+    /// Whether the widget's value is the app's, not the user's (M105,
+    /// ADR-0109): the read-only tier's declared word — AccessKit's
+    /// `ReadOnly` flag, ARIA's `aria-readonly`, mapped by `alacer-a11y`
+    /// in the same snapshot every other property rides. Through M104 a
+    /// field could be held down (`enabled(false)`, the availability
+    /// tier's wall) but the field that reads, selects, copies and
+    /// walks its caret like any other while refusing only the writes
+    /// had no word: the declared-but-unreported gap, the M94 pattern at
+    /// the read-only tier.
+    ///
+    /// The word walls *user* doors, never the app's: the typing door
+    /// (inserts, deletes, undo, redo), the clipboard's write chords
+    /// (paste, cut), the IME's commit and the AT's write door
+    /// (`SetValue` / `ReplaceSelectedText`) refuse with the named
+    /// species ([`crate::inspect::KeyEditRefusal::ReadOnly`],
+    /// [`crate::inspect::TextWriteRefusal::ReadOnly`]) — the ask the
+    /// open door would have answered streams behind its record, the
+    /// shape priced at nothing, never a munged delivered edit. The
+    /// read doors answer beside the wall: focus holds, the caret
+    /// walks, the selection answers, the copy chord reads. The app's
+    /// own `set_value` never asked the field's permission and never
+    /// will — the app writes its own field.
+    ///
+    /// The availability tier stays the outer one: a control that
+    /// answers [`Self::enabled`] `false` and this `true` names the
+    /// availability wall, the read-only word riding the tree beside it.
+    ///
+    /// `false` is the honest absence (the ADR-0087 presence rule at the
+    /// read-only tier): an editable field declares nothing. Editable
+    /// controls override this; every other role inherits the default.
+    fn read_only(&self) -> bool {
+        false
+    }
+
+    /// Whether the control must carry a value before the form's submit
+    /// fires (M106, ADR-0110): the required tier's declared word —
+    /// AccessKit's `Required` flag, ARIA's `aria-required`, mapped by
+    /// `alacer-a11y` in the same snapshot every other property rides.
+    /// Through M105 the tree said the read-only word and every value
+    /// word beside it, and the word every form vocabulary speaks before
+    /// the submit fires ("this one must be filled") had no tier: the AT
+    /// announced the field, the hint, the span — and never the ask —
+    /// the declared-but-unreported gap, the M94 pattern at the required
+    /// tier.
+    ///
+    /// The word prices the word and nothing else: a required control's
+    /// doors answer exactly as they always did — required is not a
+    /// wall, the field stays editable, the empty submit the app's own
+    /// contract (the AT reads the declaration before it asks).
+    ///
+    /// `false` is the honest absence (the ADR-0087 presence rule at the
+    /// required tier): a control that declared nothing announces
+    /// nothing, never a guessed default. The value tier's controls
+    /// override this; every other role inherits the default.
+    fn required(&self) -> bool {
+        false
+    }
+
     /// The widget's toggle state for the a11y tree (M6): checkboxes report
     /// their checked state so screen readers announce "checked"/"not
     /// checked". Non-toggle roles return `None`.

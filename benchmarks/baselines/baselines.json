@@ -14,7 +14,7 @@
     "cpu_count": "2",
     "fingerprint": "ee37c3efc5995352"
   },
-  "bench_count": 120,
+  "bench_count": 121,
   "benches": {
     "a11y/full_rebuild_1k": {
       "median_ns": 94976.36080368907,
@@ -689,16 +689,16 @@
       "samples": 100
     },
     "scroll_position/snapshot_1k_scrolled": {
-      "median_ns": 215879.49830508474,
-      "mean_ns": 220359.49908953294,
-      "median_abs_dev_ns": 3553.664620499068,
-      "samples": 0
+      "median_ns": 218186.3155982906,
+      "mean_ns": 218818.38434585434,
+      "median_abs_dev_ns": 2681.003199242257,
+      "samples": 100
     },
     "secure_revealed/snapshot_1k_revealed": {
-      "median_ns": 220878.71333956678,
-      "mean_ns": 221591.46128704035,
-      "median_abs_dev_ns": 3035.920574722325,
-      "samples": 0
+      "median_ns": 222046.50527065527,
+      "mean_ns": 223494.2997328816,
+      "median_abs_dev_ns": 3859.9343885095104,
+      "samples": 100
     },
     "click_chain/seamed_chain_1k": {
       "median_ns": 33328.245915032676,
@@ -734,6 +734,12 @@
       "median_ns": 223153.54098360654,
       "mean_ns": 223862.68266707304,
       "median_abs_dev_ns": 3229.850272846755,
+      "samples": 100
+    },
+    "invalid/snapshot_1k_invalid": {
+      "median_ns": 228653.8736979167,
+      "mean_ns": 229461.07853005663,
+      "median_abs_dev_ns": 3411.6743394306695,
       "samples": 100
     }
   }

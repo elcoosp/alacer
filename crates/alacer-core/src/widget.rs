@@ -232,6 +232,47 @@ impl ScrollOrientation {
     }
 }
 
+/// One scroll axis's position and extent (M101, ADR-0105): the offset
+/// the clamp landed and the wall it clamps to — AccessKit's
+/// `ScrollY`/`ScrollYMax` shape (the x halves beside it), mirrored in
+/// core so the DAG stays adapter-free (ADR-9). The floor is the
+/// funnel's own zero — the clamp arithmetic every scroll door answers
+/// by (`clamp(0.0, span)`), never a guessed minimum.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ScrollAxisPosition {
+    /// The resolved offset the doors landed (positive = scrolled down
+    /// on the vertical axis, right on the horizontal one) — the same
+    /// state [`Widget::scroll_offset`] names for compose.
+    pub offset: f32,
+    /// The wall the clamp lands on: the declared span (content minus
+    /// viewport), the largest offset any door can land. A position at
+    /// the wall is the clamp's own landing — the tree says where the
+    /// container stopped.
+    pub max: f32,
+}
+
+/// The scroll container's resolved position and extent (M101,
+/// ADR-0105): the fact the doors resolve and the AT reads as "scrolled
+/// 200 of 0..600" — AccessKit's `ScrollY` / `ScrollYMin` / `ScrollYMax`
+/// properties (the `ScrollX` halves beside them on a two-axis
+/// container), mapped by `alacer-a11y` in the same snapshot every other
+/// property rides.
+///
+/// Each axis rides its own honesty: an axis whose span is empty (the
+/// content fits the viewport, or the width story was never declared)
+/// carries no position — the same wall every scroll door answers
+/// `no_scrollable_content` with, never a guessed zero. A container with
+/// no live axis on either side answers `None` outright.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ScrollPosition {
+    /// The vertical axis's fact — the story every scroll container
+    /// declares first. `None` when the y span is empty.
+    pub vertical: Option<ScrollAxisPosition>,
+    /// The horizontal axis's fact (M89, ADR-0093's other axis) —
+    /// `None` when the x span is empty or undeclared.
+    pub horizontal: Option<ScrollAxisPosition>,
+}
+
 /// A range of text, expressed in the contract's unit — **UTF-16 code
 /// units** into the widget's value (§10.3; the same unit as the caret).
 ///
@@ -727,6 +768,26 @@ pub trait Widget: 'static {
         false
     }
 
+    /// Whether a declared-secure field's value rides revealed (M102,
+    /// ADR-0106) — the word behind the "show password" toggle, the
+    /// flag beside the constructor word [`Self::secure_entry`]
+    /// answers. AccessKit's own contract names the mapping: "when the
+    /// password is revealed, use `Role::TextInput` instead" — the
+    /// sink's role branch reads the ordinary editable word, and the
+    /// value the tree resolves is the field's ordinary value again
+    /// (the mask yielding to the reveal; the pixels and the tree
+    /// telling one truth).
+    ///
+    /// The word is a compound: meaningful only beside a declared
+    /// secret entry — a field that answered `secure_entry()` `false`
+    /// answers `false` here too, whatever its internal toggle holds
+    /// (the plain field's value was always the tree's read, never a
+    /// secret to reveal). Editable controls override this; every
+    /// other role inherits the default.
+    fn secure_revealed(&self) -> bool {
+        false
+    }
+
     /// The single axis a scroll container declares its scrolls to ride
     /// (M98, ADR-0102) — the word the AT's arrows read before they
     /// ride: ARIA's `aria-orientation`, AccessKit's `Orientation`
@@ -742,6 +803,37 @@ pub trait Widget: 'static {
     /// the default. Scroll containers override this; every other role
     /// inherits it too.
     fn scroll_orientation(&self) -> Option<ScrollOrientation> {
+        None
+    }
+
+    /// The scroll container's resolved position and extent (M101,
+    /// ADR-0105): where the doors landed and the walls they clamp to —
+    /// AccessKit's `ScrollY` / `ScrollYMin` / `ScrollYMax` properties
+    /// (the `ScrollX` halves beside them), ARIA's scroll position
+    /// arithmetic the platform ATs announce as "scrolled 200 of
+    /// 0..600". Through M100 the tree said the axis word (M98,
+    /// ADR-0102) and never where the container *was*: the offsets and
+    /// spans the scroll doors resolve (M50–M54, ADR-0056; M89,
+    /// ADR-0093) rode the actions and the trail, the
+    /// declared-but-unreported gap, the M94 pattern at the scroll
+    /// position tier.
+    ///
+    /// Each axis rides its own honesty (the ADR-0087 presence rule at
+    /// the scroll position tier): an axis whose span is empty — the
+    /// content fits the viewport, or the width story was never
+    /// declared — carries no position, the same wall every scroll door
+    /// answers `no_scrollable_content` with, never a guessed zero. A
+    /// container with no live axis on either side answers `None`;
+    /// a widget that is no scroll container at all inherits the
+    /// default. Scroll containers override this; every other role
+    /// inherits it too.
+    ///
+    /// The tree's currency rule is the wheel's own: the doors that pay
+    /// the a11y currency (the wheel, the AT's asks, bring-into-view)
+    /// merge `PAINT | A11Y` on the container, so the position
+    /// re-announces the frame the offset moved; the app's own handle
+    /// rides the next paid pass.
+    fn scroll_position(&self) -> Option<ScrollPosition> {
         None
     }
 

@@ -247,6 +247,10 @@ impl AccessKitSink {
     /// Since M95 (ADR-0099) the description rides along too: the help text
     /// beside the name, the `Description` property the AT reads when the
     /// name alone does not answer.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "the sink's whole-node mapping is one readable property-by-property walk; splitting it would hide the tier mappings the ADRs name"
+    )]
     fn access_node(node: &alacer_core::passes::TreeNode) -> Node {
         let mut access_node = Node::new(map_role(node.role));
         access_node.set_label(node.label.as_str());
@@ -372,6 +376,30 @@ impl AccessKitSink {
         // exactly that node.
         if !node.enabled {
             access_node.set_disabled();
+        }
+        // The read-only tier (M105, ADR-0109): the field whose value is
+        // the app's maps AccessKit's `ReadOnly` flag, ARIA's
+        // `aria-readonly` — the word the AT reads beside the value, the
+        // declared-but-unreported gap the write walls priced since M55
+        // ("a read-only field" had no tree word). The honest absence
+        // maps to the absence: an editable field sets nothing, and the
+        // AT reads the node exactly as it read the tree M104 handed
+        // over. The flag rides the same node-only delta as every other
+        // property — a read-only write re-announces exactly that node.
+        if node.read_only {
+            access_node.set_read_only();
+        }
+        // The required tier (M106, ADR-0110): the control that must carry
+        // a value before the form's submit fires maps AccessKit's
+        // `Required` flag, ARIA's `aria-required` — the word the AT reads
+        // before it asks. The word prices nothing but the word: the
+        // control's doors answer exactly as they always did. The honest
+        // absence maps to the absence: a control that declared nothing
+        // sets nothing, never a guessed default. The flag rides the same
+        // node-only delta as every other property — a required write
+        // re-announces exactly that node.
+        if node.required {
+            access_node.set_required();
         }
         if let Some(toggled) = node.toggled {
             access_node.set_toggled(match toggled {
@@ -538,6 +566,8 @@ mod tests {
                     numeric_value: None,
                     secure_entry: false,
                     secure_revealed: false,
+                    read_only: false,
+                    required: false,
                 },
                 TreeNode {
                     id: child_hash,
@@ -559,6 +589,8 @@ mod tests {
                     numeric_value: None,
                     secure_entry: false,
                     secure_revealed: false,
+                    read_only: false,
+                    required: false,
                 },
                 TreeNode {
                     id: other_hash,
@@ -580,6 +612,8 @@ mod tests {
                     numeric_value: None,
                     secure_entry: false,
                     secure_revealed: false,
+                    read_only: false,
+                    required: false,
                 },
             ],
         }
@@ -640,6 +674,71 @@ mod tests {
         assert!(button.is_disabled(), "the AT reads the unavailable control");
     }
 
+    #[test]
+    fn the_read_only_tier_maps_onto_the_read_only_property() {
+        // M105, ADR-0109: the field whose value is the app's maps
+        // AccessKit's `ReadOnly` flag, ARIA's `aria-readonly` — the AT
+        // reads the word beside the value the write walls already
+        // priced. The default is the honest absence: an editable field
+        // sets nothing.
+        let mut sink = AccessKitSink::new();
+        let mut snap = snapshot();
+        snap.nodes[1].read_only = true; // the "Save" button node's slot — any node carries the word
+        sink.apply(
+            std::sync::Arc::new(snap),
+            &alacer_core::passes::A11yDelta {
+                updated: {
+                    let mut ids = FxHashSet::default();
+                    ids.insert(snap_root_and_child().1);
+                    ids
+                },
+                removed: Vec::new(),
+                focus: None,
+                initializes: false,
+            },
+        );
+        let update = sink.last_update().expect("the delta produced an update");
+        let locked = update
+            .nodes
+            .iter()
+            .find(|(id, _)| id.0 == snap_root_and_child().1)
+            .map(|(_, node)| node)
+            .expect("the read-only node is re-emitted");
+        assert!(locked.is_read_only(), "the AT reads the declared word");
+    }
+
+    #[test]
+    fn the_required_tier_maps_onto_the_required_property() {
+        // M106, ADR-0110: the control that must carry a value maps
+        // AccessKit's `Required` flag, ARIA's `aria-required` — the word
+        // the AT reads before it asks. The default is the honest
+        // absence: a control that declared nothing sets nothing.
+        let mut sink = AccessKitSink::new();
+        let mut snap = snapshot();
+        snap.nodes[1].required = true;
+        sink.apply(
+            std::sync::Arc::new(snap),
+            &alacer_core::passes::A11yDelta {
+                updated: {
+                    let mut ids = FxHashSet::default();
+                    ids.insert(snap_root_and_child().1);
+                    ids
+                },
+                removed: Vec::new(),
+                focus: None,
+                initializes: false,
+            },
+        );
+        let update = sink.last_update().expect("the delta produced an update");
+        let required = update
+            .nodes
+            .iter()
+            .find(|(id, _)| id.0 == snap_root_and_child().1)
+            .map(|(_, node)| node)
+            .expect("the required node is re-emitted");
+        assert!(required.is_required(), "the AT reads the declared word");
+    }
+
     /// The `(root, child)` hash pair the `snapshot()` helper mounts.
     fn snap_root_and_child() -> (u64, u64) {
         (111, 222)
@@ -695,6 +794,8 @@ mod tests {
             numeric_value: None,
             secure_entry: false,
             secure_revealed: false,
+            read_only: false,
+            required: false,
         });
         sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
         let update = sink.last_update().expect("update");
@@ -842,6 +943,8 @@ mod tests {
                     numeric_value: None,
                     secure_entry: false,
                     secure_revealed: false,
+                    read_only: false,
+                    required: false,
                 },
                 TreeNode {
                     id: 2,
@@ -863,6 +966,8 @@ mod tests {
                     numeric_value: None,
                     secure_entry: false,
                     secure_revealed: false,
+                    read_only: false,
+                    required: false,
                 },
                 TreeNode {
                     id: 3,
@@ -884,6 +989,8 @@ mod tests {
                     numeric_value: None,
                     secure_entry: false,
                     secure_revealed: false,
+                    read_only: false,
+                    required: false,
                 },
             ],
         };
@@ -935,6 +1042,8 @@ mod tests {
                     numeric_value: None,
                     secure_entry: false,
                     secure_revealed: false,
+                    read_only: false,
+                    required: false,
                 },
                 TreeNode {
                     id: 2,
@@ -956,6 +1065,8 @@ mod tests {
                     numeric_value: None,
                     secure_entry: false,
                     secure_revealed: false,
+                    read_only: false,
+                    required: false,
                 },
             ],
         };
@@ -1009,6 +1120,8 @@ mod tests {
                     numeric_value: None,
                     secure_entry: false,
                     secure_revealed: false,
+                    read_only: false,
+                    required: false,
                 },
                 TreeNode {
                     id: 2,
@@ -1032,6 +1145,8 @@ mod tests {
                     numeric_value: None,
                     secure_entry: false,
                     secure_revealed: false,
+                    read_only: false,
+                    required: false,
                 },
                 TreeNode {
                     id: 3,
@@ -1053,6 +1168,8 @@ mod tests {
                     numeric_value: None,
                     secure_entry: false,
                     secure_revealed: false,
+                    read_only: false,
+                    required: false,
                 },
             ],
         };
@@ -1116,6 +1233,8 @@ mod tests {
                     numeric_value: None,
                     secure_entry: false,
                     secure_revealed: false,
+                    read_only: false,
+                    required: false,
                 },
                 TreeNode {
                     id: 2,
@@ -1137,6 +1256,8 @@ mod tests {
                     numeric_value: None,
                     secure_entry: false,
                     secure_revealed: false,
+                    read_only: false,
+                    required: false,
                 },
             ],
         };
@@ -1189,6 +1310,8 @@ mod tests {
                     numeric_value: None,
                     secure_entry: false,
                     secure_revealed: false,
+                    read_only: false,
+                    required: false,
                 },
                 TreeNode {
                     id: 4,
@@ -1210,6 +1333,8 @@ mod tests {
                     numeric_value: None,
                     secure_entry: false,
                     secure_revealed: false,
+                    read_only: false,
+                    required: false,
                 },
             ],
         };
@@ -1259,6 +1384,8 @@ mod tests {
                     numeric_value: Some(40.0),
                     secure_entry: false,
                     secure_revealed: false,
+                    read_only: false,
+                    required: false,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -1280,6 +1407,8 @@ mod tests {
                     numeric_value: None,
                     secure_entry: false,
                     secure_revealed: false,
+                    read_only: false,
+                    required: false,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -1340,6 +1469,8 @@ mod tests {
                     numeric_value: None,
                     secure_entry: true,
                     secure_revealed: false,
+                    read_only: false,
+                    required: false,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -1361,6 +1492,8 @@ mod tests {
                     numeric_value: None,
                     secure_entry: false,
                     secure_revealed: false,
+                    read_only: false,
+                    required: false,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -1415,6 +1548,8 @@ mod tests {
                     numeric_value: None,
                     secure_entry: true,
                     secure_revealed: true,
+                    read_only: false,
+                    required: false,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -1436,6 +1571,8 @@ mod tests {
                     numeric_value: None,
                     secure_entry: true,
                     secure_revealed: false,
+                    read_only: false,
+                    required: false,
                     scroll_orientation: None,
                     scroll_position: None,
                 },

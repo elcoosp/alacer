@@ -42,6 +42,7 @@ fn snapshot_1k() -> Arc<TreeSnapshot> {
         secure_revealed: false,
         read_only: false,
         required: false,
+        invalid: None,
     });
     for id in 1..NODES {
         nodes.push(TreeNode {
@@ -69,6 +70,7 @@ fn snapshot_1k() -> Arc<TreeSnapshot> {
             secure_revealed: false,
             read_only: false,
             required: false,
+            invalid: None,
         });
     }
     Arc::new(TreeSnapshot {

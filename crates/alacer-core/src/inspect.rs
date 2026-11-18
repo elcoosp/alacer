@@ -1226,6 +1226,13 @@ pub enum TextWriteRefusal {
     /// availability tier, spoken identically wherever a door names
     /// it).
     Unavailable,
+    /// The field's value is the app's (M105, ADR-0109): the read-only
+    /// tier's wall — the write ask (`SetValue`,
+    /// `ReplaceSelectedText`) landed on the declared word. The
+    /// selection door answers beside it: a read-only field reads.
+    /// The availability wall stays the outer one, the read-only
+    /// species the inner tier's.
+    ReadOnly,
 }
 
 impl TextWriteRefusal {
@@ -1235,6 +1242,7 @@ impl TextWriteRefusal {
     pub const fn name(self) -> &'static str {
         match self {
             Self::Unavailable => "unavailable",
+            Self::ReadOnly => "read_only",
         }
     }
 }
@@ -1541,6 +1549,16 @@ pub enum KeyEditAction {
     /// this action beside its refusal (the ask the door's own match
     /// named, the M62 rule at the read tier).
     Copy,
+    /// The journal's newest undone edit came back (M105, ADR-0109) —
+    /// the redo chord's ask, the field change the journal drives when
+    /// the door answers it. A wall that turns the chord away names the
+    /// ask here (the read-only tier's): the undo word's mirror.
+    Redo,
+    /// The newest landed edit went back (M105, ADR-0109) — the undo
+    /// chord's ask, the field change the journal drives when the door
+    /// answers it. A wall that turns the chord away names the ask here:
+    /// the journal chords price their walls like every other edit ask.
+    Undo,
 }
 
 impl KeyEditAction {
@@ -1557,6 +1575,8 @@ impl KeyEditAction {
             Self::Paste => "paste",
             Self::Cut => "cut",
             Self::Copy => "copy",
+            Self::Redo => "redo",
+            Self::Undo => "undo",
         }
     }
 }
@@ -1582,6 +1602,14 @@ pub enum KeyEditRefusal {
     /// one fact per trail, never a double-priced ask, the delivered
     /// chord's two-fact shape mirrored at the wall.
     EmptySelection,
+    /// The read-only tier's wall (M105, ADR-0109): the field is
+    /// available and focusable — the read doors answer — but its value
+    /// is the app's, so the write asks (typing, deletes, paste, cut,
+    /// undo, redo, the IME's commit) land on the declared word. The
+    /// availability wall stays the outer one: a field both disabled and
+    /// read-only names [`KeyEditRefusal::Unavailable`], the read-only
+    /// species the inner tier's.
+    ReadOnly,
 }
 
 impl KeyEditRefusal {
@@ -1592,6 +1620,7 @@ impl KeyEditRefusal {
         match self {
             Self::Unavailable => "unavailable",
             Self::EmptySelection => "empty_selection",
+            Self::ReadOnly => "read_only",
         }
     }
 }

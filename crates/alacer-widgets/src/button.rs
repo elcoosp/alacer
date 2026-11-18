@@ -6,7 +6,7 @@ use alacer_core::flux::RenderBinding;
 use alacer_core::geom::Point;
 use alacer_core::scene::PaintCtx;
 use alacer_core::style::{MeasureSpec, Style, TextSpec};
-use alacer_core::widget::{EventResponse, LabelSource, Role, Widget};
+use alacer_core::widget::{CurrentKind, EventResponse, HasPopupKind, LabelSource, Role, Widget};
 
 /// An actionable button (role `Button`, name mandatory — ADR-5).
 pub struct Button {
@@ -14,6 +14,12 @@ pub struct Button {
     /// The help text the a11y tree carries beside the name (M95,
     /// ADR-0099); `None` is the honest absence.
     description: Option<String>,
+    /// The current tier's word (M114, ADR-0118): which item of a set
+    /// the reader stands in; `None` is the honest absence.
+    current: Option<CurrentKind>,
+    /// The has-popup tier's word (M115, ADR-0119): what the control
+    /// opens; `None` is the honest absence.
+    has_popup: Option<HasPopupKind>,
     pressed: bool,
     enabled: Enabled,
     /// The app's fill override; `None` borrows the theme's accent role
@@ -57,6 +63,8 @@ impl Button {
         Self {
             label: label.into(),
             description: None,
+            current: None,
+            has_popup: None,
             pressed: false,
             enabled: Enabled::Fixed(true),
             fill: None,
@@ -92,6 +100,26 @@ impl Button {
     #[must_use]
     pub fn on_click(mut self, handler: impl FnMut() + 'static) -> Self {
         self.on_click = Some(Box::new(handler));
+        self
+    }
+
+    /// The current word (M114, ADR-0118): which item of a set the
+    /// reader stands in — the nav's page, the wizard's step — the
+    /// currency the tree says from the first frame
+    /// (`aria-current`, AccessKit's `AriaCurrent` property).
+    #[must_use]
+    pub fn current(mut self, current: CurrentKind) -> Self {
+        self.current = Some(current);
+        self
+    }
+
+    /// The has-popup word (M115, ADR-0119): what the control opens —
+    /// the menu button's menu, the combobox's listbox — the target the
+    /// tree says from the first frame (`aria-haspopup`, AccessKit's
+    /// `HasPopup` property).
+    #[must_use]
+    pub fn has_popup(mut self, has_popup: HasPopupKind) -> Self {
+        self.has_popup = Some(has_popup);
         self
     }
 
@@ -185,6 +213,33 @@ impl Button {
         true
     }
 
+    /// The one current write (M114, ADR-0118, view reconciliation):
+    /// `None` clears to the honest absence. Report whether the word
+    /// moved — the caller requests `PAINT | A11Y` only when this
+    /// answers `true`, so a write that lands where the word already is
+    /// queues nothing (the M21 idle-frame property, at the current tier).
+    pub fn set_current(&mut self, current: Option<CurrentKind>) -> bool {
+        if self.current == current {
+            return false;
+        }
+        self.current = current;
+        true
+    }
+
+    /// The one has-popup write (M115, ADR-0119, view reconciliation):
+    /// `None` clears to the honest absence. Report whether the word
+    /// moved — the caller requests `PAINT | A11Y` only when this
+    /// answers `true`, so a write that lands where the word already is
+    /// queues nothing (the M21 idle-frame property, at the has-popup
+    /// tier).
+    pub fn set_has_popup(&mut self, has_popup: Option<HasPopupKind>) -> bool {
+        if self.has_popup == has_popup {
+            return false;
+        }
+        self.has_popup = has_popup;
+        true
+    }
+
     /// Sets the fill (and pressed fill) in place (view reconciliation) —
     /// an explicit override, immune to rethemes.
     pub fn set_fill(&mut self, fill: Color) {
@@ -221,6 +276,20 @@ impl Widget for Button {
     /// name, the honest absence when the button has nothing to explain.
     fn description(&self) -> Option<&str> {
         self.description.as_deref()
+    }
+
+    /// The current tier (M114, ADR-0118): which item of a set the
+    /// reader stands in, the honest absence when the button stands in
+    /// no set — an item word, so every other role inherits the default.
+    fn current(&self) -> Option<CurrentKind> {
+        self.current
+    }
+
+    /// The has-popup tier (M115, ADR-0119): what the control opens,
+    /// the honest absence when the button opens nothing — an opener
+    /// word, so every other role inherits the default.
+    fn has_popup(&self) -> Option<HasPopupKind> {
+        self.has_popup
     }
 
     /// The availability tier (M22, ADR-0028): the flag the a11y tree
@@ -654,5 +723,71 @@ mod tests {
             !button.set_description(None),
             "the absence is already there"
         );
+    }
+
+    #[test]
+    fn the_current_word_rides_the_builder_and_the_door_reports_the_move() {
+        // M114, ADR-0118: the honest absence by default, the currency
+        // the builder mounts, and the one write whose moved answer is
+        // the only mask the tier costs — the kind riding the word, the
+        // clear restoring the absence.
+        use alacer_core::widget::CurrentKind;
+        let mut button = Button::new("Home");
+        assert_eq!(
+            Widget::current(&button),
+            None,
+            "an unworded item announces no currency — never a guessed `false`"
+        );
+        button = button.current(CurrentKind::Page);
+        assert_eq!(
+            Widget::current(&button),
+            Some(CurrentKind::Page),
+            "the currency the tree carries beside the name"
+        );
+        assert!(
+            !button.set_current(Some(CurrentKind::Page)),
+            "the idle write answers false — no masks"
+        );
+        assert!(
+            button.set_current(Some(CurrentKind::Step)),
+            "the kind moved"
+        );
+        assert_eq!(Widget::current(&button), Some(CurrentKind::Step));
+        assert!(button.set_current(None), "clearing to the absence moved");
+        assert_eq!(Widget::current(&button), None);
+        assert!(!button.set_current(None), "the absence is already there");
+    }
+
+    #[test]
+    fn the_has_popup_word_rides_the_builder_and_the_door_reports_the_move() {
+        // M115, ADR-0119: the honest absence by default, the target the
+        // builder mounts, and the one write whose moved answer is the
+        // only mask the tier costs — the kind riding the word, the
+        // clear restoring the absence.
+        use alacer_core::widget::HasPopupKind;
+        let mut button = Button::new("Actions");
+        assert_eq!(
+            Widget::has_popup(&button),
+            None,
+            "a control that opens nothing announces no target — never a guessed one"
+        );
+        button = button.has_popup(HasPopupKind::Menu);
+        assert_eq!(
+            Widget::has_popup(&button),
+            Some(HasPopupKind::Menu),
+            "the target the tree carries beside the name"
+        );
+        assert!(
+            !button.set_has_popup(Some(HasPopupKind::Menu)),
+            "the idle write answers false — no masks"
+        );
+        assert!(
+            button.set_has_popup(Some(HasPopupKind::Dialog)),
+            "the kind moved"
+        );
+        assert_eq!(Widget::has_popup(&button), Some(HasPopupKind::Dialog));
+        assert!(button.set_has_popup(None), "clearing to the absence moved");
+        assert_eq!(Widget::has_popup(&button), None);
+        assert!(!button.set_has_popup(None), "the absence is already there");
     }
 }

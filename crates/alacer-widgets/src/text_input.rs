@@ -85,6 +85,11 @@ pub struct TextInput {
     /// must carry a value before the form's submit fires — the word
     /// the AT reads before it asks, the doors unchanged beside it.
     required: bool,
+    /// The invalid tier's word (M107, ADR-0111): whether the field's
+    /// value fails the form's contract, and of what kind — the
+    /// rejection the AT reads while the user edits, the doors
+    /// unchanged beside it. `None` the honest absence.
+    invalid: Option<alacer_core::InvalidKind>,
     font_size: f32,
     style: Style,
     on_changed: Option<ChangeHandler>,
@@ -139,6 +144,7 @@ impl TextInput {
             revealed: false,
             read_only: false,
             required: false,
+            invalid: None,
             font_size: crate::theme::FONT_SIZE,
             style: Style::default(),
             on_changed: None,
@@ -227,6 +233,38 @@ impl TextInput {
             return false;
         }
         self.required = required;
+        true
+    }
+
+    /// Mounts the field invalid (M107, ADR-0111): the form's rejection
+    /// declared — AccessKit's `Invalid` property (ARIA's
+    /// `aria-invalid`) says "this one is not valid as given" to the AT
+    /// while the user edits, the kind (`true` / `grammar` /
+    /// `spelling`) riding beside the word. The word prices nothing but
+    /// the word: the field's doors answer exactly as they always did
+    /// (invalid is not a wall — the value stays editable, the
+    /// re-submit the app's own contract). The live door is
+    /// [`TextInput::set_invalid`].
+    #[must_use]
+    pub fn invalid(mut self, invalid: alacer_core::InvalidKind) -> Self {
+        self.invalid = Some(invalid);
+        self
+    }
+
+    /// The invalid door (M107, ADR-0111): the app's form contract
+    /// judged the value — the word the tree says follows it on the
+    /// re-announcement the caller's `PAINT | A11Y` request pays for
+    /// (the mutate seam's shape, the way every app-side write rides).
+    /// Report whether the word moved — the caller requests `A11Y` only
+    /// when this answers `true`, so a write that lands where the word
+    /// already is queues nothing (the M21 idle-frame property, at the
+    /// invalid tier). `None` clears the word — the honest absence
+    /// restored, the valid value the tree says nothing about.
+    pub fn set_invalid(&mut self, invalid: Option<alacer_core::InvalidKind>) -> bool {
+        if self.invalid == invalid {
+            return false;
+        }
+        self.invalid = invalid;
         true
     }
 
@@ -1383,6 +1421,14 @@ impl Widget for TextInput {
     /// it.
     fn required(&self) -> bool {
         self.required
+    }
+
+    /// The invalid tier (M107, ADR-0111): the word the tree says
+    /// beside the form's rejection — "this one is not valid as given",
+    /// the kind beside it, the AT reading it while the user edits. The
+    /// doors answer unchanged beside it.
+    fn invalid(&self) -> Option<alacer_core::InvalidKind> {
+        self.invalid
     }
 
     /// The M11 a11y contract (ADR-0017): the focused input exposes its

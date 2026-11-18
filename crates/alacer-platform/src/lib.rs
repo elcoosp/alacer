@@ -1651,6 +1651,8 @@ mod tests {
                 auto_complete: None,
                 sort_direction: None,
                 level: None,
+                current: None,
+                has_popup: None,
             }],
         });
         sink.apply(

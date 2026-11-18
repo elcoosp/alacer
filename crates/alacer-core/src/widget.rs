@@ -479,6 +479,27 @@ pub enum InvalidKind {
     Spelling,
 }
 
+/// The auto-complete tier's declared kind (M111, ADR-0115): *how* a
+/// field's suggestions ride the contract, carried neutrally to the a11y
+/// sink. `alacer-a11y` maps the word onto AccessKit's `AutoComplete`
+/// property — ARIA's `aria-autocomplete` — the variants AccessKit's own
+/// three values (`inline` / `list` / `both`), so the AT reads the
+/// suggestion contract and its mode in one fact. ARIA's fourth value
+/// (`none`) is the honest absence — [`Widget::auto_complete`] answering
+/// `None` — never a variant of its own.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AutoCompleteKind {
+    /// The field completes the entry inline as the user types
+    /// (`aria-autocomplete="inline"`).
+    Inline,
+    /// The field presents a list of possible completions
+    /// (`aria-autocomplete="list"`).
+    List,
+    /// The field both completes inline and presents the list
+    /// (`aria-autocomplete="both"`).
+    Both,
+}
+
 /// What happened to a routed event.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum EventResponse {
@@ -997,6 +1018,68 @@ pub trait Widget: 'static {
     /// containers override this; every other role inherits the default.
     fn multiselectable(&self) -> bool {
         false
+    }
+
+    /// Whether the collection member opens and closes (M110, ADR-0114):
+    /// the expanded tier's declared word — AccessKit's `Expanded`
+    /// property, ARIA's `aria-expanded`, mapped by `alacer-a11y` in the
+    /// same snapshot every other property rides. Through M109 the tree
+    /// said which member the collection picked (the selected tier)
+    /// beside the capacity the multiselectable tier named — and the word
+    /// every collection vocabulary speaks about the member that opens
+    /// and closes ("this one is expanded, that one collapsed") had no
+    /// tier: the AT announced the picks, the positions, the names — and
+    /// never the disclosure — the declared-but-unreported gap, the M94
+    /// pattern at the expanded tier.
+    ///
+    /// The word prices the word and nothing else: an expanded member's
+    /// doors answer exactly as they always did — the word names state,
+    /// it walls nothing, the open and close routes the widget's own (a
+    /// tree that refused on the word's behalf would price a contract it
+    /// does not own).
+    ///
+    /// The tier is the honest trio (the ADR-0087 presence rule at the
+    /// expanded tier, the selected shape): `None` the member that opens
+    /// and closes not — the absence ARIA spells `undefined`, never a
+    /// guessed `false`; `Some(false)` the member standing collapsed;
+    /// `Some(true)` the member standing open. AccessKit's own contract
+    /// names the mapping verbatim ("setting this to `false` means the
+    /// node is collapsed; omitting it means this state isn't
+    /// applicable"), so the mapping is one branch with no translation.
+    /// The collection members override this; every other role inherits
+    /// the default.
+    fn expanded(&self) -> Option<bool> {
+        None
+    }
+
+    /// The suggestion contract the field's completions ride (M111,
+    /// ADR-0115): the auto-complete tier's declared word — AccessKit's
+    /// `AutoComplete` property, ARIA's `aria-autocomplete`, mapped by
+    /// `alacer-a11y` in the same snapshot every other property rides,
+    /// the kind ([`AutoCompleteKind`]) riding beside the word. Through
+    /// M110 the tree said where a member sits, what a control *does*,
+    /// what an empty field *hints*, the span a value rides, the form's
+    /// ask and the form's rejection, the collection's pick and
+    /// capacity, the member's disclosure — and the word every field
+    /// vocabulary speaks about the suggestions it offers ("this one
+    /// completes inline, that one lists them") had no tier: the AT
+    /// announced the hint, the span, the form facts — and never the
+    /// suggestion contract — the declared-but-unreported gap, the M94
+    /// pattern at the auto-complete tier.
+    ///
+    /// The word prices the word and nothing else: an auto-completed
+    /// field's doors answer exactly as they always did — the word names
+    /// the suggestion contract, it walls nothing, the field stays
+    /// editable (a tree that refused on the word's behalf would price a
+    /// contract it does not own).
+    ///
+    /// `None` is the honest absence (the ADR-0087 presence rule at the
+    /// tier): a field that declared nothing announces no suggestion
+    /// contract — ARIA's `none` the absence spelled by `None`, never a
+    /// guessed mode. The editable fields override this; every other
+    /// role inherits the default.
+    fn auto_complete(&self) -> Option<AutoCompleteKind> {
+        None
     }
 
     /// The widget's toggle state for the a11y tree (M6): checkboxes report

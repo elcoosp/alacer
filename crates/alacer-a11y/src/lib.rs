@@ -482,6 +482,43 @@ impl AccessKitSink {
                 alacer_core::widget::AutoCompleteKind::Both => AutoComplete::Both,
             });
         }
+        // The sort direction tier (M112, ADR-0116): the sorted column's
+        // order maps AccessKit's `SortDirection` property, ARIA's
+        // `aria-sort` — the order the AT reads beside the position the
+        // M6 slot already carried. The word prices nothing but the
+        // word: the column's doors answer exactly as they always did.
+        // The kind mirrors AccessKit's own enum values — one branch
+        // with no translation — and the honest absence (`None`, ARIA's
+        // `none`) maps to the absence: a header that declared nothing
+        // sets nothing, never a guessed direction. The property rides
+        // the same node-only delta as every other property — a sort
+        // write re-announces exactly that node.
+        if let Some(kind) = node.sort_direction {
+            access_node.set_sort_direction(match kind {
+                alacer_core::widget::SortDirection::Ascending => {
+                    accesskit::SortDirection::Ascending
+                }
+                alacer_core::widget::SortDirection::Descending => {
+                    accesskit::SortDirection::Descending
+                }
+                alacer_core::widget::SortDirection::Other => accesskit::SortDirection::Other,
+            });
+        }
+        // The level tier (M113, ADR-0117): the nested member's depth
+        // maps AccessKit's `Level` property — the zero-based count the
+        // AT reads beside the grid position the M6 slot already
+        // carried. The word prices nothing but the word: the member's
+        // doors answer exactly as they always did. The count rides
+        // AccessKit's own base (zero-based, where ARIA's `aria-level`
+        // is one-based — the base the property maps, the difference the
+        // trait's documentation carries, never a silent cast), and the
+        // honest absence (`None`) maps to the absence: a member that
+        // declared nothing sets nothing, never a guessed `0`. The
+        // property rides the same node-only delta as every other
+        // property — a level write re-announces exactly that node.
+        if let Some(level) = node.level {
+            access_node.set_level(level);
+        }
         if let Some(toggled) = node.toggled {
             access_node.set_toggled(match toggled {
                 alacer_core::widget::ToggleState::Off => Toggled::False,
@@ -655,6 +692,8 @@ mod tests {
                     multiselectable: false,
                     expanded: None,
                     auto_complete: None,
+                    sort_direction: None,
+                    level: None,
                 },
                 TreeNode {
                     id: child_hash,
@@ -683,6 +722,8 @@ mod tests {
                     multiselectable: false,
                     expanded: None,
                     auto_complete: None,
+                    sort_direction: None,
+                    level: None,
                 },
                 TreeNode {
                     id: other_hash,
@@ -711,6 +752,8 @@ mod tests {
                     multiselectable: false,
                     expanded: None,
                     auto_complete: None,
+                    sort_direction: None,
+                    level: None,
                 },
             ],
         }
@@ -988,6 +1031,81 @@ mod tests {
         );
     }
 
+    #[test]
+    fn the_sort_direction_tier_maps_onto_the_sort_direction_property() {
+        // M112, ADR-0116: the sorted column's order maps AccessKit's
+        // `SortDirection` property, ARIA's `aria-sort` — the order the
+        // AT reads beside the position the M6 slot carried. The kind
+        // mirrors AccessKit's own enum values (one branch, no
+        // translation), the honest absence (`None` — ARIA's `none`)
+        // sets nothing.
+        let mut sink = AccessKitSink::new();
+        let mut snap = snapshot();
+        snap.nodes[1].sort_direction = Some(alacer_core::widget::SortDirection::Ascending);
+        sink.apply(
+            std::sync::Arc::new(snap),
+            &alacer_core::passes::A11yDelta {
+                updated: {
+                    let mut ids = FxHashSet::default();
+                    ids.insert(snap_root_and_child().1);
+                    ids
+                },
+                removed: Vec::new(),
+                focus: None,
+                initializes: false,
+            },
+        );
+        let update = sink.last_update().expect("the delta produced an update");
+        let sorted = update
+            .nodes
+            .iter()
+            .find(|(id, _)| id.0 == snap_root_and_child().1)
+            .map(|(_, node)| node)
+            .expect("the sorted node is re-emitted");
+        assert_eq!(
+            sorted.sort_direction(),
+            Some(accesskit::SortDirection::Ascending),
+            "the AT reads the declared order, kind beside it"
+        );
+    }
+
+    #[test]
+    fn the_level_tier_maps_onto_the_level_property() {
+        // M113, ADR-0117: the nested member's depth maps AccessKit's
+        // `Level` property — the zero-based count the AT reads beside
+        // the grid position the M6 slot carried (AccessKit's own base,
+        // beside ARIA's one-based `aria-level` — one branch, no
+        // translation), the honest absence (`None`) sets nothing.
+        let mut sink = AccessKitSink::new();
+        let mut snap = snapshot();
+        snap.nodes[1].level = Some(2);
+        sink.apply(
+            std::sync::Arc::new(snap),
+            &alacer_core::passes::A11yDelta {
+                updated: {
+                    let mut ids = FxHashSet::default();
+                    ids.insert(snap_root_and_child().1);
+                    ids
+                },
+                removed: Vec::new(),
+                focus: None,
+                initializes: false,
+            },
+        );
+        let update = sink.last_update().expect("the delta produced an update");
+        let nested = update
+            .nodes
+            .iter()
+            .find(|(id, _)| id.0 == snap_root_and_child().1)
+            .map(|(_, node)| node)
+            .expect("the nested node is re-emitted");
+        assert_eq!(
+            nested.level(),
+            Some(2),
+            "the AT reads the declared depth, zero-based as the property maps"
+        );
+    }
+
     /// The `(root, child)` hash pair the `snapshot()` helper mounts.
     fn snap_root_and_child() -> (u64, u64) {
         (111, 222)
@@ -1050,6 +1168,8 @@ mod tests {
             multiselectable: false,
             expanded: None,
             auto_complete: None,
+            sort_direction: None,
+            level: None,
         });
         sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
         let update = sink.last_update().expect("update");
@@ -1199,6 +1319,8 @@ mod tests {
             multiselectable: false,
             expanded: None,
             auto_complete: None,
+            sort_direction: None,
+            level: None,
         }
     }
 
@@ -1282,6 +1404,8 @@ mod tests {
                     multiselectable: false,
                     expanded: None,
                     auto_complete: None,
+                    sort_direction: None,
+                    level: None,
                 },
                 TreeNode {
                     id: 2,
@@ -1310,6 +1434,8 @@ mod tests {
                     multiselectable: false,
                     expanded: None,
                     auto_complete: None,
+                    sort_direction: None,
+                    level: None,
                 },
             ],
         };
@@ -1365,6 +1491,8 @@ mod tests {
             multiselectable: false,
             expanded: None,
             auto_complete: None,
+            sort_direction: None,
+            level: None,
         }
     }
 
@@ -1458,6 +1586,8 @@ mod tests {
                     multiselectable: false,
                     expanded: None,
                     auto_complete: None,
+                    sort_direction: None,
+                    level: None,
                 },
                 TreeNode {
                     id: 2,
@@ -1486,6 +1616,8 @@ mod tests {
                     multiselectable: false,
                     expanded: None,
                     auto_complete: None,
+                    sort_direction: None,
+                    level: None,
                 },
             ],
         };
@@ -1545,6 +1677,8 @@ mod tests {
                     multiselectable: false,
                     expanded: None,
                     auto_complete: None,
+                    sort_direction: None,
+                    level: None,
                 },
                 TreeNode {
                     id: 4,
@@ -1573,6 +1707,8 @@ mod tests {
                     multiselectable: false,
                     expanded: None,
                     auto_complete: None,
+                    sort_direction: None,
+                    level: None,
                 },
             ],
         };
@@ -1629,6 +1765,8 @@ mod tests {
                     multiselectable: false,
                     expanded: None,
                     auto_complete: None,
+                    sort_direction: None,
+                    level: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -1657,6 +1795,8 @@ mod tests {
                     multiselectable: false,
                     expanded: None,
                     auto_complete: None,
+                    sort_direction: None,
+                    level: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -1724,6 +1864,8 @@ mod tests {
                     multiselectable: false,
                     expanded: None,
                     auto_complete: None,
+                    sort_direction: None,
+                    level: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -1752,6 +1894,8 @@ mod tests {
                     multiselectable: false,
                     expanded: None,
                     auto_complete: None,
+                    sort_direction: None,
+                    level: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -1813,6 +1957,8 @@ mod tests {
                     multiselectable: false,
                     expanded: None,
                     auto_complete: None,
+                    sort_direction: None,
+                    level: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -1841,6 +1987,8 @@ mod tests {
                     multiselectable: false,
                     expanded: None,
                     auto_complete: None,
+                    sort_direction: None,
+                    level: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },

@@ -16,8 +16,8 @@
 //!   pass-3 output every a11y frame.
 
 use accesskit::{
-    Invalid, Live, Node, NodeId, Rect, Role as AccessKitRole, TextPosition, TextSelection, Toggled,
-    TreeId, TreeInfo, TreeUpdate,
+    AutoComplete, Invalid, Live, Node, NodeId, Rect, Role as AccessKitRole, TextPosition,
+    TextSelection, Toggled, TreeId, TreeInfo, TreeUpdate,
 };
 use alacer_core::Role;
 use alacer_core::announce::Politeness;
@@ -445,6 +445,43 @@ impl AccessKitSink {
         if node.multiselectable {
             access_node.set_multiselectable();
         }
+        // The expanded tier (M110, ADR-0114): the collection member that
+        // opens and closes maps AccessKit's `Expanded` property, ARIA's
+        // `aria-expanded` — the disclosure the AT reads beside the picks
+        // the selected tier already carried. The word prices nothing but
+        // the word: the member's doors answer exactly as they always
+        // did. The honest trio maps to the honest trio: `None` the
+        // member that opens and closes not sets nothing (the absence
+        // ARIA spells `undefined`, never a guessed `false`),
+        // `Some(false)` the member standing collapsed, `Some(true)` the
+        // member standing open — AccessKit's own contract naming the
+        // mapping ("setting this to `false` means the node is collapsed;
+        // omitting it means this state isn't applicable"), one branch
+        // with no translation. The property rides the same node-only
+        // delta as every other property — an expanded write
+        // re-announces exactly that node.
+        if let Some(expanded) = node.expanded {
+            access_node.set_expanded(expanded);
+        }
+        // The auto-complete tier (M111, ADR-0115): the field whose
+        // completions ride a suggestion contract maps AccessKit's
+        // `AutoComplete` property, ARIA's `aria-autocomplete` — the
+        // contract the AT reads beside the hint the placeholder tier
+        // already carried. The word prices nothing but the word: the
+        // field's doors answer exactly as they always did. The kind
+        // mirrors AccessKit's own enum values — one branch with no
+        // translation — and the honest absence (`None`, ARIA's `none`)
+        // maps to the absence: a field that declared nothing sets
+        // nothing, never a guessed mode. The property rides the same
+        // node-only delta as every other property — an auto-complete
+        // write re-announces exactly that node.
+        if let Some(kind) = node.auto_complete {
+            access_node.set_auto_complete(match kind {
+                alacer_core::widget::AutoCompleteKind::Inline => AutoComplete::Inline,
+                alacer_core::widget::AutoCompleteKind::List => AutoComplete::List,
+                alacer_core::widget::AutoCompleteKind::Both => AutoComplete::Both,
+            });
+        }
         if let Some(toggled) = node.toggled {
             access_node.set_toggled(match toggled {
                 alacer_core::widget::ToggleState::Off => Toggled::False,
@@ -573,6 +610,7 @@ mod tests {
         AccessKitSink, Live, UPDATE_RING_CAP, accesskit_node_id, find_in_update,
         map_announcement_role, map_bounds, map_live, map_role, walk_update,
     };
+    use accesskit::AutoComplete;
     use accesskit::NodeId;
     use accesskit::Role as AkRole;
     use accesskit::Toggled;
@@ -615,6 +653,8 @@ mod tests {
                     invalid: None,
                     selected: None,
                     multiselectable: false,
+                    expanded: None,
+                    auto_complete: None,
                 },
                 TreeNode {
                     id: child_hash,
@@ -641,6 +681,8 @@ mod tests {
                     invalid: None,
                     selected: None,
                     multiselectable: false,
+                    expanded: None,
+                    auto_complete: None,
                 },
                 TreeNode {
                     id: other_hash,
@@ -667,6 +709,8 @@ mod tests {
                     invalid: None,
                     selected: None,
                     multiselectable: false,
+                    expanded: None,
+                    auto_complete: None,
                 },
             ],
         }
@@ -866,6 +910,84 @@ mod tests {
         );
     }
 
+    #[test]
+    fn the_expanded_tier_maps_onto_the_expanded_property() {
+        // M110, ADR-0114: the collection member that opens and closes
+        // maps AccessKit's `Expanded` property, ARIA's `aria-expanded` —
+        // the disclosure the AT reads beside the picks the selected tier
+        // carried. The honest trio maps to the honest trio: the absence
+        // sets nothing (never a guessed `false`), the explicit word
+        // rides the node-only delta — AccessKit's own contract names it
+        // ("setting this to `false` means the node is collapsed;
+        // omitting it means this state isn't applicable").
+        let mut sink = AccessKitSink::new();
+        let mut snap = snapshot();
+        snap.nodes[1].expanded = Some(true);
+        sink.apply(
+            std::sync::Arc::new(snap),
+            &alacer_core::passes::A11yDelta {
+                updated: {
+                    let mut ids = FxHashSet::default();
+                    ids.insert(snap_root_and_child().1);
+                    ids
+                },
+                removed: Vec::new(),
+                focus: None,
+                initializes: false,
+            },
+        );
+        let update = sink.last_update().expect("the delta produced an update");
+        let expanded = update
+            .nodes
+            .iter()
+            .find(|(id, _)| id.0 == snap_root_and_child().1)
+            .map(|(_, node)| node)
+            .expect("the expanded node is re-emitted");
+        assert_eq!(
+            expanded.is_expanded(),
+            Some(true),
+            "the AT reads the declared word"
+        );
+    }
+
+    #[test]
+    fn the_auto_complete_tier_maps_onto_the_auto_complete_property() {
+        // M111, ADR-0115: the field whose suggestions ride a contract
+        // maps AccessKit's `AutoComplete` property, ARIA's
+        // `aria-autocomplete` — the suggestion contract the AT reads
+        // beside the hint the placeholder tier carried. The kind mirrors
+        // AccessKit's own enum values (one branch, no translation), the
+        // honest absence (`None` — ARIA's `none`) sets nothing.
+        let mut sink = AccessKitSink::new();
+        let mut snap = snapshot();
+        snap.nodes[1].auto_complete = Some(alacer_core::widget::AutoCompleteKind::Both);
+        sink.apply(
+            std::sync::Arc::new(snap),
+            &alacer_core::passes::A11yDelta {
+                updated: {
+                    let mut ids = FxHashSet::default();
+                    ids.insert(snap_root_and_child().1);
+                    ids
+                },
+                removed: Vec::new(),
+                focus: None,
+                initializes: false,
+            },
+        );
+        let update = sink.last_update().expect("the delta produced an update");
+        let auto_complete = update
+            .nodes
+            .iter()
+            .find(|(id, _)| id.0 == snap_root_and_child().1)
+            .map(|(_, node)| node)
+            .expect("the auto-complete node is re-emitted");
+        assert_eq!(
+            auto_complete.auto_complete(),
+            Some(AutoComplete::Both),
+            "the AT reads the declared contract, kind beside it"
+        );
+    }
+
     /// The `(root, child)` hash pair the `snapshot()` helper mounts.
     fn snap_root_and_child() -> (u64, u64) {
         (111, 222)
@@ -926,6 +1048,8 @@ mod tests {
             invalid: None,
             selected: None,
             multiselectable: false,
+            expanded: None,
+            auto_complete: None,
         });
         sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
         let update = sink.last_update().expect("update");
@@ -1044,6 +1168,40 @@ mod tests {
 
     /// The M6 vocabulary: a checkbox's toggle state and a data table's grid
     /// geometry must survive the neutral snapshot → AccessKit conversion.
+    /// A bare `TreeNode`: every declared word absent — the test
+    /// literals' shared base, so a tier's test overrides exactly the
+    /// word it exercises and the honest absences stay the default.
+    fn bare_node(id: u64, role: Role, label: &str) -> TreeNode {
+        TreeNode {
+            id,
+            role,
+            label: label.into(),
+            bounds: None,
+            children: Vec::new(),
+            value: None,
+            toggled: None,
+            table_slot: None,
+            selection: None,
+            live: None,
+            enabled: true,
+            description: None,
+            placeholder: None,
+            value_range: None,
+            scroll_orientation: None,
+            scroll_position: None,
+            numeric_value: None,
+            secure_entry: false,
+            secure_revealed: false,
+            read_only: false,
+            required: false,
+            invalid: None,
+            selected: None,
+            multiselectable: false,
+            expanded: None,
+            auto_complete: None,
+        }
+    }
+
     #[test]
     fn toggled_and_table_slots_map_onto_accesskit_attributes() {
         let mut sink = AccessKitSink::new();
@@ -1051,85 +1209,21 @@ mod tests {
             root: Some(1),
             nodes: vec![
                 TreeNode {
-                    id: 1,
-                    role: Role::Table,
-                    label: "Inventory".into(),
-                    bounds: None,
-                    children: vec![2, 3],
-                    value: None,
-                    toggled: None,
                     table_slot: Some(TableSlot::Table {
                         rows: 2,
                         columns: 3,
                     }),
-                    selection: None,
-                    live: None,
-                    enabled: true,
-                    description: None,
-                    placeholder: None,
-                    value_range: None,
-                    scroll_orientation: None,
-                    scroll_position: None,
-                    numeric_value: None,
-                    secure_entry: false,
-                    secure_revealed: false,
-                    read_only: false,
-                    required: false,
-                    invalid: None,
-                    selected: None,
-                    multiselectable: false,
+                    children: vec![2, 3],
+                    ..bare_node(1, Role::Table, "Inventory")
                 },
                 TreeNode {
-                    id: 2,
-                    role: Role::ColumnHeader,
-                    label: "Name".into(),
-                    bounds: None,
-                    children: Vec::new(),
-                    value: None,
-                    toggled: None,
                     table_slot: Some(TableSlot::Header { column: 0 }),
-                    selection: None,
-                    live: None,
-                    enabled: true,
-                    description: None,
-                    placeholder: None,
-                    value_range: None,
-                    scroll_orientation: None,
-                    scroll_position: None,
-                    numeric_value: None,
-                    secure_entry: false,
-                    secure_revealed: false,
-                    read_only: false,
-                    required: false,
-                    invalid: None,
-                    selected: None,
-                    multiselectable: false,
+                    ..bare_node(2, Role::ColumnHeader, "Name")
                 },
                 TreeNode {
-                    id: 3,
-                    role: Role::CheckBox,
-                    label: "Ship in bulk".into(),
-                    bounds: None,
-                    children: Vec::new(),
-                    value: None,
                     toggled: Some(alacer_core::widget::ToggleState::On),
                     table_slot: Some(TableSlot::Cell { row: 1, column: 2 }),
-                    selection: None,
-                    live: None,
-                    enabled: true,
-                    description: None,
-                    placeholder: None,
-                    value_range: None,
-                    scroll_orientation: None,
-                    scroll_position: None,
-                    numeric_value: None,
-                    secure_entry: false,
-                    secure_revealed: false,
-                    read_only: false,
-                    required: false,
-                    invalid: None,
-                    selected: None,
-                    multiselectable: false,
+                    ..bare_node(3, Role::CheckBox, "Ship in bulk")
                 },
             ],
         };
@@ -1186,6 +1280,8 @@ mod tests {
                     invalid: None,
                     selected: None,
                     multiselectable: false,
+                    expanded: None,
+                    auto_complete: None,
                 },
                 TreeNode {
                     id: 2,
@@ -1212,6 +1308,8 @@ mod tests {
                     invalid: None,
                     selected: None,
                     multiselectable: false,
+                    expanded: None,
+                    auto_complete: None,
                 },
             ],
         };
@@ -1265,6 +1363,8 @@ mod tests {
             invalid: None,
             selected: None,
             multiselectable: false,
+            expanded: None,
+            auto_complete: None,
         }
     }
 
@@ -1356,6 +1456,8 @@ mod tests {
                     invalid: None,
                     selected: None,
                     multiselectable: false,
+                    expanded: None,
+                    auto_complete: None,
                 },
                 TreeNode {
                     id: 2,
@@ -1382,6 +1484,8 @@ mod tests {
                     invalid: None,
                     selected: None,
                     multiselectable: false,
+                    expanded: None,
+                    auto_complete: None,
                 },
             ],
         };
@@ -1439,6 +1543,8 @@ mod tests {
                     invalid: None,
                     selected: None,
                     multiselectable: false,
+                    expanded: None,
+                    auto_complete: None,
                 },
                 TreeNode {
                     id: 4,
@@ -1465,6 +1571,8 @@ mod tests {
                     invalid: None,
                     selected: None,
                     multiselectable: false,
+                    expanded: None,
+                    auto_complete: None,
                 },
             ],
         };
@@ -1519,6 +1627,8 @@ mod tests {
                     invalid: None,
                     selected: None,
                     multiselectable: false,
+                    expanded: None,
+                    auto_complete: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -1545,6 +1655,8 @@ mod tests {
                     invalid: None,
                     selected: None,
                     multiselectable: false,
+                    expanded: None,
+                    auto_complete: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -1610,6 +1722,8 @@ mod tests {
                     invalid: None,
                     selected: None,
                     multiselectable: false,
+                    expanded: None,
+                    auto_complete: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -1636,6 +1750,8 @@ mod tests {
                     invalid: None,
                     selected: None,
                     multiselectable: false,
+                    expanded: None,
+                    auto_complete: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -1695,6 +1811,8 @@ mod tests {
                     invalid: None,
                     selected: None,
                     multiselectable: false,
+                    expanded: None,
+                    auto_complete: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -1721,6 +1839,8 @@ mod tests {
                     invalid: None,
                     selected: None,
                     multiselectable: false,
+                    expanded: None,
+                    auto_complete: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },

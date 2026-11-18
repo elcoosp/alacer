@@ -32,7 +32,7 @@ use alacer_widgets::{BoxedWidget as _, Button, Column, List};
 /// (M96), the description route's case (M95), the toggle route's pair
 /// (M94), the derive route's pair (M92), and the recording route's pair
 /// (M93) on the published corpus.
-const EXPECTED_BENCH_COUNT: usize = 131;
+const EXPECTED_BENCH_COUNT: usize = 134;
 
 /// The suite's own read door into the published corpus: the scroll
 /// position route's case — the 1,000-node scrolled list arena (the

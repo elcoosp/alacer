@@ -157,3 +157,11 @@ harness = false
 [[bench]]
 name = "level"
 harness = false
+
+[[bench]]
+name = "current"
+harness = false
+
+[[bench]]
+name = "has_popup"
+harness = false

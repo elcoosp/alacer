@@ -1644,6 +1644,7 @@ mod tests {
                 secure_revealed: false,
                 read_only: false,
                 required: false,
+                invalid: None,
             }],
         });
         sink.apply(

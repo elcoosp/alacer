@@ -500,6 +500,28 @@ pub enum AutoCompleteKind {
     Both,
 }
 
+/// The sort direction tier's declared kind (M112, ADR-0116): *how* a
+/// sorted column orders its rows, carried neutrally to the a11y sink.
+/// `alacer-a11y` maps the word onto AccessKit's `SortDirection`
+/// property — ARIA's `aria-sort` — the variants AccessKit's own three
+/// values (`ascending` / `descending` / `other`), so the AT reads the
+/// column's order in one fact. ARIA's fourth value (`none`) is the
+/// honest absence — [`Widget::sort_direction`] answering `None` — never
+/// a variant of its own.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SortDirection {
+    /// The column sorts ascending — the AT announces "sorted ascending"
+    /// while it walks the rows (`aria-sort="ascending"`).
+    Ascending,
+    /// The column sorts descending — the AT announces "sorted
+    /// descending" while it walks the rows (`aria-sort="descending"`).
+    Descending,
+    /// The column sorts by an order ARIA names no word for — the AT
+    /// reads the declared sort without guessing a direction
+    /// (`aria-sort="other"`).
+    Other,
+}
+
 /// What happened to a routed event.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum EventResponse {
@@ -789,7 +811,8 @@ pub trait Widget: 'static {
     }
 
     /// Whether the widget is a field of secret entry (M100, ADR-0104):
-    /// the flag behind the constructor word [`ImePurpose::Secure`] the
+    /// the flag behind the constructor word
+    /// [`ImePurpose::Secure`](crate::passes::ImePurpose::Secure) the
     /// IME contract has carried since M4 — the field the platform's IME
     /// already treats as a password, suppresses echo and suggestions
     /// for. The tree says the word: AccessKit's `PasswordInput` role,
@@ -1079,6 +1102,68 @@ pub trait Widget: 'static {
     /// guessed mode. The editable fields override this; every other
     /// role inherits the default.
     fn auto_complete(&self) -> Option<AutoCompleteKind> {
+        None
+    }
+
+    /// The order the sorted column holds its rows in (M112, ADR-0116):
+    /// the sort direction tier's declared word — AccessKit's
+    /// `SortDirection` property, ARIA's `aria-sort`, mapped by
+    /// `alacer-a11y` in the same snapshot every other property rides,
+    /// the kind ([`SortDirection`]) riding beside the word. Through
+    /// M111 the tree said what a control *does*, what an empty field
+    /// *hints*, the span a value rides, the form's ask and the form's
+    /// rejection, the collection's pick, capacity and disclosure, the
+    /// field's suggestion contract — and the word every sorted-column
+    /// vocabulary speaks about the rows it orders ("this one sorts
+    /// ascending, that one descending") had no tier: the AT announced
+    /// the position the M6 slot carried, the name, the form facts — and
+    /// never the sort — the declared-but-unreported gap, the M94
+    /// pattern at the sort direction tier.
+    ///
+    /// The word prices the word and nothing else: a sorted column's
+    /// doors answer exactly as they always did — the word names the
+    /// order, it walls nothing, the column's press and focus routes the
+    /// widget's own (a tree that refused on the word's behalf would
+    /// price a contract it does not own).
+    ///
+    /// `None` is the honest absence (the ADR-0087 presence rule at the
+    /// tier): a header that declared nothing announces no order —
+    /// ARIA's `none` the absence spelled by `None`, never a guessed
+    /// direction. The column headers override this; every other role
+    /// inherits the default.
+    fn sort_direction(&self) -> Option<SortDirection> {
+        None
+    }
+
+    /// The member's hierarchical depth (M113, ADR-0117): the level
+    /// tier's declared word — AccessKit's `Level` property, mapped by
+    /// `alacer-a11y` in the same snapshot every other property rides.
+    /// Through M112 the tree said where a member sits in its grid (the
+    /// M6 slot's zero-based row and column), the form's ask and the
+    /// form's rejection, the collection's pick, capacity and
+    /// disclosure, the field's suggestion contract, the sorted column's
+    /// order — and the word every nested-collection vocabulary speaks
+    /// about how deep a member stands ("this one is a level-2 row
+    /// under the level-1 one") had no tier: the AT announced the grid
+    /// position, the name, the form facts — and never the depth — the
+    /// declared-but-unreported gap, the M94 pattern at the level tier.
+    ///
+    /// The word prices the word and nothing else: a nested member's
+    /// doors answer exactly as they always did — the word names the
+    /// depth, it walls nothing, the member's press and focus routes the
+    /// widget's own (a tree that refused on the word's behalf would
+    /// price a contract it does not own).
+    ///
+    /// The count is zero-based — AccessKit's own contract names it
+    /// ("this property is zero-based", beside ARIA's one-based
+    /// `aria-level` the property maps) — so the mapping is one branch
+    /// with no translation, and the base difference is the
+    /// documentation's, never a silent cast. `None` is the honest
+    /// absence (the ADR-0087 presence rule at the tier): a member that
+    /// declared nothing announces no depth — the flat row the AT read
+    /// before the tier, never a guessed `0`. The collection members
+    /// override this; every other role inherits the default.
+    fn level(&self) -> Option<usize> {
         None
     }
 

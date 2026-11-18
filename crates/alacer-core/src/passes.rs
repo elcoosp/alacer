@@ -207,6 +207,14 @@ pub struct TreeNode {
     /// control that declared nothing announces nothing, never a
     /// guessed default.
     pub required: bool,
+    /// The control's invalid word (M107, ADR-0111): whether its value
+    /// fails the form's contract, and of what kind — the rejection the
+    /// AT reads while the user edits (AccessKit's `Invalid` property,
+    /// ARIA's `aria-invalid`). The word prices nothing but the word:
+    /// the control's doors answer exactly as they always did. `None`
+    /// is the honest absence — a control that declared nothing
+    /// announces nothing, never a guessed default.
+    pub invalid: Option<crate::widget::InvalidKind>,
 }
 
 /// The full accessibility snapshot of the widget tree, built by pass 9.
@@ -3971,6 +3979,7 @@ impl PassPipeline {
                 scroll_position: slot.widget().scroll_position(),
                 read_only: slot.widget().read_only(),
                 required: slot.widget().required(),
+                invalid: slot.widget().invalid(),
             };
             if snapshot.root.is_none() {
                 snapshot.root = Some(node.id);
@@ -4017,6 +4026,9 @@ impl PassPipeline {
                 // region's content is the announcement itself.
                 read_only: false,
                 required: false,
+                // The pipeline's own node: no invalid word — the
+                // region's content is the announcement itself.
+                invalid: None,
             });
         }
         snapshot

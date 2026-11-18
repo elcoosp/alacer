@@ -1221,7 +1221,7 @@ fn size_px(v: f32) -> u32 {
 
 /// The double-click window (GTK's default press-chain interval): two
 /// presses within 400 ms of each other and within
-/// [`DOUBLE_CLICK_SLOP`] form one chain. Since M103 (ADR-0107) the
+/// `DOUBLE_CLICK_SLOP` form one chain. Since M103 (ADR-0107) the
 /// bound rides the time seam's own unit — the nanos the
 /// [`alacer_core::time::TimeSeam`] reads answer — one constant, never
 /// a second clock-shaped fact.
@@ -1233,8 +1233,8 @@ const DOUBLE_CLICK_NANOS: u64 = 400_000_000;
 const DOUBLE_CLICK_SLOP: f32 = 4.0;
 
 /// Tracks the platform's click chain: presses within
-/// [`DOUBLE_CLICK_NANOS`] of the previous one and within
-/// [`DOUBLE_CLICK_SLOP`] of it count up (1, 2, 3 — the single click, the
+/// `DOUBLE_CLICK_NANOS` of the previous one and within
+/// `DOUBLE_CLICK_SLOP` of it count up (1, 2, 3 — the single click, the
 /// double-click, the triple), a press outside either bound starts a fresh
 /// chain at 1. The count rides every [`PointerEvent::Down`] so widgets see
 /// which gesture the user's hand made (§10.3, ADR-0019) — the platform
@@ -1249,7 +1249,7 @@ const DOUBLE_CLICK_SLOP: f32 = 4.0;
 pub struct ClickCounter {
     /// The clock the chain's window is priced by (the time seam,
     /// ADR-0107): reads answer monotonic nanoseconds, deltas compared
-    /// against [`DOUBLE_CLICK_NANOS`].
+    /// against `DOUBLE_CLICK_NANOS`.
     clock: Box<dyn alacer_core::time::TimeSeam>,
     /// The previous press: when it landed (the seam's own nanos) and
     /// where.
@@ -1649,6 +1649,8 @@ mod tests {
                 multiselectable: false,
                 expanded: None,
                 auto_complete: None,
+                sort_direction: None,
+                level: None,
             }],
         });
         sink.apply(

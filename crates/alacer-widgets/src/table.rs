@@ -27,6 +27,10 @@ pub struct Table {
     /// The app's header-fill override; `None` borrows the theme's panel
     /// role at paint time (ADR-0079).
     header_fill: Option<Color>,
+    /// The multiselectable tier's word (M109, ADR-0113): whether the
+    /// collection allows more than one pick — `false` the honest
+    /// absence.
+    multiselectable: bool,
 }
 
 impl Table {
@@ -42,7 +46,38 @@ impl Table {
                 ..Style::column()
             },
             header_fill: None,
+            multiselectable: false,
         }
+    }
+
+    /// Mounts the table multi-pick (M109, ADR-0113): the collection's
+    /// capacity said by the tree from the first frame — AccessKit's
+    /// `Multiselectable` property (ARIA's `aria-multiselectable`) names
+    /// the capacity to the AT beside the member picks the selected tier
+    /// (ADR-0112) already carried. The word prices nothing but the
+    /// word: the table's doors answer exactly as they always did — the
+    /// word names capacity, it walls nothing. The app's live door rides
+    /// [`Table::set_multiselectable`].
+    #[must_use]
+    pub fn multiselectable(mut self, multiselectable: bool) -> Self {
+        self.multiselectable = multiselectable;
+        self
+    }
+
+    /// The multiselectable door (M109, ADR-0113): the app's capacity
+    /// moved — the word the tree says follows it on the re-announcement
+    /// the caller's `PAINT | A11Y` request pays for (the mutate seam's
+    /// shape, the way every app-side write rides). Report whether the
+    /// word moved — the caller requests `A11Y` only when this answers
+    /// `true`, so a write that lands where the word already is queues
+    /// nothing (the M21 idle-frame property, at the multiselectable
+    /// tier).
+    pub fn set_multiselectable(&mut self, multiselectable: bool) -> bool {
+        if self.multiselectable == multiselectable {
+            return false;
+        }
+        self.multiselectable = multiselectable;
+        true
     }
 
     /// The live grid geometry for the a11y attributes (rows × columns).
@@ -113,6 +148,9 @@ impl Widget for Table {
             columns: self.columns,
         })
     }
+    fn multiselectable(&self) -> bool {
+        self.multiselectable
+    }
     fn paint(&self, ctx: &mut PaintCtx<'_>) {
         // The table's own chrome is none; headers carry their fill. Painting
         // a hairline table background keeps rows visually grouped.
@@ -130,6 +168,10 @@ impl Widget for Table {
 /// One data-table row: a horizontal container of cells.
 pub struct TableRow {
     style: Style,
+    /// The selected tier's word (M108, ADR-0112): the row's declared
+    /// pick — `None` the honest absence, the row of no selection
+    /// collection.
+    selected: Option<bool>,
 }
 
 impl TableRow {
@@ -141,7 +183,39 @@ impl TableRow {
                 gap: 8.0,
                 ..Style::row()
             },
+            selected: None,
         }
+    }
+
+    /// Mounts the row picked (or explicitly unpicked) (M108, ADR-0112):
+    /// the collection's word said by the tree from the first frame —
+    /// AccessKit's `Selected` property (ARIA's `aria-selected`) names
+    /// the pick to the AT beside the position the M6 slot already
+    /// carried. The word prices nothing but the word: the row's doors
+    /// answer exactly as they always did — the word names state, it
+    /// walls nothing. The app's live door rides
+    /// [`TableRow::set_selected`].
+    #[must_use]
+    pub fn selected(mut self, selected: bool) -> Self {
+        self.selected = Some(selected);
+        self
+    }
+
+    /// The selected door (M108, ADR-0112): the app's selection moved —
+    /// the word the tree says follows it on the re-announcement the
+    /// caller's `PAINT | A11Y` request pays for (the mutate seam's
+    /// shape, the way every app-side write rides). Report whether the
+    /// word moved — the caller requests `A11Y` only when this answers
+    /// `true`, so a write that lands where the word already is queues
+    /// nothing (the M21 idle-frame property, at the selected tier).
+    /// `None` clears the word — the honest absence restored, the row of
+    /// no selection collection.
+    pub fn set_selected(&mut self, selected: Option<bool>) -> bool {
+        if self.selected == selected {
+            return false;
+        }
+        self.selected = selected;
+        true
     }
 
     /// Layout styles.
@@ -179,6 +253,9 @@ impl Widget for TableRow {
     fn style(&self) -> Style {
         self.style.clone()
     }
+    fn selected(&self) -> Option<bool> {
+        self.selected
+    }
 }
 
 /// A text cell: a table's leaf content with its grid position (M6).
@@ -191,6 +268,10 @@ pub struct TableCell {
     font_size: f32,
     style: Style,
     strong: bool,
+    /// The selected tier's word (M108, ADR-0112): the cell's declared
+    /// pick — `None` the honest absence, the cell of no selection
+    /// collection.
+    selected: Option<bool>,
 }
 
 impl TableCell {
@@ -207,7 +288,39 @@ impl TableCell {
                 ..Style::default()
             },
             strong: false,
+            selected: None,
         }
+    }
+
+    /// Mounts the cell picked (or explicitly unpicked) (M108, ADR-0112):
+    /// the collection's word said by the tree from the first frame —
+    /// AccessKit's `Selected` property (ARIA's `aria-selected`) names
+    /// the pick to the AT beside the position the M6 slot already
+    /// carried. The word prices nothing but the word: the cell's doors
+    /// answer exactly as they always did — the word names state, it
+    /// walls nothing. The app's live door rides
+    /// [`TableCell::set_selected`].
+    #[must_use]
+    pub fn selected(mut self, selected: bool) -> Self {
+        self.selected = Some(selected);
+        self
+    }
+
+    /// The selected door (M108, ADR-0112): the app's selection moved —
+    /// the word the tree says follows it on the re-announcement the
+    /// caller's `PAINT | A11Y` request pays for (the mutate seam's
+    /// shape, the way every app-side write rides). Report whether the
+    /// word moved — the caller requests `A11Y` only when this answers
+    /// `true`, so a write that lands where the word already is queues
+    /// nothing (the M21 idle-frame property, at the selected tier).
+    /// `None` clears the word — the honest absence restored, the cell
+    /// of no selection collection.
+    pub fn set_selected(&mut self, selected: Option<bool>) -> bool {
+        if self.selected == selected {
+            return false;
+        }
+        self.selected = selected;
+        true
     }
 
     /// Emphasis styling (header-like data cells).
@@ -279,6 +392,9 @@ impl Widget for TableCell {
     fn table_slot(&self) -> Option<TableSlot> {
         let (row, column) = self.slot;
         Some(TableSlot::Cell { row, column })
+    }
+    fn selected(&self) -> Option<bool> {
+        self.selected
     }
     fn measure_spec(&self) -> Option<MeasureSpec> {
         Some(MeasureSpec::Fixed(self.intrinsic()))

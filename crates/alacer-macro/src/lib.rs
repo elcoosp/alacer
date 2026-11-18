@@ -39,7 +39,7 @@ pub fn rsx(input: TokenStream) -> TokenStream {
     expanded.into()
 }
 
-/// Generates the [`Widget`](::alacer_core::Widget) contract's required pair —
+/// Generates the `Widget` contract's required pair —
 /// the semantic role and the accessible name — plus the `Any` upcast, from
 /// two `#[widget(...)]` attributes on the struct (§11.1, ADR-0096: the
 /// `#[derive(Widget)]` form architecture §19 Q5 pre-registered as the

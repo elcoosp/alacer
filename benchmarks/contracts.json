@@ -189,6 +189,24 @@
       "op": "<=",
       "budget": 1.25,
       "cite": "ADR-0113 (M109): the multiselectable word rides the snapshot the container rides \u2014 the word's price the one bool the node carries; test-enforced nowhere, measured by criterion"
+    },
+    {
+      "id": "expanded_snapshot_overhead",
+      "metric": "median_ratio",
+      "numerator": "expanded/snapshot_1k_expanded",
+      "denominator": "expanded/snapshot_1k_rows_bare",
+      "op": "<=",
+      "budget": 1.25,
+      "cite": "ADR-0114 (M110): the expanded word rides the snapshot the row rides \u2014 the word's price the one Option<bool> the node carries; test-enforced nowhere, measured by criterion"
+    },
+    {
+      "id": "auto_complete_snapshot_overhead",
+      "metric": "median_ratio",
+      "numerator": "auto_complete/snapshot_1k_auto_complete",
+      "denominator": "placeholder/snapshot_1k_bare",
+      "op": "<=",
+      "budget": 1.25,
+      "cite": "ADR-0115 (M111): the auto-complete word rides the snapshot the field rides \u2014 the word's price the one Option the node carries; test-enforced nowhere, measured by criterion"
     }
   ],
   "regressions": [
@@ -815,6 +833,21 @@
     {
       "id": "multiselectable_snapshot_1k_tables_bare",
       "baseline": "multiselectable/snapshot_1k_tables_bare",
+      "scope": "same-host"
+    },
+    {
+      "id": "expanded_snapshot_1k_expanded",
+      "baseline": "expanded/snapshot_1k_expanded",
+      "scope": "same-host"
+    },
+    {
+      "id": "expanded_snapshot_1k_rows_bare",
+      "baseline": "expanded/snapshot_1k_rows_bare",
+      "scope": "same-host"
+    },
+    {
+      "id": "auto_complete_snapshot_1k_auto_complete",
+      "baseline": "auto_complete/snapshot_1k_auto_complete",
       "scope": "same-host"
     }
   ],

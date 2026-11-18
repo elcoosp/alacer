@@ -298,7 +298,7 @@ impl Widget for List {
             offset: state.offset_x,
             max: horizontal_span,
         });
-        (vertical.is_some() || horizontal.is_some()).then(|| ScrollPosition {
+        (vertical.is_some() || horizontal.is_some()).then_some(ScrollPosition {
             vertical,
             horizontal,
         })

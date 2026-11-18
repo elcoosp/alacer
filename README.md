@@ -46,7 +46,7 @@
 | 50-event pointer storm                                | **1** coalesced dispatch (**39.71×**)           | `input_storm_batching` budget                                                                          |
 | 10k-node churn frame vs egui, same host               | 1.10 ms vs 20.7 ms full frame (**18.8×**)       | 5-run medians, declared rig (`benchmarks/rig.json`)                                                    |
 | …vs Masonry                                           | 1.10 ms vs 4.6 ms full pass pipeline (**4.2×**) | same rig, `scripts/run_comparison.py`                                                                  |
-| All 114 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
+| All 118 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
 
 _Competitor rows compare Alacer's incremental frame against their full frame/pass — every row in
 `benchmarks/comparisons/results.json` is labeled with its scope._
@@ -320,7 +320,7 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `accent_follow`                                      | the OS's accent fact rides the same seam: the accent-only flip lands, the composition tints the palette's accent roles from the fact, the log names all four facts |
 | `todo` / `data_table`                                | the canons: a11y tree, record/replay, grid slots, keyboard navigation            |
 
-<details><summary><b>80 examples, grouped (86 ship; recording, alloc_budget, input_budget, derive_widget, layout_probe, and tri_state live in the catalog)</b></summary>
+<details><summary><b>83 examples, grouped (89 ship; recording, alloc_budget, input_budget, derive_widget, layout_probe, and tri_state live in the catalog)</b></summary>
 
 **Start here**
 
@@ -441,6 +441,13 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `handle_scroll_x` | the M90 app handle's x door driven from the consumer side: `scroll_to_x` beside `scroll_to`, the record's horizontal half beside the vertical identity, the wall pinning a past run, the vertical-only refusal |
 | `at_horizontal` | the M91 AT's horizontal vocabulary driven from the consumer side: `ScrollRight`/`ScrollLeft` by their unit (an item is one line, a page is the viewport's width), the record's species naming the ask, the value tier refusing the pair |
 | `scroll_position` | the M101 scroll position tier driven from the consumer side: the scrolled list's landing beside the wall it clamps to (the AT reading "140 of 0..460"), the bare list's honest absence, and the AT's own page ask the status line reads back — the wheel paying the currency natively |
+**The time seam & headless tooling**
+
+| Example | Shows |
+| --------------- | ----------------------------------------------------------------------------------------------------- |
+| `time_seam` | the M103 clock seam driven from the consumer side: the app's only time read is one seam read (`TimeSeam` beside `MonotonicClock` and `ManualClock`), the deterministic label the advance names exactly (`1.500 s elapsed`, every run), the canon clock answering the same code and never going backwards |
+| `frame_clock` | the M104 frame pricing driven from the consumer side: the fallback's two unequal totals (the wall clock's own honesty), the stepping clock's byte-identical pass ledger printed as a table, the frozen clock's deterministic zero — the timed frame as data the seam decides |
+| `a11y_queries` | the a11y query API as a runnable walkthrough: find by role and name, press through the AT's own `DefaultPress` door, click at the tree's own bounds, read the label's word back — the tree, never the internals |
 
 </details>
 
@@ -455,12 +462,13 @@ ALACER_BLESS=1 cargo test -p alacer-testing    # re-bless PNG snapshots after an
 ```
 
 Snapshot scenarios live in `crates/alacer-testing/blessed/`; accessibility tests query the a11y
-tree (`query(role).named(..)`, `press`, `all`) — never widget internals.
+tree (`query(role).named(..)`, `press`, `all`) — never widget internals; `examples/a11y_queries.rs`
+is the query API as a runnable walkthrough.
 
 ## Status
 
 > [!NOTE]
-> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M102 of `docs/architecture.md` are
+> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M104 of `docs/architecture.md` are
 > complete, but the API still moves between minor versions. MSRV **1.99**, edition **2024**.
 
 | Platform            | CI coverage                                                                                                                                                           |
@@ -472,7 +480,7 @@ tree (`query(role).named(..)`, `press`, `all`) — never widget internals.
 ## Learn more
 
 - [Architecture](https://github.com/elcoosp/alacer/blob/main/docs/architecture.md) — design axioms, the ten-pass contract, rendering, accessibility, DX, performance, roadmap and kill criteria
-- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred and seven decision records, from workspace discipline to the M102 scope
+- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred and nine decision records, from workspace discipline to the M104 scope
 - [Examples catalog](https://github.com/elcoosp/alacer/blob/main/docs/examples.md) — every example with the contract it exercises
 - [Migrating from Iced](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-iced.md) · [from egui](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-egui.md) — mental-model mappings, interop limits stated plainly
 - [Inspector protocol](https://github.com/elcoosp/alacer/blob/main/docs/inspector-protocol.md) — the versioned WebSocket contract behind `alacer-inspect`

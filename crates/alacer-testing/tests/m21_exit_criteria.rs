@@ -241,7 +241,7 @@ fn m21_the_value_write_route_joins_the_corpus_by_the_coordinated_rule() {
 
     assert_eq!(
         baselines["bench_count"],
-        serde_json::json!(118),
+        serde_json::json!(120),
         "the corpus grows 56 → 57 at M22's measurement run"
     );
     let benches = baselines["benches"].as_object().expect("benches object");
@@ -285,18 +285,18 @@ fn m21_the_value_write_route_joins_the_corpus_by_the_coordinated_rule() {
     ] {
         let source = read_workspace_file(&format!("crates/alacer-testing/tests/{suite}"));
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 118;"),
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 120;"),
             "{suite} must pin the 94-case corpus"
         );
     }
     let m19 = read_workspace_file("crates/alacer-testing/tests/m19_exit_criteria.rs");
     assert!(
-        m19.contains("All 118 criterion cases") && m19.contains("serde_json::json!(118)"),
+        m19.contains("All 118 criterion cases") && m19.contains("serde_json::json!(120)"),
         "the m19 suite's pins moved with the corpus"
     );
     let m20 = read_workspace_file("crates/alacer-testing/tests/m20_exit_criteria.rs");
     assert!(
-        m20.contains("serde_json::json!(118)") && m20.contains("usize = 118;"),
+        m20.contains("serde_json::json!(120)") && m20.contains("usize = 118;"),
         "the m20 suite's pins moved with the corpus (the one-cycle drift the pattern prices)"
     );
 }

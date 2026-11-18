@@ -46,7 +46,7 @@
 | 50-event pointer storm                                | **1** coalesced dispatch (**39.71×**)           | `input_storm_batching` budget                                                                          |
 | 10k-node churn frame vs egui, same host               | 1.10 ms vs 20.7 ms full frame (**18.8×**)       | 5-run medians, declared rig (`benchmarks/rig.json`)                                                    |
 | …vs Masonry                                           | 1.10 ms vs 4.6 ms full pass pipeline (**4.2×**) | same rig, `scripts/run_comparison.py`                                                                  |
-| All 134 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
+| All 135 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
 
 _Competitor rows compare Alacer's incremental frame against their full frame/pass — every row in
 `benchmarks/comparisons/results.json` is labeled with its scope._
@@ -183,6 +183,7 @@ Accessibility is not a layer bolted on — it is the tree's own vocabulary:
 | **Level** (M113)      | The nested member's depth: `level()` on the trait answering the zero-based count (AccessKit's own base, the contract naming it verbatim beside ARIA's one-based `aria-level` — one branch with no translation), `TableRow` carrying the constructor word and the `set_level` door, AccessKit's `Level` property mapped in the same snapshot — the AT reading "level 2" while it walks the rows, the member's press and focus routes the widget's own (the word names a depth, it walls nothing); `None` the honest absence, the flat row never a guessed `0` | 0117      |
 | **Current** (M114)    | The set's current item: `current()` on the trait carrying the kind (`CurrentKind` — AccessKit's own six values: `true`, `page`, `step`, `location`, `date`, `time`; ARIA's `false`, the attribute's absent default, the absence the `Option` spells, never a guessed flavor), `Button` carrying the constructor word and the `set_current` door, AccessKit's `AriaCurrent` property mapped in the same snapshot — the AT reading "current page" while it walks the nav, the item's press and focus routes the widget's own (the word names a currency, it walls nothing); `None` the honest absence | 0118      |
 | **Has-popup** (M115)   | The opener's target: `has_popup()` on the trait carrying the kind (`HasPopupKind` — AccessKit's own five values: `menu`, `listbox`, `tree`, `grid`, `dialog`; the attribute's unset state the absence the `Option` spells, never a guessed target), `Button` carrying the constructor word and the `set_has_popup` door, AccessKit's `HasPopup` property mapped in the same snapshot — the AT reading "opens a menu" while it walks the toolbar, the opener's press and focus routes the widget's own (the word names a target, it walls nothing); `None` the honest absence | 0119      |
+| **Role-description** (M116) | The role a custom control is *read as*: `role_description()` on the trait answering the single word beside the generic role (no kind enum — AccessKit's `RoleDescription` is a string property, the description precedent at the string tier, one branch with no translation), `Button` carrying the constructor word and the `set_role_description` door with `Slider` joining by the M107 rule, AccessKit's `RoleDescription` property mapped in the same snapshot — the AT reading "star rating" while it walks the form, the control's press and focus routes the widget's own (the word names a read-as role, it walls nothing); `None` the honest absence, the generic role the control already was, never a guessed specialization | 0120      |
 
 Since M20 the value tier is a widget — the `Slider` answers drag, arrows and AT writes from one
 funnel. Since M21 the value is reportable too — the read-only `Progress` names the door that has
@@ -220,7 +221,10 @@ or a wizard, the kind (`true`, `page`, `step`, `location`, `date`, `time`) ridin
 ARIA's `false` the absence the `Option` spells — and since M115 the opener's target —
 `has_popup()` beside the button that opens something, the kind (`menu`, `listbox`, `tree`,
 `grid`, `dialog`) riding beside the word, the unset attribute the absence the `Option` spells —
-the AT reading
+and since M116 the role the control is read as — `role_description()` beside the control that
+claims a specialization, the single word riding beside the generic role the `Role` already
+spells (no kind, AccessKit's property a string), a control that claims none read as the
+generic role it always was — the AT reading
 all of it in the snapshot every other fact rides.
 
 ## Focus & shortcuts
@@ -353,7 +357,7 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `accent_follow`                                      | the OS's accent fact rides the same seam: the accent-only flip lands, the composition tints the palette's accent roles from the fact, the log names all four facts |
 | `todo` / `data_table`                                | the canons: a11y tree, record/replay, grid slots, keyboard navigation            |
 
-<details><summary><b>90 examples, grouped (recording, alloc_budget, input_budget, derive_widget, layout_probe, sort, level, current, has_popup, and tri_state live in the catalog)</b></summary>
+<details><summary><b>90 examples, grouped (recording, alloc_budget, input_budget, derive_widget, layout_probe, sort, level, current, has_popup, role_description, and tri_state live in the catalog)</b></summary>
 
 **Start here**
 
@@ -520,7 +524,7 @@ is the query API as a runnable walkthrough.
 ## Learn more
 
 - [Architecture](https://github.com/elcoosp/alacer/blob/main/docs/architecture.md) — design axioms, the ten-pass contract, rendering, accessibility, DX, performance, roadmap and kill criteria
-- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred and twenty decision records, from workspace discipline to the M115 scope
+- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred and twenty-one decision records, from workspace discipline to the M116 scope
 - [Examples catalog](https://github.com/elcoosp/alacer/blob/main/docs/examples.md) — every example with the contract it exercises
 - [Migrating from Iced](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-iced.md) · [from egui](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-egui.md) — mental-model mappings, interop limits stated plainly
 - [Inspector protocol](https://github.com/elcoosp/alacer/blob/main/docs/inspector-protocol.md) — the versioned WebSocket contract behind `alacer-inspect`

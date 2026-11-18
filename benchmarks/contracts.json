@@ -207,6 +207,24 @@
       "op": "<=",
       "budget": 1.25,
       "cite": "ADR-0115 (M111): the auto-complete word rides the snapshot the field rides \u2014 the word's price the one Option the node carries; test-enforced nowhere, measured by criterion"
+    },
+    {
+      "id": "sort_snapshot_overhead",
+      "metric": "median_ratio",
+      "numerator": "sort/snapshot_1k_sort",
+      "denominator": "sort/snapshot_1k_headers_bare",
+      "op": "<=",
+      "budget": 1.25,
+      "cite": "ADR-0116 (M112): the sort word rides the snapshot the header rides \u2014 the word's price the one Option the node carries; test-enforced nowhere, measured by criterion"
+    },
+    {
+      "id": "level_snapshot_overhead",
+      "metric": "median_ratio",
+      "numerator": "level/snapshot_1k_level",
+      "denominator": "expanded/snapshot_1k_rows_bare",
+      "op": "<=",
+      "budget": 1.25,
+      "cite": "ADR-0117 (M113): the level word rides the snapshot the row rides \u2014 the word's price the one Option the node carries; test-enforced nowhere, measured by criterion"
     }
   ],
   "regressions": [
@@ -848,6 +866,21 @@
     {
       "id": "auto_complete_snapshot_1k_auto_complete",
       "baseline": "auto_complete/snapshot_1k_auto_complete",
+      "scope": "same-host"
+    },
+    {
+      "id": "sort_snapshot_1k_sort",
+      "baseline": "sort/snapshot_1k_sort",
+      "scope": "same-host"
+    },
+    {
+      "id": "sort_snapshot_1k_headers_bare",
+      "baseline": "sort/snapshot_1k_headers_bare",
+      "scope": "same-host"
+    },
+    {
+      "id": "level_snapshot_1k_level",
+      "baseline": "level/snapshot_1k_level",
       "scope": "same-host"
     }
   ],

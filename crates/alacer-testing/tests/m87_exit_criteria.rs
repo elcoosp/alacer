@@ -157,11 +157,11 @@ fn m87_the_corpus_pins_the_input_frame_budget() {
         bench.contains("input_frame_budget"),
         "the ledger's bench does not drive the input frame's beat"
     );
-    let suite_pin = "const EXPECTED_BENCH_COUNT: usize = 121;";
+    let suite_pin = "const EXPECTED_BENCH_COUNT: usize = 125;";
     let m5 = std::fs::read_to_string(root.join("crates/alacer-testing/tests/m5_exit_criteria.rs"))
         .expect("the m5 suite exists");
     assert!(
         m5.contains(suite_pin),
-        "the m5 suite does not pin the 94-case corpus"
+        "the m5 suite does not pin the 125-case corpus"
     );
 }

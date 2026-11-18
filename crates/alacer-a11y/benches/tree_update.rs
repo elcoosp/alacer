@@ -36,10 +36,6 @@ fn snapshot_1k() -> Arc<TreeSnapshot> {
         placeholder: None,
         value_range: None,
         scroll_orientation: None,
-        scroll_position: None,
-        numeric_value: None,
-        secure_entry: false,
-        secure_revealed: false,
     });
     for id in 1..NODES {
         nodes.push(TreeNode {
@@ -61,10 +57,6 @@ fn snapshot_1k() -> Arc<TreeSnapshot> {
             placeholder: None,
             value_range: None,
             scroll_orientation: None,
-            scroll_position: None,
-            numeric_value: None,
-            secure_entry: false,
-            secure_revealed: false,
         });
     }
     Arc::new(TreeSnapshot {

@@ -20,6 +20,9 @@ pub struct Button {
     /// The has-popup tier's word (M115, ADR-0119): what the control
     /// opens; `None` is the honest absence.
     has_popup: Option<HasPopupKind>,
+    /// The role-description tier's word (M116, ADR-0120): the role the
+    /// control is *read as*; `None` is the honest absence.
+    role_description: Option<String>,
     pressed: bool,
     enabled: Enabled,
     /// The app's fill override; `None` borrows the theme's accent role
@@ -65,6 +68,7 @@ impl Button {
             description: None,
             current: None,
             has_popup: None,
+            role_description: None,
             pressed: false,
             enabled: Enabled::Fixed(true),
             fill: None,
@@ -120,6 +124,17 @@ impl Button {
     #[must_use]
     pub fn has_popup(mut self, has_popup: HasPopupKind) -> Self {
         self.has_popup = Some(has_popup);
+        self
+    }
+
+    /// The role-description word (M116, ADR-0120): the role the control
+    /// is *read as* — the star rating behind an ordinary slider-shaped
+    /// control, the wizard page behind an ordinary button — the
+    /// specialization the tree says from the first frame
+    /// (`aria-roledescription`, AccessKit's `RoleDescription` property).
+    #[must_use]
+    pub fn role_description(mut self, role_description: impl Into<String>) -> Self {
+        self.role_description = Some(role_description.into());
         self
     }
 
@@ -240,6 +255,20 @@ impl Button {
         true
     }
 
+    /// The one role-description write (M116, ADR-0120, view
+    /// reconciliation): `None` clears to the honest absence. Report
+    /// whether the word moved — the caller requests `A11Y` only when
+    /// this answers `true`, so a write that lands where the word
+    /// already is queues nothing (the M21 idle-frame property, at the
+    /// role-description tier).
+    pub fn set_role_description(&mut self, role_description: Option<String>) -> bool {
+        if self.role_description == role_description {
+            return false;
+        }
+        self.role_description = role_description;
+        true
+    }
+
     /// Sets the fill (and pressed fill) in place (view reconciliation) —
     /// an explicit override, immune to rethemes.
     pub fn set_fill(&mut self, fill: Color) {
@@ -290,6 +319,14 @@ impl Widget for Button {
     /// word, so every other role inherits the default.
     fn has_popup(&self) -> Option<HasPopupKind> {
         self.has_popup
+    }
+
+    /// The role-description tier (M116, ADR-0120): the role the control
+    /// is *read as*, the honest absence when the button claims no
+    /// specialization — a custom-control word, so every other role
+    /// inherits the default.
+    fn role_description(&self) -> Option<&str> {
+        self.role_description.as_deref()
     }
 
     /// The availability tier (M22, ADR-0028): the flag the a11y tree
@@ -789,5 +826,47 @@ mod tests {
         assert!(button.set_has_popup(None), "clearing to the absence moved");
         assert_eq!(Widget::has_popup(&button), None);
         assert!(!button.set_has_popup(None), "the absence is already there");
+    }
+
+    #[test]
+    fn the_role_description_word_rides_the_builder_and_the_door_reports_the_move() {
+        // M116, ADR-0120: the honest absence by default, the read-as
+        // role the builder mounts, and the one write whose moved answer
+        // is the only mask the tier costs — the word the tree says
+        // beside the generic role, the clear restoring the absence.
+        let mut button = Button::new("Chapter 3");
+        assert_eq!(
+            Widget::role_description(&button),
+            None,
+            "a control that claims no specialization is read as the generic role — never a guessed one"
+        );
+        button = button.role_description("wizard page");
+        assert_eq!(
+            Widget::role_description(&button),
+            Some("wizard page"),
+            "the read-as role the tree carries beside the generic one"
+        );
+        assert!(
+            !button.set_role_description(Some("wizard page".to_string())),
+            "the idle write answers false — no masks"
+        );
+        assert!(
+            button.set_role_description(Some("checklist step".to_string())),
+            "the word moved"
+        );
+        assert_eq!(
+            Widget::role_description(&button),
+            Some("checklist step"),
+            "the same door moves the specialization"
+        );
+        assert!(
+            button.set_role_description(None),
+            "clearing to the absence moved"
+        );
+        assert_eq!(Widget::role_description(&button), None);
+        assert!(
+            !button.set_role_description(None),
+            "the absence is already there"
+        );
     }
 }

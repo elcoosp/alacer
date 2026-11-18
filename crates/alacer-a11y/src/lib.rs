@@ -291,35 +291,6 @@ impl AccessKitSink {
                 access_node.set_numeric_value_step(step);
             }
         }
-        // The numeric tier (M99, ADR-0103): the number behind the value's
-        // spoken word — AccessKit's `NumericValue` property, ARIA's
-        // `aria-valuenow`, riding the text the tree already carried as
-        // the value's `aria-valuetext` (the answer ADR-0101's re-open
-        // rule pre-registered: one setter beside the walls). The honest
-        // absence maps to the absence: a widget whose value is prose
-        // sets no number, never a parsed guess.
-        if let Some(now) = node.numeric_value {
-            access_node.set_numeric_value(now);
-        }
-        // The secure tier (M100, ADR-0104): a field declared secure maps
-        // AccessKit's `PasswordInput` role — the word every platform AT
-        // announces ("secure text entry"), the declared-but-unreported
-        // gap the IME contract has carried since M4. The value the node
-        // carries is the mask pass 9 resolved (never the secret — the
-        // role's own contract, and the tree's payload rule). The tier
-        // maps no other role: a secure checkbox is not a word the
-        // vocabulary declares, and a non-input widget's answer is the
-        // honest absence.
-        // The reveal tier (M102, ADR-0106): the mapping yields to the
-        // revealed state — AccessKit's own contract names it ("when
-        // the password is revealed, use `Role::TextInput` instead").
-        // A revealed field reads as the ordinary editable word, the
-        // value beside it the field's ordinary value (the mask
-        // yielding at the snapshot's own resolution); a field that
-        // revealed nothing answers exactly the word M100 mapped.
-        if node.secure_entry && node.role == alacer_core::Role::TextInput && !node.secure_revealed {
-            access_node.set_role(AccessKitRole::PasswordInput);
-        }
         // The orientation tier (M98, ADR-0102): the scroll container's
         // declared axis — AccessKit's `Orientation` property, ARIA's
         // `aria-orientation`, the word the AT's arrows read before they
@@ -337,31 +308,6 @@ impl AccessKitSink {
                     accesskit::Orientation::Horizontal
                 }
             });
-        }
-        // The scroll position tier (M101, ADR-0105): where the scroll
-        // doors landed and the walls they clamp to — AccessKit's
-        // `ScrollY` / `ScrollYMin` / `ScrollYMax` properties (the
-        // `ScrollX` halves beside them on a two-axis container), the
-        // arithmetic the platform ATs announce as "scrolled 200 of
-        // 0..600". Each axis rides its own honesty: an axis whose span
-        // is empty sets nothing — the same wall every scroll door
-        // answers `no_scrollable_content` with — and the floor the
-        // funnel clamps to is carried, not guessed: the clamp
-        // arithmetic's own zero. The honest absence maps to the
-        // absence: a container with no live axis sets nothing, and the
-        // AT reads the node exactly as it read the tree M100 handed
-        // over.
-        if let Some(position) = &node.scroll_position {
-            if let Some(vertical) = &position.vertical {
-                access_node.set_scroll_y(alacer_core::num::f32_to_f64(vertical.offset));
-                access_node.set_scroll_y_min(0.0);
-                access_node.set_scroll_y_max(alacer_core::num::f32_to_f64(vertical.max));
-            }
-            if let Some(horizontal) = &position.horizontal {
-                access_node.set_scroll_x(alacer_core::num::f32_to_f64(horizontal.offset));
-                access_node.set_scroll_x_min(0.0);
-                access_node.set_scroll_x_max(alacer_core::num::f32_to_f64(horizontal.max));
-            }
         }
         // The availability tier (M22, ADR-0028): the widget's `enabled`
         // answer becomes AccessKit's `disabled` flag, so the AT reads an
@@ -534,10 +480,6 @@ mod tests {
                     placeholder: None,
                     value_range: None,
                     scroll_orientation: None,
-                    scroll_position: None,
-                    numeric_value: None,
-                    secure_entry: false,
-                    secure_revealed: false,
                 },
                 TreeNode {
                     id: child_hash,
@@ -555,10 +497,6 @@ mod tests {
                     placeholder: None,
                     value_range: None,
                     scroll_orientation: None,
-                    scroll_position: None,
-                    numeric_value: None,
-                    secure_entry: false,
-                    secure_revealed: false,
                 },
                 TreeNode {
                     id: other_hash,
@@ -576,10 +514,6 @@ mod tests {
                     placeholder: None,
                     value_range: None,
                     scroll_orientation: None,
-                    scroll_position: None,
-                    numeric_value: None,
-                    secure_entry: false,
-                    secure_revealed: false,
                 },
             ],
         }
@@ -691,10 +625,6 @@ mod tests {
             placeholder: None,
             value_range: None,
             scroll_orientation: None,
-            scroll_position: None,
-            numeric_value: None,
-            secure_entry: false,
-            secure_revealed: false,
         });
         sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
         let update = sink.last_update().expect("update");
@@ -838,10 +768,6 @@ mod tests {
                     placeholder: None,
                     value_range: None,
                     scroll_orientation: None,
-                    scroll_position: None,
-                    numeric_value: None,
-                    secure_entry: false,
-                    secure_revealed: false,
                 },
                 TreeNode {
                     id: 2,
@@ -859,10 +785,6 @@ mod tests {
                     placeholder: None,
                     value_range: None,
                     scroll_orientation: None,
-                    scroll_position: None,
-                    numeric_value: None,
-                    secure_entry: false,
-                    secure_revealed: false,
                 },
                 TreeNode {
                     id: 3,
@@ -880,10 +802,6 @@ mod tests {
                     placeholder: None,
                     value_range: None,
                     scroll_orientation: None,
-                    scroll_position: None,
-                    numeric_value: None,
-                    secure_entry: false,
-                    secure_revealed: false,
                 },
             ],
         };
@@ -931,10 +849,6 @@ mod tests {
                     placeholder: None,
                     value_range: None,
                     scroll_orientation: None,
-                    scroll_position: None,
-                    numeric_value: None,
-                    secure_entry: false,
-                    secure_revealed: false,
                 },
                 TreeNode {
                     id: 2,
@@ -952,10 +866,6 @@ mod tests {
                     placeholder: None,
                     value_range: None,
                     scroll_orientation: None,
-                    scroll_position: None,
-                    numeric_value: None,
-                    secure_entry: false,
-                    secure_revealed: false,
                 },
             ],
         };
@@ -1005,10 +915,6 @@ mod tests {
                         alacer_core::widget::ValueRange::new(0.0, 100.0).with_step(5.0),
                     ),
                     scroll_orientation: None,
-                    scroll_position: None,
-                    numeric_value: None,
-                    secure_entry: false,
-                    secure_revealed: false,
                 },
                 TreeNode {
                     id: 2,
@@ -1028,10 +934,6 @@ mod tests {
                     // step: the absence is the absence.
                     value_range: Some(alacer_core::widget::ValueRange::new(0.0, 100.0)),
                     scroll_orientation: None,
-                    scroll_position: None,
-                    numeric_value: None,
-                    secure_entry: false,
-                    secure_revealed: false,
                 },
                 TreeNode {
                     id: 3,
@@ -1049,10 +951,6 @@ mod tests {
                     placeholder: None,
                     value_range: None,
                     scroll_orientation: None,
-                    scroll_position: None,
-                    numeric_value: None,
-                    secure_entry: false,
-                    secure_revealed: false,
                 },
             ],
         };
@@ -1086,9 +984,10 @@ mod tests {
     }
 
     /// The orientation tier (M98, ADR-0102): the scroll container's
-    /// declared axis maps onto AccessKit's `Orientation` property — the
-    /// vertical word beside the horizontal one, each constructor's own
-    /// declaration.
+    /// declared axis maps onto AccessKit's `Orientation` property, and
+    /// the honest absence maps to the absence — a container that
+    /// declared both axes (ARIA's `undefined`) sets nothing, never a
+    /// wrong half.
     #[test]
     fn the_orientation_maps_onto_the_property() {
         let mut sink = AccessKitSink::new();
@@ -1112,10 +1011,6 @@ mod tests {
                     value_range: None,
                     // The vertical-only constructor's declaration.
                     scroll_orientation: Some(alacer_core::widget::ScrollOrientation::Vertical),
-                    scroll_position: None,
-                    numeric_value: None,
-                    secure_entry: false,
-                    secure_revealed: false,
                 },
                 TreeNode {
                     id: 2,
@@ -1133,40 +1028,7 @@ mod tests {
                     placeholder: None,
                     value_range: None,
                     scroll_orientation: Some(alacer_core::widget::ScrollOrientation::Horizontal),
-                    scroll_position: None,
-                    numeric_value: None,
-                    secure_entry: false,
-                    secure_revealed: false,
                 },
-            ],
-        };
-        sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
-
-        let update = sink.last_update().expect("update");
-        let vertical = find_in_update(update, 1).expect("vertical node");
-        assert_eq!(
-            vertical.orientation(),
-            Some(accesskit::Orientation::Vertical),
-            "the declared y axis is the tree's truth"
-        );
-        let horizontal = find_in_update(update, 2).expect("horizontal node");
-        assert_eq!(
-            horizontal.orientation(),
-            Some(accesskit::Orientation::Horizontal),
-            "the declared x axis maps beside it"
-        );
-    }
-
-    /// The orientation tier's honest absence (M98, ADR-0102): a
-    /// container that declared both axes sets nothing — ARIA's
-    /// `undefined` is the spec's own word for "both axes", never a
-    /// wrong half — and a non-scroll role inherits the absence.
-    #[test]
-    fn the_orientation_absence_maps_to_nothing() {
-        let mut sink = AccessKitSink::new();
-        let snap = TreeSnapshot {
-            root: Some(1),
-            nodes: vec![
                 TreeNode {
                     id: 3,
                     role: Role::ScrollArea,
@@ -1185,10 +1047,6 @@ mod tests {
                     // The two-axis constructor's answer: both axes, the
                     // absence ARIA spells `undefined`.
                     scroll_orientation: None,
-                    scroll_position: None,
-                    numeric_value: None,
-                    secure_entry: false,
-                    secure_revealed: false,
                 },
                 TreeNode {
                     id: 4,
@@ -1206,16 +1064,24 @@ mod tests {
                     placeholder: None,
                     value_range: None,
                     scroll_orientation: None,
-                    scroll_position: None,
-                    numeric_value: None,
-                    secure_entry: false,
-                    secure_revealed: false,
                 },
             ],
         };
         sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
 
         let update = sink.last_update().expect("update");
+        let vertical = find_in_update(update, 1).expect("vertical node");
+        assert_eq!(
+            vertical.orientation(),
+            Some(accesskit::Orientation::Vertical),
+            "the declared y axis is the tree's truth"
+        );
+        let horizontal = find_in_update(update, 2).expect("horizontal node");
+        assert_eq!(
+            horizontal.orientation(),
+            Some(accesskit::Orientation::Horizontal),
+            "the declared x axis maps beside it"
+        );
         let both = find_in_update(update, 3).expect("two-axis node");
         assert_eq!(
             both.orientation(),
@@ -1227,234 +1093,6 @@ mod tests {
             bare.orientation(),
             None,
             "a non-scroll role inherits the absence"
-        );
-    }
-
-    /// The numeric tier (M99, ADR-0103): the number behind the value's
-    /// spoken word maps onto AccessKit's `NumericValue` property — ARIA's
-    /// `aria-valuenow`, riding the text the value already carries as the
-    /// `aria-valuetext` — and the honest absence maps to the absence: a
-    /// widget whose value is prose sets no number, never a parsed guess.
-    #[test]
-    fn the_numeric_now_maps_onto_the_property() {
-        let mut sink = AccessKitSink::new();
-        let snap = TreeSnapshot {
-            root: Some(1),
-            nodes: vec![
-                TreeNode {
-                    id: 1,
-                    role: Role::Slider,
-                    label: "Volume".into(),
-                    bounds: None,
-                    children: Vec::new(),
-                    value: Some("40".into()),
-                    toggled: None,
-                    table_slot: None,
-                    selection: None,
-                    live: None,
-                    enabled: true,
-                    description: None,
-                    placeholder: None,
-                    value_range: Some(alacer_core::widget::ValueRange::new(0.0, 100.0)),
-                    numeric_value: Some(40.0),
-                    secure_entry: false,
-                    secure_revealed: false,
-                    scroll_orientation: None,
-                    scroll_position: None,
-                },
-                TreeNode {
-                    id: 2,
-                    role: Role::TextInput,
-                    label: "Notes".into(),
-                    bounds: None,
-                    children: Vec::new(),
-                    value: Some("16 digits on the front".into()),
-                    toggled: None,
-                    table_slot: None,
-                    selection: None,
-                    live: None,
-                    enabled: true,
-                    description: None,
-                    placeholder: None,
-                    value_range: None,
-                    numeric_value: None,
-                    secure_entry: false,
-                    secure_revealed: false,
-                    scroll_orientation: None,
-                    scroll_position: None,
-                },
-            ],
-        };
-        sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
-
-        let update = sink.last_update().expect("update");
-        let slider = find_in_update(update, 1).expect("slider node");
-        assert_eq!(
-            slider.numeric_value(),
-            Some(40.0),
-            "the number rides beside the text — aria-valuenow to its aria-valuetext"
-        );
-        assert_eq!(
-            slider.value(),
-            Some("40"),
-            "the spoken word rides exactly as it always has"
-        );
-        let prose = find_in_update(update, 2).expect("text node");
-        assert_eq!(
-            prose.numeric_value(),
-            None,
-            "a text field's value is prose — the honest absence, never a parsed guess"
-        );
-    }
-
-    /// The secure tier (M100, ADR-0104): a field declared secure maps
-    /// AccessKit's `PasswordInput` role — the word every platform AT
-    /// announces — and the honest absence maps to the absence: a field
-    /// that declared nothing is the text input the tree always mapped.
-    /// The value the node carries is the mask pass 9 resolved: the sink
-    /// ships what the tree hands it, never a secret.
-    #[test]
-    fn the_secure_entry_maps_onto_the_password_role() {
-        let mut sink = AccessKitSink::new();
-        let snap = TreeSnapshot {
-            root: Some(1),
-            nodes: vec![
-                TreeNode {
-                    id: 1,
-                    role: Role::TextInput,
-                    label: "Passphrase".into(),
-                    bounds: None,
-                    children: Vec::new(),
-                    // The mask pass 9 resolved for the secured field —
-                    // one masking character per code point, never the
-                    // secret (AccessKit's PasswordInput contract).
-                    value: Some("•••••••".into()),
-                    toggled: None,
-                    table_slot: None,
-                    selection: None,
-                    live: None,
-                    enabled: true,
-                    description: None,
-                    placeholder: None,
-                    value_range: None,
-                    numeric_value: None,
-                    secure_entry: true,
-                    secure_revealed: false,
-                    scroll_orientation: None,
-                    scroll_position: None,
-                },
-                TreeNode {
-                    id: 2,
-                    role: Role::TextInput,
-                    label: "Notes".into(),
-                    bounds: None,
-                    children: Vec::new(),
-                    value: Some("visible".into()),
-                    toggled: None,
-                    table_slot: None,
-                    selection: None,
-                    live: None,
-                    enabled: true,
-                    description: None,
-                    placeholder: None,
-                    value_range: None,
-                    numeric_value: None,
-                    secure_entry: false,
-                    secure_revealed: false,
-                    scroll_orientation: None,
-                    scroll_position: None,
-                },
-            ],
-        };
-        sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
-
-        let update = sink.last_update().expect("update");
-        let secured = find_in_update(update, 1).expect("secured node");
-        assert_eq!(
-            secured.role(),
-            AkRole::PasswordInput,
-            "the constructor's word is the role the AT reads"
-        );
-        let bare = find_in_update(update, 2).expect("bare node");
-        assert_eq!(
-            bare.role(),
-            AkRole::TextInput,
-            "a field that declared nothing is the input the tree always mapped"
-        );
-    }
-
-    #[test]
-    fn the_revealed_word_yields_the_password_role() {
-        // The reveal tier (M102, ADR-0106): AccessKit's own contract
-        // names the mapping — "when the password is revealed, use
-        // `Role::TextInput` instead". A revealed field reads as the
-        // ordinary editable word; a field that revealed nothing
-        // answers exactly the word M100 mapped.
-        let mut sink = AccessKitSink::new();
-        let snap = TreeSnapshot {
-            root: Some(1),
-            nodes: vec![
-                TreeNode {
-                    id: 1,
-                    role: Role::TextInput,
-                    label: "Passphrase".into(),
-                    bounds: None,
-                    children: Vec::new(),
-                    // The revealed field's tree value: the ordinary
-                    // value again — the pixels and the tree telling
-                    // one truth.
-                    value: Some("hunter2".into()),
-                    toggled: None,
-                    table_slot: None,
-                    selection: None,
-                    live: None,
-                    enabled: true,
-                    description: None,
-                    placeholder: None,
-                    value_range: None,
-                    numeric_value: None,
-                    secure_entry: true,
-                    secure_revealed: true,
-                    scroll_orientation: None,
-                    scroll_position: None,
-                },
-                TreeNode {
-                    id: 2,
-                    role: Role::TextInput,
-                    label: "Notes".into(),
-                    bounds: None,
-                    children: Vec::new(),
-                    value: Some("•••••".into()),
-                    toggled: None,
-                    table_slot: None,
-                    selection: None,
-                    live: None,
-                    enabled: true,
-                    description: None,
-                    placeholder: None,
-                    value_range: None,
-                    numeric_value: None,
-                    secure_entry: true,
-                    secure_revealed: false,
-                    scroll_orientation: None,
-                    scroll_position: None,
-                },
-            ],
-        };
-        sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
-
-        let update = sink.last_update().expect("update");
-        let revealed = find_in_update(update, 1).expect("revealed node");
-        assert_eq!(
-            revealed.role(),
-            AkRole::TextInput,
-            "the revealed field is the ordinary editable the contract names"
-        );
-        let masked = find_in_update(update, 2).expect("masked node");
-        assert_eq!(
-            masked.role(),
-            AkRole::PasswordInput,
-            "a field that revealed nothing keeps the M100 word"
         );
     }
 

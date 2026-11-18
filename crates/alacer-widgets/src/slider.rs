@@ -78,6 +78,10 @@ pub struct Slider {
     /// the AT reads while the user edits, the doors unchanged beside
     /// it. `None` the honest absence.
     invalid: Option<alacer_core::InvalidKind>,
+    /// The role-description tier's word (M116, ADR-0120): the role the
+    /// control is *read as* — the specialization a custom control
+    /// speaks beside its generic role; `None` the honest absence.
+    role_description: Option<String>,
     on_change: Option<Box<dyn FnMut(f32)>>,
     focused: bool,
     dragging: bool,
@@ -128,6 +132,7 @@ impl Slider {
             enabled: true,
             required: false,
             invalid: None,
+            role_description: None,
             on_change: None,
             focused: false,
             dragging: false,
@@ -169,6 +174,19 @@ impl Slider {
     #[must_use]
     pub fn invalid(mut self, invalid: alacer_core::InvalidKind) -> Self {
         self.invalid = Some(invalid);
+        self
+    }
+
+    /// Mounts the slider's role-description word (M116, ADR-0120): the
+    /// role the control is *read as* declared — AccessKit's
+    /// `RoleDescription` property (ARIA's `aria-roledescription`) says
+    /// "this one is a star rating" to the AT while it walks the form,
+    /// the specialization beside the generic slider role. The word
+    /// prices nothing but the word: the slider's doors answer exactly
+    /// as they always did.
+    #[must_use]
+    pub fn role_description(mut self, role_description: impl Into<String>) -> Self {
+        self.role_description = Some(role_description.into());
         self
     }
 
@@ -628,6 +646,14 @@ impl Widget for Slider {
         self.invalid
     }
 
+    /// The role-description tier (M116, ADR-0120): the role the control
+    /// is *read as*, the honest absence when the slider claims no
+    /// specialization — a custom-control word, so every other role
+    /// inherits the default.
+    fn role_description(&self) -> Option<&str> {
+        self.role_description.as_deref()
+    }
+
     /// The value tier (M20, ADR-0026): `SetValue` parses then rides the
     /// one funnel, `Increment`/`Decrement` step by the step — the same
     /// masks as a drag. `DefaultPress` is not a value control's contract —
@@ -919,6 +945,30 @@ mod tests {
         assert!(slider.role().requires_name());
         assert_eq!(Widget::value(&slider), Some("0".to_string()));
         assert_eq!(slider.table_slot(), None);
+    }
+
+    #[test]
+    fn the_role_description_word_rides_the_builder() {
+        // M116, ADR-0120: the honest absence by default, the read-as
+        // role the builder mounts — the custom-control word the tree
+        // says beside the generic slider role, the doors unchanged
+        // beside it (the word is a word, not a wall).
+        let slider = Slider::new("Rating", 0.0, 5.0);
+        assert_eq!(
+            Widget::role_description(&slider),
+            None,
+            "a slider that claims no specialization is read as the generic role — never a guessed one"
+        );
+        let rating = slider.role_description("star rating");
+        assert_eq!(
+            Widget::role_description(&rating),
+            Some("star rating"),
+            "the read-as role the tree carries beside the generic one"
+        );
+        assert!(
+            rating.focusable() && Widget::enabled(&rating),
+            "the word walls nothing — the slider's doors answer as ever"
+        );
     }
 
     #[test]

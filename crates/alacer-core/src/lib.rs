@@ -157,7 +157,7 @@ pub use text_seam::{GlyphRun, PlacedGlyph, TextSeam};
 pub use theme::{CanonPalette, Palette, ThemeSeam};
 pub use trail::{TRAIL_RING_CAP, TrailLog};
 pub use widget::{
-    A11yAction, BringIntoViewAsk, EventResponse, LabelSource, Role, ScrollAxisLanding,
+    A11yAction, BringIntoViewAsk, EventResponse, InvalidKind, LabelSource, Role, ScrollAxisLanding,
     ScrollLanding, ScrollUnit, TableSlot, TextSelection, ToggleState, ValueRange, Widget,
 };
 
@@ -189,8 +189,8 @@ pub mod prelude {
     pub use crate::time::{ManualClock, MonotonicClock, TimeSeam};
     pub use crate::trail::{TRAIL_RING_CAP, TrailLog};
     pub use crate::widget::{
-        BringIntoViewAsk, EventResponse, LabelSource, Role, ScrollAxisLanding, ScrollOrientation,
-        ScrollUnit, TableSlot, TextSelection, ToggleState, Widget,
+        BringIntoViewAsk, EventResponse, InvalidKind, LabelSource, Role, ScrollAxisLanding,
+        ScrollOrientation, ScrollUnit, TableSlot, TextSelection, ToggleState, Widget,
     };
 }
 

@@ -87,6 +87,7 @@ pub mod style;
 pub mod text_seam;
 pub mod text_write;
 pub mod theme;
+pub mod time;
 pub mod trail;
 pub mod utf16;
 pub mod value;
@@ -185,6 +186,7 @@ pub mod prelude {
     };
     pub use crate::style::{CrossAxisAlignment, Display, MainAxisAlignment, Style};
     pub use crate::theme::{CanonPalette, Palette, ThemeSeam};
+    pub use crate::time::{ManualClock, MonotonicClock, TimeSeam};
     pub use crate::trail::{TRAIL_RING_CAP, TrailLog};
     pub use crate::widget::{
         BringIntoViewAsk, EventResponse, LabelSource, Role, ScrollAxisLanding, ScrollOrientation,

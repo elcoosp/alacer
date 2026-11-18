@@ -943,6 +943,62 @@ pub trait Widget: 'static {
         None
     }
 
+    /// Whether the collection member is the collection's pick (M108,
+    /// ADR-0112): the selected tier's declared word — AccessKit's
+    /// `Selected` property, ARIA's `aria-selected`, mapped by
+    /// `alacer-a11y` in the same snapshot every other property rides.
+    /// Through M107 the tree said where a member sits (the M6 table
+    /// slot), the form's ask and the form's rejection beside it — and
+    /// the word every collection vocabulary speaks about the member
+    /// ("this one is the pick") had no tier: the AT announced the
+    /// position, the name, the form facts — and never the pick — the
+    /// declared-but-unreported gap, the M94 pattern at the selected
+    /// tier.
+    ///
+    /// The word prices the word and nothing else: a selected member's
+    /// doors answer exactly as they always did — the word names state,
+    /// it walls nothing, the pick's press and focus routes the widget's
+    /// own (a tree that refused on the word's behalf would price a
+    /// contract it does not own).
+    ///
+    /// The tier is the honest trio (the ADR-0087 presence rule at the
+    /// selected tier): `None` the member that belongs to no selection
+    /// collection — the absence ARIA spells `undefined`, never a
+    /// guessed `false`; `Some(false)` the member standing unpicked
+    /// beside its picked siblings; `Some(true)` the pick. The
+    /// collection members override this; every other role inherits the
+    /// default.
+    fn selected(&self) -> Option<bool> {
+        None
+    }
+
+    /// Whether the collection container allows more than one pick
+    /// (M109, ADR-0113): the multiselectable tier's declared word —
+    /// AccessKit's `Multiselectable` property, ARIA's
+    /// `aria-multiselectable`, mapped by `alacer-a11y` in the same
+    /// snapshot every other property rides. Through M108 the tree said
+    /// which member the collection picked (the selected tier) beside
+    /// the position the M6 slot carried — and the word every collection
+    /// vocabulary speaks about the container ("this one allows more
+    /// than one pick") had no tier: the AT announced the picks, the
+    /// positions, the names — and never the capacity — the
+    /// declared-but-unreported gap, the M94 pattern at the
+    /// multiselectable tier.
+    ///
+    /// The word prices the word and nothing else: a multiselectable
+    /// container's doors answer exactly as they always did — the word
+    /// names capacity, it walls nothing, the members' press and focus
+    /// routes the widgets' own (a tree that refused on the word's
+    /// behalf would price a contract it does not own).
+    ///
+    /// `false` is the honest absence (the ADR-0087 presence rule at the
+    /// tier, the read-only shape): a container that declared nothing
+    /// announces no capacity, never a guessed one. The collection
+    /// containers override this; every other role inherits the default.
+    fn multiselectable(&self) -> bool {
+        false
+    }
+
     /// The widget's toggle state for the a11y tree (M6): checkboxes report
     /// their checked state so screen readers announce "checked"/"not
     /// checked". Non-toggle roles return `None`.

@@ -282,6 +282,22 @@ impl AccessKitSink {
         if let Some(placeholder) = &node.placeholder {
             access_node.set_placeholder(placeholder.as_str());
         }
+        // The role-description tier (M116, ADR-0120): the role a custom
+        // control is *read as* — AccessKit's `RoleDescription`
+        // property, ARIA's `aria-roledescription` — the specialization
+        // the AT reads beside the generic role the `Role` mapping
+        // already spells. The word prices nothing but the word: the
+        // control's doors answer exactly as they always did. No kind
+        // enum to mirror — the property is a string (the description
+        // precedent, ADR-0099, at the string tier) — and the honest
+        // absence (`None`) maps to the absence: a control that claims
+        // no specialization sets nothing, is read as the generic role
+        // it already was. The property rides the same node-only delta
+        // as every other property — a role-description write
+        // re-announces exactly that node.
+        if let Some(role_description) = &node.role_description {
+            access_node.set_role_description(role_description.as_str());
+        }
         // The range tier (M97, ADR-0101): the span every value-tier write
         // funnels through — AccessKit's `MinNumericValue` /
         // `MaxNumericValue` properties, ARIA's `aria-valuemin` /
@@ -1146,6 +1162,44 @@ mod tests {
         );
     }
 
+    #[test]
+    fn the_role_description_tier_maps_onto_the_role_description_property() {
+        // M116, ADR-0120: the role a custom control is *read as* maps
+        // AccessKit's `RoleDescription` property, ARIA's
+        // `aria-roledescription` — the specialization the AT reads
+        // beside the generic role. No kind to mirror (the property is a
+        // string — the description precedent), the honest absence
+        // (`None`) sets nothing.
+        let mut sink = AccessKitSink::new();
+        let mut snap = snapshot();
+        snap.nodes[1].role_description = Some("star rating".to_owned());
+        sink.apply(
+            std::sync::Arc::new(snap),
+            &alacer_core::passes::A11yDelta {
+                updated: {
+                    let mut ids = FxHashSet::default();
+                    ids.insert(snap_root_and_child().1);
+                    ids
+                },
+                removed: Vec::new(),
+                focus: None,
+                initializes: false,
+            },
+        );
+        let update = sink.last_update().expect("the delta produced an update");
+        let rated = update
+            .nodes
+            .iter()
+            .find(|(id, _)| id.0 == snap_root_and_child().1)
+            .map(|(_, node)| node)
+            .expect("the rated node is re-emitted");
+        assert_eq!(
+            rated.role_description(),
+            Some("star rating"),
+            "the AT reads the declared read-as role beside the generic one"
+        );
+    }
+
     /// The `(root, child)` hash pair the `snapshot()` helper mounts.
     fn snap_root_and_child() -> (u64, u64) {
         (111, 222)
@@ -1212,6 +1266,7 @@ mod tests {
             level: None,
             current: None,
             has_popup: None,
+            role_description: None,
         });
         sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
         let update = sink.last_update().expect("update");
@@ -1365,6 +1420,7 @@ mod tests {
             level: None,
             current: None,
             has_popup: None,
+            role_description: None,
         }
     }
 
@@ -1452,6 +1508,7 @@ mod tests {
                     level: None,
                     current: None,
                     has_popup: None,
+                    role_description: None,
                 },
                 TreeNode {
                     id: 2,
@@ -1484,6 +1541,7 @@ mod tests {
                     level: None,
                     current: None,
                     has_popup: None,
+                    role_description: None,
                 },
             ],
         };
@@ -1543,6 +1601,7 @@ mod tests {
             level: None,
             current: None,
             has_popup: None,
+            role_description: None,
         }
     }
 
@@ -1640,6 +1699,7 @@ mod tests {
                     level: None,
                     current: None,
                     has_popup: None,
+                    role_description: None,
                 },
                 TreeNode {
                     id: 2,
@@ -1672,6 +1732,7 @@ mod tests {
                     level: None,
                     current: None,
                     has_popup: None,
+                    role_description: None,
                 },
             ],
         };
@@ -1735,6 +1796,7 @@ mod tests {
                     level: None,
                     current: None,
                     has_popup: None,
+                    role_description: None,
                 },
                 TreeNode {
                     id: 4,
@@ -1767,6 +1829,7 @@ mod tests {
                     level: None,
                     current: None,
                     has_popup: None,
+                    role_description: None,
                 },
             ],
         };
@@ -1827,6 +1890,7 @@ mod tests {
                     level: None,
                     current: None,
                     has_popup: None,
+                    role_description: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -1859,6 +1923,7 @@ mod tests {
                     level: None,
                     current: None,
                     has_popup: None,
+                    role_description: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -1930,6 +1995,7 @@ mod tests {
                     level: None,
                     current: None,
                     has_popup: None,
+                    role_description: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -1962,6 +2028,7 @@ mod tests {
                     level: None,
                     current: None,
                     has_popup: None,
+                    role_description: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -2027,6 +2094,7 @@ mod tests {
                     level: None,
                     current: None,
                     has_popup: None,
+                    role_description: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -2059,6 +2127,7 @@ mod tests {
                     level: None,
                     current: None,
                     has_popup: None,
+                    role_description: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },

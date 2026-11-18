@@ -1,785 +1,813 @@
 {
- "schema": 1,
- "description": "Alacer performance contracts (M5, architecture \u00a718 / ADR-0011). Every criterion benchmark in the workspace is published as a baseline in benchmarks/baselines/baselines.json and gated here. `budgets` are architecture gates expressed as ratios of criterion medians \u2014 host-independent, enforced everywhere. `regressions` are per-case median gates against the published baseline, scoped `same-host`: absolute times only compare on the recorded host fingerprint (os/arch/cpu model/count); foreign hosts \u2014 CI runners \u2014 skip them and rely on criterion's own previous-run comparison plus the ratio budgets. Adding a benchmark case without publishing its baseline and regression gate fails the M5 exit suite.",
- "tolerance_default": 0.25,
- "budgets": [
-  {
-   "id": "w1_incremental_speedup",
-   "metric": "median_ratio",
-   "numerator": "w1/full_rebuild",
-   "denominator": "w1/incremental_churn_10pct",
-   "op": ">=",
-   "budget": 2.0,
-   "cite": "architecture \u00a718 M2 exit gate (W1 \u2265 2\u00d7 vs full relayout), ADR-0008; test-enforced in alacer-layout/tests/w1_gate.rs, here measured by criterion"
-  },
-  {
-   "id": "input_storm_batching",
-   "metric": "median_ratio",
-   "numerator": "input/storm_50_moves_direct",
-   "denominator": "input/storm_50_moves_queued",
-   "op": ">=",
-   "budget": 2.0,
-   "cite": "architecture \u00a710.2 (input storms cost one frame of work, not N events), ADR-0014; the queued batch routes one coalesced event where the pre-M8 wiring dispatched all 50"
-  },
-  {
-   "id": "a11y_incremental_speedup",
-   "metric": "median_ratio",
-   "numerator": "a11y/full_rebuild_1k",
-   "denominator": "a11y/incremental_1k_dirty_10pct",
-   "op": ">=",
-   "budget": 2.0,
-   "cite": "architecture \u00a711.1 item 4 (never a full-tree rebuild per frame \u2014 the egui cost we refuse), ADR-0015; the M9 shape drains the sink's dirty-only delta where the pre-M9 window rebuilt the whole tree per a11y frame"
-  },
-  {
-   "id": "trail_reader_overhead",
-   "metric": "median_ratio",
-   "numerator": "trail/reader_announce_100_1k",
-   "denominator": "announce/route_100_announcements_1k",
-   "op": "<=",
-   "budget": 2.0,
-   "cite": "architecture \u00a718 M63 exit gate, ADR-0069: the provided reader installed on the announce route costs at most 2\u00d7 the unobserved route \u2014 the trail rides the observe branch an installed observer already pays (A7), never a re-price of the route itself"
-  },
-  {
-   "id": "trail_tee_overhead",
-   "metric": "median_ratio",
-   "numerator": "trail/tee_announce_100_1k",
-   "denominator": "announce/route_100_announcements_1k",
-   "op": "<=",
-   "budget": 2.5,
-   "cite": "architecture \u00a718 M64 exit gate, ADR-0070: two doors behind the tee cost at most 2.5\u00d7 the unobserved route \u2014 each door rides the observe branch the slot already pays (A7), the fan-out never a second pass over the route"
-  },
-  {
-   "id": "derive_zero_overhead",
-   "numerator": "derive/snapshot_1k_derived",
-   "denominator": "derive/snapshot_1k_handwritten",
-   "op": "<=",
-   "budget": 1.1,
-   "cite": "architecture \u00a719 Q5's own option cashed, ADR-0096: the derive is the hand-written impl \u2014 the generated pair riding the same frame"
-  },
-  {
-   "id": "recording_wrapper_overhead",
-   "numerator": "recording/wrapper_1k_dirty_10pct",
-   "denominator": "recording/bare_wrapper_1k_dirty_10pct",
-   "op": "<=",
-   "budget": 1.15,
-   "cite": "the instrument prices itself, never the engine, ADR-0097: the wrapper's cost at the route's noise floor (the A7 rule at the layout tier)"
-  },
-  {
-   "id": "toggle_tri_state_overhead",
-   "numerator": "toggle/snapshot_1k_tri_state",
-   "denominator": "toggle/snapshot_1k_binary",
-   "op": "<=",
-   "budget": 1.1,
-   "cite": "the summary rides the binary toggle's frame, ADR-0098: the dash the painter draws is the only difference the pipeline prices"
-  },
-  {
-   "id": "describe_snapshot_overhead",
-   "numerator": "describe/snapshot_1k_described",
-   "denominator": "toggle/snapshot_1k_binary",
-   "op": "<=",
-   "budget": 1.25,
-   "cite": "the help text rides the snapshot the name rides, ADR-0099: the description is the second bounded copy the node builds beside the label's own \u2014 the measured ratio 1.19x on the dev host, the budget pricing the measured class, never a noise-floor claim"
-  },
-  {
-   "id": "placeholder_snapshot_overhead",
-   "numerator": "placeholder/snapshot_1k_placeholdered",
-   "denominator": "placeholder/snapshot_1k_bare",
-   "op": "<=",
-   "budget": 1.25,
-   "cite": "the hint rides the snapshot the name rides, ADR-0100: the second bounded copy the node builds beside the label's own \u2014 the measured ratio 1.19x, the budget pricing the measured class"
-  },
-  {
-   "id": "range_snapshot_overhead",
-   "numerator": "range/snapshot_1k_ranged",
-   "denominator": "toggle/snapshot_1k_binary",
-   "op": "<=",
-   "budget": 1.25,
-   "cite": "the span rides the snapshot the name rides, ADR-0101: the copy the node builds beside the label's own \u2014 the measured ratio 1.16x, the budget pricing the measured class"
-  },
-  {
-   "id": "orientation_snapshot_overhead",
-   "numerator": "orientation/snapshot_1k_vertical",
-   "denominator": "toggle/snapshot_1k_binary",
-   "op": "<=",
-   "budget": 1.25,
-   "cite": "the axis word rides the snapshot the name rides, ADR-0102: the enum's option the node builds beside the label's own \u2014 the measured ratio 0.92x on the dev host, the budget pricing the measured class, never a noise-floor claim"
-  },
-  {
-   "id": "numeric_snapshot_overhead",
-   "numerator": "numeric/snapshot_1k_valued",
-   "denominator": "toggle/snapshot_1k_binary",
-   "op": "<=",
-   "budget": 1.25,
-   "cite": "the number rides the snapshot the text rides, ADR-0103: the f64 option the node builds beside the label's own \u2014 the measured ratio 1.20x on the dev host, the budget pricing the measured class, never a noise-floor claim"
-  },
-  {
-   "id": "secure_snapshot_overhead",
-   "numerator": "secure/snapshot_1k_secured",
-   "denominator": "placeholder/snapshot_1k_bare",
-   "op": "<=",
-   "budget": 1.25,
-   "cite": "the secure word rides the snapshot the field rides, ADR-0104: the bool and the mask the node builds beside the value's own copy \u2014 the measured ratio 0.95x on the dev host, the budget pricing the measured class, never a noise-floor claim"
-  },
-  {
-   "id": "scroll_position_snapshot_overhead",
-   "numerator": "scroll_position/snapshot_1k_scrolled",
-   "denominator": "orientation/snapshot_1k_vertical",
-   "op": "<=",
-   "budget": 1.25,
-   "cite": "the position rides the snapshot the axis word rides, ADR-0105: the two axis options the node builds beside the orientation word's own \u2014 the measured ratio 1.10x on the measurement host, the budget pricing the measured class, never a noise-floor claim"
-  },
-  {
-   "id": "secure_revealed_snapshot_overhead",
-   "numerator": "secure_revealed/snapshot_1k_revealed",
-   "denominator": "secure/snapshot_1k_secured",
-   "op": "<=",
-   "budget": 1.25,
-   "cite": "the reveal rides the snapshot the secure word rides, ADR-0106: the flag and the role branch the node answers beside the M100 masked copy's own \u2014 the measured ratio 1.03x on the measurement host, the budget pricing the measured class, never a noise-floor claim"
-  },
-  {
-   "id": "timed_tick_seam_overhead",
-   "metric": "median_ratio",
-   "numerator": "pass_overhead/seamed_timed_idle_10k",
-   "denominator": "pass_overhead/timed_idle_10k",
-   "op": "<=",
-   "budget": 1.25,
-   "cite": "ADR-0108 (M104): the seam's indirection holds the timed idle tick at the fallback's own class; test-enforced nowhere, measured by criterion"
-  }
- ],
- "regressions": [
-  {
-   "id": "a11y_action_route_100_actions_1k",
-   "baseline": "a11y_action/route_100_actions_1k",
-   "scope": "same-host"
-  },
-  {
-   "id": "a11y_action_route_100_presses_1k",
-   "baseline": "a11y_action/route_100_presses_1k",
-   "scope": "same-host"
-  },
-  {
-   "id": "a11y_action_route_100_horizontal_actions_1k",
-   "baseline": "a11y_action/route_100_horizontal_actions_1k",
-   "scope": "same-host"
-  },
-  {
-   "id": "a11y_action_route_100_setvalue_1k",
-   "baseline": "a11y_action/route_100_setvalue_1k",
-   "scope": "same-host"
-  },
-  {
-   "id": "a11y_full_rebuild_1k",
-   "baseline": "a11y/full_rebuild_1k",
-   "scope": "same-host"
-  },
-  {
-   "id": "a11y_incremental_1k_dirty_10pct",
-   "baseline": "a11y/incremental_1k_dirty_10pct",
-   "scope": "same-host"
-  },
-  {
-   "id": "announce_route_100_announcements_1k",
-   "baseline": "announce/route_100_announcements_1k",
-   "scope": "same-host"
-  },
-  {
-   "id": "arena_build_100",
-   "baseline": "arena_build/100",
-   "scope": "same-host"
-  },
-  {
-   "id": "arena_build_1000",
-   "baseline": "arena_build/1000",
-   "scope": "same-host"
-  },
-  {
-   "id": "arena_build_10000",
-   "baseline": "arena_build/10000",
-   "scope": "same-host"
-  },
-  {
-   "id": "arena_masks_100",
-   "baseline": "arena_masks/100",
-   "scope": "same-host"
-  },
-  {
-   "id": "arena_masks_1000",
-   "baseline": "arena_masks/1000",
-   "scope": "same-host"
-  },
-  {
-   "id": "arena_masks_10000",
-   "baseline": "arena_masks/10000",
-   "scope": "same-host"
-  },
-  {
-   "id": "arena_walk_100",
-   "baseline": "arena_walk/100",
-   "scope": "same-host"
-  },
-  {
-   "id": "arena_walk_1000",
-   "baseline": "arena_walk/1000",
-   "scope": "same-host"
-  },
-  {
-   "id": "arena_walk_10000",
-   "baseline": "arena_walk/10000",
-   "scope": "same-host"
-  },
-  {
-   "id": "disabled_route_100_refused_presses_1k",
-   "baseline": "disabled/route_100_refused_presses_1k",
-   "scope": "same-host"
-  },
-  {
-   "id": "editing_route_100_caret_clicks_1k",
-   "baseline": "editing/route_100_caret_clicks_1k",
-   "scope": "same-host"
-  },
-  {
-   "id": "editing_route_100_clipboard_ops_1k",
-   "baseline": "editing/route_100_clipboard_ops_1k",
-   "scope": "same-host"
-  },
-  {
-   "id": "editing_route_100_key_edits_1k",
-   "baseline": "editing/route_100_key_edits_1k",
-   "scope": "same-host"
-  },
-  {
-   "id": "editing_route_100_undo_redo_1k",
-   "baseline": "editing/route_100_undo_redo_1k",
-   "scope": "same-host"
-  },
-  {
-   "id": "editing_route_100_word_moves_1k",
-   "baseline": "editing/route_100_word_moves_1k",
-   "scope": "same-host"
-  },
-  {
-   "id": "flux_batch_1",
-   "baseline": "flux_batch/1",
-   "scope": "same-host"
-  },
-  {
-   "id": "flux_batch_10",
-   "baseline": "flux_batch/10",
-   "scope": "same-host"
-  },
-  {
-   "id": "flux_batch_100",
-   "baseline": "flux_batch/100",
-   "scope": "same-host"
-  },
-  {
-   "id": "flux_batch_1000",
-   "baseline": "flux_batch/1000",
-   "scope": "same-host"
-  },
-  {
-   "id": "flux_drain_1000",
-   "baseline": "flux_drain/1000_nodes_take_pending",
-   "scope": "same-host"
-  },
-  {
-   "id": "gestures_route_100_drag_moves_1k",
-   "baseline": "gestures/route_100_drag_moves_1k",
-   "scope": "same-host"
-  },
-  {
-   "id": "input_route_100_captured_moves_1k",
-   "baseline": "input/route_100_captured_moves_1k",
-   "scope": "same-host"
-  },
-  {
-   "id": "input_route_100_directional_moves_1k",
-   "baseline": "input/route_100_directional_moves_1k",
-   "scope": "same-host"
-  },
-  {
-   "id": "input_route_100_focus_moves_1k",
-   "baseline": "input/route_100_focus_moves_1k",
-   "scope": "same-host"
-  },
-  {
-   "id": "input_route_100_observed_moves_1k",
-   "baseline": "input/route_100_observed_moves_1k",
-   "scope": "same-host"
-  },
-  {
-   "id": "input_route_100_outcome_moves_1k",
-   "baseline": "input/route_100_outcome_moves_1k",
-   "scope": "same-host"
-  },
-  {
-   "id": "input_route_100_scoped_moves_1k",
-   "baseline": "input/route_100_scoped_moves_1k",
-   "scope": "same-host"
-  },
-  {
-   "id": "input_storm_50_moves_direct",
-   "baseline": "input/storm_50_moves_direct",
-   "scope": "same-host"
-  },
-  {
-   "id": "input_storm_50_moves_queued",
-   "baseline": "input/storm_50_moves_queued",
-   "scope": "same-host"
-  },
-  {
-   "id": "journal_recommit_100_of_1000",
-   "baseline": "journal/recommit_100_of_1000",
-   "scope": "same-host"
-  },
-  {
-   "id": "journal_snapshot_100",
-   "baseline": "journal/snapshot_1000_nodes/100",
-   "scope": "same-host"
-  },
-  {
-   "id": "journal_snapshot_1000",
-   "baseline": "journal/snapshot_1000_nodes/1000",
-   "scope": "same-host"
-  },
-  {
-   "id": "journal_snapshot_10000",
-   "baseline": "journal/snapshot_1000_nodes/10000",
-   "scope": "same-host"
-  },
-  {
-   "id": "keymap_dispatch_100_mixed_1k",
-   "baseline": "keymap/dispatch_100_mixed_1k",
-   "scope": "same-host"
-  },
-  {
-   "id": "layout_mini_w1_full_100",
-   "baseline": "layout_mini_w1/full/100",
-   "scope": "same-host"
-  },
-  {
-   "id": "layout_mini_w1_full_1000",
-   "baseline": "layout_mini_w1/full/1000",
-   "scope": "same-host"
-  },
-  {
-   "id": "layout_mini_w1_full_10000",
-   "baseline": "layout_mini_w1/full/10000",
-   "scope": "same-host"
-  },
-  {
-   "id": "layout_mini_w1_incremental_100",
-   "baseline": "layout_mini_w1/incremental/100",
-   "scope": "same-host"
-  },
-  {
-   "id": "layout_mini_w1_incremental_1000",
-   "baseline": "layout_mini_w1/incremental/1000",
-   "scope": "same-host"
-  },
-  {
-   "id": "layout_mini_w1_incremental_10000",
-   "baseline": "layout_mini_w1/incremental/10000",
-   "scope": "same-host"
-  },
-  {
-   "id": "pass_overhead_1000",
-   "baseline": "pass_overhead/1000",
-   "scope": "same-host"
-  },
-  {
-   "id": "pass_overhead_10000",
-   "baseline": "pass_overhead/10000",
-   "scope": "same-host"
-  },
-  {
-   "id": "progress_route_100_value_writes_1k",
-   "baseline": "progress/route_100_value_writes_1k",
-   "scope": "same-host"
-  },
-  {
-   "id": "text_layout_cached_1",
-   "baseline": "text_layout/cached/1",
-   "scope": "same-host"
-  },
-  {
-   "id": "text_layout_cached_10",
-   "baseline": "text_layout/cached/10",
-   "scope": "same-host"
-  },
-  {
-   "id": "text_layout_cached_100",
-   "baseline": "text_layout/cached/100",
-   "scope": "same-host"
-  },
-  {
-   "id": "text_layout_cold_1",
-   "baseline": "text_layout/cold/1",
-   "scope": "same-host"
-  },
-  {
-   "id": "text_layout_cold_10",
-   "baseline": "text_layout/cold/10",
-   "scope": "same-host"
-  },
-  {
-   "id": "text_layout_cold_100",
-   "baseline": "text_layout/cold/100",
-   "scope": "same-host"
-  },
-  {
-   "id": "text_measure_cached",
-   "baseline": "text_measure/measure_cached",
-   "scope": "same-host"
-  },
-  {
-   "id": "view_reconcile_100",
-   "baseline": "view_reconcile/100",
-   "scope": "same-host"
-  },
-  {
-   "id": "view_reconcile_1000",
-   "baseline": "view_reconcile/1000",
-   "scope": "same-host"
-  },
-  {
-   "id": "view_reconcile_10000",
-   "baseline": "view_reconcile/10000",
-   "scope": "same-host"
-  },
-  {
-   "id": "w1_full_rebuild",
-   "baseline": "w1/full_rebuild",
-   "scope": "same-host"
-  },
-  {
-   "id": "w1_incremental_churn_10pct",
-   "baseline": "w1/incremental_churn_10pct",
-   "scope": "same-host"
-  },
-  {
-   "id": "w2_jitter_full_1k",
-   "baseline": "w2/jitter_full_1k",
-   "scope": "same-host"
-  },
-  {
-   "id": "w2_jitter_incremental_1k",
-   "baseline": "w2/jitter_incremental_1k",
-   "scope": "same-host"
-  },
-  {
-   "id": "w3_animation_frame_1k",
-   "baseline": "w3/animation_frame_1k",
-   "scope": "same-host"
-  },
-  {
-   "id": "w5_batch_churn_100_of_10k",
-   "baseline": "w5/batch_churn_100_of_10k",
-   "scope": "same-host"
-  },
-  {
-   "id": "w5_memo_cold_10_sources",
-   "baseline": "w5/memo_cold_10_sources",
-   "scope": "same-host"
-  },
-  {
-   "id": "trail_reader_announce_100_1k",
-   "baseline": "trail/reader_announce_100_1k",
-   "scope": "same-host"
-  },
-  {
-   "id": "trail_ring_fill_drain_1024",
-   "baseline": "trail_ring/fill_drain_1024",
-   "scope": "same-host"
-  },
-  {
-   "id": "trail_tee_announce_100_1k",
-   "baseline": "trail/tee_announce_100_1k",
-   "scope": "same-host"
-  },
-  {
-   "id": "frame_refusal_note_disabled",
-   "baseline": "frame_refusal/note_disabled",
-   "scope": "same-host"
-  },
-  {
-   "id": "frame_refusal_note_enabled_bounded",
-   "baseline": "frame_refusal/note_enabled_bounded",
-   "scope": "same-host"
-  },
-  {
-   "id": "view_patch_note_disabled",
-   "baseline": "view_patch/note_disabled",
-   "scope": "same-host"
-  },
-  {
-   "id": "view_patch_note_enabled_bounded",
-   "baseline": "view_patch/note_enabled_bounded",
-   "scope": "same-host"
-  },
-  {
-   "id": "theme_note_disabled",
-   "baseline": "theme/note_disabled",
-   "scope": "same-host"
-  },
-  {
-   "id": "theme_note_enabled_bounded",
-   "baseline": "theme/note_enabled_bounded",
-   "scope": "same-host"
-  },
-  {
-   "id": "theme_door_no_op_swap",
-   "baseline": "theme/door_no_op_swap",
-   "scope": "same-host"
-  },
-  {
-   "id": "settings_note_disabled",
-   "baseline": "settings/note_disabled",
-   "scope": "same-host"
-  },
-  {
-   "id": "settings_note_enabled_bounded",
-   "baseline": "settings/note_enabled_bounded",
-   "scope": "same-host"
-  },
-  {
-   "id": "settings_door_no_op_flip",
-   "baseline": "settings/door_no_op_flip",
-   "scope": "same-host"
-  },
-  {
-   "id": "settings_composer_install_no_op",
-   "baseline": "settings/composer_install_no_op",
-   "scope": "same-host"
-  },
-  {
-   "id": "settings_door_flip_composed",
-   "baseline": "settings/door_flip_composed",
-   "scope": "same-host"
-  },
-  {
-   "id": "settings_door_flip_counted",
-   "baseline": "settings/door_flip_counted",
-   "scope": "same-host"
-  },
-  {
-   "id": "settings_door_flip_motion",
-   "baseline": "settings/door_flip_motion",
-   "scope": "same-host"
-  },
-  {
-   "id": "theme_door_swap_counted",
-   "baseline": "theme/door_swap_counted",
-   "scope": "same-host"
-  },
-  {
-   "id": "settings_door_flip_contrast",
-   "baseline": "settings/door_flip_contrast",
-   "scope": "same-host"
-  },
-  {
-   "id": "settings_door_flip_accent",
-   "baseline": "settings/door_flip_accent",
-   "scope": "same-host"
-  },
-  {
-   "id": "alloc_warm_frame_zero_alloc",
-   "baseline": "alloc/warm_frame_zero_alloc",
-   "scope": "same-host"
-  },
-  {
-   "id": "alloc_warm_frame_observed",
-   "baseline": "alloc/warm_frame_observed",
-   "scope": "same-host"
-  },
-  {
-   "id": "alloc_ledger_overhead",
-   "baseline": "alloc/ledger_overhead",
-   "scope": "same-host"
-  },
-  {
-   "id": "alloc_snapshot_get",
-   "baseline": "alloc/snapshot_get",
-   "scope": "same-host"
-  },
-  {
-   "id": "settings_kiosk_flip_no_op",
-   "baseline": "settings/kiosk_flip_no_op",
-   "scope": "same-host"
-  },
-  {
-   "id": "settings_shaped_flip_pinned_no_op",
-   "baseline": "settings/shaped_flip_pinned_no_op",
-   "scope": "same-host"
-  },
-  {
-   "id": "alloc_input_frame_budget",
-   "baseline": "alloc/input_frame_budget",
-   "scope": "same-host"
-  },
-  {
-   "id": "scroll_route_100_bring_into_view_1k",
-   "baseline": "scroll/route_100_bring_into_view_1k",
-   "scope": "same-host"
-  },
-  {
-   "id": "scroll_route_100_horizontal_bring_into_view_1k",
-   "baseline": "scroll/route_100_horizontal_bring_into_view_1k",
-   "scope": "same-host"
-  },
-  {
-   "id": "scroll_route_100_handle_scroll_x_1k",
-   "baseline": "scroll/route_100_handle_scroll_x_1k",
-   "scope": "same-host"
-  },
-  {
-   "id": "derive_snapshot_1k_derived",
-   "baseline": "derive/snapshot_1k_derived",
-   "scope": "same-host"
-  },
-  {
-   "id": "derive_snapshot_1k_handwritten",
-   "baseline": "derive/snapshot_1k_handwritten",
-   "scope": "same-host"
-  },
-  {
-   "id": "recording_wrapper_1k_dirty_10pct",
-   "baseline": "recording/wrapper_1k_dirty_10pct",
-   "scope": "same-host"
-  },
-  {
-   "id": "recording_bare_wrapper_1k_dirty_10pct",
-   "baseline": "recording/bare_wrapper_1k_dirty_10pct",
-   "scope": "same-host"
-  },
-  {
-   "id": "toggle_snapshot_1k_tri_state",
-   "baseline": "toggle/snapshot_1k_tri_state",
-   "scope": "same-host"
-  },
-  {
-   "id": "toggle_snapshot_1k_binary",
-   "baseline": "toggle/snapshot_1k_binary",
-   "scope": "same-host"
-  },
-  {
-   "id": "describe_snapshot_1k_described",
-   "baseline": "describe/snapshot_1k_described",
-   "scope": "same-host"
-  },
-  {
-   "id": "placeholder_snapshot_1k_placeholdered",
-   "baseline": "placeholder/snapshot_1k_placeholdered",
-   "scope": "same-host"
-  },
-  {
-   "id": "placeholder_snapshot_1k_bare",
-   "baseline": "placeholder/snapshot_1k_bare",
-   "scope": "same-host"
-  },
-  {
-   "id": "canvas_paint_100_canvases",
-   "baseline": "canvas/paint_100_canvases",
-   "scope": "same-host"
-  },
-  {
-   "id": "inspect_tick_with_recorder_attached",
-   "baseline": "inspect/tick_with_recorder_attached",
-   "scope": "same-host"
-  },
-  {
-   "id": "range_snapshot_1k_ranged",
-   "baseline": "range/snapshot_1k_ranged",
-   "scope": "same-host"
-  },
-  {
-   "id": "orientation_snapshot_1k_vertical",
-   "baseline": "orientation/snapshot_1k_vertical",
-   "scope": "same-host"
-  },
-  {
-   "id": "numeric_snapshot_1k_valued",
-   "baseline": "numeric/snapshot_1k_valued",
-   "scope": "same-host"
-  },
-  {
-   "id": "secure_snapshot_1k_secured",
-   "baseline": "secure/snapshot_1k_secured",
-   "scope": "same-host"
-  },
-  {
-   "id": "scroll_position_snapshot_1k_scrolled",
-   "baseline": "scroll_position/snapshot_1k_scrolled",
-   "scope": "same-host"
-  },
-  {
-   "id": "secure_revealed_snapshot_1k_revealed",
-   "baseline": "secure_revealed/snapshot_1k_revealed",
-   "scope": "same-host"
-  },
-  {
-   "id": "click_chain_seamed_chain_1k",
-   "baseline": "click_chain/seamed_chain_1k",
-   "scope": "same-host"
-  },
-  {
-   "id": "click_chain_manual_chain_1k",
-   "baseline": "click_chain/manual_chain_1k",
-   "scope": "same-host"
-  },
-  {
-   "id": "pass_overhead_timed_idle_10k",
-   "baseline": "pass_overhead/timed_idle_10k",
-   "scope": "same-host"
-  },
-  {
-   "id": "pass_overhead_seamed_timed_idle_10k",
-   "baseline": "pass_overhead/seamed_timed_idle_10k",
-   "scope": "same-host"
-  }
- ],
- "test_enforced_gates": [
-  {
-   "id": "pass_system_overhead_15_percent",
-   "gate": "pass-system overhead < 15% on 10k-node churn",
-   "cite": "architecture \u00a718 M1 gate, \u00a77.2",
-   "enforced_by": "alacer_core::passes tests + benches/pass_overhead.rs"
-  },
-  {
-   "id": "tree_update_p99_half_ms",
-   "gate": "incremental TreeUpdate p99 < 0.5 ms @ 1k nodes",
-   "cite": "architecture \u00a718 M3 exit gate, ADR-0009",
-   "enforced_by": "alacer-testing/tests/m3_exit_criteria.rs"
-  },
-  {
-   "id": "patch_frame_budget",
-   "gate": "one hot patch \u21d2 exactly one layout+paint cycle",
-   "cite": "architecture \u00a718 M4 exit gate, ADR-0010",
-   "enforced_by": "alacer-testing/tests/m4_exit_criteria.rs"
-  },
-  {
-   "id": "w1_zero_measure_scroll",
-   "gate": "translation-only scrolling: zero measure calls",
-   "cite": "architecture \u00a78.2, ADR-0008",
-   "enforced_by": "alacer-testing/tests/m0_exit_criteria.rs"
-  },
-  {
-   "id": "w2_no_rewrap_oscillation",
-   "gate": "text-dense relayout: no re-wrap oscillation under \u00b15% width jitter",
-   "cite": "architecture \u00a714.2 W2, \u00a78.3 integer wrap rounding (ADR-0012)",
-   "enforced_by": "alacer-layout/tests/w2_gate.rs"
-  },
-  {
-   "id": "w5_one_rerun_per_batch",
-   "gate": "one write batch \u21d2 one effect rerun at 10k-signal scale; memos never glitch",
-   "cite": "architecture \u00a714.2 W5, ADR-6",
-   "enforced_by": "alacer-testing/tests/m6_exit_criteria.rs"
-  },
-  {
-   "id": "comparison_corpus_published",
-   "gate": "the cross-framework comparison (declared rig + results + dashboard section) is committed, schema-valid, and same-host; the beat verdict is computable from the committed file",
-   "cite": "architecture \u00a71 (the v1 definition of done's beat), \u00a714.1, ADR-0013",
-   "enforced_by": "alacer-testing/tests/m7_exit_criteria.rs"
-  }
- ]
+  "schema": 1,
+  "description": "Alacer performance contracts (M5, architecture \u00a718 / ADR-0011). Every criterion benchmark in the workspace is published as a baseline in benchmarks/baselines/baselines.json and gated here. `budgets` are architecture gates expressed as ratios of criterion medians \u2014 host-independent, enforced everywhere. `regressions` are per-case median gates against the published baseline, scoped `same-host`: absolute times only compare on the recorded host fingerprint (os/arch/cpu model/count); foreign hosts \u2014 CI runners \u2014 skip them and rely on criterion's own previous-run comparison plus the ratio budgets. Adding a benchmark case without publishing its baseline and regression gate fails the M5 exit suite.",
+  "tolerance_default": 0.25,
+  "budgets": [
+    {
+      "id": "w1_incremental_speedup",
+      "metric": "median_ratio",
+      "numerator": "w1/full_rebuild",
+      "denominator": "w1/incremental_churn_10pct",
+      "op": ">=",
+      "budget": 2.0,
+      "cite": "architecture \u00a718 M2 exit gate (W1 \u2265 2\u00d7 vs full relayout), ADR-0008; test-enforced in alacer-layout/tests/w1_gate.rs, here measured by criterion"
+    },
+    {
+      "id": "input_storm_batching",
+      "metric": "median_ratio",
+      "numerator": "input/storm_50_moves_direct",
+      "denominator": "input/storm_50_moves_queued",
+      "op": ">=",
+      "budget": 2.0,
+      "cite": "architecture \u00a710.2 (input storms cost one frame of work, not N events), ADR-0014; the queued batch routes one coalesced event where the pre-M8 wiring dispatched all 50"
+    },
+    {
+      "id": "a11y_incremental_speedup",
+      "metric": "median_ratio",
+      "numerator": "a11y/full_rebuild_1k",
+      "denominator": "a11y/incremental_1k_dirty_10pct",
+      "op": ">=",
+      "budget": 2.0,
+      "cite": "architecture \u00a711.1 item 4 (never a full-tree rebuild per frame \u2014 the egui cost we refuse), ADR-0015; the M9 shape drains the sink's dirty-only delta where the pre-M9 window rebuilt the whole tree per a11y frame"
+    },
+    {
+      "id": "trail_reader_overhead",
+      "metric": "median_ratio",
+      "numerator": "trail/reader_announce_100_1k",
+      "denominator": "announce/route_100_announcements_1k",
+      "op": "<=",
+      "budget": 2.0,
+      "cite": "architecture \u00a718 M63 exit gate, ADR-0069: the provided reader installed on the announce route costs at most 2\u00d7 the unobserved route \u2014 the trail rides the observe branch an installed observer already pays (A7), never a re-price of the route itself"
+    },
+    {
+      "id": "trail_tee_overhead",
+      "metric": "median_ratio",
+      "numerator": "trail/tee_announce_100_1k",
+      "denominator": "announce/route_100_announcements_1k",
+      "op": "<=",
+      "budget": 2.5,
+      "cite": "architecture \u00a718 M64 exit gate, ADR-0070: two doors behind the tee cost at most 2.5\u00d7 the unobserved route \u2014 each door rides the observe branch the slot already pays (A7), the fan-out never a second pass over the route"
+    },
+    {
+      "id": "derive_zero_overhead",
+      "numerator": "derive/snapshot_1k_derived",
+      "denominator": "derive/snapshot_1k_handwritten",
+      "op": "<=",
+      "budget": 1.1,
+      "cite": "architecture \u00a719 Q5's own option cashed, ADR-0096: the derive is the hand-written impl \u2014 the generated pair riding the same frame"
+    },
+    {
+      "id": "recording_wrapper_overhead",
+      "numerator": "recording/wrapper_1k_dirty_10pct",
+      "denominator": "recording/bare_wrapper_1k_dirty_10pct",
+      "op": "<=",
+      "budget": 1.15,
+      "cite": "the instrument prices itself, never the engine, ADR-0097: the wrapper's cost at the route's noise floor (the A7 rule at the layout tier)"
+    },
+    {
+      "id": "toggle_tri_state_overhead",
+      "numerator": "toggle/snapshot_1k_tri_state",
+      "denominator": "toggle/snapshot_1k_binary",
+      "op": "<=",
+      "budget": 1.1,
+      "cite": "the summary rides the binary toggle's frame, ADR-0098: the dash the painter draws is the only difference the pipeline prices"
+    },
+    {
+      "id": "describe_snapshot_overhead",
+      "numerator": "describe/snapshot_1k_described",
+      "denominator": "toggle/snapshot_1k_binary",
+      "op": "<=",
+      "budget": 1.25,
+      "cite": "the help text rides the snapshot the name rides, ADR-0099: the description is the second bounded copy the node builds beside the label's own \u2014 the measured ratio 1.19x on the dev host, the budget pricing the measured class, never a noise-floor claim"
+    },
+    {
+      "id": "placeholder_snapshot_overhead",
+      "numerator": "placeholder/snapshot_1k_placeholdered",
+      "denominator": "placeholder/snapshot_1k_bare",
+      "op": "<=",
+      "budget": 1.25,
+      "cite": "the hint rides the snapshot the name rides, ADR-0100: the second bounded copy the node builds beside the label's own \u2014 the measured ratio 1.19x, the budget pricing the measured class"
+    },
+    {
+      "id": "range_snapshot_overhead",
+      "numerator": "range/snapshot_1k_ranged",
+      "denominator": "toggle/snapshot_1k_binary",
+      "op": "<=",
+      "budget": 1.25,
+      "cite": "the span rides the snapshot the name rides, ADR-0101: the copy the node builds beside the label's own \u2014 the measured ratio 1.16x, the budget pricing the measured class"
+    },
+    {
+      "id": "orientation_snapshot_overhead",
+      "numerator": "orientation/snapshot_1k_vertical",
+      "denominator": "toggle/snapshot_1k_binary",
+      "op": "<=",
+      "budget": 1.25,
+      "cite": "the axis word rides the snapshot the name rides, ADR-0102: the enum's option the node builds beside the label's own \u2014 the measured ratio 0.92x on the dev host, the budget pricing the measured class, never a noise-floor claim"
+    },
+    {
+      "id": "numeric_snapshot_overhead",
+      "numerator": "numeric/snapshot_1k_valued",
+      "denominator": "toggle/snapshot_1k_binary",
+      "op": "<=",
+      "budget": 1.25,
+      "cite": "the number rides the snapshot the text rides, ADR-0103: the f64 option the node builds beside the label's own \u2014 the measured ratio 1.20x on the dev host, the budget pricing the measured class, never a noise-floor claim"
+    },
+    {
+      "id": "secure_snapshot_overhead",
+      "numerator": "secure/snapshot_1k_secured",
+      "denominator": "placeholder/snapshot_1k_bare",
+      "op": "<=",
+      "budget": 1.25,
+      "cite": "the secure word rides the snapshot the field rides, ADR-0104: the bool and the mask the node builds beside the value's own copy \u2014 the measured ratio 0.95x on the dev host, the budget pricing the measured class, never a noise-floor claim"
+    },
+    {
+      "id": "scroll_position_snapshot_overhead",
+      "numerator": "scroll_position/snapshot_1k_scrolled",
+      "denominator": "orientation/snapshot_1k_vertical",
+      "op": "<=",
+      "budget": 1.25,
+      "cite": "the position rides the snapshot the axis word rides, ADR-0105: the two axis options the node builds beside the orientation word's own \u2014 the measured ratio 1.10x on the measurement host, the budget pricing the measured class, never a noise-floor claim"
+    },
+    {
+      "id": "secure_revealed_snapshot_overhead",
+      "numerator": "secure_revealed/snapshot_1k_revealed",
+      "denominator": "secure/snapshot_1k_secured",
+      "op": "<=",
+      "budget": 1.25,
+      "cite": "the reveal rides the snapshot the secure word rides, ADR-0106: the flag and the role branch the node answers beside the M100 masked copy's own \u2014 the measured ratio 1.03x on the measurement host, the budget pricing the measured class, never a noise-floor claim"
+    },
+    {
+      "id": "timed_tick_seam_overhead",
+      "metric": "median_ratio",
+      "numerator": "pass_overhead/seamed_timed_idle_10k",
+      "denominator": "pass_overhead/timed_idle_10k",
+      "op": "<=",
+      "budget": 1.25,
+      "cite": "ADR-0108 (M104): the seam's indirection holds the timed idle tick at the fallback's own class; test-enforced nowhere, measured by criterion"
+    },
+    {
+      "id": "required_snapshot_overhead",
+      "metric": "median_ratio",
+      "numerator": "required/snapshot_1k_required",
+      "denominator": "placeholder/snapshot_1k_bare",
+      "op": "<=",
+      "budget": 1.25,
+      "cite": "ADR-0110 (M106): the required word rides the snapshot the field rides \u2014 the flag's price the bool the node carries; test-enforced nowhere, measured by criterion"
+    },
+    {
+      "id": "read_only_snapshot_overhead",
+      "metric": "median_ratio",
+      "numerator": "read_only/snapshot_1k_read_only",
+      "denominator": "placeholder/snapshot_1k_bare",
+      "op": "<=",
+      "budget": 1.25,
+      "cite": "ADR-0109 (M105): the read-only word rides the snapshot the field rides \u2014 the flag's price the bool the node carries; test-enforced nowhere, measured by criterion"
+    }
+  ],
+  "regressions": [
+    {
+      "id": "a11y_action_route_100_actions_1k",
+      "baseline": "a11y_action/route_100_actions_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "a11y_action_route_100_presses_1k",
+      "baseline": "a11y_action/route_100_presses_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "a11y_action_route_100_horizontal_actions_1k",
+      "baseline": "a11y_action/route_100_horizontal_actions_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "a11y_action_route_100_setvalue_1k",
+      "baseline": "a11y_action/route_100_setvalue_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "a11y_full_rebuild_1k",
+      "baseline": "a11y/full_rebuild_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "a11y_incremental_1k_dirty_10pct",
+      "baseline": "a11y/incremental_1k_dirty_10pct",
+      "scope": "same-host"
+    },
+    {
+      "id": "announce_route_100_announcements_1k",
+      "baseline": "announce/route_100_announcements_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "arena_build_100",
+      "baseline": "arena_build/100",
+      "scope": "same-host"
+    },
+    {
+      "id": "arena_build_1000",
+      "baseline": "arena_build/1000",
+      "scope": "same-host"
+    },
+    {
+      "id": "arena_build_10000",
+      "baseline": "arena_build/10000",
+      "scope": "same-host"
+    },
+    {
+      "id": "arena_masks_100",
+      "baseline": "arena_masks/100",
+      "scope": "same-host"
+    },
+    {
+      "id": "arena_masks_1000",
+      "baseline": "arena_masks/1000",
+      "scope": "same-host"
+    },
+    {
+      "id": "arena_masks_10000",
+      "baseline": "arena_masks/10000",
+      "scope": "same-host"
+    },
+    {
+      "id": "arena_walk_100",
+      "baseline": "arena_walk/100",
+      "scope": "same-host"
+    },
+    {
+      "id": "arena_walk_1000",
+      "baseline": "arena_walk/1000",
+      "scope": "same-host"
+    },
+    {
+      "id": "arena_walk_10000",
+      "baseline": "arena_walk/10000",
+      "scope": "same-host"
+    },
+    {
+      "id": "disabled_route_100_refused_presses_1k",
+      "baseline": "disabled/route_100_refused_presses_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "editing_route_100_caret_clicks_1k",
+      "baseline": "editing/route_100_caret_clicks_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "editing_route_100_clipboard_ops_1k",
+      "baseline": "editing/route_100_clipboard_ops_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "editing_route_100_key_edits_1k",
+      "baseline": "editing/route_100_key_edits_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "editing_route_100_undo_redo_1k",
+      "baseline": "editing/route_100_undo_redo_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "editing_route_100_word_moves_1k",
+      "baseline": "editing/route_100_word_moves_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "flux_batch_1",
+      "baseline": "flux_batch/1",
+      "scope": "same-host"
+    },
+    {
+      "id": "flux_batch_10",
+      "baseline": "flux_batch/10",
+      "scope": "same-host"
+    },
+    {
+      "id": "flux_batch_100",
+      "baseline": "flux_batch/100",
+      "scope": "same-host"
+    },
+    {
+      "id": "flux_batch_1000",
+      "baseline": "flux_batch/1000",
+      "scope": "same-host"
+    },
+    {
+      "id": "flux_drain_1000",
+      "baseline": "flux_drain/1000_nodes_take_pending",
+      "scope": "same-host"
+    },
+    {
+      "id": "gestures_route_100_drag_moves_1k",
+      "baseline": "gestures/route_100_drag_moves_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "input_route_100_captured_moves_1k",
+      "baseline": "input/route_100_captured_moves_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "input_route_100_directional_moves_1k",
+      "baseline": "input/route_100_directional_moves_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "input_route_100_focus_moves_1k",
+      "baseline": "input/route_100_focus_moves_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "input_route_100_observed_moves_1k",
+      "baseline": "input/route_100_observed_moves_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "input_route_100_outcome_moves_1k",
+      "baseline": "input/route_100_outcome_moves_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "input_route_100_scoped_moves_1k",
+      "baseline": "input/route_100_scoped_moves_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "input_storm_50_moves_direct",
+      "baseline": "input/storm_50_moves_direct",
+      "scope": "same-host"
+    },
+    {
+      "id": "input_storm_50_moves_queued",
+      "baseline": "input/storm_50_moves_queued",
+      "scope": "same-host"
+    },
+    {
+      "id": "journal_recommit_100_of_1000",
+      "baseline": "journal/recommit_100_of_1000",
+      "scope": "same-host"
+    },
+    {
+      "id": "journal_snapshot_100",
+      "baseline": "journal/snapshot_1000_nodes/100",
+      "scope": "same-host"
+    },
+    {
+      "id": "journal_snapshot_1000",
+      "baseline": "journal/snapshot_1000_nodes/1000",
+      "scope": "same-host"
+    },
+    {
+      "id": "journal_snapshot_10000",
+      "baseline": "journal/snapshot_1000_nodes/10000",
+      "scope": "same-host"
+    },
+    {
+      "id": "keymap_dispatch_100_mixed_1k",
+      "baseline": "keymap/dispatch_100_mixed_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "layout_mini_w1_full_100",
+      "baseline": "layout_mini_w1/full/100",
+      "scope": "same-host"
+    },
+    {
+      "id": "layout_mini_w1_full_1000",
+      "baseline": "layout_mini_w1/full/1000",
+      "scope": "same-host"
+    },
+    {
+      "id": "layout_mini_w1_full_10000",
+      "baseline": "layout_mini_w1/full/10000",
+      "scope": "same-host"
+    },
+    {
+      "id": "layout_mini_w1_incremental_100",
+      "baseline": "layout_mini_w1/incremental/100",
+      "scope": "same-host"
+    },
+    {
+      "id": "layout_mini_w1_incremental_1000",
+      "baseline": "layout_mini_w1/incremental/1000",
+      "scope": "same-host"
+    },
+    {
+      "id": "layout_mini_w1_incremental_10000",
+      "baseline": "layout_mini_w1/incremental/10000",
+      "scope": "same-host"
+    },
+    {
+      "id": "pass_overhead_1000",
+      "baseline": "pass_overhead/1000",
+      "scope": "same-host"
+    },
+    {
+      "id": "pass_overhead_10000",
+      "baseline": "pass_overhead/10000",
+      "scope": "same-host"
+    },
+    {
+      "id": "progress_route_100_value_writes_1k",
+      "baseline": "progress/route_100_value_writes_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "text_layout_cached_1",
+      "baseline": "text_layout/cached/1",
+      "scope": "same-host"
+    },
+    {
+      "id": "text_layout_cached_10",
+      "baseline": "text_layout/cached/10",
+      "scope": "same-host"
+    },
+    {
+      "id": "text_layout_cached_100",
+      "baseline": "text_layout/cached/100",
+      "scope": "same-host"
+    },
+    {
+      "id": "text_layout_cold_1",
+      "baseline": "text_layout/cold/1",
+      "scope": "same-host"
+    },
+    {
+      "id": "text_layout_cold_10",
+      "baseline": "text_layout/cold/10",
+      "scope": "same-host"
+    },
+    {
+      "id": "text_layout_cold_100",
+      "baseline": "text_layout/cold/100",
+      "scope": "same-host"
+    },
+    {
+      "id": "text_measure_cached",
+      "baseline": "text_measure/measure_cached",
+      "scope": "same-host"
+    },
+    {
+      "id": "view_reconcile_100",
+      "baseline": "view_reconcile/100",
+      "scope": "same-host"
+    },
+    {
+      "id": "view_reconcile_1000",
+      "baseline": "view_reconcile/1000",
+      "scope": "same-host"
+    },
+    {
+      "id": "view_reconcile_10000",
+      "baseline": "view_reconcile/10000",
+      "scope": "same-host"
+    },
+    {
+      "id": "w1_full_rebuild",
+      "baseline": "w1/full_rebuild",
+      "scope": "same-host"
+    },
+    {
+      "id": "w1_incremental_churn_10pct",
+      "baseline": "w1/incremental_churn_10pct",
+      "scope": "same-host"
+    },
+    {
+      "id": "w2_jitter_full_1k",
+      "baseline": "w2/jitter_full_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "w2_jitter_incremental_1k",
+      "baseline": "w2/jitter_incremental_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "w3_animation_frame_1k",
+      "baseline": "w3/animation_frame_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "w5_batch_churn_100_of_10k",
+      "baseline": "w5/batch_churn_100_of_10k",
+      "scope": "same-host"
+    },
+    {
+      "id": "w5_memo_cold_10_sources",
+      "baseline": "w5/memo_cold_10_sources",
+      "scope": "same-host"
+    },
+    {
+      "id": "trail_reader_announce_100_1k",
+      "baseline": "trail/reader_announce_100_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "trail_ring_fill_drain_1024",
+      "baseline": "trail_ring/fill_drain_1024",
+      "scope": "same-host"
+    },
+    {
+      "id": "trail_tee_announce_100_1k",
+      "baseline": "trail/tee_announce_100_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "frame_refusal_note_disabled",
+      "baseline": "frame_refusal/note_disabled",
+      "scope": "same-host"
+    },
+    {
+      "id": "frame_refusal_note_enabled_bounded",
+      "baseline": "frame_refusal/note_enabled_bounded",
+      "scope": "same-host"
+    },
+    {
+      "id": "view_patch_note_disabled",
+      "baseline": "view_patch/note_disabled",
+      "scope": "same-host"
+    },
+    {
+      "id": "view_patch_note_enabled_bounded",
+      "baseline": "view_patch/note_enabled_bounded",
+      "scope": "same-host"
+    },
+    {
+      "id": "theme_note_disabled",
+      "baseline": "theme/note_disabled",
+      "scope": "same-host"
+    },
+    {
+      "id": "theme_note_enabled_bounded",
+      "baseline": "theme/note_enabled_bounded",
+      "scope": "same-host"
+    },
+    {
+      "id": "theme_door_no_op_swap",
+      "baseline": "theme/door_no_op_swap",
+      "scope": "same-host"
+    },
+    {
+      "id": "settings_note_disabled",
+      "baseline": "settings/note_disabled",
+      "scope": "same-host"
+    },
+    {
+      "id": "settings_note_enabled_bounded",
+      "baseline": "settings/note_enabled_bounded",
+      "scope": "same-host"
+    },
+    {
+      "id": "settings_door_no_op_flip",
+      "baseline": "settings/door_no_op_flip",
+      "scope": "same-host"
+    },
+    {
+      "id": "settings_composer_install_no_op",
+      "baseline": "settings/composer_install_no_op",
+      "scope": "same-host"
+    },
+    {
+      "id": "settings_door_flip_composed",
+      "baseline": "settings/door_flip_composed",
+      "scope": "same-host"
+    },
+    {
+      "id": "settings_door_flip_counted",
+      "baseline": "settings/door_flip_counted",
+      "scope": "same-host"
+    },
+    {
+      "id": "settings_door_flip_motion",
+      "baseline": "settings/door_flip_motion",
+      "scope": "same-host"
+    },
+    {
+      "id": "theme_door_swap_counted",
+      "baseline": "theme/door_swap_counted",
+      "scope": "same-host"
+    },
+    {
+      "id": "settings_door_flip_contrast",
+      "baseline": "settings/door_flip_contrast",
+      "scope": "same-host"
+    },
+    {
+      "id": "settings_door_flip_accent",
+      "baseline": "settings/door_flip_accent",
+      "scope": "same-host"
+    },
+    {
+      "id": "alloc_warm_frame_zero_alloc",
+      "baseline": "alloc/warm_frame_zero_alloc",
+      "scope": "same-host"
+    },
+    {
+      "id": "alloc_warm_frame_observed",
+      "baseline": "alloc/warm_frame_observed",
+      "scope": "same-host"
+    },
+    {
+      "id": "alloc_ledger_overhead",
+      "baseline": "alloc/ledger_overhead",
+      "scope": "same-host"
+    },
+    {
+      "id": "alloc_snapshot_get",
+      "baseline": "alloc/snapshot_get",
+      "scope": "same-host"
+    },
+    {
+      "id": "settings_kiosk_flip_no_op",
+      "baseline": "settings/kiosk_flip_no_op",
+      "scope": "same-host"
+    },
+    {
+      "id": "settings_shaped_flip_pinned_no_op",
+      "baseline": "settings/shaped_flip_pinned_no_op",
+      "scope": "same-host"
+    },
+    {
+      "id": "alloc_input_frame_budget",
+      "baseline": "alloc/input_frame_budget",
+      "scope": "same-host"
+    },
+    {
+      "id": "scroll_route_100_bring_into_view_1k",
+      "baseline": "scroll/route_100_bring_into_view_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "scroll_route_100_horizontal_bring_into_view_1k",
+      "baseline": "scroll/route_100_horizontal_bring_into_view_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "scroll_route_100_handle_scroll_x_1k",
+      "baseline": "scroll/route_100_handle_scroll_x_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "derive_snapshot_1k_derived",
+      "baseline": "derive/snapshot_1k_derived",
+      "scope": "same-host"
+    },
+    {
+      "id": "derive_snapshot_1k_handwritten",
+      "baseline": "derive/snapshot_1k_handwritten",
+      "scope": "same-host"
+    },
+    {
+      "id": "recording_wrapper_1k_dirty_10pct",
+      "baseline": "recording/wrapper_1k_dirty_10pct",
+      "scope": "same-host"
+    },
+    {
+      "id": "recording_bare_wrapper_1k_dirty_10pct",
+      "baseline": "recording/bare_wrapper_1k_dirty_10pct",
+      "scope": "same-host"
+    },
+    {
+      "id": "toggle_snapshot_1k_tri_state",
+      "baseline": "toggle/snapshot_1k_tri_state",
+      "scope": "same-host"
+    },
+    {
+      "id": "toggle_snapshot_1k_binary",
+      "baseline": "toggle/snapshot_1k_binary",
+      "scope": "same-host"
+    },
+    {
+      "id": "describe_snapshot_1k_described",
+      "baseline": "describe/snapshot_1k_described",
+      "scope": "same-host"
+    },
+    {
+      "id": "placeholder_snapshot_1k_placeholdered",
+      "baseline": "placeholder/snapshot_1k_placeholdered",
+      "scope": "same-host"
+    },
+    {
+      "id": "placeholder_snapshot_1k_bare",
+      "baseline": "placeholder/snapshot_1k_bare",
+      "scope": "same-host"
+    },
+    {
+      "id": "canvas_paint_100_canvases",
+      "baseline": "canvas/paint_100_canvases",
+      "scope": "same-host"
+    },
+    {
+      "id": "inspect_tick_with_recorder_attached",
+      "baseline": "inspect/tick_with_recorder_attached",
+      "scope": "same-host"
+    },
+    {
+      "id": "range_snapshot_1k_ranged",
+      "baseline": "range/snapshot_1k_ranged",
+      "scope": "same-host"
+    },
+    {
+      "id": "orientation_snapshot_1k_vertical",
+      "baseline": "orientation/snapshot_1k_vertical",
+      "scope": "same-host"
+    },
+    {
+      "id": "numeric_snapshot_1k_valued",
+      "baseline": "numeric/snapshot_1k_valued",
+      "scope": "same-host"
+    },
+    {
+      "id": "secure_snapshot_1k_secured",
+      "baseline": "secure/snapshot_1k_secured",
+      "scope": "same-host"
+    },
+    {
+      "id": "scroll_position_snapshot_1k_scrolled",
+      "baseline": "scroll_position/snapshot_1k_scrolled",
+      "scope": "same-host"
+    },
+    {
+      "id": "secure_revealed_snapshot_1k_revealed",
+      "baseline": "secure_revealed/snapshot_1k_revealed",
+      "scope": "same-host"
+    },
+    {
+      "id": "click_chain_seamed_chain_1k",
+      "baseline": "click_chain/seamed_chain_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "click_chain_manual_chain_1k",
+      "baseline": "click_chain/manual_chain_1k",
+      "scope": "same-host"
+    },
+    {
+      "id": "pass_overhead_timed_idle_10k",
+      "baseline": "pass_overhead/timed_idle_10k",
+      "scope": "same-host"
+    },
+    {
+      "id": "pass_overhead_seamed_timed_idle_10k",
+      "baseline": "pass_overhead/seamed_timed_idle_10k",
+      "scope": "same-host"
+    },
+    {
+      "id": "read_only_snapshot_1k_read_only",
+      "baseline": "read_only/snapshot_1k_read_only",
+      "scope": "same-host"
+    },
+    {
+      "id": "required_snapshot_1k_required",
+      "baseline": "required/snapshot_1k_required",
+      "scope": "same-host"
+    }
+  ],
+  "test_enforced_gates": [
+    {
+      "id": "pass_system_overhead_15_percent",
+      "gate": "pass-system overhead < 15% on 10k-node churn",
+      "cite": "architecture \u00a718 M1 gate, \u00a77.2",
+      "enforced_by": "alacer_core::passes tests + benches/pass_overhead.rs"
+    },
+    {
+      "id": "tree_update_p99_half_ms",
+      "gate": "incremental TreeUpdate p99 < 0.5 ms @ 1k nodes",
+      "cite": "architecture \u00a718 M3 exit gate, ADR-0009",
+      "enforced_by": "alacer-testing/tests/m3_exit_criteria.rs"
+    },
+    {
+      "id": "patch_frame_budget",
+      "gate": "one hot patch \u21d2 exactly one layout+paint cycle",
+      "cite": "architecture \u00a718 M4 exit gate, ADR-0010",
+      "enforced_by": "alacer-testing/tests/m4_exit_criteria.rs"
+    },
+    {
+      "id": "w1_zero_measure_scroll",
+      "gate": "translation-only scrolling: zero measure calls",
+      "cite": "architecture \u00a78.2, ADR-0008",
+      "enforced_by": "alacer-testing/tests/m0_exit_criteria.rs"
+    },
+    {
+      "id": "w2_no_rewrap_oscillation",
+      "gate": "text-dense relayout: no re-wrap oscillation under \u00b15% width jitter",
+      "cite": "architecture \u00a714.2 W2, \u00a78.3 integer wrap rounding (ADR-0012)",
+      "enforced_by": "alacer-layout/tests/w2_gate.rs"
+    },
+    {
+      "id": "w5_one_rerun_per_batch",
+      "gate": "one write batch \u21d2 one effect rerun at 10k-signal scale; memos never glitch",
+      "cite": "architecture \u00a714.2 W5, ADR-6",
+      "enforced_by": "alacer-testing/tests/m6_exit_criteria.rs"
+    },
+    {
+      "id": "comparison_corpus_published",
+      "gate": "the cross-framework comparison (declared rig + results + dashboard section) is committed, schema-valid, and same-host; the beat verdict is computable from the committed file",
+      "cite": "architecture \u00a71 (the v1 definition of done's beat), \u00a714.1, ADR-0013",
+      "enforced_by": "alacer-testing/tests/m7_exit_criteria.rs"
+    }
+  ]
 }

@@ -172,6 +172,10 @@ pub struct TableRow {
     /// pick — `None` the honest absence, the row of no selection
     /// collection.
     selected: Option<bool>,
+    /// The expanded tier's word (M110, ADR-0114): the row's declared
+    /// disclosure — `None` the honest absence, the row that opens and
+    /// closes not.
+    expanded: Option<bool>,
 }
 
 impl TableRow {
@@ -184,6 +188,7 @@ impl TableRow {
                 ..Style::row()
             },
             selected: None,
+            expanded: None,
         }
     }
 
@@ -215,6 +220,38 @@ impl TableRow {
             return false;
         }
         self.selected = selected;
+        true
+    }
+
+    /// Mounts the row opened (or explicitly collapsed) (M110, ADR-0114):
+    /// the collection member's disclosure said by the tree from the
+    /// first frame — AccessKit's `Expanded` property (ARIA's
+    /// `aria-expanded`) names the disclosure to the AT beside the picks
+    /// the selected tier already carried. The word prices nothing but
+    /// the word: the row's doors answer exactly as they always did —
+    /// the word names state, it walls nothing, the open and close
+    /// routes the widget's own. The app's live door rides
+    /// [`TableRow::set_expanded`].
+    #[must_use]
+    pub fn expanded(mut self, expanded: bool) -> Self {
+        self.expanded = Some(expanded);
+        self
+    }
+
+    /// The expanded door (M110, ADR-0114): the app's disclosure moved —
+    /// the word the tree says follows it on the re-announcement the
+    /// caller's `PAINT | A11Y` request pays for (the mutate seam's
+    /// shape, the way every app-side write rides). Report whether the
+    /// word moved — the caller requests `A11Y` only when this answers
+    /// `true`, so a write that lands where the word already is queues
+    /// nothing (the M21 idle-frame property, at the expanded tier).
+    /// `None` clears the word — the honest absence restored, the row
+    /// that opens and closes not.
+    pub fn set_expanded(&mut self, expanded: Option<bool>) -> bool {
+        if self.expanded == expanded {
+            return false;
+        }
+        self.expanded = expanded;
         true
     }
 
@@ -255,6 +292,9 @@ impl Widget for TableRow {
     }
     fn selected(&self) -> Option<bool> {
         self.selected
+    }
+    fn expanded(&self) -> Option<bool> {
+        self.expanded
     }
 }
 

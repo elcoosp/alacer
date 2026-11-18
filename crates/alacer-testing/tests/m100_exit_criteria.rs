@@ -30,7 +30,7 @@ use alacer_widgets::{BoxedWidget as _, Button, Column, TextInput};
 /// placeholder route's pair (M96), the description route's case (M95),
 /// the toggle route's pair (M94), the derive route's pair (M92), and the
 /// recording route's pair (M93) on the published corpus.
-const EXPECTED_BENCH_COUNT: usize = 121;
+const EXPECTED_BENCH_COUNT: usize = 125;
 
 /// The suite's own read door into the published corpus: the secure
 /// route's case — the 1,000-node secured input arena (the coordinated

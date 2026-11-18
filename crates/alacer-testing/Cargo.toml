@@ -141,3 +141,11 @@ harness = false
 [[bench]]
 name = "multiselectable"
 harness = false
+
+[[bench]]
+name = "expanded"
+harness = false
+
+[[bench]]
+name = "auto_complete"
+harness = false

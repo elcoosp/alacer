@@ -81,6 +81,7 @@ fn describe(record: alacer_core::KeyEditRecord) -> String {
             let species = match refusal {
                 KeyEditRefusal::Unavailable => "unavailable",
                 KeyEditRefusal::EmptySelection => "empty_selection",
+                KeyEditRefusal::ReadOnly => "read_only",
             };
             format!("{who} refused — the wall held ({species}), the value untouched{control}")
         }

@@ -67,6 +67,12 @@ pub struct TextInput {
     enabled: bool,
     placeholder: String,
     purpose: ImePurpose,
+    /// The revealed word (M102, ADR-0106): whether a secured
+    /// field's value rides revealed — the "show password" toggle's
+    /// state beside the constructor word. Meaningful only when
+    /// `purpose` is `Secure`; a plain field's value was always the
+    /// tree's read.
+    revealed: bool,
     font_size: f32,
     style: Style,
     on_changed: Option<ChangeHandler>,
@@ -118,6 +124,7 @@ impl TextInput {
             enabled: true,
             placeholder: String::new(),
             purpose: ImePurpose::Text,
+            revealed: false,
             font_size: crate::theme::FONT_SIZE,
             style: Style::default(),
             on_changed: None,
@@ -130,6 +137,29 @@ impl TextInput {
     pub fn secure(mut self) -> Self {
         self.purpose = ImePurpose::Secure;
         self
+    }
+
+    /// Mounts the field revealed (M102, ADR-0106): the initial state
+    /// of the "show password" toggle beside the secured constructor
+    /// word — the tree reads the ordinary editable word and the
+    /// field's ordinary value from the first frame. The live door is
+    /// [`TextInput::set_revealed`]; a field that declared no secret
+    /// entry carries no revealed word to say.
+    #[must_use]
+    pub fn revealed(mut self) -> Self {
+        self.revealed = true;
+        self
+    }
+
+    /// The reveal door (M102, ADR-0106): the app's "show password"
+    /// toggle moved live — the word the tree says and the value the
+    /// tree resolves follow it on the re-announcement the caller's
+    /// `PAINT | A11Y` request pays for (the mutate seam's shape, the
+    /// way every app-side write rides). A field that declared no
+    /// secret entry carries no revealed word: the flag moves, the
+    /// tree's answer stays the plain field's ordinary truth.
+    pub fn set_revealed(&mut self, revealed: bool) {
+        self.revealed = revealed;
     }
 
     /// Initial availability (M22, ADR-0028). An unavailable input paints
@@ -1195,6 +1225,14 @@ impl Widget for TextInput {
     /// constructor-immutable.
     fn secure_entry(&self) -> bool {
         self.purpose == ImePurpose::Secure
+    }
+
+    /// The reveal tier (M102, ADR-0106): the compound word — the
+    /// revealed state only where the secure word holds. A plain
+    /// field answers `false` whatever its toggle carries: the
+    /// honest absence, never a munged half.
+    fn secure_revealed(&self) -> bool {
+        self.purpose == ImePurpose::Secure && self.revealed
     }
 
     /// The availability tier (M22, ADR-0028): the flag the a11y tree

@@ -418,6 +418,33 @@ impl AccessKitSink {
                 alacer_core::widget::InvalidKind::Spelling => Invalid::Spelling,
             });
         }
+        // The selected tier (M108, ADR-0112): the collection member the
+        // collection picked maps AccessKit's `Selected` property, ARIA's
+        // `aria-selected` — the pick the AT reads beside the position the
+        // M6 slot already carried. The word prices nothing but the word:
+        // the member's doors answer exactly as they always did. The honest
+        // trio maps to the honest trio: `None` the member of no selection
+        // collection sets nothing (the absence ARIA spells `undefined`,
+        // never a guessed `false`), `Some(false)` the member standing
+        // unpicked beside its picked siblings, `Some(true)` the pick. The
+        // property rides the same node-only delta as every other property
+        // — a selected write re-announces exactly that node.
+        if let Some(selected) = node.selected {
+            access_node.set_selected(selected);
+        }
+        // The multiselectable tier (M109, ADR-0113): the container that
+        // allows more than one pick maps AccessKit's `Multiselectable`
+        // property, ARIA's `aria-multiselectable` — the capacity the AT
+        // reads beside the member picks the selected tier already
+        // carried. The word prices nothing but the word: the container's
+        // doors answer exactly as they always did. The honest absence
+        // maps to the absence: a container that declared nothing sets
+        // nothing, never a guessed capacity. The property rides the same
+        // node-only delta as every other property — a multiselectable
+        // write re-announces exactly that node.
+        if node.multiselectable {
+            access_node.set_multiselectable();
+        }
         if let Some(toggled) = node.toggled {
             access_node.set_toggled(match toggled {
                 alacer_core::widget::ToggleState::Off => Toggled::False,
@@ -586,6 +613,8 @@ mod tests {
                     read_only: false,
                     required: false,
                     invalid: None,
+                    selected: None,
+                    multiselectable: false,
                 },
                 TreeNode {
                     id: child_hash,
@@ -610,6 +639,8 @@ mod tests {
                     read_only: false,
                     required: false,
                     invalid: None,
+                    selected: None,
+                    multiselectable: false,
                 },
                 TreeNode {
                     id: other_hash,
@@ -634,6 +665,8 @@ mod tests {
                     read_only: false,
                     required: false,
                     invalid: None,
+                    selected: None,
+                    multiselectable: false,
                 },
             ],
         }
@@ -759,6 +792,80 @@ mod tests {
         assert!(required.is_required(), "the AT reads the declared word");
     }
 
+    #[test]
+    fn the_selected_tier_maps_onto_the_selected_property() {
+        // M108, ADR-0112: the collection member the collection picked
+        // maps AccessKit's `Selected` property, ARIA's `aria-selected` —
+        // the pick the AT reads beside the position the M6 slot already
+        // carried. The honest trio maps to the honest trio: the absence
+        // sets nothing (never a guessed `false`), the explicit word
+        // rides the node-only delta.
+        let mut sink = AccessKitSink::new();
+        let mut snap = snapshot();
+        snap.nodes[1].selected = Some(true);
+        sink.apply(
+            std::sync::Arc::new(snap),
+            &alacer_core::passes::A11yDelta {
+                updated: {
+                    let mut ids = FxHashSet::default();
+                    ids.insert(snap_root_and_child().1);
+                    ids
+                },
+                removed: Vec::new(),
+                focus: None,
+                initializes: false,
+            },
+        );
+        let update = sink.last_update().expect("the delta produced an update");
+        let selected = update
+            .nodes
+            .iter()
+            .find(|(id, _)| id.0 == snap_root_and_child().1)
+            .map(|(_, node)| node)
+            .expect("the selected node is re-emitted");
+        assert_eq!(
+            selected.is_selected(),
+            Some(true),
+            "the AT reads the declared word"
+        );
+    }
+
+    #[test]
+    fn the_multiselectable_tier_maps_onto_the_multiselectable_property() {
+        // M109, ADR-0113: the container that allows more than one pick
+        // maps AccessKit's `Multiselectable` property, ARIA's
+        // `aria-multiselectable` — the capacity the AT reads beside the
+        // member picks. The default is the honest absence: a container
+        // that declared nothing sets nothing.
+        let mut sink = AccessKitSink::new();
+        let mut snap = snapshot();
+        snap.nodes[1].multiselectable = true;
+        sink.apply(
+            std::sync::Arc::new(snap),
+            &alacer_core::passes::A11yDelta {
+                updated: {
+                    let mut ids = FxHashSet::default();
+                    ids.insert(snap_root_and_child().1);
+                    ids
+                },
+                removed: Vec::new(),
+                focus: None,
+                initializes: false,
+            },
+        );
+        let update = sink.last_update().expect("the delta produced an update");
+        let multiselectable = update
+            .nodes
+            .iter()
+            .find(|(id, _)| id.0 == snap_root_and_child().1)
+            .map(|(_, node)| node)
+            .expect("the multiselectable node is re-emitted");
+        assert!(
+            multiselectable.is_multiselectable(),
+            "the AT reads the declared word"
+        );
+    }
+
     /// The `(root, child)` hash pair the `snapshot()` helper mounts.
     fn snap_root_and_child() -> (u64, u64) {
         (111, 222)
@@ -817,6 +924,8 @@ mod tests {
             read_only: false,
             required: false,
             invalid: None,
+            selected: None,
+            multiselectable: false,
         });
         sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
         let update = sink.last_update().expect("update");
@@ -967,6 +1076,8 @@ mod tests {
                     read_only: false,
                     required: false,
                     invalid: None,
+                    selected: None,
+                    multiselectable: false,
                 },
                 TreeNode {
                     id: 2,
@@ -991,6 +1102,8 @@ mod tests {
                     read_only: false,
                     required: false,
                     invalid: None,
+                    selected: None,
+                    multiselectable: false,
                 },
                 TreeNode {
                     id: 3,
@@ -1015,6 +1128,8 @@ mod tests {
                     read_only: false,
                     required: false,
                     invalid: None,
+                    selected: None,
+                    multiselectable: false,
                 },
             ],
         };
@@ -1069,6 +1184,8 @@ mod tests {
                     read_only: false,
                     required: false,
                     invalid: None,
+                    selected: None,
+                    multiselectable: false,
                 },
                 TreeNode {
                     id: 2,
@@ -1093,6 +1210,8 @@ mod tests {
                     read_only: false,
                     required: false,
                     invalid: None,
+                    selected: None,
+                    multiselectable: false,
                 },
             ],
         };
@@ -1144,6 +1263,8 @@ mod tests {
             read_only: false,
             required: false,
             invalid: None,
+            selected: None,
+            multiselectable: false,
         }
     }
 
@@ -1233,6 +1354,8 @@ mod tests {
                     read_only: false,
                     required: false,
                     invalid: None,
+                    selected: None,
+                    multiselectable: false,
                 },
                 TreeNode {
                     id: 2,
@@ -1257,6 +1380,8 @@ mod tests {
                     read_only: false,
                     required: false,
                     invalid: None,
+                    selected: None,
+                    multiselectable: false,
                 },
             ],
         };
@@ -1312,6 +1437,8 @@ mod tests {
                     read_only: false,
                     required: false,
                     invalid: None,
+                    selected: None,
+                    multiselectable: false,
                 },
                 TreeNode {
                     id: 4,
@@ -1336,6 +1463,8 @@ mod tests {
                     read_only: false,
                     required: false,
                     invalid: None,
+                    selected: None,
+                    multiselectable: false,
                 },
             ],
         };
@@ -1388,6 +1517,8 @@ mod tests {
                     read_only: false,
                     required: false,
                     invalid: None,
+                    selected: None,
+                    multiselectable: false,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -1412,6 +1543,8 @@ mod tests {
                     read_only: false,
                     required: false,
                     invalid: None,
+                    selected: None,
+                    multiselectable: false,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -1475,6 +1608,8 @@ mod tests {
                     read_only: false,
                     required: false,
                     invalid: None,
+                    selected: None,
+                    multiselectable: false,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -1499,6 +1634,8 @@ mod tests {
                     read_only: false,
                     required: false,
                     invalid: None,
+                    selected: None,
+                    multiselectable: false,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -1556,6 +1693,8 @@ mod tests {
                     read_only: false,
                     required: false,
                     invalid: None,
+                    selected: None,
+                    multiselectable: false,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -1580,6 +1719,8 @@ mod tests {
                     read_only: false,
                     required: false,
                     invalid: None,
+                    selected: None,
+                    multiselectable: false,
                     scroll_orientation: None,
                     scroll_position: None,
                 },

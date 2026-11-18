@@ -119,6 +119,22 @@
       "op": "<=",
       "budget": 1.25,
       "cite": "the secure word rides the snapshot the field rides, ADR-0104: the bool and the mask the node builds beside the value's own copy \u2014 the measured ratio 0.95x on the dev host, the budget pricing the measured class, never a noise-floor claim"
+    },
+    {
+      "id": "scroll_position_snapshot_overhead",
+      "numerator": "scroll_position/snapshot_1k_scrolled",
+      "denominator": "orientation/snapshot_1k_vertical",
+      "op": "<=",
+      "budget": 1.25,
+      "cite": "the position rides the snapshot the axis word rides, ADR-0105: the two axis options the node builds beside the orientation word's own \u2014 the measured ratio 1.10x on the measurement host, the budget pricing the measured class, never a noise-floor claim"
+    },
+    {
+      "id": "secure_revealed_snapshot_overhead",
+      "numerator": "secure_revealed/snapshot_1k_revealed",
+      "denominator": "secure/snapshot_1k_secured",
+      "op": "<=",
+      "budget": 1.25,
+      "cite": "the reveal rides the snapshot the secure word rides, ADR-0106: the flag and the role branch the node answers beside the M100 masked copy's own \u2014 the measured ratio 1.03x on the measurement host, the budget pricing the measured class, never a noise-floor claim"
     }
   ],
   "regressions": [
@@ -680,6 +696,16 @@
     {
       "id": "secure_snapshot_1k_secured",
       "baseline": "secure/snapshot_1k_secured",
+      "scope": "same-host"
+    },
+    {
+      "id": "scroll_position_snapshot_1k_scrolled",
+      "baseline": "scroll_position/snapshot_1k_scrolled",
+      "scope": "same-host"
+    },
+    {
+      "id": "secure_revealed_snapshot_1k_revealed",
+      "baseline": "secure_revealed/snapshot_1k_revealed",
       "scope": "same-host"
     }
   ],

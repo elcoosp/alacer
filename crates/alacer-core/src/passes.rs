@@ -215,6 +215,26 @@ pub struct TreeNode {
     /// is the honest absence — a control that declared nothing
     /// announces nothing, never a guessed default.
     pub invalid: Option<crate::widget::InvalidKind>,
+    /// The collection member's selected word (M108, ADR-0112): whether
+    /// the member is the collection's pick — the word the AT reads
+    /// beside the position the M6 slot already carried (AccessKit's
+    /// `Selected` property, ARIA's `aria-selected`). The word prices
+    /// nothing but the word: the member's doors answer exactly as they
+    /// always did. The trio is the honest shape (the ADR-0087 presence
+    /// rule at the tier): `None` the member of no selection collection
+    /// — the absence ARIA spells `undefined`, never a guessed `false`;
+    /// `Some(false)` the member standing unpicked beside its picked
+    /// siblings; `Some(true)` the pick.
+    pub selected: Option<bool>,
+    /// The collection container's multiselectable word (M109, ADR-0113):
+    /// whether the container allows more than one pick — the capacity
+    /// the AT reads beside the member picks the selected tier already
+    /// carried (AccessKit's `Multiselectable` property, ARIA's
+    /// `aria-multiselectable`). The word prices nothing but the word:
+    /// the container's doors answer exactly as they always did.
+    /// `false` is the honest absence — a container that declared
+    /// nothing announces no capacity, never a guessed one.
+    pub multiselectable: bool,
 }
 
 /// The full accessibility snapshot of the widget tree, built by pass 9.
@@ -3980,6 +4000,8 @@ impl PassPipeline {
                 read_only: slot.widget().read_only(),
                 required: slot.widget().required(),
                 invalid: slot.widget().invalid(),
+                selected: slot.widget().selected(),
+                multiselectable: slot.widget().multiselectable(),
             };
             if snapshot.root.is_none() {
                 snapshot.root = Some(node.id);
@@ -4029,6 +4051,12 @@ impl PassPipeline {
                 // The pipeline's own node: no invalid word — the
                 // region's content is the announcement itself.
                 invalid: None,
+                // The pipeline's own node: no selected word — the
+                // region belongs to no selection collection.
+                selected: None,
+                // The pipeline's own node: no capacity word — the
+                // region carries no collection to size.
+                multiselectable: false,
             });
         }
         snapshot

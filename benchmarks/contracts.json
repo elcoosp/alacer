@@ -243,6 +243,15 @@
       "op": "<=",
       "budget": 1.25,
       "cite": "ADR-0119 (M115): the has-popup word rides the snapshot the button rides \u2014 the word's price the one Option the node carries; test-enforced nowhere, measured by criterion"
+    },
+    {
+      "id": "role_description_snapshot_overhead",
+      "metric": "median_ratio",
+      "numerator": "role_description/snapshot_1k_role_descriptions",
+      "denominator": "current/snapshot_1k_buttons_bare",
+      "op": "<=",
+      "budget": 1.25,
+      "cite": "ADR-0120 (M116): the role-description word rides the snapshot the button rides \u2014 the word's price the one Option<String> the node carries; test-enforced nowhere, measured by criterion"
     }
   ],
   "regressions": [
@@ -914,6 +923,11 @@
     {
       "id": "has_popup_snapshot_1k_has_popups",
       "baseline": "has_popup/snapshot_1k_has_popups",
+      "scope": "same-host"
+    },
+    {
+      "id": "role_description_snapshot_1k_role_descriptions",
+      "baseline": "role_description/snapshot_1k_role_descriptions",
       "scope": "same-host"
     }
   ],

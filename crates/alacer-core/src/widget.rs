@@ -1283,6 +1283,34 @@ pub trait Widget: 'static {
         None
     }
 
+    /// The role a custom control is *read as* (M116, ADR-0120): the
+    /// role-description tier's declared word — AccessKit's
+    /// `RoleDescription` property, ARIA's `aria-roledescription`, mapped
+    /// by `alacer-a11y` in the same snapshot every other property rides.
+    /// Through M115 the tree said what a control *does* (the description,
+    /// ADR-0099), what it opens (the has-popup tier, ADR-0119), the form
+    /// facts, the collection facts — and the word every custom-control
+    /// vocabulary speaks about what a widget is read as ("this slider is
+    /// a star rating, that canvas is a chart") had no tier: the AT
+    /// announced the generic role — "slider", "button" — and never the
+    /// specialized one — the declared-but-unreported gap, the M94
+    /// pattern at the role-description tier.
+    ///
+    /// The word prices the word and nothing else: a custom control's
+    /// doors answer exactly as they always did — the word names the
+    /// read-as role, it walls nothing, the control's press and focus
+    /// routes the widget's own (a tree that refused on the word's behalf
+    /// would price a contract it does not own).
+    ///
+    /// `None` is the honest absence (the ADR-0087 presence rule at the
+    /// tier): a control that declared nothing is read as the generic
+    /// role it already was — the attribute the AT read before the tier,
+    /// never a guessed specialization. The custom-control widgets
+    /// override this; every other role inherits the default.
+    fn role_description(&self) -> Option<&str> {
+        None
+    }
+
     /// The widget's toggle state for the a11y tree (M6): checkboxes report
     /// their checked state so screen readers announce "checked"/"not
     /// checked". Non-toggle roles return `None`.

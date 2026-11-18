@@ -377,7 +377,7 @@ fn m27_the_surface_rides_the_same_cut() {
         "the README's status block and ADR count re-agree at M27"
     );
     assert!(
-        readme.contains("route_100_outcome_moves_1k") || readme.contains("114 criterion cases"),
+        readme.contains("route_100_outcome_moves_1k") || readme.contains("118 criterion cases"),
         "the README's perf bullet rides the shipped corpus"
     );
     let architecture = std::fs::read_to_string(root.join("docs/architecture.md"))
@@ -393,7 +393,7 @@ fn m27_the_surface_rides_the_same_cut() {
     let m5 = std::fs::read_to_string(root.join("crates/alacer-testing/tests/m5_exit_criteria.rs"))
         .expect("the m5 suite");
     assert!(
-        m5.contains("const EXPECTED_BENCH_COUNT: usize = 114;"),
+        m5.contains("const EXPECTED_BENCH_COUNT: usize = 118;"),
         "the m5 suite's corpus pin moved to 61"
     );
     let contracts =

@@ -175,16 +175,12 @@ pub fn f64_to_f32(v: f64) -> f32 {
 /// Widens the pipeline's `f32` scroll currency to AccessKit's `f64`
 /// scroll-position properties (M101, ADR-0105) — the lossless direction:
 /// every `f32` is exactly representable in `f64`, the seam widening, never
-/// narrowing.
+/// narrowing. `From` carries it — no cast, no expectation to keep
+/// fulfilled (the widening direction stopped being a pedantic cast the
+/// day the lint learned the difference).
 #[must_use]
 pub fn f32_to_f64(v: f32) -> f64 {
-    #[expect(
-        clippy::cast_precision_loss,
-        reason = "f32 -> f64 is the lossless widening direction; every f32 value is exactly representable in f64"
-    )]
-    {
-        v as f64
-    }
+    f64::from(v)
 }
 
 #[cfg(test)]

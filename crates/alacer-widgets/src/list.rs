@@ -314,7 +314,7 @@ impl Widget for List {
     /// the minimal offsets that land the aimed node fully inside this
     /// viewport on both axes — and the list answers each axis by the
     /// same clamp arithmetic every door here answers by
-    /// ([`answer_axis_ask`]): the span walls, the named refusals, the
+    /// (`answer_axis_ask`): the span walls, the named refusals, the
     /// state moved only on a delivery. A vertical-only list answers
     /// the x half `no_scrollable_content` against its undeclared span
     /// (the honest wall, the ask the geometry priced riding beside

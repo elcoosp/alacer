@@ -288,6 +288,14 @@ pub struct TreeNode {
     /// always did. `None` is the honest absence — a control that opens
     /// nothing announces no target, never a guessed one.
     pub has_popup: Option<crate::widget::HasPopupKind>,
+    /// The custom control's role-description word (M116, ADR-0120): the
+    /// role the control is *read as* — the word the AT reads beside the
+    /// generic role (AccessKit's `RoleDescription` property, ARIA's
+    /// `aria-roledescription`). The word prices nothing but the word:
+    /// the control's doors answer exactly as they always did. `None` is
+    /// the honest absence — a control that declared nothing is read as
+    /// the generic role it already was, never a guessed specialization.
+    pub role_description: Option<String>,
 }
 
 /// The full accessibility snapshot of the widget tree, built by pass 9.
@@ -4061,6 +4069,7 @@ impl PassPipeline {
                 level: slot.widget().level(),
                 current: slot.widget().current(),
                 has_popup: slot.widget().has_popup(),
+                role_description: slot.widget().role_description().map(str::to_owned),
             };
             if snapshot.root.is_none() {
                 snapshot.root = Some(node.id);
@@ -4134,6 +4143,9 @@ impl PassPipeline {
                 // The pipeline's own node: nothing to open — the
                 // region speaks its own content.
                 has_popup: None,
+                // The pipeline's own node: no read-as role — the region
+                // is read as the live region it is.
+                role_description: None,
             });
         }
         snapshot

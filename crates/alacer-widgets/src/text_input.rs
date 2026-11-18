@@ -90,6 +90,11 @@ pub struct TextInput {
     /// rejection the AT reads while the user edits, the doors
     /// unchanged beside it. `None` the honest absence.
     invalid: Option<alacer_core::InvalidKind>,
+    /// The auto-complete tier's word (M111, ADR-0115): the suggestion
+    /// contract the field's completions ride — the word the AT reads
+    /// beside the hint, the doors unchanged beside it. `None` the
+    /// honest absence.
+    auto_complete: Option<alacer_core::AutoCompleteKind>,
     font_size: f32,
     style: Style,
     on_changed: Option<ChangeHandler>,
@@ -145,6 +150,7 @@ impl TextInput {
             read_only: false,
             required: false,
             invalid: None,
+            auto_complete: None,
             font_size: crate::theme::FONT_SIZE,
             style: Style::default(),
             on_changed: None,
@@ -265,6 +271,40 @@ impl TextInput {
             return false;
         }
         self.invalid = invalid;
+        true
+    }
+
+    /// Mounts the field's suggestion contract (M111, ADR-0115): the
+    /// auto-complete word declared — AccessKit's `AutoComplete`
+    /// property (ARIA's `aria-autocomplete`) says "this one completes
+    /// inline, that one lists them" to the AT beside the hint the
+    /// placeholder tier already carried. The word prices nothing but
+    /// the word: the field's doors answer exactly as they always did
+    /// (the suggestion contract is not a wall — the field stays
+    /// editable). The live door is [`TextInput::set_auto_complete`].
+    #[must_use]
+    pub fn auto_complete(mut self, auto_complete: alacer_core::AutoCompleteKind) -> Self {
+        self.auto_complete = Some(auto_complete);
+        self
+    }
+
+    /// The auto-complete door (M111, ADR-0115): the app's suggestion
+    /// contract moved live — the word the tree says follows it on the
+    /// re-announcement the caller's `PAINT | A11Y` request pays for
+    /// (the mutate seam's shape, the way every app-side write rides).
+    /// Report whether the word moved — the caller requests `A11Y` only
+    /// when this answers `true`, so a write that lands where the word
+    /// already is queues nothing (the M21 idle-frame property, at the
+    /// auto-complete tier). `None` clears the word — the honest
+    /// absence restored, the field ARIA spells `none`.
+    pub fn set_auto_complete(
+        &mut self,
+        auto_complete: Option<alacer_core::AutoCompleteKind>,
+    ) -> bool {
+        if self.auto_complete == auto_complete {
+            return false;
+        }
+        self.auto_complete = auto_complete;
         true
     }
 
@@ -1429,6 +1469,14 @@ impl Widget for TextInput {
     /// doors answer unchanged beside it.
     fn invalid(&self) -> Option<alacer_core::InvalidKind> {
         self.invalid
+    }
+
+    /// The auto-complete tier (M111, ADR-0115): the word the tree says
+    /// beside the field's suggestion contract — "this one completes
+    /// inline, that one lists them", the kind beside it, the AT reading
+    /// it beside the hint. The doors answer unchanged beside it.
+    fn auto_complete(&self) -> Option<alacer_core::AutoCompleteKind> {
+        self.auto_complete
     }
 
     /// The M11 a11y contract (ADR-0017): the focused input exposes its

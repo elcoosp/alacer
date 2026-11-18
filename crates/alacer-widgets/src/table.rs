@@ -176,6 +176,11 @@ pub struct TableRow {
     /// disclosure — `None` the honest absence, the row that opens and
     /// closes not.
     expanded: Option<bool>,
+    /// The level tier's word (M113, ADR-0117): the row's declared
+    /// hierarchical depth, zero-based (AccessKit's own base, beside
+    /// ARIA's one-based `aria-level`) — `None` the honest absence, the
+    /// flat row.
+    level: Option<usize>,
 }
 
 impl TableRow {
@@ -189,6 +194,7 @@ impl TableRow {
             },
             selected: None,
             expanded: None,
+            level: None,
         }
     }
 
@@ -255,6 +261,37 @@ impl TableRow {
         true
     }
 
+    /// Mounts the row's depth (M113, ADR-0117): the nested member's
+    /// place in the collection said by the tree from the first frame —
+    /// AccessKit's `Level` property (zero-based, beside ARIA's
+    /// one-based `aria-level`) names the depth to the AT beside the
+    /// position the M6 slot already carried. The word prices nothing
+    /// but the word: the row's doors answer exactly as they always did
+    /// — the word names the depth, it walls nothing. The app's live
+    /// door rides [`TableRow::set_level`].
+    #[must_use]
+    pub fn level(mut self, level: usize) -> Self {
+        self.level = Some(level);
+        self
+    }
+
+    /// The level door (M113, ADR-0117): the app's depth moved — the
+    /// word the tree says follows it on the re-announcement the
+    /// caller's `PAINT | A11Y` request pays for (the mutate seam's
+    /// shape, the way every app-side write rides). `None` clears the
+    /// word — the honest absence restored, the flat row. Report
+    /// whether the word moved — the caller requests `A11Y` only when
+    /// this answers `true`, so a write that lands where the word
+    /// already is queues nothing (the M21 idle-frame property, at the
+    /// level tier).
+    pub fn set_level(&mut self, level: Option<usize>) -> bool {
+        if self.level == level {
+            return false;
+        }
+        self.level = level;
+        true
+    }
+
     /// Layout styles.
     #[must_use]
     pub fn style(mut self, style: Style) -> Self {
@@ -295,6 +332,9 @@ impl Widget for TableRow {
     }
     fn expanded(&self) -> Option<bool> {
         self.expanded
+    }
+    fn level(&self) -> Option<usize> {
+        self.level
     }
 }
 
@@ -468,6 +508,9 @@ pub struct ColumnHeader {
     color: Option<Color>,
     font_size: f32,
     style: Style,
+    /// The sort direction tier's word (M112, ADR-0116): the order the
+    /// column holds its rows in — `None` the honest absence.
+    sort_direction: Option<alacer_core::SortDirection>,
 }
 
 impl ColumnHeader {
@@ -483,7 +526,44 @@ impl ColumnHeader {
                 padding: 6.0,
                 ..Style::default()
             },
+            sort_direction: None,
         }
+    }
+
+    /// Mounts the sorted column (M112, ADR-0116): the order the column
+    /// holds its rows in, said by the tree from the first frame —
+    /// AccessKit's `SortDirection` property (ARIA's `aria-sort`) names
+    /// the order to the AT beside the position the M6 slot already
+    /// carried. The word prices nothing but the word: the column's
+    /// doors answer exactly as they always did — the word names the
+    /// order, it walls nothing. The app's live door rides
+    /// [`ColumnHeader::set_sort`].
+    #[must_use]
+    pub fn sort(mut self, sort_direction: alacer_core::SortDirection) -> Self {
+        self.sort_direction = Some(sort_direction);
+        self
+    }
+
+    /// The sort door (M112, ADR-0116): the app's column order moved —
+    /// the word the tree says follows it on the re-announcement the
+    /// caller's `PAINT | A11Y` request pays for (the mutate seam's
+    /// shape, the way every app-side write rides). `None` restores the
+    /// honest absence. Report whether the word moved — the caller
+    /// requests `A11Y` only when this answers `true`, so a write that
+    /// lands where the word already is queues nothing (the M21
+    /// idle-frame property, at the sort direction tier).
+    pub fn set_sort(&mut self, sort_direction: Option<alacer_core::SortDirection>) -> bool {
+        if self.sort_direction == sort_direction {
+            return false;
+        }
+        self.sort_direction = sort_direction;
+        true
+    }
+
+    /// The column's declared order (test introspection).
+    #[must_use]
+    pub const fn sort_direction(&self) -> Option<alacer_core::SortDirection> {
+        self.sort_direction
     }
 
     /// Text color. Without it the header borrows the theme's muted
@@ -531,6 +611,9 @@ impl Widget for ColumnHeader {
         Some(TableSlot::Header {
             column: self.column,
         })
+    }
+    fn sort_direction(&self) -> Option<alacer_core::SortDirection> {
+        self.sort_direction
     }
     fn measure_spec(&self) -> Option<MeasureSpec> {
         Some(MeasureSpec::Fixed(self.intrinsic()))
@@ -684,6 +767,93 @@ mod tests {
         let header = ColumnHeader::new("Name", 0);
         assert_eq!(header.role(), Role::ColumnHeader);
         assert_eq!(header.table_slot(), Some(TableSlot::Header { column: 0 }));
+    }
+
+    #[test]
+    fn headers_carry_their_sort_word() {
+        // M112, ADR-0116: the constructor word is the trait door's
+        // answer — the order the AT reads beside the header's column
+        // position — and the door moves it live, the idle-frame
+        // property on the write that lands where the word already is.
+        use alacer_core::SortDirection;
+        let mut header = ColumnHeader::new("Price", 2).sort(SortDirection::Ascending);
+        assert_eq!(
+            header.sort_direction(),
+            Some(SortDirection::Ascending),
+            "the constructor's word is the trait door's answer"
+        );
+        assert!(
+            header.set_sort(Some(SortDirection::Descending)),
+            "the door reports the word moved"
+        );
+        assert_eq!(
+            header.sort_direction(),
+            Some(SortDirection::Descending),
+            "the door moved the word the tree says"
+        );
+        assert!(
+            !header.set_sort(Some(SortDirection::Descending)),
+            "the write that lands where the word already is queues nothing"
+        );
+        assert!(header.set_sort(None), "the door carries the word away");
+        assert!(
+            header.sort_direction().is_none(),
+            "the honest absence restored"
+        );
+        assert!(
+            !header.set_sort(None),
+            "clearing the absence twice queues nothing"
+        );
+    }
+
+    #[test]
+    fn headers_without_a_word_inherit_the_honest_absence() {
+        // M112, ADR-0116: a header that declared nothing announces no
+        // order — ARIA's `none` spelled by `None`, never a guessed
+        // direction.
+        let header = ColumnHeader::new("Name", 0);
+        assert!(header.sort_direction().is_none());
+    }
+
+    #[test]
+    fn rows_carry_their_level_word() {
+        // M113, ADR-0117: the constructor word is the trait door's
+        // answer — the zero-based depth the AT reads beside the row's
+        // grid position — and the door moves it live, the idle-frame
+        // property on the write that lands where the word already is.
+        // The read goes through the trait explicitly: the inherent
+        // builder shares the door's name, the way every constructor
+        // word does.
+        let mut row = TableRow::new().level(2);
+        assert_eq!(
+            Widget::level(&row),
+            Some(2),
+            "the constructor's word is the trait door's answer — zero-based, AccessKit's own base"
+        );
+        assert!(row.set_level(Some(1)), "the door reports the word moved");
+        assert_eq!(
+            Widget::level(&row),
+            Some(1),
+            "the door moved the word the tree says"
+        );
+        assert!(
+            !row.set_level(Some(1)),
+            "the write that lands where the word already is queues nothing"
+        );
+        assert!(row.set_level(None), "the door carries the word away");
+        assert!(Widget::level(&row).is_none(), "the honest absence restored");
+        assert!(
+            !row.set_level(None),
+            "clearing the absence twice queues nothing"
+        );
+    }
+
+    #[test]
+    fn rows_without_a_word_inherit_the_honest_absence() {
+        // M113, ADR-0117: a row that declared nothing announces no
+        // depth — the flat row, never a guessed `0`.
+        let row = TableRow::new();
+        assert!(Widget::level(&row).is_none());
     }
 
     #[test]

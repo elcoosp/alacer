@@ -233,5 +233,34 @@ fn bench_churn_tick(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_churn_tick);
+/// The timed idle tick's own price (M104, ADR-0108): timings on, no work
+/// due — the skips the ledger records, the per-frame rebuild the timed
+/// path pays instead of the idle ledger's handle, and the clock reads
+/// each priced pass. Two shapes beside each other: the shipped fallback
+/// (the anchor's real reads) and the seam ride (a
+/// [`alacer_core::time::ManualClock`] behind the door) — the
+/// `timed_tick_seam_overhead` ratio budget (≤ 1.25×) holding the seam's
+/// indirection at the fallback's own class (ADR-0011).
+fn bench_timed_idle_tick(c: &mut Criterion) {
+    let mut group = c.benchmark_group("pass/overhead");
+    group.throughput(Throughput::Elements(10_000));
+    let viewport = Size::new(400.0, 800.0);
+
+    let (mut pipeline, _cells) = churn_pipeline(100, 100);
+    pipeline.set_timings(true);
+    group.bench_function("timed_idle_10k", |b| {
+        b.iter(|| black_box(pipeline.tick(viewport).expect("timed idle frame")));
+    });
+
+    let (mut pipeline, _cells) = churn_pipeline(100, 100);
+    pipeline.set_timings(true);
+    pipeline.set_clock(Box::new(alacer_core::time::ManualClock::new()));
+    group.bench_function("seamed_timed_idle_10k", |b| {
+        b.iter(|| black_box(pipeline.tick(viewport).expect("seamed timed idle frame")));
+    });
+
+    group.finish();
+}
+
+criterion_group!(benches, bench_churn_tick, bench_timed_idle_tick);
 criterion_main!(benches);

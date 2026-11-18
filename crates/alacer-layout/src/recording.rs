@@ -11,7 +11,7 @@
 //! engine (the seam is public on purpose) — never by the framework (the
 //! A7 rule the alloc ledger shipped by, ADR-0088).
 //! [`crate::LayoutHost`] stays the production stage;
-//! [`alacer_testing::TestHarness::with_layout`] is the harness door that
+//! `alacer_testing::TestHarness::with_layout` is the harness door that
 //! drives the instrument through the real pipeline.
 
 use alacer_core::arena::NodeId;

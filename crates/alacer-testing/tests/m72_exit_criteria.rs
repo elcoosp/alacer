@@ -440,7 +440,7 @@ fn m72_the_living_documents_re_agree() {
     );
     let m5 = read_workspace_file("crates/alacer-testing/tests/m5_exit_criteria.rs");
     assert!(
-        m5.contains("const EXPECTED_BENCH_COUNT: usize = 134;"),
+        m5.contains("const EXPECTED_BENCH_COUNT: usize = 135;"),
         "the m5 suite's corpus const re-agrees with the published baseline"
     );
 }

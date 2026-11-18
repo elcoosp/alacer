@@ -522,6 +522,61 @@ pub enum SortDirection {
     Other,
 }
 
+/// The current tier's declared kind (M114, ADR-0118): *which* item of a
+/// set the reader stands in, carried neutrally to the a11y sink.
+/// `alacer-a11y` maps the word onto AccessKit's `AriaCurrent` property —
+/// ARIA's `aria-current` — the variants AccessKit's own six values
+/// (`true` / `page` / `step` / `location` / `date` / `time`), so the AT
+/// reads the currency and its flavor in one fact. ARIA's `false` (the
+/// attribute's absent default) is the honest absence —
+/// [`Widget::current`] answering `None` — never a variant of its own.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CurrentKind {
+    /// The set's current item, with no finer flavor to name
+    /// (`aria-current="true"`).
+    True,
+    /// The item is the page the reader stands on — the nav's page
+    /// (`aria-current="page"`).
+    Page,
+    /// The item is the step the reader stands at — the wizard's step
+    /// (`aria-current="step"`).
+    Step,
+    /// The item is the place the reader stands in — the flow's location
+    /// (`aria-current="location"`).
+    Location,
+    /// The item is the day the reader stands on — the calendar's today
+    /// (`aria-current="date"`).
+    Date,
+    /// The item is the time the reader stands at — the schedule's now
+    /// (`aria-current="time"`).
+    Time,
+}
+
+/// The has-popup tier's declared kind (M115, ADR-0119): *what* a
+/// control opens, carried neutrally to the a11y sink. `alacer-a11y`
+/// maps the word onto AccessKit's `HasPopup` property — ARIA's
+/// `aria-haspopup` — the variants AccessKit's own five values (`menu` /
+/// `listbox` / `tree` / `grid` / `dialog`), so the AT reads the target
+/// and its shape in one fact. The attribute's unset state is the honest
+/// absence — [`Widget::has_popup`] answering `None` — never a variant
+/// of its own (ARIA's `true` and `false` ride `Menu` and the unset
+/// attribute respectively, the values the platform maps).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HasPopupKind {
+    /// The control opens a menu (`aria-haspopup="menu"`).
+    Menu,
+    /// The control opens a listbox — the combobox's pick list
+    /// (`aria-haspopup="listbox"`).
+    Listbox,
+    /// The control opens a tree (`aria-haspopup="tree"`).
+    Tree,
+    /// The control opens a grid — the date picker's cells
+    /// (`aria-haspopup="grid"`).
+    Grid,
+    /// The control opens a dialog (`aria-haspopup="dialog"`).
+    Dialog,
+}
+
 /// What happened to a routed event.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum EventResponse {
@@ -1164,6 +1219,67 @@ pub trait Widget: 'static {
     /// before the tier, never a guessed `0`. The collection members
     /// override this; every other role inherits the default.
     fn level(&self) -> Option<usize> {
+        None
+    }
+
+    /// The set's current item (M114, ADR-0118): the current tier's
+    /// declared word — AccessKit's `AriaCurrent` property, ARIA's
+    /// `aria-current`, mapped by `alacer-a11y` in the same snapshot
+    /// every other property rides, the kind ([`CurrentKind`]) riding
+    /// beside the word. Through M113 the tree said where a member sits
+    /// in its grid (the M6 slot's zero-based row and column), the
+    /// form's ask and the form's rejection, the collection's pick,
+    /// capacity and disclosure, the field's suggestion contract, the
+    /// sorted column's order, the nested member's depth — and the word
+    /// every navigation and wizard vocabulary speaks about which item
+    /// the reader stands in ("this one is the page we're on, that step
+    /// is where we are") had no tier: the AT announced the name, the
+    /// position, the form facts — and never the currency — the
+    /// declared-but-unreported gap, the M94 pattern at the current tier.
+    ///
+    /// The word prices the word and nothing else: a current item's
+    /// doors answer exactly as they always did — the word names the
+    /// currency, it walls nothing, the item's press and focus routes
+    /// the widget's own (a tree that refused on the word's behalf would
+    /// price a contract it does not own).
+    ///
+    /// `None` is the honest absence (the ADR-0087 presence rule at the
+    /// tier): an item that declared nothing announces no currency —
+    /// ARIA's `false` (the attribute's absent default) the absence
+    /// spelled by `None`, never a guessed flavor. The item widgets
+    /// override this; every other role inherits the default.
+    fn current(&self) -> Option<CurrentKind> {
+        None
+    }
+
+    /// The target the control opens (M115, ADR-0119): the has-popup
+    /// tier's declared word — AccessKit's `HasPopup` property, ARIA's
+    /// `aria-haspopup`, mapped by `alacer-a11y` in the same snapshot
+    /// every other property rides, the kind ([`HasPopupKind`]) riding
+    /// beside the word. Through M114 the tree said what a control
+    /// *does*, what an empty field *hints*, the span a value rides, the
+    /// form's ask and the form's rejection, the collection's pick,
+    /// capacity and disclosure, the field's suggestion contract, the
+    /// sorted column's order, the nested member's depth, the set's
+    /// current item — and the word every menu-and-picker vocabulary
+    /// speaks about what a control opens ("this one opens a menu, that
+    /// one a dialog") had no tier: the AT announced the name, the
+    /// currency, the form facts — and never the target — the
+    /// declared-but-unreported gap, the M94 pattern at the has-popup
+    /// tier.
+    ///
+    /// The word prices the word and nothing else: a popup opener's
+    /// doors answer exactly as they always did — the word names the
+    /// target, it walls nothing, the opener's press and focus routes
+    /// the widget's own (a tree that refused on the word's behalf would
+    /// price a contract it does not own).
+    ///
+    /// `None` is the honest absence (the ADR-0087 presence rule at the
+    /// tier): a control that opens nothing announces no target — the
+    /// attribute the AT read before the tier, never a guessed one. The
+    /// opener widgets override this; every other role inherits the
+    /// default.
+    fn has_popup(&self) -> Option<HasPopupKind> {
         None
     }
 

@@ -70,14 +70,11 @@ fn row_word(tree: Option<&alacer_core::passes::TreeSnapshot>, index: usize) -> S
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
-    let word = rows
-        .get(index)
-        .map(|row| match row.selected {
-            Some(true) => "selected",
-            Some(false) => "unpicked",
-            None => "no word",
-        })
-        .unwrap_or("absent");
+    let word = rows.get(index).map_or("absent", |row| match row.selected {
+        Some(true) => "selected",
+        Some(false) => "unpicked",
+        None => "no word",
+    });
     format!("row {} ({word})", index + 1)
 }
 

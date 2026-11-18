@@ -286,9 +286,19 @@ fn run_session(
                 had_work = true;
             }
             ClientFrame::Pong => break,
-            // RFC 6455 §5.5.1: echo the close reason back, then end.
+            // RFC 6455 §5.5.1: echo the close reason back, then end. The
+            // echo's own failure is named, never swallowed: the socket
+            // that died mid-session is the dead panel's one clue (the
+            // malformed frame's rule at the write tier — the operator
+            // debugging a silent client has something to read).
             ClientFrame::Close(payload) => {
-                let _ = send_frame(stream, 0x8, &payload);
+                if let Err(error) = send_frame(stream, 0x8, &payload) {
+                    tracing::debug!(
+                        target: "alacer::inspect",
+                        error = %error,
+                        "the close echo refused to write — the session's socket is already gone"
+                    );
+                }
                 break;
             }
         }
@@ -299,7 +309,16 @@ fn run_session(
             std::thread::sleep(std::time::Duration::from_millis(2));
         }
     }
-    let _ = send_frame(stream, 0x8, &[]);
+    // The session's goodbye. Its failure is named, never swallowed —
+    // the operator debugging a panel that went dark reads the error,
+    // not a silent drop (the accept loop's rule at the write tier).
+    if let Err(error) = send_frame(stream, 0x8, &[]) {
+        tracing::debug!(
+            target: "alacer::inspect",
+            error = %error,
+            "the session's close frame refused to write — the socket is already gone"
+        );
+    }
     Ok(())
 }
 

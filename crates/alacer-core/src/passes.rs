@@ -98,6 +98,10 @@ pub trait LayoutEngine {
 /// the toggle state and the table slot: the checkbox's checked state and the
 /// data-table grid geometry ride the same snapshot.
 #[derive(Debug, Clone, PartialEq)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "a tree node's declared facts are exactly independent booleans by domain definition — availability, secret entry, reveal, read-only and required are the tiers' own words, each `false` an honest absence, never a state machine"
+)]
 pub struct TreeNode {
     /// AccessKit-stable node id: the id-path hash (§6.3).
     pub id: u64,
@@ -185,6 +189,24 @@ pub struct TreeNode {
     /// contract names it. `false` is the honest absence — the
     /// masked answer M100 handed over.
     pub secure_revealed: bool,
+    /// The field's read-only word (M105, ADR-0109): whether the
+    /// control's value is the app's — the declared word the read
+    /// doors answer beside (focus, caret, selection, copy) and the
+    /// write doors refuse at (the typing door, the clipboard's write
+    /// chords, the IME's commit, the AT's `SetValue` /
+    /// `ReplaceSelectedText`), carried as AccessKit's `ReadOnly`
+    /// property. `false` is the honest absence — an editable field
+    /// declares nothing, and the tree reads exactly as it read before
+    /// the tier.
+    pub read_only: bool,
+    /// The control's required word (M106, ADR-0110): whether it must
+    /// carry a value before the form's submit fires — the word the AT
+    /// reads before it asks (AccessKit's `Required` property). The
+    /// word prices nothing but the word: the control's doors answer
+    /// exactly as they always did. `false` is the honest absence — a
+    /// control that declared nothing announces nothing, never a
+    /// guessed default.
+    pub required: bool,
 }
 
 /// The full accessibility snapshot of the widget tree, built by pass 9.
@@ -3947,6 +3969,8 @@ impl PassPipeline {
                 secure_revealed,
                 scroll_orientation: slot.widget().scroll_orientation(),
                 scroll_position: slot.widget().scroll_position(),
+                read_only: slot.widget().read_only(),
+                required: slot.widget().required(),
             };
             if snapshot.root.is_none() {
                 snapshot.root = Some(node.id);
@@ -3989,6 +4013,10 @@ impl PassPipeline {
                 secure_revealed: false,
                 scroll_orientation: None,
                 scroll_position: None,
+                // The pipeline's own node: no read-only word — the
+                // region's content is the announcement itself.
+                read_only: false,
+                required: false,
             });
         }
         snapshot

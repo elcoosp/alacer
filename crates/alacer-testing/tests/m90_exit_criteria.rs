@@ -63,7 +63,7 @@ const TONE_SPLIT: f32 = 60.0;
 
 /// The suite's beat count never pins the corpus here — that is the
 /// coordinated-rule test's own pin below.
-const EXPECTED_BENCH_COUNT: usize = 112;
+const EXPECTED_BENCH_COUNT: usize = 114;
 
 /// The suite's own read door into the published corpus: the id the
 /// handle door's bench case publishes (the coordinated rule's bench
@@ -618,7 +618,7 @@ fn m90_the_corpus_grew_by_the_coordinated_rule() {
     let m5 = std::fs::read_to_string(root.join("crates/alacer-testing/tests/m5_exit_criteria.rs"))
         .expect("the m5 suite is readable");
     assert!(
-        m5.contains("const EXPECTED_BENCH_COUNT: usize = 112;"),
+        m5.contains("const EXPECTED_BENCH_COUNT: usize = 114;"),
         "the m5 corpus pin re-agrees at the M90 cut"
     );
 }

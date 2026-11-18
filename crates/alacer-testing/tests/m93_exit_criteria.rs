@@ -28,7 +28,7 @@ use std::sync::Arc;
 /// The suite's corpus pin: the coordinated rule's count at the M93 cut —
 /// the recording route's two cases joining the derive route's pair (M92)
 /// on the published corpus.
-const EXPECTED_BENCH_COUNT: usize = 118;
+const EXPECTED_BENCH_COUNT: usize = 120;
 
 /// The suite's own read doors into the published corpus: the recording
 /// wrapper's honesty cases (the coordinated rule's bench half,
@@ -247,7 +247,7 @@ fn m93_the_corpus_grew_by_the_coordinated_rule() {
     let m5 = std::fs::read_to_string(root.join("crates/alacer-testing/tests/m5_exit_criteria.rs"))
         .expect("the m5 suite is readable");
     assert!(
-        m5.contains("const EXPECTED_BENCH_COUNT: usize = 118;"),
+        m5.contains("const EXPECTED_BENCH_COUNT: usize = 120;"),
         "the m5 corpus pin re-agrees at the M93 cut"
     );
 }

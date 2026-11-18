@@ -365,8 +365,8 @@ fn m71_the_frame_refusals_carry_their_stable_tags() {
 fn m71_the_living_documents_re_agree() {
     let readme = read_workspace_file("README.md");
     for fragment in [
-        "M0 through M102",
-        "a hundred and seven decision records",
+        "M0 through M107",
+        "a hundred and twelve decision records",
         "Since M71 the frame's refusals answer on the log too",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
@@ -375,7 +375,7 @@ fn m71_the_living_documents_re_agree() {
     let architecture = read_workspace_file("docs/architecture.md");
     for fragment in [
         "ADR-0077",
-        "a hundred and seven decision records",
+        "a hundred and twelve decision records",
         "the frame's refusals join the causal log",
     ] {
         assert!(
@@ -405,7 +405,7 @@ fn m71_the_living_documents_re_agree() {
     // The sibling suites' pins ride the same cut (one sweep, no drift).
     let m70 = read_workspace_file("crates/alacer-testing/tests/m70_exit_criteria.rs");
     assert!(
-        m70.contains("M0 through M102"),
+        m70.contains("M0 through M107"),
         "the m70 suite's pins moved with the documents"
     );
 }

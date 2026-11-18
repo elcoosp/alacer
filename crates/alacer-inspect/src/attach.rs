@@ -222,11 +222,25 @@ pub fn attach_inspector(
     pipeline.set_observer(Box::new(observer));
 
     // The accept loop on its own thread — the schematic's last step,
-    // named for the reader that debugs a dead panel.
-    let thread = std::thread::Builder::new()
+    // named for the reader that debugs a dead panel. A spawn refusal is
+    // named too (ADR-0029's observability discipline at the accept
+    // loop's own tier): the attach answers, but the trail would have
+    // stayed silent with no fact saying why — the warn is the dead
+    // panel's one clue, at the same target the session errors ride.
+    let thread = match std::thread::Builder::new()
         .name("alacer-inspector".to_string())
         .spawn(move || server.serve_forever())
-        .ok();
+    {
+        Ok(handle) => Some(handle),
+        Err(error) => {
+            tracing::warn!(
+                target: "alacer::inspect",
+                %error,
+                "the inspector's accept loop failed to spawn; the causal stream stays silent — re-attach to retry"
+            );
+            None
+        }
+    };
 
     tracing::info!(
         target: "alacer::inspect",

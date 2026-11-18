@@ -1220,8 +1220,12 @@ fn size_px(v: f32) -> u32 {
 }
 
 /// The double-click window (GTK's default press-chain interval): two
-/// presses inside it and within [`DOUBLE_CLICK_SLOP`] form one chain.
-const DOUBLE_CLICK_TIME: std::time::Duration = std::time::Duration::from_millis(400);
+/// presses within 400 ms of each other and within
+/// [`DOUBLE_CLICK_SLOP`] form one chain. Since M103 (ADR-0107) the
+/// bound rides the time seam's own unit — the nanos the
+/// [`alacer_core::time::TimeSeam`] reads answer — one constant, never
+/// a second clock-shaped fact.
+const DOUBLE_CLICK_NANOS: u64 = 400_000_000;
 
 /// The press-chain slop: a second press farther than this many pixels
 /// from the previous one starts a fresh chain (GTK's double-click
@@ -1229,26 +1233,58 @@ const DOUBLE_CLICK_TIME: std::time::Duration = std::time::Duration::from_millis(
 const DOUBLE_CLICK_SLOP: f32 = 4.0;
 
 /// Tracks the platform's click chain: presses within
-/// [`DOUBLE_CLICK_TIME`] of the previous one and within
+/// [`DOUBLE_CLICK_NANOS`] of the previous one and within
 /// [`DOUBLE_CLICK_SLOP`] of it count up (1, 2, 3 — the single click, the
 /// double-click, the triple), a press outside either bound starts a fresh
 /// chain at 1. The count rides every [`PointerEvent::Down`] so widgets see
 /// which gesture the user's hand made (§10.3, ADR-0019) — the platform
-/// owns the clock, the widget never does.
-#[derive(Default)]
-struct ClickCounter {
-    /// The previous press: when it landed and where.
-    last: Option<(std::time::Instant, Point)>,
+/// owns the clock, the widget never does. Since M103 (ADR-0107) the
+/// clock it owns rides the time seam
+/// ([`alacer_core::time::TimeSeam`]) — the M13 block's pre-registered
+/// gap ("the time bound rides `Instant` and is not sleep-tested")
+/// cashed: the window is priced by whatever clock the counter holds,
+/// the canon [`alacer_core::time::MonotonicClock`] in the default
+/// build, a deterministic [`alacer_core::time::ManualClock`] in the
+/// tests that now assert the window exactly.
+pub struct ClickCounter {
+    /// The clock the chain's window is priced by (the time seam,
+    /// ADR-0107): reads answer monotonic nanoseconds, deltas compared
+    /// against [`DOUBLE_CLICK_NANOS`].
+    clock: Box<dyn alacer_core::time::TimeSeam>,
+    /// The previous press: when it landed (the seam's own nanos) and
+    /// where.
+    last: Option<(u64, Point)>,
     /// The chain's running count.
     count: u8,
 }
 
+impl Default for ClickCounter {
+    fn default() -> Self {
+        Self {
+            clock: Box::new(alacer_core::time::MonotonicClock::new()),
+            last: None,
+            count: 0,
+        }
+    }
+}
+
 impl ClickCounter {
+    /// A chain priced by an injected clock — the seam's own door (the
+    /// tests' deterministic shape; the default build rides the canon).
+    #[must_use]
+    pub fn with_clock(clock: Box<dyn alacer_core::time::TimeSeam>) -> Self {
+        Self {
+            clock,
+            last: None,
+            count: 0,
+        }
+    }
+
     /// Records a press at `at` and returns its click count.
-    fn on_down(&mut self, at: Point) -> u8 {
-        let now = std::time::Instant::now();
+    pub fn on_down(&mut self, at: Point) -> u8 {
+        let now = self.clock.now_nanos();
         let chained = self.last.take().is_some_and(|(then, before)| {
-            now.duration_since(then) <= DOUBLE_CLICK_TIME
+            now.saturating_sub(then) <= DOUBLE_CLICK_NANOS
                 && (at - before).length() <= DOUBLE_CLICK_SLOP
         });
         self.count = if chained {
@@ -1374,6 +1410,73 @@ mod tests {
             "outside the slop: a fresh click, not a chain step"
         );
         assert_eq!(clicks.on_down(Point::new(100.0, 10.0)), 2);
+    }
+
+    // ------------------------------------------------------------------
+    // M103 (ADR-0107): the chain's clock rides the time seam — the M13
+    // block's pre-registered gap ("the time bound rides `Instant` and is
+    // not sleep-tested") cashed. A manual clock prices the window
+    // deterministically: no sleeps, no hoping the scheduler agrees.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn a_press_within_the_window_chains() {
+        let clock = alacer_core::time::ManualClock::new();
+        let mut clicks = super::ClickCounter::with_clock(Box::new(clock.clone()));
+        assert_eq!(clicks.on_down(Point::new(10.0, 10.0)), 1, "a fresh click");
+        clock.advance(std::time::Duration::from_millis(200));
+        assert_eq!(
+            clicks.on_down(Point::new(11.0, 10.0)),
+            2,
+            "200 ms inside the 400 ms window: the double-click"
+        );
+    }
+
+    #[test]
+    fn a_press_outside_the_window_starts_a_fresh_chain() {
+        let clock = alacer_core::time::ManualClock::new();
+        let mut clicks = super::ClickCounter::with_clock(Box::new(clock.clone()));
+        assert_eq!(clicks.on_down(Point::new(10.0, 10.0)), 1);
+        clock.advance(std::time::Duration::from_millis(500));
+        assert_eq!(
+            clicks.on_down(Point::new(10.0, 10.0)),
+            1,
+            "500 ms after the first press: past the window, a fresh click even at the same spot"
+        );
+    }
+
+    #[test]
+    fn the_window_bound_is_inclusive() {
+        let clock = alacer_core::time::ManualClock::new();
+        let mut clicks = super::ClickCounter::with_clock(Box::new(clock.clone()));
+        assert_eq!(clicks.on_down(Point::new(10.0, 10.0)), 1);
+        clock.advance(std::time::Duration::from_millis(400));
+        assert_eq!(
+            clicks.on_down(Point::new(10.0, 10.0)),
+            2,
+            "exactly the window's own width: the chain holds (the ≤ bound)"
+        );
+    }
+
+    #[test]
+    fn the_triple_rides_the_seam_clock() {
+        let clock = alacer_core::time::ManualClock::new();
+        let mut clicks = super::ClickCounter::with_clock(Box::new(clock.clone()));
+        assert_eq!(clicks.on_down(Point::new(10.0, 10.0)), 1);
+        clock.advance(std::time::Duration::from_millis(150));
+        assert_eq!(clicks.on_down(Point::new(10.5, 10.0)), 2);
+        clock.advance(std::time::Duration::from_millis(150));
+        assert_eq!(
+            clicks.on_down(Point::new(11.0, 10.0)),
+            3,
+            "two chained presses inside the window: the triple"
+        );
+        clock.advance(std::time::Duration::from_millis(450));
+        assert_eq!(
+            clicks.on_down(Point::new(11.0, 10.0)),
+            1,
+            "the stale chain resets once the window passes"
+        );
     }
 
     // ------------------------------------------------------------------

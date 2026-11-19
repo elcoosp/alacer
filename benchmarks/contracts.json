@@ -252,6 +252,15 @@
       "op": "<=",
       "budget": 1.25,
       "cite": "ADR-0120 (M116): the role-description word rides the snapshot the button rides \u2014 the word's price the one Option<String> the node carries; test-enforced nowhere, measured by criterion"
+    },
+    {
+      "id": "busy_snapshot_overhead",
+      "metric": "median_ratio",
+      "numerator": "busy/snapshot_1k_lists_busy",
+      "denominator": "busy/snapshot_1k_lists_bare",
+      "op": "<=",
+      "budget": 1.25,
+      "cite": "ADR-0121 (M117): the busy word rides the snapshot the container rides \u2014 the word's price the one bool the node carries; test-enforced nowhere, measured by criterion"
     }
   ],
   "regressions": [
@@ -928,6 +937,16 @@
     {
       "id": "role_description_snapshot_1k_role_descriptions",
       "baseline": "role_description/snapshot_1k_role_descriptions",
+      "scope": "same-host"
+    },
+    {
+      "id": "busy_snapshot_1k_lists_busy",
+      "baseline": "busy/snapshot_1k_lists_busy",
+      "scope": "same-host"
+    },
+    {
+      "id": "busy_snapshot_1k_lists_bare",
+      "baseline": "busy/snapshot_1k_lists_bare",
       "scope": "same-host"
     }
   ],

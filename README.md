@@ -42,8 +42,8 @@
 
 | Contract                                              | Baseline                                        | Enforced by                                                                                            |
 | ----------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Incremental relayout, 10 000 nodes @ 10 % style churn | **14.30×** vs full rebuild                      | ≥ 2× gate, `alacer-layout/tests/w1_gate.rs`                                                            |
-| 50-event pointer storm                                | **1** coalesced dispatch (**39.71×**)           | `input_storm_batching` budget                                                                          |
+| Incremental relayout, 10 000 nodes @ 10 % style churn | **14.44×** vs full rebuild                      | ≥ 2× gate, `alacer-layout/tests/w1_gate.rs`                                                            |
+| 50-event pointer storm                                | **1** coalesced dispatch (**40.08×**)           | `input_storm_batching` budget                                                                          |
 | 10k-node churn frame vs egui, same host               | 1.10 ms vs 20.7 ms full frame (**18.8×**)       | 5-run medians, declared rig (`benchmarks/rig.json`)                                                    |
 | …vs Masonry                                           | 1.10 ms vs 4.6 ms full pass pipeline (**4.2×**) | same rig, `scripts/run_comparison.py`                                                                  |
 | All 144 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
@@ -86,7 +86,7 @@ cargo test --workspace                                          # headless: real
 > `ALACER_SOFTWARE=1` presents through softbuffer — the platform honors it at startup
 > (`BackendPreference::software_env`) whichever backend the app asked for; any other value is
 > refused with a named warning, never guessed. CI and the headless tests already run this path:
-> no mock renderer, no mock event loop. The full 114-example catalog lives in
+> no mock renderer, no mock event loop. The full 115-example catalog lives in
 > [docs/examples.md](https://github.com/elcoosp/alacer/blob/main/docs/examples.md).
 
 ## How it works
@@ -196,6 +196,7 @@ Accessibility is not a layer bolted on — it is the tree's own vocabulary:
 | **Tab** (M127)          | The page selector and the named strip it reads as, said by the tree: `Role::Tab` carrying the "selects a page" fact AccessKit's own `Tab` role spells, the selection riding the selected word the M108 tier published (never a second selection vocabulary), `Role::TabList` the named strip the AT announces before it walks the pages (the radio tier's own member-and-container shape, ADR-0128, re-proved), `Tab`/`TabList` in the widgets crate with the registry doors, AccessKit's `Tab` beside its `TabList` mapped in the same snapshot — the user's doors selecting and never deselecting (the redundant ask the M21 idle frame, the one deselect door the programmatic write), the exclusivity the app's wiring; both roles join the required-name set | 0131      |
 | **SpinButton** (M128)   | The bounded number field the AT walks by arrows, said by the tree: `Role::SpinButton` carrying the "writes one bounded number" fact AccessKit's own `SpinButton` role spells (not a slider wearing text — a slider's write is the continuous drag the pointer speaks, a spin button's the discrete step the arrows speak), the numbers riding the value tier's own words (the M3 value, the M97 range with the step beside the walls, the M99 numeric beside the spoken one — never a second value language), `SpinButton` in the widgets crate with the registry door, AccessKit's `SpinButton` mapped in the same snapshot — four doors one funnel (the arrows, Home/End the M47 named jumps, the stepper clicks, the AT's `SetValue`/`Increment`/`Decrement` parsed then snapped like every write), the value log the slider's own discipline (the M45 ride and the M49 wall), the wall-held arrow the M21 idle frame; the role joins the required-name set | 0132      |
 | **Toolbar** (M129)     | The named strip a set of tools reads as, said by the tree: `Role::Toolbar` carrying the "reads as a set of tools" fact AccessKit's own `Toolbar` role spells (not a bare row wearing no name — the set the AT cannot name is a set it cannot walk — and not a tab strip wearing the wrong word: a tab strip selects pages, a toolbar offers tools), `Toolbar` in the widgets crate with the registry door, AccessKit's `Toolbar` mapped in the same snapshot — the strip the tools' layout, never a second channel to them (the tools keeping their roles, their labels, and their doors), the role joining the required-name set and never the focusable set (a toolbar is not a control — it holds no focus and answers no activation: the word names the set the tools read as, it walls nothing) | 0133      |
+| **Switch** (M130)      | The instant on/off control, said by the tree: `Role::Switch` carrying the "writes one on/off fact" fact AccessKit's own `Switch` role spells (not a checkbox wearing the wrong word — a checkbox's write resolves a *form contract*: checked, unchecked, the mixed summary the select-all parent needs; a switch's write is the instant on/off the settings vocabulary speaks — and not a button wearing no state at all), the binary pair riding the `toggled` contract (`On` or `Off`, never `Mixed` — a switch has no summary to hold), `Switch` in the widgets crate with the registry door, AccessKit's `Switch` mapped in the same snapshot beside the `Toggled` property the sink has mapped since M6 — three doors one funnel (the click, the Space key while focused, the AT's default action), the role joining the required-name set and the focusable set, the availability wall refusing every door on an unavailable control | 0134 |
 
 Since M20 the value tier is a widget — the `Slider` answers drag, arrows and AT writes from one
 funnel. Since M21 the value is reportable too — the read-only `Progress` names the door that has
@@ -309,7 +310,7 @@ fans the recorder's wire out beside the in-process reader, two doors behind one 
 
 - **Frame-batched input (M8).** Raw pointer events queue into `alacer_core::input::EventCoalescer`:
 compatible moves merge, same-direction wheel deltas accumulate on both axes, the tick routes
-one batch — a storm costs one frame of work, not N events (the 39.71× contract above).
+one batch — a storm costs one frame of work, not N events (the 40.08× contract above).
 - **Drag capture (M19).** A press implicitly captures its deepest accepting hit — moves and the
   release keep arriving past the widget's frame; the wheel still follows the hover; with no press
   in flight, routing is the hit test exactly as before (ADR-0025, `drag_capture` example). Since M19 the drag holds its target — the moves and the release keep arriving at the captured ancestor past the widget's own frame, and the wheel still follows the hover.
@@ -370,7 +371,7 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `accent_follow`                                      | the OS's accent fact rides the same seam: the accent-only flip lands, the composition tints the palette's accent roles from the fact, the log names all four facts |
 | `todo` / `data_table`                                | the canons: a11y tree, record/replay, grid slots, keyboard navigation            |
 
-<details><summary><b>114 examples, grouped (recording, alloc_budget, input_budget, derive_widget, layout_probe, sort, level, current, has_popup, role_description, busy, key_routing, set, live, shortcut, multiline, language, radio, link, heading, tab, and tri_state live in the catalog)</b></summary>
+<details><summary><b>115 examples, grouped (recording, alloc_budget, input_budget, derive_widget, layout_probe, sort, level, current, has_popup, role_description, busy, key_routing, set, live, shortcut, multiline, language, radio, link, heading, tab, switch, and tri_state live in the catalog)</b></summary>
 
 **Start here**
 
@@ -530,7 +531,7 @@ is the query API as a runnable walkthrough.
 ## Status
 
 > [!NOTE]
-> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M129 of `docs/architecture.md` are
+> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M130 of `docs/architecture.md` are
 > complete, but the API still moves between minor versions. MSRV **1.99**, edition **2024**.
 
 | Platform            | CI coverage                                                                                                                                                           |
@@ -542,7 +543,7 @@ is the query API as a runnable walkthrough.
 ## Learn more
 
 - [Architecture](https://github.com/elcoosp/alacer/blob/main/docs/architecture.md) — design axioms, the ten-pass contract, rendering, accessibility, DX, performance, roadmap and kill criteria
-- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred and thirty-four decision records, from workspace discipline to the M129 scope
+- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred and thirty-five decision records, from workspace discipline to the M130 scope
 - [Examples catalog](https://github.com/elcoosp/alacer/blob/main/docs/examples.md) — every example with the contract it exercises
 - [Migrating from Iced](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-iced.md) · [from egui](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-egui.md) — mental-model mappings, interop limits stated plainly
 - [Inspector protocol](https://github.com/elcoosp/alacer/blob/main/docs/inspector-protocol.md) — the versioned WebSocket contract behind `alacer-inspect`

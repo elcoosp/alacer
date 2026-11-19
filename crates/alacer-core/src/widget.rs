@@ -1128,6 +1128,65 @@ pub trait Widget: 'static {
         false
     }
 
+    /// The collection's declared item count (M119, ADR-0123): the set
+    /// tier's container word — AccessKit's `SizeOfSet` property, ARIA's
+    /// `aria-setsize`, mapped by `alacer-a11y` in the same snapshot
+    /// every other property rides. Through M118 the tree said the
+    /// container's capacity to pick (the multiselectable tier, ADR-0113)
+    /// and the subtree's updating fact (the busy tier, ADR-0121) beside
+    /// the member facts — and the number every collection vocabulary
+    /// speaks about its own span ("500 rows") had no tier: the AT
+    /// announced the picks, the places, the names — and never the size —
+    /// the declared-but-unreported gap, the M94 pattern at the set tier.
+    ///
+    /// The word prices the word and nothing else: a sized collection's
+    /// doors answer exactly as they always did — the word names the
+    /// span, it walls nothing, the members' press and focus routes the
+    /// widgets' own (a tree that refused on the word's behalf would
+    /// price a contract it does not own).
+    ///
+    /// The size rides the *container* — AccessKit's own contract names
+    /// the placement verbatim ("`aria-setsize` is set on each item,
+    /// while this property is set on the container"), the one
+    /// difference from ARIA the documentation carries, one branch with
+    /// no translation. `None` is the honest absence (the ADR-0087
+    /// presence rule at the tier): a collection that declared nothing
+    /// announces no span, never a guessed one. The collection
+    /// containers override this; every other role inherits the default.
+    fn size_of_set(&self) -> Option<usize> {
+        None
+    }
+
+    /// The container's declared live region (M120, ADR-0124): the live
+    /// tier's declared word — AccessKit's `Live` property, ARIA's
+    /// `aria-live`, mapped by `alacer-a11y` in the same snapshot every
+    /// other property rides, the politeness ([`Politeness`]) riding
+    /// beside the word. Through M119 the tree said the collection's
+    /// span and the member's place beside the form facts and the
+    /// updating fact — and the word every streaming vocabulary speaks
+    /// about the region whose changes the AT speaks ("this region is
+    /// live — announce what lands here") had no app-facing tier: the
+    /// AT spoke the pipeline's own reserved region (§11.6, ADR-0024)
+    /// and never a region the app declared — the declared-but-unreported
+    /// gap, the M94 pattern at the live tier.
+    ///
+    /// The word prices the word and nothing else: a declared region's
+    /// doors answer exactly as they always did — the word names the
+    /// region the AT watches, it walls nothing, the containers' press
+    /// and focus routes the widgets' own, and the imperative
+    /// announcement channel is the channel it always was (a tree that
+    /// refused on the word's behalf would price a contract it does not
+    /// own — the AT decides what it speaks, it is never the tree's to
+    /// silence).
+    ///
+    /// `None` is the honest absence (the ADR-0087 presence rule at the
+    /// tier, the busy shape): a container that declared nothing
+    /// announces no region, never a guessed politeness. The containers
+    /// override this; every other role inherits the default.
+    fn live(&self) -> Option<crate::announce::Politeness> {
+        None
+    }
+
     /// Whether the collection member opens and closes (M110, ADR-0114):
     /// the expanded tier's declared word — AccessKit's `Expanded`
     /// property, ARIA's `aria-expanded`, mapped by `alacer-a11y` in the
@@ -1249,6 +1308,38 @@ pub trait Widget: 'static {
     /// before the tier, never a guessed `0`. The collection members
     /// override this; every other role inherits the default.
     fn level(&self) -> Option<usize> {
+        None
+    }
+
+    /// The member's declared place in its collection (M119, ADR-0123):
+    /// the set tier's member word — AccessKit's `PositionInSet`
+    /// property, ARIA's `aria-posinset`, mapped by `alacer-a11y` in the
+    /// same snapshot every other property rides. Through M118 the tree
+    /// said where a member sits in its grid (the M6 slot's zero-based
+    /// row and column), the nested member's depth (the level tier,
+    /// ADR-0117), the set's current item (ADR-0118) — and the number
+    /// every collection vocabulary speaks about the member's place in
+    /// the collection's own span ("row 3 of 500") had no tier: the AT
+    /// announced the grid position, the depth, the name — and never the
+    /// place — the declared-but-unreported gap, the M94 pattern at the
+    /// set tier.
+    ///
+    /// The word prices the word and nothing else: a placed member's
+    /// doors answer exactly as they always did — the word names the
+    /// place, it walls nothing, the member's press and focus routes the
+    /// widget's own (a tree that refused on the word's behalf would
+    /// price a contract it does not own).
+    ///
+    /// The place is zero-based — AccessKit's own contract names it
+    /// ("`aria-posinset` is one-based, while this property is
+    /// zero-based"), the base the property maps, the difference the
+    /// trait's documentation carries, never a silent cast. `None` is
+    /// the honest absence (the ADR-0087 presence rule at the tier): a
+    /// member that declared nothing announces no place — the unplaced
+    /// row the AT read before the tier, never a guessed `0`. The
+    /// collection members override this; every other role inherits the
+    /// default.
+    fn position_in_set(&self) -> Option<usize> {
         None
     }
 

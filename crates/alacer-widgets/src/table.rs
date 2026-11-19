@@ -8,6 +8,7 @@
 //! AccessKit update carries a *navigable* grid (row/column counts and
 //! indexes), not just a pile of roles.
 
+use alacer_core::announce::Politeness;
 use alacer_core::color::Color;
 use alacer_core::geom::Point;
 use alacer_core::scene::PaintCtx;
@@ -34,6 +35,15 @@ pub struct Table {
     /// The busy tier's word (M117, ADR-0121): whether the collection's
     /// subtree is being updated — `false` the honest absence.
     busy: bool,
+    /// The set tier's container word (M119, ADR-0123): the collection's
+    /// declared item count (AccessKit's own placement: the size rides
+    /// the container, where ARIA's `aria-setsize` is set on each item)
+    /// — `None` the honest absence, the span the table declared not.
+    size_of_set: Option<usize>,
+    /// The live tier's word (M120, ADR-0124): the table's declared live
+    /// region — `None` the honest absence, the container that declared
+    /// no region.
+    live: Option<Politeness>,
 }
 
 impl Table {
@@ -51,6 +61,8 @@ impl Table {
             header_fill: None,
             multiselectable: false,
             busy: false,
+            size_of_set: None,
+            live: None,
         }
     }
 
@@ -112,6 +124,71 @@ impl Table {
             return false;
         }
         self.busy = busy;
+        true
+    }
+
+    /// Mounts the table's span (M119, ADR-0123): the set tier's
+    /// container word said by the tree from the first frame —
+    /// AccessKit's `SizeOfSet` property (ARIA's `aria-setsize`) names
+    /// the collection's item count to the AT beside the member places
+    /// the tier's `position_in_set` word carries. The word prices
+    /// nothing but the word: the table's doors answer exactly as they
+    /// always did — the word names the span, it walls nothing. The
+    /// app's live door rides [`Table::set_size_of_set`].
+    #[must_use]
+    pub fn size_of_set(mut self, size_of_set: usize) -> Self {
+        self.size_of_set = Some(size_of_set);
+        self
+    }
+
+    /// The size door (M119, ADR-0123): the app's collection moved —
+    /// the word the tree says follows it on the re-announcement the
+    /// caller's `PAINT | A11Y` request pays for (the mutate seam's
+    /// shape, the way every app-side write rides). `None` clears the
+    /// word — the honest absence restored, the span the table declared
+    /// not. Report whether the word moved — the caller requests `A11Y`
+    /// only when this answers `true`, so a write that lands where the
+    /// word already is queues nothing (the M21 idle-frame property, at
+    /// the set tier).
+    pub fn set_size_of_set(&mut self, size_of_set: Option<usize>) -> bool {
+        if self.size_of_set == size_of_set {
+            return false;
+        }
+        self.size_of_set = size_of_set;
+        true
+    }
+
+    /// Mounts the table's declared live region (M120, ADR-0124): the
+    /// region whose changes the AT speaks, said by the tree from the
+    /// first frame — AccessKit's `Live` property (ARIA's `aria-live`)
+    /// names the region to the AT, the politeness ([`Politeness`]) the
+    /// announcement seam's own vocabulary carries, the declared
+    /// counterpart of the pipeline's reserved region (§11.6, ADR-0024
+    /// — the imperative half the framework owns, the declarative half
+    /// the app says). The word prices nothing but the word: the
+    /// table's doors answer exactly as they always did — the word
+    /// names the region the AT watches, it walls nothing. The app's
+    /// live door rides [`Table::set_live`].
+    #[must_use]
+    pub fn live(mut self, live: Politeness) -> Self {
+        self.live = Some(live);
+        self
+    }
+
+    /// The live door (M120, ADR-0124): the app's declared region
+    /// moved — the word the tree says follows it on the re-announcement
+    /// the caller's `PAINT | A11Y` request pays for (the mutate seam's
+    /// shape, the way every app-side write rides). `None` clears the
+    /// word — the honest absence restored, the container that declared
+    /// no region. Report whether the word moved — the caller requests
+    /// `A11Y` only when this answers `true`, so a write that lands
+    /// where the word already is queues nothing (the M21 idle-frame
+    /// property, at the live tier).
+    pub fn set_live(&mut self, live: Option<Politeness>) -> bool {
+        if self.live == live {
+            return false;
+        }
+        self.live = live;
         true
     }
 
@@ -190,6 +267,12 @@ impl Widget for Table {
     fn busy(&self) -> bool {
         self.busy
     }
+    fn size_of_set(&self) -> Option<usize> {
+        self.size_of_set
+    }
+    fn live(&self) -> Option<Politeness> {
+        self.live
+    }
     fn paint(&self, ctx: &mut PaintCtx<'_>) {
         // The table's own chrome is none; headers carry their fill. Painting
         // a hairline table background keeps rows visually grouped.
@@ -220,6 +303,11 @@ pub struct TableRow {
     /// ARIA's one-based `aria-level`) — `None` the honest absence, the
     /// flat row.
     level: Option<usize>,
+    /// The set tier's member word (M119, ADR-0123): the row's declared
+    /// place in the collection, zero-based (AccessKit's own base,
+    /// beside ARIA's one-based `aria-posinset`) — `None` the honest
+    /// absence, the unplaced row.
+    position_in_set: Option<usize>,
 }
 
 impl TableRow {
@@ -234,6 +322,7 @@ impl TableRow {
             selected: None,
             expanded: None,
             level: None,
+            position_in_set: None,
         }
     }
 
@@ -331,6 +420,37 @@ impl TableRow {
         true
     }
 
+    /// Mounts the row's place in its collection (M119, ADR-0123): the
+    /// set tier's member word said by the tree from the first frame —
+    /// AccessKit's `PositionInSet` property (ARIA's `aria-posinset`)
+    /// names the place to the AT beside the depth the level tier
+    /// already carried. The word prices nothing but the word: the row's
+    /// doors answer exactly as they always did — the word names the
+    /// place, it walls nothing. The app's live door rides
+    /// [`TableRow::set_position_in_set`].
+    #[must_use]
+    pub fn position_in_set(mut self, position_in_set: usize) -> Self {
+        self.position_in_set = Some(position_in_set);
+        self
+    }
+
+    /// The position door (M119, ADR-0123): the app's collection moved —
+    /// the word the tree says follows it on the re-announcement the
+    /// caller's `PAINT | A11Y` request pays for (the mutate seam's
+    /// shape, the way every app-side write rides). `None` clears the
+    /// word — the honest absence restored, the unplaced row. Report
+    /// whether the word moved — the caller requests `A11Y` only when
+    /// this answers `true`, so a write that lands where the word
+    /// already is queues nothing (the M21 idle-frame property, at the
+    /// set tier).
+    pub fn set_position_in_set(&mut self, position_in_set: Option<usize>) -> bool {
+        if self.position_in_set == position_in_set {
+            return false;
+        }
+        self.position_in_set = position_in_set;
+        true
+    }
+
     /// Layout styles.
     #[must_use]
     pub fn style(mut self, style: Style) -> Self {
@@ -374,6 +494,9 @@ impl Widget for TableRow {
     }
     fn level(&self) -> Option<usize> {
         self.level
+    }
+    fn position_in_set(&self) -> Option<usize> {
+        self.position_in_set
     }
 }
 
@@ -896,11 +1019,106 @@ mod tests {
     }
 
     #[test]
+    fn rows_carry_their_place_word() {
+        // M119, ADR-0123: the set tier's member word — the row's
+        // declared place in the collection, zero-based (AccessKit's
+        // own base, beside ARIA's one-based `aria-posinset`).
+        let mut row = TableRow::new();
+        assert!(Widget::position_in_set(&row).is_none(), "the absence first");
+        row = row.position_in_set(2);
+        assert_eq!(Widget::position_in_set(&row), Some(2));
+        assert!(
+            row.set_position_in_set(Some(1)),
+            "the door reports the word moved"
+        );
+        assert_eq!(Widget::position_in_set(&row), Some(1));
+        assert!(
+            !row.set_position_in_set(Some(1)),
+            "the write that lands where the word already is queues nothing"
+        );
+        assert!(
+            row.set_position_in_set(None),
+            "the door carries the word away"
+        );
+        assert!(
+            Widget::position_in_set(&row).is_none(),
+            "the honest absence restored"
+        );
+        assert!(
+            !row.set_position_in_set(None),
+            "clearing the absence twice queues nothing"
+        );
+    }
+
+    #[test]
+    fn tables_carry_their_live_word() {
+        // M120, ADR-0124: the live tier's declared word — the region
+        // whose changes the AT speaks, the politeness the announcement
+        // seam's own vocabulary carries.
+        use alacer_core::announce::Politeness;
+        let mut table = Table::new("Ledger", 2);
+        assert!(Widget::live(&table).is_none(), "the absence first");
+        table = table.live(Politeness::Assertive);
+        assert_eq!(Widget::live(&table), Some(Politeness::Assertive));
+        assert!(
+            table.set_live(Some(Politeness::Polite)),
+            "the door reports the word moved"
+        );
+        assert_eq!(Widget::live(&table), Some(Politeness::Polite));
+        assert!(
+            !table.set_live(Some(Politeness::Polite)),
+            "the write that lands where the word already is queues nothing"
+        );
+        assert!(table.set_live(None), "the door carries the word away");
+        assert!(
+            Widget::live(&table).is_none(),
+            "the honest absence restored"
+        );
+        assert!(
+            !table.set_live(None),
+            "clearing the absence twice queues nothing"
+        );
+    }
+
+    #[test]
     fn rows_read_through_their_cells() {
         let row = TableRow::new();
         assert_eq!(row.role(), Role::TableRow);
         assert!(matches!(row.label(), LabelSource::FromChildren));
         assert_eq!(row.label().resolve(), "", "rows are nameless containers");
+    }
+
+    #[test]
+    fn tables_carry_their_size_word() {
+        // M119, ADR-0123: the set tier's container word — the
+        // collection's declared item count (AccessKit's own placement:
+        // the size rides the container, where ARIA's `aria-setsize`
+        // is set on each item).
+        let mut table = Table::new("Ledger", 2);
+        assert!(Widget::size_of_set(&table).is_none(), "the absence first");
+        table = table.size_of_set(500);
+        assert_eq!(Widget::size_of_set(&table), Some(500));
+        assert!(
+            table.set_size_of_set(Some(120)),
+            "the door reports the word moved"
+        );
+        assert_eq!(Widget::size_of_set(&table), Some(120));
+        assert!(
+            !table.set_size_of_set(Some(120)),
+            "the write that lands where the word already is queues nothing"
+        );
+        assert!(
+            table.set_size_of_set(None),
+            "the door carries the word away"
+        );
+        assert!(
+            Widget::size_of_set(&table).is_none(),
+            "the honest absence restored"
+        );
+        assert!(
+            !table.set_size_of_set(None),
+            "clearing the absence twice queues nothing"
+        );
     }
 
     #[test]

@@ -1249,6 +1249,36 @@ pub trait Widget: 'static {
         None
     }
 
+    /// Whether the field takes multiple lines (M122, ADR-0126): the
+    /// multiline tier's declared word — AccessKit's `Multiline` flag,
+    /// ARIA's `aria-multiline`, mapped by `alacer-a11y` in the same
+    /// snapshot every other property rides. Through M121 the tree said
+    /// what an empty field *hints* (the placeholder tier), the form's
+    /// ask and the form's rejection beside it, the field's suggestion
+    /// contract, the secret entry and its reveal, the wall the read-only
+    /// field holds — and the word every form-and-composer vocabulary
+    /// speaks about *how much the field takes* ("this field wraps onto
+    /// many lines") had no tier: the AT announced the hint, the ask, the
+    /// rejection, the suggestion contract — and never the capacity — the
+    /// declared-but-unreported gap, the M94 pattern at the multiline
+    /// tier.
+    ///
+    /// The word prices the word and nothing else: a worded field's doors
+    /// answer exactly as they always did — the word names the capacity,
+    /// it walls nothing, the field's typing, caret, selection and submit
+    /// routes the widget's own (a tree that refused on the word's behalf
+    /// would price a contract it does not own — the word says the field
+    /// wraps, it never changes what the field takes).
+    ///
+    /// `false` is the honest absence (the ADR-0087 presence rule at the
+    /// tier, the read-only shape): a field that declared nothing
+    /// announces no capacity, never a guessed "multiline" — the
+    /// single-line field the AT read before the tier. The editable
+    /// fields override this; every other role inherits the default.
+    fn multiline(&self) -> bool {
+        false
+    }
+
     /// The order the sorted column holds its rows in (M112, ADR-0116):
     /// the sort direction tier's declared word — AccessKit's
     /// `SortDirection` property, ARIA's `aria-sort`, mapped by
@@ -1462,6 +1492,38 @@ pub trait Widget: 'static {
     /// The actionable widgets override this; every other role inherits
     /// the default.
     fn keyboard_shortcut(&self) -> Option<&str> {
+        None
+    }
+
+    /// The language the widget's text is written in (M123, ADR-0127):
+    /// the language tier's declared word — AccessKit's `Language`
+    /// property (the BCP 47 tag the platform AT voices the text with),
+    /// mapped by `alacer-a11y` in the same snapshot every other property
+    /// rides. Through M122 the tree said what a control *does*, what an
+    /// empty field *hints*, the field's line capacity, the form facts,
+    /// the collection facts, the declared live region, the chord the
+    /// control is invoked with — and the word every multilingual
+    /// vocabulary speaks about *what language the text speaks* ("this
+    /// label is French, that one Japanese") had no tier: the AT
+    /// announced the text in whatever voice the platform guessed — the
+    /// declared-but-unreported gap, the M94 pattern at the language
+    /// tier.
+    ///
+    /// The word prices the word and nothing else: a worded widget's
+    /// doors answer exactly as they always did — the word names the
+    /// language, it walls nothing, the text's read routes the widget's
+    /// own (a tree that refused on the word's behalf would price a
+    /// contract it does not own — the word says the text's language, it
+    /// never translates the text). The tag is the string the app
+    /// declared — the property is a string, the ADR-0099 description
+    /// precedent at the string tier, one branch with no translation.
+    ///
+    /// `None` is the honest absence (the ADR-0087 presence rule at the
+    /// tier): a widget that declared no language announces none — the
+    /// text the AT voiced before the tier, never a guessed tag. The
+    /// text widgets override this; every other role inherits the
+    /// default.
+    fn language(&self) -> Option<&str> {
         None
     }
 

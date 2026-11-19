@@ -507,7 +507,7 @@ impl Widget for Slider {
     /// The M3 value contract: the AT reads the bounded scalar, not just
     /// the name.
     fn value(&self) -> Option<String> {
-        Some(format!("{}", self.value))
+        Some(self.value.to_string())
     }
 
     /// The range tier (M97, ADR-0101): the span every door — drag, arrows,

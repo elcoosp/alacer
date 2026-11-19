@@ -42,7 +42,7 @@ use alacer_widgets::{BoxedWidget as _, Button, Column, Label, Slider, TextInput}
 /// (M110), the multiselectable route's pair (M109), the selected
 /// route's pair (M108), the invalid route's case (M107) and every
 /// tier's before them on the published corpus.
-const EXPECTED_BENCH_COUNT: usize = 140;
+const EXPECTED_BENCH_COUNT: usize = 141;
 
 /// The suite's own read door into the published corpus: the
 /// auto-complete route's case — the 1,000-node field arena carrying the

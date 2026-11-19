@@ -288,6 +288,24 @@
       "op": "<=",
       "budget": 1.25,
       "cite": "ADR-0125 (M121): the shortcut word rides the snapshot the button rides \u2014 the word's price the one Option the node carries; test-enforced nowhere, measured by criterion"
+    },
+    {
+      "id": "multiline_snapshot_overhead",
+      "metric": "median_ratio",
+      "numerator": "multiline/snapshot_1k_fields_multiline",
+      "denominator": "placeholder/snapshot_1k_bare",
+      "op": "<=",
+      "budget": 1.25,
+      "cite": "ADR-0126 (M122): the multiline word rides the snapshot the field rides \u2014 the word's price the one bool the node carries; test-enforced nowhere, measured by criterion"
+    },
+    {
+      "id": "language_snapshot_overhead",
+      "metric": "median_ratio",
+      "numerator": "language/snapshot_1k_labels_language",
+      "denominator": "language/snapshot_1k_labels_bare",
+      "op": "<=",
+      "budget": 1.25,
+      "cite": "ADR-0127 (M123): the language word rides the snapshot the label rides \u2014 the word's price the one bounded copy the node carries; test-enforced nowhere, measured by criterion"
     }
   ],
   "regressions": [
@@ -994,6 +1012,21 @@
     {
       "id": "shortcut_snapshot_1k_buttons_shortcut",
       "baseline": "shortcut/snapshot_1k_buttons_shortcut",
+      "scope": "same-host"
+    },
+    {
+      "id": "multiline_snapshot_1k_fields_multiline",
+      "baseline": "multiline/snapshot_1k_fields_multiline",
+      "scope": "same-host"
+    },
+    {
+      "id": "language_snapshot_1k_labels_bare",
+      "baseline": "language/snapshot_1k_labels_bare",
+      "scope": "same-host"
+    },
+    {
+      "id": "language_snapshot_1k_labels_language",
+      "baseline": "language/snapshot_1k_labels_language",
       "scope": "same-host"
     }
   ],

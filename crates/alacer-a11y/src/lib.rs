@@ -120,6 +120,14 @@ pub fn map_role(role: Role) -> AccessKitRole {
         // sink has mapped since the toggle tier (the M6 contract's
         // `toggled` half), no second branch.
         Role::Switch => AccessKitRole::Switch,
+        // The tab panel (M131, ADR-0135): the named pane the selected
+        // page's content lives in. AccessKit's tab panel role says
+        // exactly that — the AT announces the pane's name before it
+        // reads the content; the children keep the roles the members
+        // already carry, the tab tier's member-and-container shape
+        // grown to its third word (the M127 tab/tab-list pair beside
+        // this branch), no patch-tier growth.
+        Role::TabPanel => AccessKitRole::TabPanel,
     }
 }
 
@@ -425,6 +433,25 @@ impl AccessKitSink {
         let hidden_secure = node.secure_entry && !node.secure_revealed;
         if node.multiline && node.role == alacer_core::Role::TextInput && !hidden_secure {
             access_node.set_role(AccessKitRole::MultilineTextInput);
+        }
+        // The purpose tier (M132, ADR-0136): a field declared for search
+        // maps AccessKit's `SearchInput` role — the word every platform
+        // AT announces and the find conventions key off ("search, edit
+        // text"). One role per node: the tree never guesses a composite —
+        // the masked contract first (the hidden secure field keeps the
+        // `PasswordInput` word the M100 branch resolves below), the
+        // capacity word claiming a field that declared both (a multiline
+        // search box keeps the `MultilineTextInput` word the M122 branch
+        // resolved — the re-open rule the ADR pre-registers beside it),
+        // and the purpose word re-rolling the single-line, non-secured
+        // field. The branch prices nothing: a declared field's doors
+        // answer exactly as they always did.
+        if node.search_field
+            && node.role == alacer_core::Role::TextInput
+            && !node.multiline
+            && !hidden_secure
+        {
+            access_node.set_role(AccessKitRole::SearchInput);
         }
         // The language tier (M123, ADR-0127): the language the widget's
         // text is written in — AccessKit's `Language` property, the BCP
@@ -938,6 +965,10 @@ mod tests {
         // AccessKit's own `Switch`, the binary pair riding the
         // `Toggled` property the toggle tier already maps.
         assert_eq!(map_role(Role::Switch), AkRole::Switch);
+        // The M131 tab-panel tier: the named pane the selected page's
+        // content lives in — AccessKit's own `TabPanel`, the third word
+        // beside the tab pair's member and strip.
+        assert_eq!(map_role(Role::TabPanel), AkRole::TabPanel);
     }
 
     #[test]
@@ -1588,6 +1619,7 @@ mod tests {
             keyboard_shortcut: None,
             multiline: false,
             language: None,
+            search_field: false,
         });
         sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
         let update = sink.last_update().expect("update");
@@ -1748,6 +1780,7 @@ mod tests {
             keyboard_shortcut: None,
             multiline: false,
             language: None,
+            search_field: false,
         }
     }
 
@@ -1861,6 +1894,115 @@ mod tests {
             secured.role(),
             AkRole::PasswordInput,
             "the secure field's role branch wins; the capacity word rides beside it"
+        );
+    }
+
+    #[test]
+    fn the_purpose_tier_resolves_the_search_input_role() {
+        // M132, ADR-0136: the field declared for search resolves
+        // AccessKit's `SearchInput` role (ARIA's `role="searchbox"`) —
+        // the purpose word the vocabulary carries, there being no
+        // separate property to mirror. The honest absence (`false`) reads
+        // as the ordinary `TextInput` role the field always was, and the
+        // tree's other words keep their precedence: the secure field's
+        // branch (M100) wins the masked contract, and the capacity word
+        // claims a field that declared both (one role per node — the tree
+        // never guesses a composite).
+        let mut sink = AccessKitSink::new();
+        let mut snap = snapshot();
+        snap.nodes[1].role = Role::TextInput;
+        snap.nodes[1].search_field = true;
+        sink.apply(
+            std::sync::Arc::new(snap),
+            &alacer_core::passes::A11yDelta {
+                updated: {
+                    let mut ids = FxHashSet::default();
+                    ids.insert(snap_root_and_child().1);
+                    ids
+                },
+                removed: Vec::new(),
+                focus: None,
+                initializes: false,
+            },
+        );
+        let update = sink.last_update().expect("the delta produced an update");
+        let worded = update
+            .nodes
+            .iter()
+            .find(|(id, _)| id.0 == snap_root_and_child().1)
+            .map(|(_, node)| node)
+            .expect("the worded node is re-emitted");
+        assert_eq!(
+            worded.role(),
+            AkRole::SearchInput,
+            "the AT reads the declared purpose beside the name"
+        );
+
+        // The masked contract wins: a hidden secured field keeps the
+        // word M100 mapped, whatever purpose it declared.
+        let mut sink = AccessKitSink::new();
+        let mut snap = snapshot();
+        snap.nodes[1].role = Role::TextInput;
+        snap.nodes[1].search_field = true;
+        snap.nodes[1].secure_entry = true;
+        sink.apply(
+            std::sync::Arc::new(snap),
+            &alacer_core::passes::A11yDelta {
+                updated: {
+                    let mut ids = FxHashSet::default();
+                    ids.insert(snap_root_and_child().1);
+                    ids
+                },
+                removed: Vec::new(),
+                focus: None,
+                initializes: false,
+            },
+        );
+        let update = sink.last_update().expect("the delta produced an update");
+        let secured = update
+            .nodes
+            .iter()
+            .find(|(id, _)| id.0 == snap_root_and_child().1)
+            .map(|(_, node)| node)
+            .expect("the secured node is re-emitted");
+        assert_eq!(
+            secured.role(),
+            AkRole::PasswordInput,
+            "the secure field's role branch wins; the purpose word yields the masked contract"
+        );
+
+        // The capacity word claims the composite: a multiline search box
+        // keeps the word M122 mapped — one role per node, the tree never
+        // guessing one.
+        let mut sink = AccessKitSink::new();
+        let mut snap = snapshot();
+        snap.nodes[1].role = Role::TextInput;
+        snap.nodes[1].search_field = true;
+        snap.nodes[1].multiline = true;
+        sink.apply(
+            std::sync::Arc::new(snap),
+            &alacer_core::passes::A11yDelta {
+                updated: {
+                    let mut ids = FxHashSet::default();
+                    ids.insert(snap_root_and_child().1);
+                    ids
+                },
+                removed: Vec::new(),
+                focus: None,
+                initializes: false,
+            },
+        );
+        let update = sink.last_update().expect("the delta produced an update");
+        let multiline = update
+            .nodes
+            .iter()
+            .find(|(id, _)| id.0 == snap_root_and_child().1)
+            .map(|(_, node)| node)
+            .expect("the multiline node is re-emitted");
+        assert_eq!(
+            multiline.role(),
+            AkRole::MultilineTextInput,
+            "the capacity word claims the composite — one role per node"
         );
     }
 
@@ -1992,6 +2134,7 @@ mod tests {
                     keyboard_shortcut: None,
                     multiline: false,
                     language: None,
+                    search_field: false,
                 },
                 TreeNode {
                     id: 2,
@@ -2031,6 +2174,7 @@ mod tests {
                     keyboard_shortcut: None,
                     multiline: false,
                     language: None,
+                    search_field: false,
                 },
             ],
         };
@@ -2097,6 +2241,7 @@ mod tests {
             keyboard_shortcut: None,
             multiline: false,
             language: None,
+            search_field: false,
         }
     }
 
@@ -2201,6 +2346,7 @@ mod tests {
                     keyboard_shortcut: None,
                     multiline: false,
                     language: None,
+                    search_field: false,
                 },
                 TreeNode {
                     id: 2,
@@ -2240,6 +2386,7 @@ mod tests {
                     keyboard_shortcut: None,
                     multiline: false,
                     language: None,
+                    search_field: false,
                 },
             ],
         };
@@ -2310,6 +2457,7 @@ mod tests {
                     keyboard_shortcut: None,
                     multiline: false,
                     language: None,
+                    search_field: false,
                 },
                 TreeNode {
                     id: 4,
@@ -2349,6 +2497,7 @@ mod tests {
                     keyboard_shortcut: None,
                     multiline: false,
                     language: None,
+                    search_field: false,
                 },
             ],
         };
@@ -2420,6 +2569,7 @@ mod tests {
                     keyboard_shortcut: None,
                     multiline: false,
                     language: None,
+                    search_field: false,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -2459,6 +2609,7 @@ mod tests {
                     keyboard_shortcut: None,
                     multiline: false,
                     language: None,
+                    search_field: false,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -2537,6 +2688,7 @@ mod tests {
                     keyboard_shortcut: None,
                     multiline: false,
                     language: None,
+                    search_field: false,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -2576,6 +2728,7 @@ mod tests {
                     keyboard_shortcut: None,
                     multiline: false,
                     language: None,
+                    search_field: false,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -2648,6 +2801,7 @@ mod tests {
                     keyboard_shortcut: None,
                     multiline: false,
                     language: None,
+                    search_field: false,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -2687,6 +2841,7 @@ mod tests {
                     keyboard_shortcut: None,
                     multiline: false,
                     language: None,
+                    search_field: false,
                     scroll_orientation: None,
                     scroll_position: None,
                 },

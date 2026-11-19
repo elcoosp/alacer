@@ -66,7 +66,7 @@ const TONE_SPLIT: f32 = 60.0;
 /// The suite's corpus pin: the coordinated rule's count at the M91
 /// cut — the handle door's case (M90) beside the AT horizontal
 /// actions' case this cut publishes.
-const EXPECTED_BENCH_COUNT: usize = 141;
+const EXPECTED_BENCH_COUNT: usize = 144;
 
 /// The suite's own read door into the published corpus: the id the
 /// AT horizontal actions' bench case publishes (the coordinated
@@ -602,7 +602,7 @@ fn m91_the_corpus_grew_by_the_coordinated_rule() {
     let m5 = std::fs::read_to_string(root.join("crates/alacer-testing/tests/m5_exit_criteria.rs"))
         .expect("the m5 suite is readable");
     assert!(
-        m5.contains("const EXPECTED_BENCH_COUNT: usize = 141;"),
+        m5.contains("const EXPECTED_BENCH_COUNT: usize = 144;"),
         "the m5 corpus pin re-agrees at the M91 cut"
     );
 }

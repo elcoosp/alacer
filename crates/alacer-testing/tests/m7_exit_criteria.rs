@@ -340,7 +340,7 @@ fn the_m5_and_m6_corpus_pins_do_not_move() {
     for suite in ["m5_exit_criteria.rs", "m6_exit_criteria.rs"] {
         let source = read_workspace_file(&format!("crates/alacer-testing/tests/{suite}"));
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 141;"),
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 144;"),
             "{suite} must keep the 69-case corpus pin"
         );
     }

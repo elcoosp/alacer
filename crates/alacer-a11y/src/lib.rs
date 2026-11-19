@@ -69,6 +69,22 @@ pub fn map_role(role: Role) -> AccessKitRole {
         // role ("status"). The assertive case re-roles to "alert" in
         // [`map_announcement_role`], where the politeness is known.
         Role::LiveRegion => AccessKitRole::Status,
+        // The radio (M124, ADR-0128): the one-of-N control. AccessKit's
+        // `RadioButton` role carries the selection the `toggled` contract
+        // already announces for the checkbox (the same `Checked` state the
+        // sink maps at the toggle tier) — the AT reads "checked" on the
+        // member the set holds.
+        Role::Radio => AccessKitRole::RadioButton,
+        // The radio group (M124, ADR-0128): the named container the set
+        // reads as. AccessKit's radio group role says exactly that — the
+        // AT announces the group's name before it walks the members; the
+        // set tier's span word (`SizeOfSet`) rides the same node.
+        Role::RadioGroup => AccessKitRole::RadioGroup,
+        // The link (M125, ADR-0129): the "opens something" fact
+        // AccessKit's own link role spells — the activation verb the AT
+        // names differently from a button's press, the destination the
+        // app's to say (the name and the description carry it).
+        Role::Link => AccessKitRole::Link,
     }
 }
 
@@ -858,6 +874,12 @@ mod tests {
         assert_eq!(map_role(Role::TableRow), AkRole::Row);
         assert_eq!(map_role(Role::TableCell), AkRole::Cell);
         assert_eq!(map_role(Role::ColumnHeader), AkRole::ColumnHeader);
+        // The M124 radio tier: the member and the group it reads as —
+        // AccessKit's `RadioButton` beside its `RadioGroup`.
+        assert_eq!(map_role(Role::Radio), AkRole::RadioButton);
+        assert_eq!(map_role(Role::RadioGroup), AkRole::RadioGroup);
+        // The M125 link tier: the "opens something" fact.
+        assert_eq!(map_role(Role::Link), AkRole::Link);
     }
 
     #[test]

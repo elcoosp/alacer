@@ -324,6 +324,7 @@ version = "0.17.0"
 dependencies = [
  "alacer-core",
  "alacer-view",
+ "criterion",
  "rustc-hash 2.1.3",
 ]
 

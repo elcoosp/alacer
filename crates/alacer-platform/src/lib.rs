@@ -1647,6 +1647,7 @@ mod tests {
                 invalid: None,
                 selected: None,
                 multiselectable: false,
+                busy: false,
                 expanded: None,
                 auto_complete: None,
                 sort_direction: None,

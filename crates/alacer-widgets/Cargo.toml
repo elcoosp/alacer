@@ -1,6 +1,6 @@
 [package]
 name = "alacer-widgets"
-description = "Alacer's widget library: label, button, text input, checkbox, slider, progress, radio, column, row, spacer, list, panel, table, and the M6 canons (todo, data table)"
+description = "Alacer's widget library: label, button, text input, checkbox, slider, spin button, progress, radio, column, row, spacer, list, panel, table, and the M6 canons (todo, data table)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -35,4 +35,12 @@ harness = false
 
 [[bench]]
 name = "tab"
+harness = false
+
+[[bench]]
+name = "spin_button"
+harness = false
+
+[[bench]]
+name = "toolbar"
 harness = false

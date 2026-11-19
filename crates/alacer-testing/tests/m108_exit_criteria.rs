@@ -39,7 +39,7 @@ use alacer_widgets::{
 /// the required route's case (M106), the reveal route's case (M102), the
 /// scroll-position route's case (M101) and every tier's before them on
 /// the published corpus.
-const EXPECTED_BENCH_COUNT: usize = 141;
+const EXPECTED_BENCH_COUNT: usize = 144;
 
 /// The suite's own read door into the published corpus: the selected
 /// route's pair — the 1,000-node row arena carrying the pick word,

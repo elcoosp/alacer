@@ -1657,6 +1657,7 @@ mod tests {
                 role_description: None,
                 position_in_set: None,
                 size_of_set: None,
+                keyboard_shortcut: None,
             }],
         });
         sink.apply(

@@ -95,6 +95,11 @@ pub struct TextInput {
     /// beside the hint, the doors unchanged beside it. `None` the
     /// honest absence.
     auto_complete: Option<alacer_core::AutoCompleteKind>,
+    /// The multiline tier's word (M122, ADR-0126): whether the field
+    /// takes multiple lines — the capacity the AT reads beside the
+    /// hint, the doors unchanged beside it. `false` the honest
+    /// absence.
+    multiline: bool,
     font_size: f32,
     style: Style,
     on_changed: Option<ChangeHandler>,
@@ -151,6 +156,7 @@ impl TextInput {
             required: false,
             invalid: None,
             auto_complete: None,
+            multiline: false,
             font_size: crate::theme::FONT_SIZE,
             style: Style::default(),
             on_changed: None,
@@ -305,6 +311,39 @@ impl TextInput {
             return false;
         }
         self.auto_complete = auto_complete;
+        true
+    }
+
+    /// Mounts the field multiline (M122, ADR-0126): the capacity
+    /// contract's declared word — AccessKit's `MultilineTextInput` role
+    /// (ARIA's `aria-multiline` beside the `textbox` role) says "this
+    /// field wraps onto many lines" to the AT before it types. The word
+    /// prices nothing but the word: the field's doors answer exactly as
+    /// they always did (multiline is not a wall — the typing, caret,
+    /// selection and submit routes the widget's own; the word says the
+    /// capacity, it never changes what the field takes). The live door
+    /// is [`TextInput::set_multiline`].
+    #[must_use]
+    pub fn multiline(mut self) -> Self {
+        self.multiline = true;
+        self
+    }
+
+    /// The multiline door (M122, ADR-0126): the app's capacity contract
+    /// moved live — the word the tree says (and the role the sink
+    /// resolves) follows it on the re-announcement the caller's
+    /// `PAINT | A11Y` request pays for (the mutate seam's shape, the way
+    /// every app-side write rides). Report whether the word moved — the
+    /// caller requests `A11Y` only when this answers `true`, so a write
+    /// that lands where the word already is queues nothing (the M21
+    /// idle-frame property, at the multiline tier). `false` clears the
+    /// word — the honest absence restored, the single-line field the AT
+    /// read before the tier.
+    pub fn set_multiline(&mut self, multiline: bool) -> bool {
+        if self.multiline == multiline {
+            return false;
+        }
+        self.multiline = multiline;
         true
     }
 
@@ -1477,6 +1516,14 @@ impl Widget for TextInput {
     /// it beside the hint. The doors answer unchanged beside it.
     fn auto_complete(&self) -> Option<alacer_core::AutoCompleteKind> {
         self.auto_complete
+    }
+
+    /// The multiline tier (M122, ADR-0126): the word the tree says
+    /// beside the field's line capacity — "this field wraps onto many
+    /// lines", the AT reading it beside the hint. The doors answer
+    /// unchanged beside it.
+    fn multiline(&self) -> bool {
+        self.multiline
     }
 
     /// The M11 a11y contract (ADR-0017): the focused input exposes its

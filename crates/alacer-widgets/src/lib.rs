@@ -17,6 +17,7 @@ mod canon;
 mod canvas;
 mod checkbox;
 mod column;
+mod heading;
 mod label;
 mod link;
 mod list;
@@ -25,6 +26,7 @@ mod progress;
 mod radio;
 mod registry;
 mod slider;
+mod tab;
 mod table;
 mod text_input;
 
@@ -33,6 +35,7 @@ pub use canon::{DataTableHandles, TodoHandles, TodoItem, data_table_app, todo_ap
 pub use canvas::Canvas;
 pub use checkbox::Checkbox;
 pub use column::{Column, Row, Spacer};
+pub use heading::Heading;
 pub use label::Label;
 pub use link::Link;
 pub use list::{List, ListHandle};
@@ -41,6 +44,7 @@ pub use progress::Progress;
 pub use radio::{Radio, RadioGroup};
 pub use registry::default_registry;
 pub use slider::Slider;
+pub use tab::{Tab, TabList};
 pub use table::{ColumnHeader, Table, TableCell, TableRow};
 pub use text_input::TextInput;
 

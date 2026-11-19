@@ -85,6 +85,22 @@ pub fn map_role(role: Role) -> AccessKitRole {
         // names differently from a button's press, the destination the
         // app's to say (the name and the description carry it).
         Role::Link => AccessKitRole::Link,
+        // The heading (M126, ADR-0130): the "names a section" fact
+        // AccessKit's own heading role spells — the document outline's
+        // landmark the AT's quick-nav walks. The depth rides the level
+        // word the M113 tier published (the `Level` property the sink
+        // maps at the level tier), no second branch.
+        Role::Heading => AccessKitRole::Heading,
+        // The tab (M127, ADR-0131): the "selects a page" fact
+        // AccessKit's own tab role spells. The selection rides the
+        // selected word the M108 tier published (the `Selected`
+        // property the sink maps at the selected tier), no second
+        // branch.
+        Role::Tab => AccessKitRole::Tab,
+        // The tab list (M127, ADR-0131): the named strip the pages read
+        // as. AccessKit's tab list role says exactly that — the AT
+        // announces the strip's name before it walks the tabs.
+        Role::TabList => AccessKitRole::TabList,
     }
 }
 
@@ -380,10 +396,15 @@ impl AccessKitSink {
         // true in the snapshot the tree hands over. A capacity write
         // re-announces exactly that node, the same node-only delta as
         // every other property.
-        if node.multiline
-            && node.role == alacer_core::Role::TextInput
-            && !(node.secure_entry && !node.secure_revealed)
-        {
+        // The secured-and-hidden field keeps the `PasswordInput` word it
+        // resolved above (the M100 branch): the mask the word prices
+        // yields to the reveal (M102, ADR-0106), so the capacity word
+        // resolves only when the role is still the ordinary editable
+        // one — both words stay true in the snapshot the tree hands
+        // over. A capacity write re-announces exactly that node, the
+        // same node-only delta as every other property.
+        let hidden_secure = node.secure_entry && !node.secure_revealed;
+        if node.multiline && node.role == alacer_core::Role::TextInput && !hidden_secure {
             access_node.set_role(AccessKitRole::MultilineTextInput);
         }
         // The language tier (M123, ADR-0127): the language the widget's
@@ -880,6 +901,14 @@ mod tests {
         assert_eq!(map_role(Role::RadioGroup), AkRole::RadioGroup);
         // The M125 link tier: the "opens something" fact.
         assert_eq!(map_role(Role::Link), AkRole::Link);
+        // The M126 heading tier: the "names a section" fact — the
+        // outline's landmark, the level word the level tier already
+        // maps.
+        assert_eq!(map_role(Role::Heading), AkRole::Heading);
+        // The M127 tab tier: the member and the strip it reads as —
+        // AccessKit's `Tab` beside its `TabList`.
+        assert_eq!(map_role(Role::Tab), AkRole::Tab);
+        assert_eq!(map_role(Role::TabList), AkRole::TabList);
     }
 
     #[test]
@@ -2317,6 +2346,10 @@ mod tests {
     /// `aria-valuetext` — and the honest absence maps to the absence: a
     /// widget whose value is prose sets no number, never a parsed guess.
     #[test]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "the numeric tier's contract is one declarative walk through the value shapes the field carries; splitting it would hide the mapping it exists to pin"
+    )]
     fn the_numeric_now_maps_onto_the_property() {
         let mut sink = AccessKitSink::new();
         let snap = TreeSnapshot {

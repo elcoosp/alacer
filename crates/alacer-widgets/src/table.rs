@@ -31,6 +31,9 @@ pub struct Table {
     /// collection allows more than one pick — `false` the honest
     /// absence.
     multiselectable: bool,
+    /// The busy tier's word (M117, ADR-0121): whether the collection's
+    /// subtree is being updated — `false` the honest absence.
+    busy: bool,
 }
 
 impl Table {
@@ -47,6 +50,7 @@ impl Table {
             },
             header_fill: None,
             multiselectable: false,
+            busy: false,
         }
     }
 
@@ -77,6 +81,37 @@ impl Table {
             return false;
         }
         self.multiselectable = multiselectable;
+        true
+    }
+
+    /// Mounts the table's updating word (M117, ADR-0121): the
+    /// subtree's fact said by the tree from the first frame —
+    /// AccessKit's `Busy` property (ARIA's `aria-busy`) names the
+    /// region the AT holds its speech on while the stream is still
+    /// writing it, the declared counterpart of the announcement
+    /// machinery the framework already owns (§11.6, ADR-0024). The
+    /// word prices nothing but the word: the table's doors answer
+    /// exactly as they always did — the word names the updating fact,
+    /// it walls nothing. The app's live door rides
+    /// [`Table::set_busy`].
+    #[must_use]
+    pub fn busy(mut self, busy: bool) -> Self {
+        self.busy = busy;
+        self
+    }
+
+    /// The busy door (M117, ADR-0121): the app's updating fact moved —
+    /// the word the tree says follows it on the re-announcement the
+    /// caller's `PAINT | A11Y` request pays for (the mutate seam's
+    /// shape, the way every app-side write rides). Report whether the
+    /// word moved — the caller requests `A11Y` only when this answers
+    /// `true`, so a write that lands where the word already is queues
+    /// nothing (the M21 idle-frame property, at the busy tier).
+    pub fn set_busy(&mut self, busy: bool) -> bool {
+        if self.busy == busy {
+            return false;
+        }
+        self.busy = busy;
         true
     }
 
@@ -150,6 +185,10 @@ impl Widget for Table {
     }
     fn multiselectable(&self) -> bool {
         self.multiselectable
+    }
+
+    fn busy(&self) -> bool {
+        self.busy
     }
     fn paint(&self, ctx: &mut PaintCtx<'_>) {
         // The table's own chrome is none; headers carry their fill. Painting

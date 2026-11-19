@@ -136,7 +136,6 @@ impl<'h> Session<'h> {
         });
         self.harness.press_key(key);
     }
-
     /// Wheels at `position` by `delta` (recorded + executed).
     pub fn wheel(&mut self, position: alacer_core::geom::Point, delta: (f32, f32)) {
         self.steps.push(Step::Wheel {
@@ -247,7 +246,12 @@ impl Recording {
                         .unwrap_or_else(|| panic!("recording names an unknown role {role:?}"));
                     harness.press(role, name);
                 }
-                Step::TypeText { text } => harness.type_text(text),
+                // The replay reproduces what was recorded; the routing
+                // verdicts the doors now answer (M118, ADR-0122) were
+                // not recorded facts — the steps are what replayed.
+                Step::TypeText { text } => {
+                    harness.type_text(text);
+                }
                 Step::PressKey { key } => {
                     let key = key_from_name(key)
                         .unwrap_or_else(|| panic!("recording names an unknown key {key:?}"));

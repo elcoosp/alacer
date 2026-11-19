@@ -185,3 +185,11 @@ harness = false
 [[bench]]
 name = "shortcut"
 harness = false
+
+[[bench]]
+name = "multiline"
+harness = false
+
+[[bench]]
+name = "language"
+harness = false

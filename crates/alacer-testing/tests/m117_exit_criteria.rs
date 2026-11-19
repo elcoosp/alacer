@@ -44,7 +44,7 @@ use alacer_widgets::{
 /// the auto-complete route's case (M111), the expanded route's pair
 /// (M110), the multiselectable route's pair (M109) and every tier's
 /// before them on the published corpus.
-const EXPECTED_BENCH_COUNT: usize = 137;
+const EXPECTED_BENCH_COUNT: usize = 140;
 
 /// The suite's own read door into the published corpus: the busy
 /// route's pair — the 1,000-node list arena carrying the updating word,

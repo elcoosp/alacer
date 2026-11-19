@@ -257,12 +257,19 @@ impl AccessKitSink {
         if let Some(bounds) = node.bounds {
             access_node.set_bounds(map_bounds(bounds));
         }
-        // The announcement region (§11.6, ADR-0024): the politeness rides
-        // the `aria-live` property, and the role follows the ARIA pairing —
-        // polite is "status", assertive interrupts as "alert".
+        // The announcement region (§11.6, ADR-0024) and, since M120
+        // (ADR-0124), the app's declared live regions: the politeness
+        // rides the `aria-live` property on both — and the role follows
+        // the ARIA pairing (polite is "status", assertive interrupts as
+        // "alert") for the pipeline's own region only, whose
+        // announcement contract names the pairing. A container that
+        // *declares* the word keeps the role it already was — the word
+        // names the region the AT watches, it re-roles nothing.
         if let Some(politeness) = node.live {
             access_node.set_live(map_live(politeness));
-            access_node.set_role(map_announcement_role(politeness));
+            if node.role == Role::LiveRegion {
+                access_node.set_role(map_announcement_role(politeness));
+            }
         }
         if let Some(value) = &node.value {
             access_node.set_value(value.as_str());
@@ -297,6 +304,30 @@ impl AccessKitSink {
         // re-announces exactly that node.
         if let Some(role_description) = &node.role_description {
             access_node.set_role_description(role_description.as_str());
+        }
+        // The set tier (M119, ADR-0123): the collection's span and the
+        // member's place map AccessKit's `SizeOfSet` (ARIA's
+        // `aria-setsize`) and `PositionInSet` (ARIA's `aria-posinset`)
+        // properties — the numbers the AT reads as "row 3 of 500"
+        // beside the picks, the capacity and the depth the collection
+        // tiers already carried. The words price nothing but the
+        // words: the collection's doors answer exactly as they always
+        // did. AccessKit's own contracts ride — the size on the
+        // container ("`aria-setsize` is set on each item, while this
+        // property is set on the container"), the place zero-based
+        // ("`aria-posinset` is one-based, while this property is
+        // zero-based") — the differences the trait's documentation
+        // carries, one branch with no translation. The honest absence
+        // (`None`) maps to the absence: a collection that declared
+        // nothing and a member that declared no place set nothing,
+        // never a guessed count. The properties ride the same
+        // node-only delta as every other property — a set write
+        // re-announces exactly that node.
+        if let Some(size_of_set) = node.size_of_set {
+            access_node.set_size_of_set(size_of_set);
+        }
+        if let Some(position_in_set) = node.position_in_set {
+            access_node.set_position_in_set(position_in_set);
         }
         // The range tier (M97, ADR-0101): the span every value-tier write
         // funnels through — AccessKit's `MinNumericValue` /
@@ -1248,6 +1279,105 @@ mod tests {
         );
     }
 
+    #[test]
+    fn the_set_tier_maps_onto_the_position_and_size_properties() {
+        // M119, ADR-0123: the member's place and the collection's size
+        // map AccessKit's `PositionInSet` (ARIA's `aria-posinset`) and
+        // `SizeOfSet` (ARIA's `aria-setsize`) properties — the numbers
+        // the AT reads as "row 3 of 500". AccessKit's own bases ride
+        // (the place zero-based, the size on the container — the
+        // differences the trait's documentation carries, one branch
+        // with no translation), the honest absence (`None`) sets
+        // nothing.
+        let mut sink = AccessKitSink::new();
+        let mut snap = snapshot();
+        snap.nodes[1].position_in_set = Some(2);
+        snap.nodes[0].size_of_set = Some(500);
+        sink.apply(
+            std::sync::Arc::new(snap),
+            &alacer_core::passes::A11yDelta {
+                updated: {
+                    let mut ids = FxHashSet::default();
+                    ids.insert(snap_root_and_child().0);
+                    ids.insert(snap_root_and_child().1);
+                    ids
+                },
+                removed: Vec::new(),
+                focus: None,
+                initializes: false,
+            },
+        );
+        let update = sink.last_update().expect("the delta produced an update");
+        let member = update
+            .nodes
+            .iter()
+            .find(|(id, _)| id.0 == snap_root_and_child().1)
+            .map(|(_, node)| node)
+            .expect("the member node is re-emitted");
+        assert_eq!(
+            member.position_in_set(),
+            Some(2),
+            "the AT reads the declared place, zero-based as the property maps"
+        );
+        let container = update
+            .nodes
+            .iter()
+            .find(|(id, _)| id.0 == snap_root_and_child().0)
+            .map(|(_, node)| node)
+            .expect("the container node is re-emitted");
+        assert_eq!(
+            container.size_of_set(),
+            Some(500),
+            "the AT reads the declared span, on the container as the property maps"
+        );
+    }
+
+    #[test]
+    fn the_live_tier_maps_onto_the_live_property() {
+        // M120, ADR-0124: the app's declared live region maps
+        // AccessKit's `Live` property (ARIA's `aria-live`) — the
+        // politeness the announcement seam's own vocabulary carries,
+        // beside the pipeline's reserved region the same mapping has
+        // served since M18. The word prices the word and nothing else:
+        // a declared container's role stays the role it already was —
+        // the Status/Alert pairing is the pipeline's own region's, the
+        // role the region's announcement contract names — and the
+        // honest absence (`None`) sets nothing.
+        let mut sink = AccessKitSink::new();
+        let mut snap = snapshot();
+        snap.nodes[1].live = Some(alacer_core::announce::Politeness::Polite);
+        sink.apply(
+            std::sync::Arc::new(snap),
+            &alacer_core::passes::A11yDelta {
+                updated: {
+                    let mut ids = FxHashSet::default();
+                    ids.insert(snap_root_and_child().1);
+                    ids
+                },
+                removed: Vec::new(),
+                focus: None,
+                initializes: false,
+            },
+        );
+        let update = sink.last_update().expect("the delta produced an update");
+        let declared = update
+            .nodes
+            .iter()
+            .find(|(id, _)| id.0 == snap_root_and_child().1)
+            .map(|(_, node)| node)
+            .expect("the declared node is re-emitted");
+        assert_eq!(
+            declared.live(),
+            Some(Live::Polite),
+            "the AT reads the declared region's politeness"
+        );
+        assert_eq!(
+            declared.role(),
+            AkRole::Button,
+            "a declared container keeps its own role — the pairing is the pipeline's region's"
+        );
+    }
+
     /// The `(root, child)` hash pair the `snapshot()` helper mounts.
     fn snap_root_and_child() -> (u64, u64) {
         (111, 222)
@@ -1316,6 +1446,8 @@ mod tests {
             current: None,
             has_popup: None,
             role_description: None,
+            position_in_set: None,
+            size_of_set: None,
         });
         sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
         let update = sink.last_update().expect("update");
@@ -1471,6 +1603,8 @@ mod tests {
             current: None,
             has_popup: None,
             role_description: None,
+            position_in_set: None,
+            size_of_set: None,
         }
     }
 
@@ -1560,6 +1694,8 @@ mod tests {
                     current: None,
                     has_popup: None,
                     role_description: None,
+                    position_in_set: None,
+                    size_of_set: None,
                 },
                 TreeNode {
                     id: 2,
@@ -1594,6 +1730,8 @@ mod tests {
                     current: None,
                     has_popup: None,
                     role_description: None,
+                    position_in_set: None,
+                    size_of_set: None,
                 },
             ],
         };
@@ -1655,6 +1793,8 @@ mod tests {
             current: None,
             has_popup: None,
             role_description: None,
+            position_in_set: None,
+            size_of_set: None,
         }
     }
 
@@ -1754,6 +1894,8 @@ mod tests {
                     current: None,
                     has_popup: None,
                     role_description: None,
+                    position_in_set: None,
+                    size_of_set: None,
                 },
                 TreeNode {
                     id: 2,
@@ -1788,6 +1930,8 @@ mod tests {
                     current: None,
                     has_popup: None,
                     role_description: None,
+                    position_in_set: None,
+                    size_of_set: None,
                 },
             ],
         };
@@ -1853,6 +1997,8 @@ mod tests {
                     current: None,
                     has_popup: None,
                     role_description: None,
+                    position_in_set: None,
+                    size_of_set: None,
                 },
                 TreeNode {
                     id: 4,
@@ -1887,6 +2033,8 @@ mod tests {
                     current: None,
                     has_popup: None,
                     role_description: None,
+                    position_in_set: None,
+                    size_of_set: None,
                 },
             ],
         };
@@ -1949,6 +2097,8 @@ mod tests {
                     current: None,
                     has_popup: None,
                     role_description: None,
+                    position_in_set: None,
+                    size_of_set: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -1983,6 +2133,8 @@ mod tests {
                     current: None,
                     has_popup: None,
                     role_description: None,
+                    position_in_set: None,
+                    size_of_set: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -2056,6 +2208,8 @@ mod tests {
                     current: None,
                     has_popup: None,
                     role_description: None,
+                    position_in_set: None,
+                    size_of_set: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -2090,6 +2244,8 @@ mod tests {
                     current: None,
                     has_popup: None,
                     role_description: None,
+                    position_in_set: None,
+                    size_of_set: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -2157,6 +2313,8 @@ mod tests {
                     current: None,
                     has_popup: None,
                     role_description: None,
+                    position_in_set: None,
+                    size_of_set: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -2191,6 +2349,8 @@ mod tests {
                     current: None,
                     has_popup: None,
                     role_description: None,
+                    position_in_set: None,
+                    size_of_set: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },

@@ -46,7 +46,7 @@
 | 50-event pointer storm                                | **1** coalesced dispatch (**39.71×**)           | `input_storm_batching` budget                                                                          |
 | 10k-node churn frame vs egui, same host               | 1.10 ms vs 20.7 ms full frame (**18.8×**)       | 5-run medians, declared rig (`benchmarks/rig.json`)                                                    |
 | …vs Masonry                                           | 1.10 ms vs 4.6 ms full pass pipeline (**4.2×**) | same rig, `scripts/run_comparison.py`                                                                  |
-| All 141 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
+| All 144 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
 
 _Competitor rows compare Alacer's incremental frame against their full frame/pass — every row in
 `benchmarks/comparisons/results.json` is labeled with its scope._
@@ -188,6 +188,8 @@ Accessibility is not a layer bolted on — it is the tree's own vocabulary:
 | **Set** (M119)          | The collection's place and span: `position_in_set()` on the trait answering the member's zero-based index (AccessKit's own base, the contract naming it verbatim beside ARIA's one-based `aria-posinset` — one branch with no translation) and `size_of_set()` answering the collection's declared span (AccessKit's own placement — the size on the *container*, where ARIA sets `aria-setsize` on each item), `TableRow` carrying the place word and `Table` the size word with their doors, AccessKit's `PositionInSet`/`SizeOfSet` properties mapped in the same snapshot — the AT reading "row 3 of 500" while it walks the collection, the words naming facts and walling nothing; `None` the honest absence, never a guessed `0` | 0123      |
 | **Live** (M120)         | The region the app declares live: `live()` on the trait carrying the politeness the announcement seam's own vocabulary (`Politeness` — the ADR-0022 pair: `polite` the AT waits its turn, `assertive` it interrupts; the unset attribute the absence the `Option` spells, never a guessed watch), `List`/`Table` carrying the constructor word and the `set_live` door, AccessKit's `Live` property mapped in the same snapshot — the declared counterpart of the reserved region §11.6 reserves (the imperative half the framework owns, the declarative half the app says), a declared container keeping the role it already was; `None` the honest absence | 0124      |
 | **Shortcut** (M121)     | The chord the keymap rides, said by the tree: `keyboard_shortcut()` on the trait answering the string the app declared (the spellings the app's own vocabulary — no kind enum, AccessKit's `KeyboardShortcut` is a string property, the description precedent at the string tier, one branch with no translation), `Button` carrying the constructor word and the `set_keyboard_shortcut` door, AccessKit's `KeyboardShortcut` property (ARIA's `aria-keyshortcuts`) mapped in the same snapshot — the AT announcing "Save — Control+S" beside the name while the keymap's dispatch stays the dispatch it always was (the word says the chord the app named, it never binds a key — the word names a fact, it walls nothing); `None` the honest absence, never a guessed binding | 0125      |
+| **Multiline** (M122)    | The field's line capacity, said by the tree: `multiline()` on the trait answering a plain bool (`false` the honest absence — a field that declared no capacity announces none, never a guessed "multiline"; the ADR-0113 flag shape at the tier), `TextInput` carrying the constructor word and the `set_multiline` door, AccessKit's `MultilineTextInput` role resolved in the same snapshot (ARIA's `aria-multiline` beside the `textbox` role — the capacity word the vocabulary carries, there being no separate property to mirror; the secure tier's `PasswordInput` branch winning the role it has carried since M100) — the AT reading "edit text, multiline" before it types while the field's typing, caret, selection and submit routes stay the widget's own (the word names a capacity, it walls nothing); `false` the honest absence | 0126      |
+| **Language** (M123)     | The text's language, said by the tree: `language()` on the trait answering the string the app declared (the BCP 47 tag the AT voices the text with — no kind enum, AccessKit's `Language` is a string property, the description precedent at the string tier, one branch with no translation), `Label` carrying the constructor word and the `set_language` door, AccessKit's `Language` property mapped in the same snapshot — the AT voicing the text with the declared tag while the text's read stays the widget's own (the word says the text's language, it never translates the text — the word names a fact, it walls nothing); `None` the honest absence, never a guessed tag | 0127      |
 
 Since M20 the value tier is a widget — the `Slider` answers drag, arrows and AT writes from one
 funnel. Since M21 the value is reportable too — the read-only `Progress` names the door that has
@@ -516,7 +518,7 @@ is the query API as a runnable walkthrough.
 ## Status
 
 > [!NOTE]
-> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M121 of `docs/architecture.md` are
+> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M123 of `docs/architecture.md` are
 > complete, but the API still moves between minor versions. MSRV **1.99**, edition **2024**.
 
 | Platform            | CI coverage                                                                                                                                                           |
@@ -528,7 +530,7 @@ is the query API as a runnable walkthrough.
 ## Learn more
 
 - [Architecture](https://github.com/elcoosp/alacer/blob/main/docs/architecture.md) — design axioms, the ten-pass contract, rendering, accessibility, DX, performance, roadmap and kill criteria
-- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred and twenty-six decision records, from workspace discipline to the M121 scope
+- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred and twenty-eight decision records, from workspace discipline to the M123 scope
 - [Examples catalog](https://github.com/elcoosp/alacer/blob/main/docs/examples.md) — every example with the contract it exercises
 - [Migrating from Iced](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-iced.md) · [from egui](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-egui.md) — mental-model mappings, interop limits stated plainly
 - [Inspector protocol](https://github.com/elcoosp/alacer/blob/main/docs/inspector-protocol.md) — the versioned WebSocket contract behind `alacer-inspect`

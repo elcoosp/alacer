@@ -350,6 +350,12 @@ pub fn key_from_name(name: &str) -> Option<Key> {
 }
 
 /// Parses a recording role name back onto [`Role`].
+///
+/// The set is the roles a recorded session *acts on* — the pressable,
+/// editable controls the replay funnel routes (the container and
+/// decoration roles carry no door, so they never name a step). The
+/// radio joins in M124: the one-of-N control's select ask is the
+/// activation ask the recorder names by role.
 #[must_use]
 pub fn role_from_name(name: &str) -> Option<Role> {
     match name {
@@ -366,6 +372,8 @@ pub fn role_from_name(name: &str) -> Option<Role> {
         "table_row" => Some(Role::TableRow),
         "table_cell" => Some(Role::TableCell),
         "column_header" => Some(Role::ColumnHeader),
+        "radio" => Some(Role::Radio),
+        "link" => Some(Role::Link),
         _ => None,
     }
 }
@@ -423,6 +431,12 @@ mod tests {
             Role::TableCell,
             Role::ColumnHeader,
             Role::TableRow,
+            // The M124 radio tier: the member's select ask is a
+            // recordable activation; the group carries no door.
+            Role::Radio,
+            // The M125 link tier: the open ask is a recordable
+            // activation.
+            Role::Link,
         ] {
             assert_eq!(
                 role_from_name(role.name()),
@@ -431,6 +445,11 @@ mod tests {
             );
         }
         assert_eq!(role_from_name("video"), None);
+        assert_eq!(
+            role_from_name("radio_group"),
+            None,
+            "a container names no step — the recorder acts on doors"
+        );
     }
 
     #[test]

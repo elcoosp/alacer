@@ -461,6 +461,21 @@ impl AccessKitSink {
         if node.multiselectable {
             access_node.set_multiselectable();
         }
+        // The busy tier (M117, ADR-0121): the container whose subtree is
+        // being updated maps AccessKit's `Busy` property, ARIA's
+        // `aria-busy` — the updating fact the AT defers its speech on,
+        // beside the announcement region the imperative door already
+        // reserved (§11.6, ADR-0024: the declared counterpart — the app
+        // says *which* region is settling, the AT holds what it would
+        // announce while it is). The word prices nothing but the word:
+        // the container's doors answer exactly as they always did. The
+        // honest absence maps to the absence: a container that declared
+        // nothing sets nothing, never a guessed "updating". The property
+        // rides the same node-only delta as every other property — a
+        // busy write re-announces exactly that node.
+        if node.busy {
+            access_node.set_busy();
+        }
         // The expanded tier (M110, ADR-0114): the collection member that
         // opens and closes maps AccessKit's `Expanded` property, ARIA's
         // `aria-expanded` — the disclosure the AT reads beside the picks
@@ -935,6 +950,39 @@ mod tests {
     }
 
     #[test]
+    fn the_busy_tier_maps_onto_the_busy_property() {
+        // M117, ADR-0121: the container whose subtree is being updated
+        // maps AccessKit's `Busy` property, ARIA's `aria-busy` — the
+        // updating fact the AT defers its speech on. The default is the
+        // honest absence: a container that declared nothing sets
+        // nothing.
+        let mut sink = AccessKitSink::new();
+        let mut snap = snapshot();
+        snap.nodes[1].busy = true;
+        sink.apply(
+            std::sync::Arc::new(snap),
+            &alacer_core::passes::A11yDelta {
+                updated: {
+                    let mut ids = FxHashSet::default();
+                    ids.insert(snap_root_and_child().1);
+                    ids
+                },
+                removed: Vec::new(),
+                focus: None,
+                initializes: false,
+            },
+        );
+        let update = sink.last_update().expect("the delta produced an update");
+        let busy = update
+            .nodes
+            .iter()
+            .find(|(id, _)| id.0 == snap_root_and_child().1)
+            .map(|(_, node)| node)
+            .expect("the busy node is re-emitted");
+        assert!(busy.is_busy(), "the AT reads the declared word");
+    }
+
+    #[test]
     fn the_expanded_tier_maps_onto_the_expanded_property() {
         // M110, ADR-0114: the collection member that opens and closes
         // maps AccessKit's `Expanded` property, ARIA's `aria-expanded` —
@@ -1260,6 +1308,7 @@ mod tests {
             invalid: None,
             selected: None,
             multiselectable: false,
+            busy: false,
             expanded: None,
             auto_complete: None,
             sort_direction: None,
@@ -1414,6 +1463,7 @@ mod tests {
             invalid: None,
             selected: None,
             multiselectable: false,
+            busy: false,
             expanded: None,
             auto_complete: None,
             sort_direction: None,
@@ -1502,6 +1552,7 @@ mod tests {
                     invalid: None,
                     selected: None,
                     multiselectable: false,
+                    busy: false,
                     expanded: None,
                     auto_complete: None,
                     sort_direction: None,
@@ -1535,6 +1586,7 @@ mod tests {
                     invalid: None,
                     selected: None,
                     multiselectable: false,
+                    busy: false,
                     expanded: None,
                     auto_complete: None,
                     sort_direction: None,
@@ -1595,6 +1647,7 @@ mod tests {
             invalid: None,
             selected: None,
             multiselectable: false,
+            busy: false,
             expanded: None,
             auto_complete: None,
             sort_direction: None,
@@ -1693,6 +1746,7 @@ mod tests {
                     invalid: None,
                     selected: None,
                     multiselectable: false,
+                    busy: false,
                     expanded: None,
                     auto_complete: None,
                     sort_direction: None,
@@ -1726,6 +1780,7 @@ mod tests {
                     invalid: None,
                     selected: None,
                     multiselectable: false,
+                    busy: false,
                     expanded: None,
                     auto_complete: None,
                     sort_direction: None,
@@ -1790,6 +1845,7 @@ mod tests {
                     invalid: None,
                     selected: None,
                     multiselectable: false,
+                    busy: false,
                     expanded: None,
                     auto_complete: None,
                     sort_direction: None,
@@ -1823,6 +1879,7 @@ mod tests {
                     invalid: None,
                     selected: None,
                     multiselectable: false,
+                    busy: false,
                     expanded: None,
                     auto_complete: None,
                     sort_direction: None,
@@ -1884,6 +1941,7 @@ mod tests {
                     invalid: None,
                     selected: None,
                     multiselectable: false,
+                    busy: false,
                     expanded: None,
                     auto_complete: None,
                     sort_direction: None,
@@ -1917,6 +1975,7 @@ mod tests {
                     invalid: None,
                     selected: None,
                     multiselectable: false,
+                    busy: false,
                     expanded: None,
                     auto_complete: None,
                     sort_direction: None,
@@ -1989,6 +2048,7 @@ mod tests {
                     invalid: None,
                     selected: None,
                     multiselectable: false,
+                    busy: false,
                     expanded: None,
                     auto_complete: None,
                     sort_direction: None,
@@ -2022,6 +2082,7 @@ mod tests {
                     invalid: None,
                     selected: None,
                     multiselectable: false,
+                    busy: false,
                     expanded: None,
                     auto_complete: None,
                     sort_direction: None,
@@ -2088,6 +2149,7 @@ mod tests {
                     invalid: None,
                     selected: None,
                     multiselectable: false,
+                    busy: false,
                     expanded: None,
                     auto_complete: None,
                     sort_direction: None,
@@ -2121,6 +2183,7 @@ mod tests {
                     invalid: None,
                     selected: None,
                     multiselectable: false,
+                    busy: false,
                     expanded: None,
                     auto_complete: None,
                     sort_direction: None,

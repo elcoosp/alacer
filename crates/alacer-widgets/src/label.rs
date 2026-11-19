@@ -11,6 +11,9 @@ use alacer_core::widget::{EventResponse, LabelSource, Role, Widget};
 /// Static text. The accessible name *is* the text.
 pub struct Label {
     text: LabelText,
+    /// The language tier's word (M123, ADR-0127): the language the
+    /// label's text is written in; `None` is the honest absence.
+    language: Option<String>,
     /// The app's text color override; `None` borrows the theme's text
     /// role at paint time (ADR-0079) — the role re-resolves on a
     /// retheme, the override never does.
@@ -30,6 +33,7 @@ impl Label {
     pub fn new(text: impl Into<String>) -> Self {
         Self {
             text: LabelText::Fixed(text.into()),
+            language: None,
             color: None,
             font_size: crate::theme::FONT_SIZE,
             style: Style::default(),
@@ -66,6 +70,31 @@ impl Label {
     pub fn style(mut self, style: Style) -> Self {
         self.style = style;
         self
+    }
+
+    /// The language word (M123, ADR-0127): the language the label's
+    /// text is written in — the BCP 47 tag the platform AT voices the
+    /// text with ("fr-FR", "ja-JP"), the tag the tree says from the
+    /// first frame (`aria-lang`, AccessKit's `Language` property). The
+    /// word names the language the app declared, it never translates
+    /// the text: the label's read routes the widget's own.
+    #[must_use]
+    pub fn language(mut self, language: impl Into<String>) -> Self {
+        self.language = Some(language.into());
+        self
+    }
+
+    /// The one language write (M123, ADR-0127, view reconciliation):
+    /// `None` clears to the honest absence. Report whether the word
+    /// moved — the caller requests `A11Y` only when this answers
+    /// `true`, so a write that lands where the word already is queues
+    /// nothing (the M21 idle-frame property, at the language tier).
+    pub fn set_language(&mut self, language: Option<String>) -> bool {
+        if self.language == language {
+            return false;
+        }
+        self.language = language;
+        true
     }
 
     /// Replaces the fixed text in place (view reconciliation, §6.1). A no-op
@@ -115,6 +144,13 @@ impl Widget for Label {
             Some(binding) => LabelSource::Binding(binding),
             None => LabelSource::text(self.current_text()),
         }
+    }
+
+    /// The language tier (M123, ADR-0127): the language the label's
+    /// text is written in, the honest absence when the label carries
+    /// none — a text word, so every other role inherits the default.
+    fn language(&self) -> Option<&str> {
+        self.language.as_deref()
     }
 
     fn style(&self) -> Style {

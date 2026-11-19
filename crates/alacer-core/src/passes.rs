@@ -305,6 +305,23 @@ pub struct TreeNode {
     /// the honest absence — a control that declared nothing is read as
     /// the generic role it already was, never a guessed specialization.
     pub role_description: Option<String>,
+    /// The member's place in its collection (M119, ADR-0123): the set
+    /// tier's member word — the zero-based index the AT reads beside
+    /// the depth the level tier carried (AccessKit's `PositionInSet`
+    /// property, ARIA's `aria-posinset`). The word prices nothing but
+    /// the word: the member's doors answer exactly as they always did.
+    /// `None` is the honest absence — a member that declared nothing
+    /// announces no place, never a guessed `0`.
+    pub position_in_set: Option<usize>,
+    /// The collection's declared item count (M119, ADR-0123): the set
+    /// tier's container word — the span the AT reads beside the member
+    /// places (AccessKit's `SizeOfSet` property, ARIA's
+    /// `aria-setsize`, on the container per AccessKit's own contract).
+    /// The word prices nothing but the word: the collection's doors
+    /// answer exactly as they always did. `None` is the honest absence
+    /// — a collection that declared nothing announces no span, never a
+    /// guessed one.
+    pub size_of_set: Option<usize>,
 }
 
 /// The full accessibility snapshot of the widget tree, built by pass 9.
@@ -4057,7 +4074,11 @@ impl PassPipeline {
                 toggled: slot.widget().toggled(),
                 table_slot: slot.widget().table_slot(),
                 selection: slot.widget().selection(),
-                live: None,
+                // The live tier (M120, ADR-0124): the app's declared
+                // live region — the word the containers carry beside
+                // the pipeline's own reserved region, whose politeness
+                // rides the same field below.
+                live: slot.widget().live(),
                 enabled: slot.widget().enabled(),
                 description: slot.widget().description().map(str::to_owned),
                 placeholder: slot.widget().placeholder().map(str::to_owned),
@@ -4080,6 +4101,8 @@ impl PassPipeline {
                 current: slot.widget().current(),
                 has_popup: slot.widget().has_popup(),
                 role_description: slot.widget().role_description().map(str::to_owned),
+                position_in_set: slot.widget().position_in_set(),
+                size_of_set: slot.widget().size_of_set(),
             };
             if snapshot.root.is_none() {
                 snapshot.root = Some(node.id);
@@ -4136,7 +4159,10 @@ impl PassPipeline {
                 // region carries no collection to size.
                 multiselectable: false,
                 // The pipeline's own node: no updating word — the
-                // region is never withheld; it is the speech.
+                // region is never withheld; it is the speech. Its
+                // politeness above is the live tier's own rider (M120,
+                // ADR-0124): the region the imperative channel speaks,
+                // beside the regions the app declares.
                 busy: false,
                 // The pipeline's own node: no disclosure word — the
                 // region opens and closes not.
@@ -4159,6 +4185,12 @@ impl PassPipeline {
                 // The pipeline's own node: no read-as role — the region
                 // is read as the live region it is.
                 role_description: None,
+                // The pipeline's own node: no place in a set — the
+                // region stands in no collection.
+                position_in_set: None,
+                // The pipeline's own node: no span to size — the
+                // region collects nothing.
+                size_of_set: None,
             });
         }
         snapshot

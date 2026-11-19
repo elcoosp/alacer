@@ -172,7 +172,6 @@ impl InspectorHandle {
     }
 }
 
-
 /// Wires the inspector into `pipeline` in one call: a [`CausalRecorder`]
 /// into the observer slot (the causal facts stream, and the trails enable
 /// — the slot's own contract), the [`InspectorServer`] bound to

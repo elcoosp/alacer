@@ -46,7 +46,7 @@
 | 50-event pointer storm                                | **1** coalesced dispatch (**39.71×**)           | `input_storm_batching` budget                                                                          |
 | 10k-node churn frame vs egui, same host               | 1.10 ms vs 20.7 ms full frame (**18.8×**)       | 5-run medians, declared rig (`benchmarks/rig.json`)                                                    |
 | …vs Masonry                                           | 1.10 ms vs 4.6 ms full pass pipeline (**4.2×**) | same rig, `scripts/run_comparison.py`                                                                  |
-| All 135 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
+| All 140 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
 
 _Competitor rows compare Alacer's incremental frame against their full frame/pass — every row in
 `benchmarks/comparisons/results.json` is labeled with its scope._
@@ -86,7 +86,7 @@ cargo test --workspace                                          # headless: real
 > `ALACER_SOFTWARE=1` presents through softbuffer — the platform honors it at startup
 > (`BackendPreference::software_env`) whichever backend the app asked for; any other value is
 > refused with a named warning, never guessed. CI and the headless tests already run this path:
-> no mock renderer, no mock event loop. The full 103-example catalog lives in
+> no mock renderer, no mock event loop. The full 105-example catalog lives in
 > [docs/examples.md](https://github.com/elcoosp/alacer/blob/main/docs/examples.md).
 
 ## How it works
@@ -184,6 +184,9 @@ Accessibility is not a layer bolted on — it is the tree's own vocabulary:
 | **Current** (M114)    | The set's current item: `current()` on the trait carrying the kind (`CurrentKind` — AccessKit's own six values: `true`, `page`, `step`, `location`, `date`, `time`; ARIA's `false`, the attribute's absent default, the absence the `Option` spells, never a guessed flavor), `Button` carrying the constructor word and the `set_current` door, AccessKit's `AriaCurrent` property mapped in the same snapshot — the AT reading "current page" while it walks the nav, the item's press and focus routes the widget's own (the word names a currency, it walls nothing); `None` the honest absence | 0118      |
 | **Has-popup** (M115)   | The opener's target: `has_popup()` on the trait carrying the kind (`HasPopupKind` — AccessKit's own five values: `menu`, `listbox`, `tree`, `grid`, `dialog`; the attribute's unset state the absence the `Option` spells, never a guessed target), `Button` carrying the constructor word and the `set_has_popup` door, AccessKit's `HasPopup` property mapped in the same snapshot — the AT reading "opens a menu" while it walks the toolbar, the opener's press and focus routes the widget's own (the word names a target, it walls nothing); `None` the honest absence | 0119      |
 | **Role-description** (M116) | The role a custom control is *read as*: `role_description()` on the trait answering the single word beside the generic role (no kind enum — AccessKit's `RoleDescription` is a string property, the description precedent at the string tier, one branch with no translation), `Button` carrying the constructor word and the `set_role_description` door with `Slider` joining by the M107 rule, AccessKit's `RoleDescription` property mapped in the same snapshot — the AT reading "star rating" while it walks the form, the control's press and focus routes the widget's own (the word names a read-as role, it walls nothing); `None` the honest absence, the generic role the control already was, never a guessed specialization | 0120      |
+| **Busy** (M117)        | The subtree's updating fact: `busy()` on the trait answering a plain bool (`false` the honest absence — a container that declared nothing announces nothing, never a guessed "updating"; the declared counterpart of the announcement machinery §11.6 reserves — the app says *which* region is settling, the AT holds what it would announce while it is), `List`/`Table` carrying the constructor word and the `set_busy` door, AccessKit's `Busy` property mapped in the same snapshot — the word naming the updating fact and walling nothing (the AT defers its own speech, it is never the tree's to silence); `false` the honest absence | 0121      |
+| **Set** (M119)          | The collection's place and span: `position_in_set()` on the trait answering the member's zero-based index (AccessKit's own base, the contract naming it verbatim beside ARIA's one-based `aria-posinset` — one branch with no translation) and `size_of_set()` answering the collection's declared span (AccessKit's own placement — the size on the *container*, where ARIA sets `aria-setsize` on each item), `TableRow` carrying the place word and `Table` the size word with their doors, AccessKit's `PositionInSet`/`SizeOfSet` properties mapped in the same snapshot — the AT reading "row 3 of 500" while it walks the collection, the words naming facts and walling nothing; `None` the honest absence, never a guessed `0` | 0123      |
+| **Live** (M120)         | The region the app declares live: `live()` on the trait carrying the politeness the announcement seam's own vocabulary (`Politeness` — the ADR-0022 pair: `polite` the AT waits its turn, `assertive` it interrupts; the unset attribute the absence the `Option` spells, never a guessed watch), `List`/`Table` carrying the constructor word and the `set_live` door, AccessKit's `Live` property mapped in the same snapshot — the declared counterpart of the reserved region §11.6 reserves (the imperative half the framework owns, the declarative half the app says), a declared container keeping the role it already was; `None` the honest absence | 0124      |
 
 Since M20 the value tier is a widget — the `Slider` answers drag, arrows and AT writes from one
 funnel. Since M21 the value is reportable too — the read-only `Progress` names the door that has
@@ -357,7 +360,7 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `accent_follow`                                      | the OS's accent fact rides the same seam: the accent-only flip lands, the composition tints the palette's accent roles from the fact, the log names all four facts |
 | `todo` / `data_table`                                | the canons: a11y tree, record/replay, grid slots, keyboard navigation            |
 
-<details><summary><b>90 examples, grouped (recording, alloc_budget, input_budget, derive_widget, layout_probe, sort, level, current, has_popup, role_description, busy, key_routing, and tri_state live in the catalog)</b></summary>
+<details><summary><b>90 examples, grouped (recording, alloc_budget, input_budget, derive_widget, layout_probe, sort, level, current, has_popup, role_description, busy, key_routing, set, live, and tri_state live in the catalog)</b></summary>
 
 **Start here**
 
@@ -512,7 +515,7 @@ is the query API as a runnable walkthrough.
 ## Status
 
 > [!NOTE]
-> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M118 of `docs/architecture.md` are
+> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M120 of `docs/architecture.md` are
 > complete, but the API still moves between minor versions. MSRV **1.99**, edition **2024**.
 
 | Platform            | CI coverage                                                                                                                                                           |
@@ -524,7 +527,7 @@ is the query API as a runnable walkthrough.
 ## Learn more
 
 - [Architecture](https://github.com/elcoosp/alacer/blob/main/docs/architecture.md) — design axioms, the ten-pass contract, rendering, accessibility, DX, performance, roadmap and kill criteria
-- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred and twenty-one decision records, from workspace discipline to the M116 scope
+- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred and twenty-five decision records, from workspace discipline to the M120 scope
 - [Examples catalog](https://github.com/elcoosp/alacer/blob/main/docs/examples.md) — every example with the contract it exercises
 - [Migrating from Iced](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-iced.md) · [from egui](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-egui.md) — mental-model mappings, interop limits stated plainly
 - [Inspector protocol](https://github.com/elcoosp/alacer/blob/main/docs/inspector-protocol.md) — the versioned WebSocket contract behind `alacer-inspect`

@@ -26,9 +26,11 @@ mod progress;
 mod radio;
 mod registry;
 mod slider;
+mod spin_button;
 mod tab;
 mod table;
 mod text_input;
+mod toolbar;
 
 pub use button::Button;
 pub use canon::{DataTableHandles, TodoHandles, TodoItem, data_table_app, todo_app};
@@ -44,9 +46,11 @@ pub use progress::Progress;
 pub use radio::{Radio, RadioGroup};
 pub use registry::default_registry;
 pub use slider::Slider;
+pub use spin_button::SpinButton;
 pub use tab::{Tab, TabList};
 pub use table::{ColumnHeader, Table, TableCell, TableRow};
 pub use text_input::TextInput;
+pub use toolbar::Toolbar;
 
 use alacer_core::widget::Widget;
 

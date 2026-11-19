@@ -56,6 +56,8 @@ fn snapshot_1k() -> Arc<TreeSnapshot> {
         position_in_set: None,
         size_of_set: None,
         keyboard_shortcut: None,
+        multiline: false,
+        language: None,
     });
     for id in 1..NODES {
         nodes.push(TreeNode {
@@ -97,6 +99,8 @@ fn snapshot_1k() -> Arc<TreeSnapshot> {
             position_in_set: None,
             size_of_set: None,
             keyboard_shortcut: None,
+            multiline: false,
+            language: None,
         });
     }
     Arc::new(TreeSnapshot {

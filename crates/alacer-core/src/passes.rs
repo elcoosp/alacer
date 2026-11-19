@@ -322,6 +322,14 @@ pub struct TreeNode {
     /// — a collection that declared nothing announces no span, never a
     /// guessed one.
     pub size_of_set: Option<usize>,
+    /// The control's shortcut word (M121, ADR-0125): the chord the
+    /// control is invoked with — the word the AT reads beside the name
+    /// ("Save — Control+S", AccessKit's `KeyboardShortcut` property,
+    /// ARIA's `aria-keyshortcuts`). The word prices nothing but the
+    /// word: the control's doors answer exactly as they always did.
+    /// `None` is the honest absence — a control that declared no chord
+    /// announces none, never a guessed binding.
+    pub keyboard_shortcut: Option<String>,
 }
 
 /// The full accessibility snapshot of the widget tree, built by pass 9.
@@ -4103,6 +4111,7 @@ impl PassPipeline {
                 role_description: slot.widget().role_description().map(str::to_owned),
                 position_in_set: slot.widget().position_in_set(),
                 size_of_set: slot.widget().size_of_set(),
+                keyboard_shortcut: slot.widget().keyboard_shortcut().map(str::to_owned),
             };
             if snapshot.root.is_none() {
                 snapshot.root = Some(node.id);
@@ -4191,6 +4200,9 @@ impl PassPipeline {
                 // The pipeline's own node: no span to size — the
                 // region collects nothing.
                 size_of_set: None,
+                // The pipeline's own node: no chord to say — the region
+                // is invoked by no key.
+                keyboard_shortcut: None,
             });
         }
         snapshot

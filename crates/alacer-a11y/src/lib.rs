@@ -346,6 +346,46 @@ impl AccessKitSink {
         if let Some(shortcut) = &node.keyboard_shortcut {
             access_node.set_keyboard_shortcut(shortcut.as_str());
         }
+        // The multiline tier (M122, ADR-0126): the field's line capacity —
+        // AccessKit's `MultilineTextInput` role (the capacity word the
+        // vocabulary carries; there is no separate property to mirror),
+        // ARIA's `aria-multiline` beside the `textbox` role — the word
+        // the AT reads beside the hint the placeholder tier already
+        // carried ("this field wraps onto many lines"). The word prices
+        // nothing but the word: the field's doors answer exactly as they
+        // always did — the word names the capacity, it walls nothing. The
+        // honest absence (`false`) maps to the absence: a field that
+        // declared no capacity reads as the ordinary `TextInput` role it
+        // always was, never a guessed "multiline". The tier rides the
+        // same role branch the secure tier resolved first (M100): the
+        // secure field's `PasswordInput` word wins the branch it has
+        // carried since M100, and the capacity word resolves only when
+        // the role is still the ordinary editable one — both words stay
+        // true in the snapshot the tree hands over. A capacity write
+        // re-announces exactly that node, the same node-only delta as
+        // every other property.
+        if node.multiline
+            && node.role == alacer_core::Role::TextInput
+            && !(node.secure_entry && !node.secure_revealed)
+        {
+            access_node.set_role(AccessKitRole::MultilineTextInput);
+        }
+        // The language tier (M123, ADR-0127): the language the widget's
+        // text is written in — AccessKit's `Language` property, the BCP
+        // 47 tag the platform AT voices the text with — the word the AT
+        // reads beside the text before it speaks ("this label is
+        // French"). The word prices nothing but the word: the widget's
+        // doors answer exactly as they always did — the word names the
+        // language, it walls nothing. The tag is the string the app
+        // declared — the property is a string (the description
+        // precedent, ADR-0099, at the string tier), no enum to mirror —
+        // and the honest absence (`None`) maps to the absence: a widget
+        // that declared no language sets nothing, never a guessed tag.
+        // The property rides the same node-only delta as every other
+        // property — a language write re-announces exactly that node.
+        if let Some(language) = &node.language {
+            access_node.set_language(language.as_str());
+        }
         // The range tier (M97, ADR-0101): the span every value-tier write
         // funnels through — AccessKit's `MinNumericValue` /
         // `MaxNumericValue` properties, ARIA's `aria-valuemin` /
@@ -1466,6 +1506,8 @@ mod tests {
             position_in_set: None,
             size_of_set: None,
             keyboard_shortcut: None,
+            multiline: false,
+            language: None,
         });
         sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
         let update = sink.last_update().expect("update");
@@ -1624,6 +1666,8 @@ mod tests {
             position_in_set: None,
             size_of_set: None,
             keyboard_shortcut: None,
+            multiline: false,
+            language: None,
         }
     }
 
@@ -1662,6 +1706,118 @@ mod tests {
             worded.keyboard_shortcut(),
             Some("Control+S"),
             "the AT reads the declared chord beside the name"
+        );
+    }
+
+    #[test]
+    fn the_multiline_tier_resolves_the_multiline_text_input_role() {
+        // M122, ADR-0126: the field's line capacity resolves AccessKit's
+        // `MultilineTextInput` role (ARIA's `aria-multiline` beside the
+        // `textbox` role) — the capacity word the vocabulary carries,
+        // there being no separate property to mirror. The honest absence
+        // (`false`) reads as the ordinary `TextInput` role the field
+        // always was, and the secure tier's own role branch (M100) wins
+        // the branch it has carried: a secured field stays
+        // `PasswordInput`, its capacity word riding the snapshot beside
+        // the role.
+        let mut sink = AccessKitSink::new();
+        let mut snap = snapshot();
+        snap.nodes[1].role = Role::TextInput;
+        snap.nodes[1].multiline = true;
+        sink.apply(
+            std::sync::Arc::new(snap),
+            &alacer_core::passes::A11yDelta {
+                updated: {
+                    let mut ids = FxHashSet::default();
+                    ids.insert(snap_root_and_child().1);
+                    ids
+                },
+                removed: Vec::new(),
+                focus: None,
+                initializes: false,
+            },
+        );
+        let update = sink.last_update().expect("the delta produced an update");
+        let worded = update
+            .nodes
+            .iter()
+            .find(|(id, _)| id.0 == snap_root_and_child().1)
+            .map(|(_, node)| node)
+            .expect("the worded node is re-emitted");
+        assert_eq!(
+            worded.role(),
+            AkRole::MultilineTextInput,
+            "the AT reads the declared capacity beside the name"
+        );
+
+        // The secure field's role branch wins: the capacity word rides
+        // the snapshot, the role the word M100 mapped.
+        let mut sink = AccessKitSink::new();
+        let mut snap = snapshot();
+        snap.nodes[1].role = Role::TextInput;
+        snap.nodes[1].multiline = true;
+        snap.nodes[1].secure_entry = true;
+        sink.apply(
+            std::sync::Arc::new(snap),
+            &alacer_core::passes::A11yDelta {
+                updated: {
+                    let mut ids = FxHashSet::default();
+                    ids.insert(snap_root_and_child().1);
+                    ids
+                },
+                removed: Vec::new(),
+                focus: None,
+                initializes: false,
+            },
+        );
+        let update = sink.last_update().expect("the delta produced an update");
+        let secured = update
+            .nodes
+            .iter()
+            .find(|(id, _)| id.0 == snap_root_and_child().1)
+            .map(|(_, node)| node)
+            .expect("the secured node is re-emitted");
+        assert_eq!(
+            secured.role(),
+            AkRole::PasswordInput,
+            "the secure field's role branch wins; the capacity word rides beside it"
+        );
+    }
+
+    #[test]
+    fn the_language_tier_maps_onto_the_language_property() {
+        // M123, ADR-0127: the language the widget's text is written in
+        // maps AccessKit's `Language` property (the BCP 47 tag the AT
+        // voices the text with). The tag the app declared rides verbatim
+        // (the description precedent at the string tier), and the honest
+        // absence (`None`) sets nothing.
+        let mut sink = AccessKitSink::new();
+        let mut snap = snapshot();
+        snap.nodes[1].language = Some("fr-FR".to_owned());
+        sink.apply(
+            std::sync::Arc::new(snap),
+            &alacer_core::passes::A11yDelta {
+                updated: {
+                    let mut ids = FxHashSet::default();
+                    ids.insert(snap_root_and_child().1);
+                    ids
+                },
+                removed: Vec::new(),
+                focus: None,
+                initializes: false,
+            },
+        );
+        let update = sink.last_update().expect("the delta produced an update");
+        let worded = update
+            .nodes
+            .iter()
+            .find(|(id, _)| id.0 == snap_root_and_child().1)
+            .map(|(_, node)| node)
+            .expect("the worded node is re-emitted");
+        assert_eq!(
+            worded.language(),
+            Some("fr-FR"),
+            "the AT voices the text with the declared tag"
         );
     }
 
@@ -1754,6 +1910,8 @@ mod tests {
                     position_in_set: None,
                     size_of_set: None,
                     keyboard_shortcut: None,
+                    multiline: false,
+                    language: None,
                 },
                 TreeNode {
                     id: 2,
@@ -1791,6 +1949,8 @@ mod tests {
                     position_in_set: None,
                     size_of_set: None,
                     keyboard_shortcut: None,
+                    multiline: false,
+                    language: None,
                 },
             ],
         };
@@ -1855,6 +2015,8 @@ mod tests {
             position_in_set: None,
             size_of_set: None,
             keyboard_shortcut: None,
+            multiline: false,
+            language: None,
         }
     }
 
@@ -1957,6 +2119,8 @@ mod tests {
                     position_in_set: None,
                     size_of_set: None,
                     keyboard_shortcut: None,
+                    multiline: false,
+                    language: None,
                 },
                 TreeNode {
                     id: 2,
@@ -1994,6 +2158,8 @@ mod tests {
                     position_in_set: None,
                     size_of_set: None,
                     keyboard_shortcut: None,
+                    multiline: false,
+                    language: None,
                 },
             ],
         };
@@ -2062,6 +2228,8 @@ mod tests {
                     position_in_set: None,
                     size_of_set: None,
                     keyboard_shortcut: None,
+                    multiline: false,
+                    language: None,
                 },
                 TreeNode {
                     id: 4,
@@ -2099,6 +2267,8 @@ mod tests {
                     position_in_set: None,
                     size_of_set: None,
                     keyboard_shortcut: None,
+                    multiline: false,
+                    language: None,
                 },
             ],
         };
@@ -2164,6 +2334,8 @@ mod tests {
                     position_in_set: None,
                     size_of_set: None,
                     keyboard_shortcut: None,
+                    multiline: false,
+                    language: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -2201,6 +2373,8 @@ mod tests {
                     position_in_set: None,
                     size_of_set: None,
                     keyboard_shortcut: None,
+                    multiline: false,
+                    language: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -2277,6 +2451,8 @@ mod tests {
                     position_in_set: None,
                     size_of_set: None,
                     keyboard_shortcut: None,
+                    multiline: false,
+                    language: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -2314,6 +2490,8 @@ mod tests {
                     position_in_set: None,
                     size_of_set: None,
                     keyboard_shortcut: None,
+                    multiline: false,
+                    language: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -2384,6 +2562,8 @@ mod tests {
                     position_in_set: None,
                     size_of_set: None,
                     keyboard_shortcut: None,
+                    multiline: false,
+                    language: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -2421,6 +2601,8 @@ mod tests {
                     position_in_set: None,
                     size_of_set: None,
                     keyboard_shortcut: None,
+                    multiline: false,
+                    language: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },

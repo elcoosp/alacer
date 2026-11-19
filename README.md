@@ -86,7 +86,7 @@ cargo test --workspace                                          # headless: real
 > `ALACER_SOFTWARE=1` presents through softbuffer — the platform honors it at startup
 > (`BackendPreference::software_env`) whichever backend the app asked for; any other value is
 > refused with a named warning, never guessed. CI and the headless tests already run this path:
-> no mock renderer, no mock event loop. The full 110-example catalog lives in
+> no mock renderer, no mock event loop. The full 114-example catalog lives in
 > [docs/examples.md](https://github.com/elcoosp/alacer/blob/main/docs/examples.md).
 
 ## How it works
@@ -194,6 +194,8 @@ Accessibility is not a layer bolted on — it is the tree's own vocabulary:
 | **Link** (M125)         | The hyperlink control and its activation verb: `Role::Link` carrying the "opens something" fact AccessKit's own `Link` role spells (not a button wearing styled text), `Link::on_open` the open act the app's navigation rides (the tree says "opens", never where — the name and the description the app's words), the click opening on release (the GTK rule) and the keyboard's verb the link's own (Enter opens, Space handed on — the M10 parity at the link tier), the Enter-open streaming the `Keyboard` rider (M70), AccessKit's `Link` role mapped in the same snapshot; the role joins the required-name set | 0129      |
 | **Heading** (M126)      | The section title the document outline walks, said by the tree: `Role::Heading` carrying the "names a section" fact AccessKit's own `Heading` role spells (not a bold label wearing bigger glyphs), the depth riding the level word the M113 tier published (`Widget::level` — the heading's natural carrier, never a second depth vocabulary), `Heading` in the widgets crate with the registry door (`set_level` beside `set_name`, the honest absence the flat title — never a guessed level), AccessKit's `Heading` role mapped in the same snapshot — a heading holds no focus and answers no activation: the word names structure, it walls nothing; the role joins the required-name set | 0130      |
 | **Tab** (M127)          | The page selector and the named strip it reads as, said by the tree: `Role::Tab` carrying the "selects a page" fact AccessKit's own `Tab` role spells, the selection riding the selected word the M108 tier published (never a second selection vocabulary), `Role::TabList` the named strip the AT announces before it walks the pages (the radio tier's own member-and-container shape, ADR-0128, re-proved), `Tab`/`TabList` in the widgets crate with the registry doors, AccessKit's `Tab` beside its `TabList` mapped in the same snapshot — the user's doors selecting and never deselecting (the redundant ask the M21 idle frame, the one deselect door the programmatic write), the exclusivity the app's wiring; both roles join the required-name set | 0131      |
+| **SpinButton** (M128)   | The bounded number field the AT walks by arrows, said by the tree: `Role::SpinButton` carrying the "writes one bounded number" fact AccessKit's own `SpinButton` role spells (not a slider wearing text — a slider's write is the continuous drag the pointer speaks, a spin button's the discrete step the arrows speak), the numbers riding the value tier's own words (the M3 value, the M97 range with the step beside the walls, the M99 numeric beside the spoken one — never a second value language), `SpinButton` in the widgets crate with the registry door, AccessKit's `SpinButton` mapped in the same snapshot — four doors one funnel (the arrows, Home/End the M47 named jumps, the stepper clicks, the AT's `SetValue`/`Increment`/`Decrement` parsed then snapped like every write), the value log the slider's own discipline (the M45 ride and the M49 wall), the wall-held arrow the M21 idle frame; the role joins the required-name set | 0132      |
+| **Toolbar** (M129)     | The named strip a set of tools reads as, said by the tree: `Role::Toolbar` carrying the "reads as a set of tools" fact AccessKit's own `Toolbar` role spells (not a bare row wearing no name — the set the AT cannot name is a set it cannot walk — and not a tab strip wearing the wrong word: a tab strip selects pages, a toolbar offers tools), `Toolbar` in the widgets crate with the registry door, AccessKit's `Toolbar` mapped in the same snapshot — the strip the tools' layout, never a second channel to them (the tools keeping their roles, their labels, and their doors), the role joining the required-name set and never the focusable set (a toolbar is not a control — it holds no focus and answers no activation: the word names the set the tools read as, it walls nothing) | 0133      |
 
 Since M20 the value tier is a widget — the `Slider` answers drag, arrows and AT writes from one
 funnel. Since M21 the value is reportable too — the read-only `Progress` names the door that has
@@ -337,8 +339,8 @@ fn counter_view(count: alacer_core::FluxRwSignal<i32>) -> ViewNode {
 Full wiring (`pipeline_default()`, `mount_view()`, `run_window()`) in
 `crates/alacer/examples/counter_view.rs`; direct assembly without the DSL in `counter.rs`.
 
-The shipped vocabulary: `Label` · `Button` · `TextInput` · `Checkbox` · `Slider` · `Progress` ·
-`Radio` · `RadioGroup` · `Link` ·
+The shipped vocabulary: `Label` · `Button` · `TextInput` · `Checkbox` · `Slider` · `SpinButton` ·
+`Progress` · `Radio` · `RadioGroup` · `Link` · `Heading` · `Tab` · `TabList` · `Toolbar` ·
 `Column` · `Row` · `Spacer` · `List` · `Table` · `Panel` · `Canvas` — each with its required role and label,
 reading shared theme constants. Since M32 the value tier is view vocabulary too: `slider` and
 `progress` are `rsx!` elements with the value-carrying `on_change` handler and the f32 `binding`
@@ -368,7 +370,7 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `accent_follow`                                      | the OS's accent fact rides the same seam: the accent-only flip lands, the composition tints the palette's accent roles from the fact, the log names all four facts |
 | `todo` / `data_table`                                | the canons: a11y tree, record/replay, grid slots, keyboard navigation            |
 
-<details><summary><b>112 examples, grouped (recording, alloc_budget, input_budget, derive_widget, layout_probe, sort, level, current, has_popup, role_description, busy, key_routing, set, live, shortcut, multiline, language, radio, link, heading, tab, and tri_state live in the catalog)</b></summary>
+<details><summary><b>114 examples, grouped (recording, alloc_budget, input_budget, derive_widget, layout_probe, sort, level, current, has_popup, role_description, busy, key_routing, set, live, shortcut, multiline, language, radio, link, heading, tab, and tri_state live in the catalog)</b></summary>
 
 **Start here**
 
@@ -507,6 +509,7 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `link` | the M125 link tier driven from the consumer side: the described link under the word, the plain link the honest absence beside it, every activation routing through the same door, the status line reading the destination back the way the app named it — the tree saying "opens", never where |
 | `heading` | the M126 heading tier driven from the consumer side: the outline under the word — the root title the honest absence beside, the nested sections riding their zero-based depths, the deepening write the one mask the outline costs, the status line reading the moved depth back the way the tree carries it — the word naming structure, it walls nothing |
 | `tab` | the M127 tab tier driven from the consumer side: the named strip the set reads as, the pages mounting selected and unselected from the signal, the select handler writing the one write the exclusivity rides, the redundant ask the idle frame, the status line reading the selection back the way the tree carries it |
+| `spin_button` | the M128 spin-button tier driven from the consumer side: the named field the AT walks by arrows, the value mounted from the signal, every write — arrow, stepper click, AT act — landing through the funnel the constructor mounted, the wall-held arrow the idle frame, the status line reading the value back the way the tree carries it |
 
 </details>
 
@@ -527,7 +530,7 @@ is the query API as a runnable walkthrough.
 ## Status
 
 > [!NOTE]
-> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M127 of `docs/architecture.md` are
+> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M129 of `docs/architecture.md` are
 > complete, but the API still moves between minor versions. MSRV **1.99**, edition **2024**.
 
 | Platform            | CI coverage                                                                                                                                                           |
@@ -539,7 +542,7 @@ is the query API as a runnable walkthrough.
 ## Learn more
 
 - [Architecture](https://github.com/elcoosp/alacer/blob/main/docs/architecture.md) — design axioms, the ten-pass contract, rendering, accessibility, DX, performance, roadmap and kill criteria
-- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred and thirty-two decision records, from workspace discipline to the M127 scope
+- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred and thirty-four decision records, from workspace discipline to the M129 scope
 - [Examples catalog](https://github.com/elcoosp/alacer/blob/main/docs/examples.md) — every example with the contract it exercises
 - [Migrating from Iced](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-iced.md) · [from egui](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-egui.md) — mental-model mappings, interop limits stated plainly
 - [Inspector protocol](https://github.com/elcoosp/alacer/blob/main/docs/inspector-protocol.md) — the versioned WebSocket contract behind `alacer-inspect`

@@ -330,6 +330,22 @@ pub struct TreeNode {
     /// `None` is the honest absence — a control that declared no chord
     /// announces none, never a guessed binding.
     pub keyboard_shortcut: Option<String>,
+    /// The field's capacity word (M122, ADR-0126): whether the field
+    /// takes multiple lines — the word the AT reads beside the hint the
+    /// placeholder tier already carried (AccessKit's `Multiline` flag,
+    /// ARIA's `aria-multiline`). The word prices nothing but the word:
+    /// the field's doors answer exactly as they always did. `false` is
+    /// the honest absence — a field that declared nothing announces no
+    /// capacity, never a guessed "multiline".
+    pub multiline: bool,
+    /// The text's language word (M123, ADR-0127): the language the
+    /// widget's text is written in — the tag the AT voices the text
+    /// with (AccessKit's `Language` property, the BCP 47 tag the app
+    /// declared). The word prices nothing but the word: the widget's
+    /// doors answer exactly as they always did. `None` is the honest
+    /// absence — a widget that declared no language announces none,
+    /// never a guessed tag.
+    pub language: Option<String>,
 }
 
 /// The full accessibility snapshot of the widget tree, built by pass 9.
@@ -4112,6 +4128,8 @@ impl PassPipeline {
                 position_in_set: slot.widget().position_in_set(),
                 size_of_set: slot.widget().size_of_set(),
                 keyboard_shortcut: slot.widget().keyboard_shortcut().map(str::to_owned),
+                multiline: slot.widget().multiline(),
+                language: slot.widget().language().map(str::to_owned),
             };
             if snapshot.root.is_none() {
                 snapshot.root = Some(node.id);
@@ -4203,6 +4221,12 @@ impl PassPipeline {
                 // The pipeline's own node: no chord to say — the region
                 // is invoked by no key.
                 keyboard_shortcut: None,
+                // The pipeline's own node: no capacity to take — the
+                // region is no field.
+                multiline: false,
+                // The pipeline's own node: no language to say — the
+                // region speaks its own content.
+                language: None,
             });
         }
         snapshot

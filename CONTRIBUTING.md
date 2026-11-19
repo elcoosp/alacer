@@ -8,9 +8,10 @@
 2. **TDD.** Tests come first; every module carries its unit tests inline and
    cross-crate behavior lives in `alacer-testing/tests/`. The M0 exit
    criteria are executable — keep them green.
-3. **No lint suppression.** Clippy `pedantic` is denied workspace-wide, and
-   there are no `#[allow]` attributes. If a cast is genuinely necessary, put
-   it in `alacer-core/src/num.rs` with a reason-carrying `#[expect]`.
+3. **No lint suppression.** Clippy `pedantic` fires on every crate and CI denies
+   all warnings (`-D warnings`), and there are no `#[allow]` attributes. If a
+   cast is genuinely necessary, put it in `alacer-core/src/num.rs` with a
+   reason-carrying `#[expect]`.
 4. **One invalidation currency.** A feature that cannot express itself as a
    `Change` mask is rejected or redesigned (axiom A1). Effects never mutate
    widgets; they queue masks.

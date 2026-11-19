@@ -14,7 +14,7 @@
     "cpu_count": "2",
     "fingerprint": "ee37c3efc5995352"
   },
-  "bench_count": 140,
+  "bench_count": 141,
   "benches": {
     "a11y/full_rebuild_1k": {
       "median_ns": 97770.34297677959,
@@ -854,6 +854,12 @@
       "median_ns": 234089.08165584414,
       "mean_ns": 235386.29343174506,
       "median_abs_dev_ns": 5547.09186729085,
+      "samples": 100
+    },
+    "shortcut/snapshot_1k_buttons_shortcut": {
+      "median_ns": 292965.7135775862,
+      "mean_ns": 293800.978275451,
+      "median_abs_dev_ns": 3088.4047179582835,
       "samples": 100
     }
   }

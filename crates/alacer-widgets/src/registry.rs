@@ -14,7 +14,7 @@ use alacer_view::{ElementProps, WidgetRegistry};
 /// `radio_group`) plus the M125 link tier (`link`) plus the M126 heading
 /// tier (`heading`) plus the M127 tab tier (`tab`, `tab_list`) plus the
 /// M128 spin-button tier (`spin_button`) plus the M129 toolbar tier
-/// (`toolbar`).
+/// (`toolbar`) plus the M130 switch tier (`switch`).
 #[must_use]
 pub fn default_registry() -> WidgetRegistry {
     let mut registry = WidgetRegistry::new();
@@ -42,6 +42,7 @@ pub fn default_registry() -> WidgetRegistry {
     registry.register("tab_list", tab_list_create, tab_list_patch);
     registry.register("spin_button", spin_button_create, spin_button_patch);
     registry.register("toolbar", toolbar_create, toolbar_patch);
+    registry.register("switch", switch_create, switch_patch);
     registry
 }
 
@@ -870,6 +871,52 @@ fn toolbar_patch(strip: &mut crate::Toolbar, props: &ElementProps<'_>) -> bool {
     style_visual_diff(props) || visual
 }
 
+/// The switch element (`switch { name: …, on: …, on_toggle: … }` —
+/// M130): the instant on/off control's DSL door — the binary pair the
+/// tree announces, the handler the app's wiring rides.
+fn switch_create(props: &ElementProps<'_>) -> crate::Switch {
+    let mut switch = crate::Switch::new(props.text("name").unwrap_or_default());
+    if let Some(on) = props.flag("on") {
+        switch = switch.on(on);
+    }
+    if let Some(handler) = props.flag_handler("on_toggle") {
+        switch = switch.on_toggle(handler);
+    }
+    if let Some(description) = props.text("description") {
+        switch = switch.description(description);
+    }
+    if let Some(color) = props.color("accent") {
+        switch = switch.accent(color);
+    }
+    style_apply(switch.style_mut(), props);
+    switch
+}
+
+fn switch_patch(switch: &mut crate::Switch, props: &ElementProps<'_>) -> bool {
+    let mut visual = false;
+    if let Some(name) = props.text("name") {
+        switch.set_name(name);
+        visual = true;
+    }
+    // The on/off word (M130, ADR-0134): the programmatic write reporting
+    // whether it moved — the patch tier queues masks only from the move,
+    // the idle write the patch vocabulary's honest floor.
+    if let Some(on) = props.flag("on") {
+        visual |= switch.set_on(on);
+    }
+    // The description word (M95, ADR-0099): the tree's truth the pixels
+    // never carry — the patch tier queues `A11Y` from the prop class, the
+    // write itself reporting whether it moved (the idle-frame property).
+    if let Some(description) = props.text("description") {
+        switch.set_description(Some(description.to_string()));
+    }
+    if let Some(handler) = props.flag_handler("on_toggle") {
+        switch.set_on_toggle(Some(handler));
+    }
+    style_apply(switch.style_mut(), props);
+    style_visual_diff(props) || visual
+}
+
 #[cfg(test)]
 mod tests {
     use super::default_registry;
@@ -894,6 +941,64 @@ mod tests {
         widget: &mut dyn alacer_core::Widget,
     ) -> Option<&mut crate::SpinButton> {
         widget.as_any_mut().downcast_mut::<crate::SpinButton>()
+    }
+
+    /// Downcasts the erased widget to `Switch` (the test's introspection).
+    fn downcast_switch(widget: &mut dyn alacer_core::Widget) -> Option<&mut crate::Switch> {
+        widget.as_any_mut().downcast_mut::<crate::Switch>()
+    }
+
+    #[test]
+    fn switch_props_create_and_patch_in_place() {
+        let registry = default_registry();
+        let node = ViewNode::element("switch")
+            .prop("name", "Wi-Fi")
+            .prop("on", true)
+            .prop("description", "Turns the radio off and on");
+        let mut widget = registry.create(&node);
+        assert_eq!(widget.label().resolve(), "Wi-Fi");
+        assert_eq!(widget.role(), alacer_core::widget::Role::Switch);
+        assert!(
+            downcast_switch(widget.as_mut()).is_some_and(|switch| switch.is_on()),
+            "the create write lands the mounted-on state"
+        );
+
+        // The on/off patch: the programmatic write in place, reporting
+        // the move it lands (the M21 idle-frame property, at the patch
+        // tier).
+        let updated = ViewNode::element("switch").prop("on", false);
+        assert!(
+            registry.patch(widget.as_mut(), &updated),
+            "the moved write lands — the patch reports it"
+        );
+        assert!(
+            downcast_switch(widget.as_mut()).is_some_and(|switch| !switch.is_on()),
+            "the write landed off"
+        );
+
+        // The idle write: the patch that lands where the on/off already
+        // is reports nothing to repaint — no masks, an idle frame.
+        let idle = ViewNode::element("switch").prop("on", false);
+        assert!(
+            !registry.patch(widget.as_mut(), &idle),
+            "the write landed where the flag already is — nothing to repaint"
+        );
+
+        // The handler word rides the patch tier: the app's wiring swaps
+        // live (the radio's own rule, at the switch tier); the write
+        // itself moves no pixels — the handler is not the paint.
+        let rewired = ViewNode::element("switch").prop(
+            "on_toggle",
+            alacer_view::PropValue::FlagHandler(std::rc::Rc::new(std::cell::RefCell::new(
+                move |_on: bool| {},
+            ))),
+        );
+        let _ = registry.patch(widget.as_mut(), &rewired);
+        let retoggled = ViewNode::element("switch").prop("on", true);
+        assert!(
+            registry.patch(widget.as_mut(), &retoggled),
+            "the moved write still lands after the rewire"
+        );
     }
 
     #[test]

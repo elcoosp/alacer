@@ -279,6 +279,15 @@
       "op": "<=",
       "budget": 1.25,
       "cite": "ADR-0124 (M120): the live word rides the snapshot the container rides \u2014 the word's price the one Option the node carries; test-enforced nowhere, measured by criterion"
+    },
+    {
+      "id": "shortcut_snapshot_overhead",
+      "metric": "median_ratio",
+      "numerator": "shortcut/snapshot_1k_buttons_shortcut",
+      "denominator": "current/snapshot_1k_buttons_bare",
+      "op": "<=",
+      "budget": 1.25,
+      "cite": "ADR-0125 (M121): the shortcut word rides the snapshot the button rides \u2014 the word's price the one Option the node carries; test-enforced nowhere, measured by criterion"
     }
   ],
   "regressions": [
@@ -980,6 +989,11 @@
     {
       "id": "live_snapshot_1k_lists_live",
       "baseline": "live/snapshot_1k_lists_live",
+      "scope": "same-host"
+    },
+    {
+      "id": "shortcut_snapshot_1k_buttons_shortcut",
+      "baseline": "shortcut/snapshot_1k_buttons_shortcut",
       "scope": "same-host"
     }
   ],

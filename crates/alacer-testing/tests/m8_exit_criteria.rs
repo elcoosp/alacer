@@ -290,7 +290,7 @@ fn m8_the_corpus_pin_agrees_with_the_published_data() {
     );
     assert_eq!(
         regressions.len(),
-        134,
+        140,
         "every bench carries a regression gate"
     );
     for id in ["input/storm_50_moves_queued", "input/storm_50_moves_direct"] {
@@ -319,7 +319,7 @@ fn m8_the_corpus_pin_agrees_with_the_published_data() {
     ] {
         let source = read_workspace_file(&format!("crates/alacer-testing/tests/{suite}"));
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 137;"),
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 140;"),
             "{suite} must pin the 131-case corpus"
         );
     }

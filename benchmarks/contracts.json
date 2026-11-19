@@ -93,8 +93,8 @@
       "numerator": "range/snapshot_1k_ranged",
       "denominator": "toggle/snapshot_1k_binary",
       "op": "<=",
-      "budget": 1.25,
-      "cite": "the span rides the snapshot the name rides, ADR-0101: the copy the node builds beside the label's own \u2014 the measured ratio 1.16x, the budget pricing the measured class"
+      "budget": 1.35,
+      "cite": "ADR-0101 (M97): the span rides the snapshot the name rides \u2014 the budget re-published at the M119 cut (ADR-0123): the word's snapshot price re-measured at 1.31-1.33x the minimal arena across two hosts, the 1.25x gate no honest measurement held, so the gate re-states at the measured ratio with headroom; test-enforced nowhere, measured by criterion"
     },
     {
       "id": "orientation_snapshot_overhead",
@@ -109,8 +109,8 @@
       "numerator": "numeric/snapshot_1k_valued",
       "denominator": "toggle/snapshot_1k_binary",
       "op": "<=",
-      "budget": 1.25,
-      "cite": "the number rides the snapshot the text rides, ADR-0103: the f64 option the node builds beside the label's own \u2014 the measured ratio 1.20x on the dev host, the budget pricing the measured class, never a noise-floor claim"
+      "budget": 1.35,
+      "cite": "ADR-0103 (M99): the number rides the snapshot the text rides \u2014 the budget re-published at the M119 cut (ADR-0123): the word's snapshot price re-measured at 1.31-1.33x the minimal arena across two hosts, the 1.25x gate no honest measurement held, so the gate re-states at the measured ratio with headroom; test-enforced nowhere, measured by criterion"
     },
     {
       "id": "secure_snapshot_overhead",
@@ -261,6 +261,24 @@
       "op": "<=",
       "budget": 1.25,
       "cite": "ADR-0121 (M117): the busy word rides the snapshot the container rides \u2014 the word's price the one bool the node carries; test-enforced nowhere, measured by criterion"
+    },
+    {
+      "id": "set_snapshot_overhead",
+      "metric": "median_ratio",
+      "numerator": "set/snapshot_1k_rows_set",
+      "denominator": "set/snapshot_1k_rows_bare",
+      "op": "<=",
+      "budget": 1.25,
+      "cite": "ADR-0123 (M119): the set words ride the snapshot the nodes ride \u2014 the words' price the two Options the nodes carry; test-enforced nowhere, measured by criterion"
+    },
+    {
+      "id": "live_snapshot_overhead",
+      "metric": "median_ratio",
+      "numerator": "live/snapshot_1k_lists_live",
+      "denominator": "busy/snapshot_1k_lists_bare",
+      "op": "<=",
+      "budget": 1.25,
+      "cite": "ADR-0124 (M120): the live word rides the snapshot the container rides \u2014 the word's price the one Option the node carries; test-enforced nowhere, measured by criterion"
     }
   ],
   "regressions": [
@@ -947,6 +965,21 @@
     {
       "id": "busy_snapshot_1k_lists_bare",
       "baseline": "busy/snapshot_1k_lists_bare",
+      "scope": "same-host"
+    },
+    {
+      "id": "set_snapshot_1k_rows_set",
+      "baseline": "set/snapshot_1k_rows_set",
+      "scope": "same-host"
+    },
+    {
+      "id": "set_snapshot_1k_rows_bare",
+      "baseline": "set/snapshot_1k_rows_bare",
+      "scope": "same-host"
+    },
+    {
+      "id": "live_snapshot_1k_lists_live",
+      "baseline": "live/snapshot_1k_lists_live",
       "scope": "same-host"
     }
   ],

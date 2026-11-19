@@ -86,7 +86,7 @@ cargo test --workspace                                          # headless: real
 > `ALACER_SOFTWARE=1` presents through softbuffer — the platform honors it at startup
 > (`BackendPreference::software_env`) whichever backend the app asked for; any other value is
 > refused with a named warning, never guessed. CI and the headless tests already run this path:
-> no mock renderer, no mock event loop. The full 100-example catalog lives in
+> no mock renderer, no mock event loop. The full 103-example catalog lives in
 > [docs/examples.md](https://github.com/elcoosp/alacer/blob/main/docs/examples.md).
 
 ## How it works
@@ -357,7 +357,7 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `accent_follow`                                      | the OS's accent fact rides the same seam: the accent-only flip lands, the composition tints the palette's accent roles from the fact, the log names all four facts |
 | `todo` / `data_table`                                | the canons: a11y tree, record/replay, grid slots, keyboard navigation            |
 
-<details><summary><b>90 examples, grouped (recording, alloc_budget, input_budget, derive_widget, layout_probe, sort, level, current, has_popup, role_description, and tri_state live in the catalog)</b></summary>
+<details><summary><b>90 examples, grouped (recording, alloc_budget, input_budget, derive_widget, layout_probe, sort, level, current, has_popup, role_description, busy, key_routing, and tri_state live in the catalog)</b></summary>
 
 **Start here**
 
@@ -512,7 +512,7 @@ is the query API as a runnable walkthrough.
 ## Status
 
 > [!NOTE]
-> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M115 of `docs/architecture.md` are
+> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M118 of `docs/architecture.md` are
 > complete, but the API still moves between minor versions. MSRV **1.99**, edition **2024**.
 
 | Platform            | CI coverage                                                                                                                                                           |

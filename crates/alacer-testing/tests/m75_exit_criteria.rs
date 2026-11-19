@@ -591,7 +591,7 @@ fn m75_the_disabled_trail_still_composes() {
 fn m75_the_living_documents_re_agree() {
     let readme = read_workspace_file("README.md");
     assert!(
-        readme.contains("M0 through M129"),
+        readme.contains("M0 through M130"),
         "the README status reflects the living cut — the chain cannot drift"
     );
     assert!(
@@ -604,7 +604,7 @@ fn m75_the_living_documents_re_agree() {
         "the architecture carries the composition door's decision"
     );
     assert!(
-        architecture.contains("a hundred and thirty-four decision records"),
+        architecture.contains("a hundred and thirty-five decision records"),
         "the register grew the M75 row"
     );
     let baselines = serde_json::from_str::<serde_json::Value>(&read_workspace_file(

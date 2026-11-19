@@ -10,7 +10,8 @@ use alacer_view::{ElementProps, WidgetRegistry};
 /// (`label`, `button`, `column`, `row`, `spacer`, `panel`, `list`) plus the
 /// M6 canon (`checkbox`, `text_input`, `table`, `table_row`, `table_cell`,
 /// `column_header`) plus the M32 value tier (`slider`, `progress`) plus the
-/// M82 paint seam (`canvas`).
+/// M82 paint seam (`canvas`) plus the M124 radio tier (`radio`,
+/// `radio_group`) plus the M125 link tier (`link`).
 #[must_use]
 pub fn default_registry() -> WidgetRegistry {
     let mut registry = WidgetRegistry::new();
@@ -30,6 +31,9 @@ pub fn default_registry() -> WidgetRegistry {
     registry.register("slider", slider_create, slider_patch);
     registry.register("progress", progress_create, progress_patch);
     registry.register("canvas", canvas_create, canvas_patch);
+    registry.register("radio", radio_create, radio_patch);
+    registry.register("radio_group", radio_group_create, radio_group_patch);
+    registry.register("link", link_create, link_patch);
     registry
 }
 
@@ -198,6 +202,12 @@ impl StyleMut for crate::List {
     }
 }
 
+impl StyleMut for crate::RadioGroup {
+    fn style_mut(&mut self) -> &mut Style {
+        self.style_mut()
+    }
+}
+
 fn column_create(props: &ElementProps<'_>) -> crate::Column {
     let mut column = crate::Column::new();
     style_apply(column.style_mut(), props);
@@ -337,6 +347,113 @@ fn checkbox_patch(checkbox: &mut crate::Checkbox, props: &ElementProps<'_>) -> b
     }
     if let Some(handler) = props.flag_handler("on_toggle") {
         checkbox.set_on_toggle(Some(handler));
+    }
+    visual
+}
+
+/// The radio element (`radio { name: …, checked: …, on_select: … }` —
+/// M124): the radio tier's DSL door — the selection, the place word,
+/// and the handler the exclusivity wiring rides.
+fn radio_create(props: &ElementProps<'_>) -> crate::Radio {
+    let mut radio = crate::Radio::new(props.text("name").unwrap_or_default());
+    if let Some(checked) = props.flag("checked") {
+        radio = radio.checked(checked);
+    }
+    if let Some(position) = prop_index(props, "position") {
+        radio = radio.position_in_set(position);
+    }
+    if let Some(handler) = props.flag_handler("on_select") {
+        radio = radio.on_select(handler);
+    }
+    if let Some(description) = props.text("description") {
+        radio = radio.description(description);
+    }
+    if let Some(color) = props.color("accent") {
+        radio = radio.accent(color);
+    }
+    radio
+}
+
+fn radio_patch(radio: &mut crate::Radio, props: &ElementProps<'_>) -> bool {
+    let mut visual = false;
+    if let Some(name) = props.text("name") {
+        radio.set_name(name);
+        visual = true;
+    }
+    if let Some(checked) = props.flag("checked") {
+        radio.set_checked(checked);
+        visual = true;
+    }
+    // The place word (M119, ADR-0123): the tree's truth the pixels
+    // never carry — the write itself reporting whether it moved (the
+    // idle-frame property, at the set tier).
+    if let Some(position) = prop_index(props, "position") {
+        visual |= radio.set_position_in_set(Some(position));
+    }
+    // The description word (M95, ADR-0099): the patch tier queues
+    // `A11Y` from the prop class, the write reporting the move.
+    if let Some(description) = props.text("description") {
+        radio.set_description(Some(description.to_string()));
+    }
+    if let Some(handler) = props.flag_handler("on_select") {
+        radio.set_on_select(Some(handler));
+    }
+    visual
+}
+
+/// The radio group element (`radio_group { name: …, size: … }` — M124):
+/// the named container the set reads as, the span word its carrier.
+fn radio_group_create(props: &ElementProps<'_>) -> crate::RadioGroup {
+    let mut group = crate::RadioGroup::new(props.text("name").unwrap_or_default());
+    if let Some(size) = prop_index(props, "size") {
+        group = group.size_of_set(size);
+    }
+    style_apply(group.style_mut(), props);
+    group
+}
+
+fn radio_group_patch(group: &mut crate::RadioGroup, props: &ElementProps<'_>) -> bool {
+    let mut visual = false;
+    if let Some(name) = props.text("name") {
+        group.set_name(name);
+        visual = true;
+    }
+    if let Some(size) = prop_index(props, "size") {
+        visual |= group.set_size_of_set(Some(size));
+    }
+    style_apply(group.style_mut(), props);
+    style_visual_diff(props) || visual
+}
+
+/// The link element (`link { name: …, on_open: … }` — M125): the link
+/// tier's DSL door — the open act the app's navigation rides.
+fn link_create(props: &ElementProps<'_>) -> crate::Link {
+    let mut link = crate::Link::new(props.text("name").unwrap_or_default());
+    if let Some(handler) = props.handler("on_open") {
+        link = link.on_open(handler);
+    }
+    if let Some(description) = props.text("description") {
+        link = link.description(description);
+    }
+    if let Some(color) = props.color("color") {
+        link = link.text_color(color);
+    }
+    link
+}
+
+fn link_patch(link: &mut crate::Link, props: &ElementProps<'_>) -> bool {
+    let mut visual = false;
+    if let Some(name) = props.text("name") {
+        link.set_name(name);
+        visual = true;
+    }
+    // The description word (M95, ADR-0099): the patch tier queues `A11Y`
+    // from the prop class, the write reporting the move.
+    if let Some(description) = props.text("description") {
+        link.set_description(Some(description.to_string()));
+    }
+    if let Some(handler) = props.handler("on_open") {
+        link.set_on_open(Some(handler));
     }
     visual
 }
@@ -577,6 +694,11 @@ mod tests {
         widget.as_any_mut().downcast_mut::<crate::Checkbox>()
     }
 
+    /// Downcasts the erased widget to `Radio` (the test's introspection).
+    fn downcast_radio(widget: &mut dyn alacer_core::Widget) -> Option<&mut crate::Radio> {
+        widget.as_any_mut().downcast_mut::<crate::Radio>()
+    }
+
     #[test]
     fn the_default_registry_knows_the_canon_set() {
         let registry = default_registry();
@@ -598,6 +720,11 @@ mod tests {
             // The M32 value-tier elements.
             "slider",
             "progress",
+            // The M124 radio tier.
+            "radio",
+            "radio_group",
+            // The M125 link tier.
+            "link",
         ] {
             assert!(registry.contains(name), "{name} is a default element");
         }
@@ -759,6 +886,131 @@ mod tests {
         assert!(
             !*toggled.borrow(),
             "the view handler observed the new state (false)"
+        );
+    }
+
+    #[test]
+    fn radio_props_create_and_patch_in_place() {
+        let registry = default_registry();
+        let selected = std::rc::Rc::new(std::cell::RefCell::new(false));
+        let sink = selected.clone();
+        let node = ViewNode::element("radio")
+            .prop("name", "Express")
+            .prop("checked", false)
+            .prop("position", 2.0_f32)
+            .prop(
+                "on_select",
+                alacer_view::PropValue::FlagHandler(std::rc::Rc::new(std::cell::RefCell::new(
+                    move |picked: bool| *sink.borrow_mut() = picked,
+                ))),
+            );
+        let mut widget = registry.create(&node);
+        assert_eq!(widget.label().resolve(), "Express");
+        assert_eq!(
+            alacer_core::widget::Widget::position_in_set(widget.as_ref()),
+            Some(2),
+            "the place word rides the constructor"
+        );
+        assert!(
+            downcast_radio(widget.as_mut()).is_some_and(|r| !r.is_checked()),
+            "created unchecked"
+        );
+
+        let updated = ViewNode::element("radio").prop("checked", true);
+        assert!(
+            registry.patch(widget.as_mut(), &updated),
+            "checked is visual"
+        );
+        assert!(
+            downcast_radio(widget.as_mut()).is_some_and(|r| r.is_checked()),
+            "patched in place"
+        );
+
+        // The view-driven select path: the flag handler rides the widget,
+        // and the redundant ask is the idle frame (no visual, no fire).
+        let mut ctx = alacer_core::events::EventCtx::new();
+        let up = alacer_core::events::PointerEvent::Up {
+            position: alacer_core::geom::Point::new(4.0, 4.0),
+            button: alacer_core::events::MouseButton::Left,
+        };
+        let _ = widget.on_pointer_event(&mut ctx, &up);
+        assert!(
+            downcast_radio(widget.as_mut()).is_some_and(|r| r.is_checked()),
+            "the user's door never deselects — the redundant ask moved nothing"
+        );
+        assert!(
+            !*selected.borrow(),
+            "the redundant ask fired no handler (already selected)"
+        );
+
+        // The place patch: the word moved is the only mask the tier costs.
+        let moved = ViewNode::element("radio").prop("position", 3.0_f32);
+        assert!(registry.patch(widget.as_mut(), &moved), "the place moved");
+        let idle = ViewNode::element("radio").prop("position", 3.0_f32);
+        assert!(
+            !registry.patch(widget.as_mut(), &idle),
+            "the write that lands where the place already is patches to no masks"
+        );
+    }
+
+    #[test]
+    fn radio_group_props_carry_the_span_word() {
+        let registry = default_registry();
+        let node = ViewNode::element("radio_group")
+            .prop("name", "Shipping")
+            .prop("size", 3.0_f32)
+            .prop("gap", 6.0_f32);
+        let mut widget = registry.create(&node);
+        assert_eq!(widget.label().resolve(), "Shipping");
+        assert_eq!(
+            alacer_core::widget::Widget::size_of_set(widget.as_ref()),
+            Some(3)
+        );
+        assert_eq!(widget.style().gap, 6.0);
+
+        // The span patch: moved answers visual, the idle write does not.
+        let grown = ViewNode::element("radio_group").prop("size", 4.0_f32);
+        assert!(registry.patch(widget.as_mut(), &grown));
+        let again = ViewNode::element("radio_group").prop("size", 4.0_f32);
+        assert!(!registry.patch(widget.as_mut(), &again));
+    }
+
+    #[test]
+    fn link_props_create_and_patch_in_place() {
+        let registry = default_registry();
+        let opened = std::rc::Rc::new(std::cell::RefCell::new(false));
+        let sink = opened.clone();
+        let node = ViewNode::element("link")
+            .prop("name", "Read the architecture")
+            .prop("description", "Opens the docs site")
+            .prop(
+                "on_open",
+                alacer_view::PropValue::Handler(std::rc::Rc::new(std::cell::RefCell::new(
+                    move || *sink.borrow_mut() = true,
+                ))),
+            );
+        let mut widget = registry.create(&node);
+        assert_eq!(widget.label().resolve(), "Read the architecture");
+
+        // The view-driven open path: the handler rides the widget.
+        let mut ctx = alacer_core::events::EventCtx::new();
+        let up = alacer_core::events::PointerEvent::Up {
+            position: alacer_core::geom::Point::new(4.0, 4.0),
+            button: alacer_core::events::MouseButton::Left,
+        };
+        let _ = widget.on_pointer_event(&mut ctx, &up);
+        assert!(
+            *opened.borrow(),
+            "the release opened — the handler observed the activation"
+        );
+
+        // The name patch: the label the a11y tree carries.
+        let renamed = ViewNode::element("link").prop("name", "API reference");
+        assert!(registry.patch(widget.as_mut(), &renamed));
+        assert_eq!(
+            widget.label().resolve(),
+            "API reference",
+            "patched in place"
         );
     }
 

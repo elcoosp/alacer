@@ -113,6 +113,13 @@ pub fn map_role(role: Role) -> AccessKitRole {
         // announces the strip's name before it walks the tools; the
         // tools keep the roles the members already carry.
         Role::Toolbar => AccessKitRole::Toolbar,
+        // The switch (M130, ADR-0134): the instant on/off control.
+        // AccessKit's switch role says exactly that — the AT announces
+        // the on/off fact, never the tri-state summary a checkbox
+        // resolves. The binary pair rides the `Toggled` property the
+        // sink has mapped since the toggle tier (the M6 contract's
+        // `toggled` half), no second branch.
+        Role::Switch => AccessKitRole::Switch,
     }
 }
 
@@ -927,6 +934,10 @@ mod tests {
         // The M129 toolbar tier: the named strip the tools read as —
         // AccessKit's own `Toolbar`.
         assert_eq!(map_role(Role::Toolbar), AkRole::Toolbar);
+        // The M130 switch tier: the instant on/off control —
+        // AccessKit's own `Switch`, the binary pair riding the
+        // `Toggled` property the toggle tier already maps.
+        assert_eq!(map_role(Role::Switch), AkRole::Switch);
     }
 
     #[test]

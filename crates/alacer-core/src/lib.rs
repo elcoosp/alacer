@@ -211,6 +211,14 @@ mod tests {
         // The link tier (M125): an unnamed link reads as bare styled
         // text — the "goes somewhere" the AT cannot announce.
         assert!(Role::Link.requires_name());
+        // The heading tier (M126): an unnamed section title reads as
+        // bare styled text — the outline the AT cannot walk.
+        assert!(Role::Heading.requires_name());
+        // The tab tier (M127): an unnamed page is a bare mark, an
+        // unnamed strip a bare box — the ADR-5 rule the named roles
+        // carry.
+        assert!(Role::Tab.requires_name());
+        assert!(Role::TabList.requires_name());
     }
 
     #[test]
@@ -261,6 +269,9 @@ mod tests {
             Role::Radio,
             Role::RadioGroup,
             Role::Link,
+            Role::Heading,
+            Role::Tab,
+            Role::TabList,
         ];
         for role in roles {
             assert!(!role.name().is_empty(), "{role:?} has a name");

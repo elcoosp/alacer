@@ -12,7 +12,9 @@ use alacer_view::{ElementProps, WidgetRegistry};
 /// `column_header`) plus the M32 value tier (`slider`, `progress`) plus the
 /// M82 paint seam (`canvas`) plus the M124 radio tier (`radio`,
 /// `radio_group`) plus the M125 link tier (`link`) plus the M126 heading
-/// tier (`heading`) plus the M127 tab tier (`tab`, `tab_list`).
+/// tier (`heading`) plus the M127 tab tier (`tab`, `tab_list`) plus the
+/// M128 spin-button tier (`spin_button`) plus the M129 toolbar tier
+/// (`toolbar`).
 #[must_use]
 pub fn default_registry() -> WidgetRegistry {
     let mut registry = WidgetRegistry::new();
@@ -38,6 +40,8 @@ pub fn default_registry() -> WidgetRegistry {
     registry.register("heading", heading_create, heading_patch);
     registry.register("tab", tab_create, tab_patch);
     registry.register("tab_list", tab_list_create, tab_list_patch);
+    registry.register("spin_button", spin_button_create, spin_button_patch);
+    registry.register("toolbar", toolbar_create, toolbar_patch);
     registry
 }
 
@@ -795,6 +799,77 @@ fn tab_list_patch(strip: &mut crate::TabList, props: &ElementProps<'_>) -> bool 
     style_visual_diff(props) || visual
 }
 
+/// The spin button element (`spin_button { name: …, min: …, max: … }` —
+/// M128): the bounded number field the AT walks by arrows — the value
+/// tier's discrete write half, the DSL door the widget set shares.
+fn spin_button_create(props: &ElementProps<'_>) -> crate::SpinButton {
+    let mut field = crate::SpinButton::new(
+        props.text("name").unwrap_or_default(),
+        props.number("min").unwrap_or(0.0),
+        props.number("max").unwrap_or(100.0),
+    );
+    if let Some(step) = props.number("step") {
+        field = field.step(step);
+    }
+    if let Some(value) = props.number("value") {
+        field = field.value(value);
+    }
+    if let Some(handler) = props.number_handler("on_change") {
+        let mut handler = handler;
+        field = field.on_change(move |value: f32| handler(value));
+    }
+    if let Some(description) = props.text("description") {
+        field = field.description(description);
+    }
+    if let Some(color) = props.color("accent") {
+        field = field.accent(color);
+    }
+    field
+}
+
+fn spin_button_patch(field: &mut crate::SpinButton, props: &ElementProps<'_>) -> bool {
+    let mut visual = false;
+    if let Some(name) = props.text("name") {
+        field.set_name(name);
+        visual = true;
+    }
+    // The description word (M95, ADR-0099): the patch tier queues
+    // `A11Y` from the prop class, the write reporting the move.
+    if let Some(description) = props.text("description") {
+        field.set_description(Some(description.to_string()));
+    }
+    if let Some(value) = props.number("value") {
+        // The programmatic write fires no handler (the widget's own
+        // contract: state, not a user act) and clamps/snaps inside the
+        // widget — the funnel every door rides. The write moved the
+        // value only when the funnel changed it (the widget's own
+        // `total_cmp` equality, never `f32::eq`).
+        let before = field.current_value();
+        field.set_value(value);
+        visual |= !same_value(before, field.current_value());
+    }
+    visual
+}
+
+/// The toolbar element (`toolbar { name: … }` — M129): the named strip
+/// the tools read as — the tools' horizontal layout, never a second
+/// channel to them.
+fn toolbar_create(props: &ElementProps<'_>) -> crate::Toolbar {
+    let mut strip = crate::Toolbar::new(props.text("name").unwrap_or_default());
+    style_apply(strip.style_mut(), props);
+    strip
+}
+
+fn toolbar_patch(strip: &mut crate::Toolbar, props: &ElementProps<'_>) -> bool {
+    let mut visual = false;
+    if let Some(name) = props.text("name") {
+        strip.set_name(name);
+        visual = true;
+    }
+    style_apply(strip.style_mut(), props);
+    style_visual_diff(props) || visual
+}
+
 #[cfg(test)]
 mod tests {
     use super::default_registry;
@@ -811,6 +886,58 @@ mod tests {
     /// Downcasts the erased widget to `Radio` (the test's introspection).
     fn downcast_radio(widget: &mut dyn alacer_core::Widget) -> Option<&mut crate::Radio> {
         widget.as_any_mut().downcast_mut::<crate::Radio>()
+    }
+
+    /// Downcasts the erased widget to `SpinButton` (the test's
+    /// introspection).
+    fn downcast_spin_button(
+        widget: &mut dyn alacer_core::Widget,
+    ) -> Option<&mut crate::SpinButton> {
+        widget.as_any_mut().downcast_mut::<crate::SpinButton>()
+    }
+
+    #[test]
+    fn spin_button_props_create_and_patch_in_place() {
+        let registry = default_registry();
+        let node = ViewNode::element("spin_button")
+            .prop("name", "Quantity")
+            .prop("min", 1.0_f32)
+            .prop("max", 12.0_f32)
+            .prop("step", 2.0_f32)
+            .prop("value", 5.0_f32);
+        let mut widget = registry.create(&node);
+        assert_eq!(widget.label().resolve(), "Quantity");
+        assert!(
+            downcast_spin_button(widget.as_mut())
+                .is_some_and(|f| same_value(f.current_value(), 5.0)),
+            "the create write rides the widget's own funnel (clamped and snapped)"
+        );
+        assert_eq!(widget.role(), alacer_core::widget::Role::SpinButton);
+
+        // The value patch: clamped and snapped like every write, in place.
+        let updated = ViewNode::element("spin_button").prop("value", 99.0_f32);
+        assert!(
+            registry.patch(widget.as_mut(), &updated),
+            "a value patch is visual"
+        );
+        assert!(
+            downcast_spin_button(widget.as_mut())
+                .is_some_and(|f| same_value(f.current_value(), 12.0)),
+            "the patch write clamps to the range the widget owns"
+        );
+
+        // A write that lands where the value already is: no visual change
+        // (the M20 idle-frame property, at the view seam).
+        let again = ViewNode::element("spin_button").prop("value", 12.0_f32);
+        assert!(
+            !registry.patch(widget.as_mut(), &again),
+            "a no-op write patches to no masks"
+        );
+
+        // The name patch: the label the a11y tree carries.
+        let renamed = ViewNode::element("spin_button").prop("name", "Copies");
+        assert!(registry.patch(widget.as_mut(), &renamed));
+        assert_eq!(widget.label().resolve(), "Copies", "patched in place");
     }
 
     #[test]
@@ -839,6 +966,15 @@ mod tests {
             "radio_group",
             // The M125 link tier.
             "link",
+            // The M126 heading tier.
+            "heading",
+            // The M127 tab tier.
+            "tab",
+            "tab_list",
+            // The M128 spin-button tier.
+            "spin_button",
+            // The M129 toolbar tier.
+            "toolbar",
         ] {
             assert!(registry.contains(name), "{name} is a default element");
         }

@@ -39,7 +39,7 @@ use alacer_widgets::{BoxedWidget as _, Button, Checkbox, Column, Slider, TextInp
 /// route's case (M95), the toggle route's pair (M94), the derive
 /// route's pair (M92), and the recording route's pair (M93) — and
 /// every case M103 and M104 published — on the published corpus.
-const EXPECTED_BENCH_COUNT: usize = 141;
+const EXPECTED_BENCH_COUNT: usize = 144;
 
 /// The suite's own read door into the published corpus: the required
 /// route's case — the 1,000-node required field arena (the coordinated

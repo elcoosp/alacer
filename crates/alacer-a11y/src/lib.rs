@@ -329,6 +329,23 @@ impl AccessKitSink {
         if let Some(position_in_set) = node.position_in_set {
             access_node.set_position_in_set(position_in_set);
         }
+        // The shortcut tier (M121, ADR-0125): the chord the control is
+        // invoked with — AccessKit's `KeyboardShortcut` property, ARIA's
+        // `aria-keyshortcuts` — the word the AT announces beside the
+        // name ("Save — Control+S") before it walks to the keymap's
+        // dispatch (ADR-0043's consult, the trail leg the framework's
+        // own chords ride). The word prices nothing but the word: the
+        // control's doors answer exactly as they always did. The word is
+        // the string the app named — the property is a string, the
+        // spellings the app's vocabulary (the description precedent,
+        // ADR-0099, at the string tier), no enum to mirror — and the
+        // honest absence (`None`) maps to the absence: a control that
+        // declared no chord sets nothing, never a guessed binding. The
+        // property rides the same node-only delta as every other
+        // property — a shortcut write re-announces exactly that node.
+        if let Some(shortcut) = &node.keyboard_shortcut {
+            access_node.set_keyboard_shortcut(shortcut.as_str());
+        }
         // The range tier (M97, ADR-0101): the span every value-tier write
         // funnels through — AccessKit's `MinNumericValue` /
         // `MaxNumericValue` properties, ARIA's `aria-valuemin` /
@@ -1448,6 +1465,7 @@ mod tests {
             role_description: None,
             position_in_set: None,
             size_of_set: None,
+            keyboard_shortcut: None,
         });
         sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
         let update = sink.last_update().expect("update");
@@ -1605,7 +1623,46 @@ mod tests {
             role_description: None,
             position_in_set: None,
             size_of_set: None,
+            keyboard_shortcut: None,
         }
+    }
+
+    #[test]
+    fn the_shortcut_tier_maps_onto_the_keyboard_shortcut_property() {
+        // M121, ADR-0125: the chord the control is invoked with maps
+        // AccessKit's `KeyboardShortcut` property (ARIA's
+        // `aria-keyshortcuts`) — the word the AT announces beside the
+        // name before it walks to the keymap's dispatch. The string the
+        // app named rides verbatim (the description precedent at the
+        // string tier), and the honest absence (`None`) sets nothing.
+        let mut sink = AccessKitSink::new();
+        let mut snap = snapshot();
+        snap.nodes[1].keyboard_shortcut = Some("Control+S".to_owned());
+        sink.apply(
+            std::sync::Arc::new(snap),
+            &alacer_core::passes::A11yDelta {
+                updated: {
+                    let mut ids = FxHashSet::default();
+                    ids.insert(snap_root_and_child().1);
+                    ids
+                },
+                removed: Vec::new(),
+                focus: None,
+                initializes: false,
+            },
+        );
+        let update = sink.last_update().expect("the delta produced an update");
+        let worded = update
+            .nodes
+            .iter()
+            .find(|(id, _)| id.0 == snap_root_and_child().1)
+            .map(|(_, node)| node)
+            .expect("the worded node is re-emitted");
+        assert_eq!(
+            worded.keyboard_shortcut(),
+            Some("Control+S"),
+            "the AT reads the declared chord beside the name"
+        );
     }
 
     #[test]
@@ -1696,6 +1753,7 @@ mod tests {
                     role_description: None,
                     position_in_set: None,
                     size_of_set: None,
+                    keyboard_shortcut: None,
                 },
                 TreeNode {
                     id: 2,
@@ -1732,6 +1790,7 @@ mod tests {
                     role_description: None,
                     position_in_set: None,
                     size_of_set: None,
+                    keyboard_shortcut: None,
                 },
             ],
         };
@@ -1795,6 +1854,7 @@ mod tests {
             role_description: None,
             position_in_set: None,
             size_of_set: None,
+            keyboard_shortcut: None,
         }
     }
 
@@ -1896,6 +1956,7 @@ mod tests {
                     role_description: None,
                     position_in_set: None,
                     size_of_set: None,
+                    keyboard_shortcut: None,
                 },
                 TreeNode {
                     id: 2,
@@ -1932,6 +1993,7 @@ mod tests {
                     role_description: None,
                     position_in_set: None,
                     size_of_set: None,
+                    keyboard_shortcut: None,
                 },
             ],
         };
@@ -1999,6 +2061,7 @@ mod tests {
                     role_description: None,
                     position_in_set: None,
                     size_of_set: None,
+                    keyboard_shortcut: None,
                 },
                 TreeNode {
                     id: 4,
@@ -2035,6 +2098,7 @@ mod tests {
                     role_description: None,
                     position_in_set: None,
                     size_of_set: None,
+                    keyboard_shortcut: None,
                 },
             ],
         };
@@ -2099,6 +2163,7 @@ mod tests {
                     role_description: None,
                     position_in_set: None,
                     size_of_set: None,
+                    keyboard_shortcut: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -2135,6 +2200,7 @@ mod tests {
                     role_description: None,
                     position_in_set: None,
                     size_of_set: None,
+                    keyboard_shortcut: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -2210,6 +2276,7 @@ mod tests {
                     role_description: None,
                     position_in_set: None,
                     size_of_set: None,
+                    keyboard_shortcut: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -2246,6 +2313,7 @@ mod tests {
                     role_description: None,
                     position_in_set: None,
                     size_of_set: None,
+                    keyboard_shortcut: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -2315,6 +2383,7 @@ mod tests {
                     role_description: None,
                     position_in_set: None,
                     size_of_set: None,
+                    keyboard_shortcut: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -2351,6 +2420,7 @@ mod tests {
                     role_description: None,
                     position_in_set: None,
                     size_of_set: None,
+                    keyboard_shortcut: None,
                     scroll_orientation: None,
                     scroll_position: None,
                 },

@@ -101,6 +101,18 @@ pub fn map_role(role: Role) -> AccessKitRole {
         // as. AccessKit's tab list role says exactly that — the AT
         // announces the strip's name before it walks the tabs.
         Role::TabList => AccessKitRole::TabList,
+        // The spin button (M128, ADR-0132): the "writes one bounded
+        // number" fact AccessKit's own spin button role spells — the
+        // field the AT walks by arrows. The value words ride the value
+        // tier's own properties (the `NumericValue` /
+        // `MinNumericValue` / `MaxNumericValue` / step set the sink
+        // maps at the M97/M99 tiers), no second branch.
+        Role::SpinButton => AccessKitRole::SpinButton,
+        // The toolbar (M129, ADR-0133): the named strip the tools read
+        // as. AccessKit's toolbar role says exactly that — the AT
+        // announces the strip's name before it walks the tools; the
+        // tools keep the roles the members already carry.
+        Role::Toolbar => AccessKitRole::Toolbar,
     }
 }
 
@@ -909,6 +921,12 @@ mod tests {
         // AccessKit's `Tab` beside its `TabList`.
         assert_eq!(map_role(Role::Tab), AkRole::Tab);
         assert_eq!(map_role(Role::TabList), AkRole::TabList);
+        // The M128 spin-button tier: the "writes one bounded number"
+        // fact — AccessKit's own `SpinButton`.
+        assert_eq!(map_role(Role::SpinButton), AkRole::SpinButton);
+        // The M129 toolbar tier: the named strip the tools read as —
+        // AccessKit's own `Toolbar`.
+        assert_eq!(map_role(Role::Toolbar), AkRole::Toolbar);
     }
 
     #[test]

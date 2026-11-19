@@ -157,6 +157,9 @@ impl ScrollState {
 pub struct List {
     state: Arc<Mutex<ScrollState>>,
     style: Style,
+    /// The busy tier's word (M117, ADR-0121): whether the list's
+    /// subtree is being updated — `false` the honest absence.
+    busy: bool,
 }
 
 impl List {
@@ -180,6 +183,7 @@ impl List {
                 },
                 ..Style::column()
             },
+            busy: false,
         }
     }
 
@@ -209,6 +213,7 @@ impl List {
                 },
                 ..Style::column()
             },
+            busy: false,
         }
     }
 
@@ -225,6 +230,37 @@ impl List {
     pub fn grow(mut self, grow: f32) -> Self {
         self.style.grow = grow;
         self
+    }
+
+    /// Mounts the list's updating word (M117, ADR-0121): the subtree's
+    /// fact said by the tree from the first frame — AccessKit's `Busy`
+    /// property (ARIA's `aria-busy`) names the region the AT holds its
+    /// speech on while the stream is still writing it, the declared
+    /// counterpart of the announcement machinery the framework already
+    /// owns (§11.6, ADR-0024). The word prices nothing but the word:
+    /// the list's doors answer exactly as they always did — the word
+    /// names the updating fact, it walls nothing, the scroll and
+    /// selection routes the widget's own. The app's live door rides
+    /// [`List::set_busy`].
+    #[must_use]
+    pub fn busy(mut self, busy: bool) -> Self {
+        self.busy = busy;
+        self
+    }
+
+    /// The busy door (M117, ADR-0121): the app's updating fact moved —
+    /// the word the tree says follows it on the re-announcement the
+    /// caller's `PAINT | A11Y` request pays for (the mutate seam's
+    /// shape, the way every app-side write rides). Report whether the
+    /// word moved — the caller requests `A11Y` only when this answers
+    /// `true`, so a write that lands where the word already is queues
+    /// nothing (the M21 idle-frame property, at the busy tier).
+    pub fn set_busy(&mut self, busy: bool) -> bool {
+        if self.busy == busy {
+            return false;
+        }
+        self.busy = busy;
+        true
     }
 
     /// Shared-borrow layout style access for view reconciliation (§6.1).
@@ -259,6 +295,10 @@ impl Widget for List {
     fn scroll_offset(&self) -> Vector {
         let state = self.state.lock().expect("scroll state");
         Vector::new(state.offset_x, state.offset)
+    }
+
+    fn busy(&self) -> bool {
+        self.busy
     }
 
     /// The declared axis (M98, ADR-0102): the constructor's own word —

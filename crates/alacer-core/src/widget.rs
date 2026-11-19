@@ -131,6 +131,16 @@ pub enum Role {
     /// unnamed strip reads as a bare box — the ADR-5 rule the named
     /// roles carry.
     Toolbar,
+    /// An instant on/off control (the switch tier, M130, ADR-0134):
+    /// the "writes one on/off fact" AccessKit's own `Switch` role
+    /// spells — not a checkbox wearing the wrong word (a checkbox's
+    /// write resolves a *form contract*: checked, unchecked, the mixed
+    /// summary the select-all parent needs; a switch's write is the
+    /// instant on/off the settings vocabulary speaks, and a switch has
+    /// no summary to hold). The binary pair rides the M6 `toggled`
+    /// contract — `On` or `Off`, never `Mixed` (ADR-0098's rule at the
+    /// switch tier: never a summary the control does not hold).
+    Switch,
 }
 
 impl Role {
@@ -152,7 +162,9 @@ impl Role {
     /// number field reads as a bare number — the slider's own rule at
     /// the field tier. The toolbar joins in M129: an unnamed tool
     /// strip reads as a bare box — the set the AT cannot name is a set
-    /// it cannot walk.
+    /// it cannot walk. The switch joins in M130: an unnamed instant
+    /// on/off reads as a bare pill — the ADR-5 rule the named roles
+    /// carry.
     #[must_use]
     pub const fn requires_name(self) -> bool {
         matches!(
@@ -171,6 +183,7 @@ impl Role {
                 | Self::TabList
                 | Self::SpinButton
                 | Self::Toolbar
+                | Self::Switch
         )
     }
 
@@ -203,6 +216,7 @@ impl Role {
             Self::TabList => "tab_list",
             Self::SpinButton => "spin_button",
             Self::Toolbar => "toolbar",
+            Self::Switch => "switch",
         }
     }
 }
@@ -1679,6 +1693,7 @@ pub trait Widget: 'static {
                 | Role::Link
                 | Role::Tab
                 | Role::SpinButton
+                | Role::Switch
         ) && self.enabled()
     }
 

@@ -64,6 +64,32 @@ pub enum Role {
     /// and assistive technologies speak its changes. Never a widget's
     /// role; the pipeline builds the node itself.
     LiveRegion,
+    /// A single-choice control in a set of one-of-N (the radio tier,
+    /// M124, ADR-0128): the selection the M6 `toggled` contract
+    /// announces — checked or off, never mixed (a radio has no summary;
+    /// the tri-state parent is the checkbox's own word, ADR-0098). The
+    /// user's doors *select* and never deselect — the redundancy of a
+    /// second select is the M21 idle frame, the exclusivity the app's
+    /// wiring writes through the handlers; the one deselect door is the
+    /// programmatic write (view reconciliation), the checkbox's
+    /// `set_checked` rule at the radio.
+    Radio,
+    /// The named container a set of radios reads as (the radio tier's
+    /// container half, M124, ADR-0128): the group word the AT announces
+    /// before it walks the members, the set tier's span word
+    /// ([`Widget::size_of_set`]) its natural carrier. An unnamed group
+    /// reads as a bare box — the ADR-5 rule the named roles carry.
+    RadioGroup,
+    /// A hyperlink control (the link tier, M125, ADR-0129): the
+    /// "opens something" fact AccessKit's own link role spells. The
+    /// activation verb is the link's own — the open act the app's
+    /// navigation rides (the handler), the keyboard's key the platform
+    /// convention names (Enter; Space stays the scroller's key the
+    /// framework hands on), the AT's default action the open ask the
+    /// door answers. The destination is the app's: the tree says
+    /// "opens", never where — the name and the description carry the
+    /// words the app declared.
+    Link,
 }
 
 impl Role {
@@ -73,7 +99,11 @@ impl Role {
     /// joins in M20: an unnamed value control reads as a bare number. The
     /// progress indicator joins in M21: an unnamed report reads as a bare
     /// number too. The canvas joins in M82: an unnamed drawing surface
-    /// reads as a blank.
+    /// reads as a blank. The radio joins in M124: an unnamed member is a
+    /// bare mark, and an unnamed group a bare box — the set the AT cannot
+    /// name is a set it cannot walk. The link joins in M125: an unnamed
+    /// link reads as bare styled text — the "goes somewhere" the AT
+    /// cannot announce.
     #[must_use]
     pub const fn requires_name(self) -> bool {
         matches!(
@@ -84,6 +114,9 @@ impl Role {
                 | Self::Slider
                 | Self::ProgressIndicator
                 | Self::Canvas
+                | Self::Radio
+                | Self::RadioGroup
+                | Self::Link
         )
     }
 
@@ -108,6 +141,9 @@ impl Role {
             Self::ColumnHeader => "column_header",
             Self::Canvas => "canvas",
             Self::LiveRegion => "live_region",
+            Self::Radio => "radio",
+            Self::RadioGroup => "radio_group",
+            Self::Link => "link",
         }
     }
 }
@@ -1160,7 +1196,7 @@ pub trait Widget: 'static {
     /// The container's declared live region (M120, ADR-0124): the live
     /// tier's declared word — AccessKit's `Live` property, ARIA's
     /// `aria-live`, mapped by `alacer-a11y` in the same snapshot every
-    /// other property rides, the politeness ([`Politeness`]) riding
+    /// other property rides, the politeness ([`crate::announce::Politeness`]) riding
     /// beside the word. Through M119 the tree said the collection's
     /// span and the member's place beside the form facts and the
     /// updating fact — and the word every streaming vocabulary speaks
@@ -1576,7 +1612,12 @@ pub trait Widget: 'static {
     fn focusable(&self) -> bool {
         matches!(
             self.role(),
-            Role::Button | Role::TextInput | Role::CheckBox | Role::Slider
+            Role::Button
+                | Role::TextInput
+                | Role::CheckBox
+                | Role::Slider
+                | Role::Radio
+                | Role::Link
         ) && self.enabled()
     }
 

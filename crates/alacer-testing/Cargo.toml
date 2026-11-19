@@ -181,3 +181,7 @@ harness = false
 [[bench]]
 name = "live"
 harness = false
+
+[[bench]]
+name = "shortcut"
+harness = false

@@ -203,6 +203,14 @@ mod tests {
     fn checkbox_requires_a_name_like_every_input_control() {
         assert!(Role::CheckBox.requires_name());
         assert!(!Role::Label.requires_name());
+        // The radio tier (M124): the member and the group it reads as
+        // both carry the ADR-5 rule — an unnamed member is a bare mark,
+        // an unnamed group a bare box.
+        assert!(Role::Radio.requires_name());
+        assert!(Role::RadioGroup.requires_name());
+        // The link tier (M125): an unnamed link reads as bare styled
+        // text — the "goes somewhere" the AT cannot announce.
+        assert!(Role::Link.requires_name());
     }
 
     #[test]
@@ -250,6 +258,9 @@ mod tests {
             Role::TableCell,
             Role::ColumnHeader,
             Role::LiveRegion,
+            Role::Radio,
+            Role::RadioGroup,
+            Role::Link,
         ];
         for role in roles {
             assert!(!role.name().is_empty(), "{role:?} has a name");

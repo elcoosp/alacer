@@ -37,7 +37,7 @@ const TEXT_INSET: f32 = 2.0;
 /// content).
 #[expect(
     clippy::struct_excessive_bools,
-    reason = "four orthogonal facts the widget owns — the drag arm, the focus ring, the availability flag, and M102's reveal word; grouping them would hide the names the contract speaks"
+    reason = "five orthogonal facts the widget owns — the drag arm, the focus ring, the availability flag, M102's reveal word, and M132's purpose word; grouping them would hide the names the contract speaks"
 )]
 pub struct TextInput {
     /// The accessible name (a screen reader says "Search, edit text").
@@ -100,6 +100,11 @@ pub struct TextInput {
     /// hint, the doors unchanged beside it. `false` the honest
     /// absence.
     multiline: bool,
+    /// The purpose word (M132, ADR-0136): whether the field takes
+    /// search criteria — the word the AT reads beside the name (the
+    /// `SearchInput` role the sink resolves), the doors unchanged
+    /// beside it. `false` the honest absence.
+    search_field: bool,
     font_size: f32,
     style: Style,
     on_changed: Option<ChangeHandler>,
@@ -157,6 +162,7 @@ impl TextInput {
             invalid: None,
             auto_complete: None,
             multiline: false,
+            search_field: false,
             font_size: crate::theme::FONT_SIZE,
             style: Style::default(),
             on_changed: None,
@@ -344,6 +350,35 @@ impl TextInput {
             return false;
         }
         self.multiline = multiline;
+        true
+    }
+
+    /// Declares the field's purpose (M132, ADR-0136): a search field —
+    /// the word the AT announces beside the name (the `SearchInput`
+    /// role the sink resolves), the find conventions keying off it.
+    /// `false` (the default) is the honest absence — the plain field
+    /// the AT read before the tier.
+    #[must_use]
+    pub fn search_field(mut self, search_field: bool) -> Self {
+        self.search_field = search_field;
+        self
+    }
+
+    /// The purpose door (M132, ADR-0136): the app's declaration moved
+    /// live — the word the tree says (and the role the sink resolves)
+    /// follows it on the re-announcement the caller's `A11Y` request
+    /// pays for (the mutate seam's shape, the way every app-side write
+    /// rides). Report whether the word moved — the caller requests
+    /// `A11Y` only when this answers `true`, so a write that lands
+    /// where the word already is queues nothing (the M21 idle-frame
+    /// property, at the purpose tier). `false` clears the word — the
+    /// honest absence restored, the plain field the AT read before the
+    /// tier.
+    pub fn set_search_field(&mut self, search_field: bool) -> bool {
+        if self.search_field == search_field {
+            return false;
+        }
+        self.search_field = search_field;
         true
     }
 
@@ -1524,6 +1559,14 @@ impl Widget for TextInput {
     /// unchanged beside it.
     fn multiline(&self) -> bool {
         self.multiline
+    }
+
+    /// The purpose tier (M132, ADR-0136): the word the tree says
+    /// beside the field's use — "this field takes search criteria",
+    /// the AT reading it beside the name, the find conventions keying
+    /// off it. The doors answer unchanged beside it.
+    fn search_field(&self) -> bool {
+        self.search_field
     }
 
     /// The M11 a11y contract (ADR-0017): the focused input exposes its
@@ -3227,5 +3270,43 @@ mod tests {
         );
         assert!(input.set_placeholder(""), "clearing to the absence moved");
         assert_eq!(Widget::placeholder(&input), None);
+    }
+
+    #[test]
+    fn the_purpose_word_declares_and_reports_the_move() {
+        // M132, ADR-0136: the honest absence by default, the builder word
+        // the tree carries, and the one write whose moved answer is the
+        // only mask the tier costs (the M21 idle-frame property).
+        let mut input = TextInput::new("Mail search");
+        assert!(
+            !Widget::search_field(&input),
+            "a field that declared nothing announces no purpose"
+        );
+        input = input.search_field(true);
+        assert!(
+            Widget::search_field(&input),
+            "the builder word declares the field for search"
+        );
+        assert!(
+            !input.set_search_field(true),
+            "the idle write answers false — no masks"
+        );
+        assert!(
+            input.set_search_field(false),
+            "clearing to the absence moved"
+        );
+        assert!(!Widget::search_field(&input));
+        assert!(
+            !input.set_search_field(false),
+            "the absence is already there"
+        );
+
+        // The word walls nothing: the doors answer as they always did —
+        // the AT's value write commits and the field carries it.
+        assert!(
+            input.on_a11y_action(alacer_core::widget::A11yAction::SetValue("invoices".into())),
+            "the declared field edits — the purpose names, it walls nothing"
+        );
+        assert_eq!(input.value(), "invoices", "the write landed");
     }
 }

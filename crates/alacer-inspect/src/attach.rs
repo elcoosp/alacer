@@ -160,11 +160,18 @@ impl InspectorHandle {
     /// to accept is unrecoverable for a devtools server — the server's own
     /// contract, surfaced here).
     pub fn join(mut self) {
-        if let Some(thread) = self.thread.take() {
-            let _ = thread.join();
+        if let Some(thread) = self.thread.take()
+            && let Err(payload) = thread.join()
+        {
+            // The documented contract (the `# Panics` clause above): the
+            // serving thread's panic is the caller's, not a swallowed fact
+            // — the payload rides verbatim, so `panic!` in the accept loop
+            // surfaces at the join site with its original message.
+            std::panic::panic_any(payload);
         }
     }
 }
+
 
 /// Wires the inspector into `pipeline` in one call: a [`CausalRecorder`]
 /// into the observer slot (the causal facts stream, and the trails enable
@@ -254,4 +261,50 @@ pub fn attach_inspector(
         port,
         thread,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::InspectorHandle;
+    use crate::recorder::CausalRecorder;
+
+    #[test]
+    fn join_re_raises_the_serving_thread_panic() {
+        // The `# Panics` clause is the contract: a serving thread that
+        // panicked must not go silently — the joiner panics with the
+        // payload the thread carried.
+        let thread = std::thread::spawn(|| panic!("accept loop died"));
+        let handle = InspectorHandle {
+            recorder: CausalRecorder::new("join-test"),
+            port: 0,
+            thread: Some(thread),
+        };
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
+            handle.join();
+        }));
+        let payload = result.expect_err("a panicked serving thread must surface at the join");
+        // The payload is double-boxed: the thread's panic cargo inside
+        // the `Box<dyn Any + Send>` `join` hands back, inside the `Box`
+        // `panic_any` raised. Unwrap both, the message verbatim.
+        let inner = payload
+            .downcast_ref::<Box<dyn std::any::Any + Send>>()
+            .and_then(|cargo| {
+                cargo
+                    .downcast_ref::<&str>()
+                    .copied()
+                    .or_else(|| cargo.downcast_ref::<String>().map(String::as_str))
+            })
+            .expect("the payload is the thread's own message");
+        assert_eq!(inner, "accept loop died");
+
+        // The clean path: a thread that ended normally joins silently —
+        // no spurious panic behind the contract.
+        let thread = std::thread::spawn(|| {});
+        let handle = InspectorHandle {
+            recorder: CausalRecorder::new("join-test"),
+            port: 0,
+            thread: Some(thread),
+        };
+        handle.join();
+    }
 }

@@ -310,8 +310,8 @@ fn m20_the_living_documents_re_agree() {
         "All 144 criterion cases",
         "Since M20 the value tier is a widget",
         "version-0.17.0",
-        "M0 through M127",
-        "a hundred and thirty-two decision records",
+        "M0 through M129",
+        "a hundred and thirty-four decision records",
         "`Slider`",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
@@ -327,7 +327,7 @@ fn m20_the_living_documents_re_agree() {
     for fragment in [
         "[`slider`](../crates/alacer/examples/slider.rs)",
         "37 styled scenarios",
-        "40 blessed PNGs",
+        "41 blessed PNGs",
     ] {
         assert!(
             catalog.contains(fragment),
@@ -340,7 +340,7 @@ fn m20_the_living_documents_re_agree() {
     let architecture = read_workspace_file("docs/architecture.md");
     for fragment in [
         "ADR-0026",
-        "a hundred and thirty-two decision records",
+        "a hundred and thirty-four decision records",
         "the slider joins the widget vocabulary",
     ] {
         assert!(

@@ -28,3 +28,11 @@ harness = false
 [[bench]]
 name = "link"
 harness = false
+
+[[bench]]
+name = "heading"
+harness = false
+
+[[bench]]
+name = "tab"
+harness = false

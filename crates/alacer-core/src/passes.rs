@@ -235,6 +235,15 @@ pub struct TreeNode {
     /// `false` is the honest absence — a container that declared
     /// nothing announces no capacity, never a guessed one.
     pub multiselectable: bool,
+    /// The container's busy word (M117, ADR-0121): whether its subtree
+    /// is being updated and its announcements should be withheld until
+    /// it is ready — the word the AT reads before it speaks what the
+    /// stream is still writing (AccessKit's `Busy` property, ARIA's
+    /// `aria-busy`). The word prices nothing but the word: the
+    /// container's doors answer exactly as they always did. `false` is
+    /// the honest absence — a container that declared nothing announces
+    /// nothing, never a guessed "updating".
+    pub busy: bool,
     /// The collection member's expanded word (M110, ADR-0114): whether
     /// the member opens and closes — the disclosure the AT reads beside
     /// the picks the selected tier already carried (AccessKit's
@@ -4063,6 +4072,7 @@ impl PassPipeline {
                 invalid: slot.widget().invalid(),
                 selected: slot.widget().selected(),
                 multiselectable: slot.widget().multiselectable(),
+                busy: slot.widget().busy(),
                 expanded: slot.widget().expanded(),
                 auto_complete: slot.widget().auto_complete(),
                 sort_direction: slot.widget().sort_direction(),
@@ -4125,6 +4135,9 @@ impl PassPipeline {
                 // The pipeline's own node: no capacity word — the
                 // region carries no collection to size.
                 multiselectable: false,
+                // The pipeline's own node: no updating word — the
+                // region is never withheld; it is the speech.
+                busy: false,
                 // The pipeline's own node: no disclosure word — the
                 // region opens and closes not.
                 expanded: None,

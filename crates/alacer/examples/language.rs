@@ -70,7 +70,7 @@ fn language_words(tree: Option<&alacer_core::passes::TreeSnapshot>) -> String {
                 .filter(|n| n.role == Role::Label)
                 .map(|n| match &n.language {
                     Some(tag) => format!("{} [{tag}]", n.label),
-                    None => format!("{}", n.label),
+                    None => n.label.clone(),
                 })
                 .collect()
         })

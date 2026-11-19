@@ -195,6 +195,13 @@ fn role_variant(word: &str, span: proc_macro2::Span) -> syn::Result<proc_macro2:
         "table_cell" => "TableCell",
         "column_header" => "ColumnHeader",
         "canvas" => "Canvas",
+        "radio" => "Radio",
+        "radio_group" => "RadioGroup",
+        "link" => "Link",
+        "heading" => "Heading",
+        "tab" => "Tab",
+        "tab_list" => "TabList",
+        "spin_button" => "SpinButton",
         // The pipeline's reserved region is never a widget's role: the
         // pipeline builds the node itself (§11.6, ADR-0024) — the refusal
         // names the rule, not just the word.
@@ -214,7 +221,8 @@ fn role_variant(word: &str, span: proc_macro2::Span) -> syn::Result<proc_macro2:
                      vocabulary — decoration, container, label, button, text_input, \
                      scroll_area, list_item, list, checkbox, slider, \
                      progress_indicator, table, table_row, table_cell, \
-                     column_header, canvas"
+                     column_header, canvas, radio, radio_group, link, heading, \
+                     tab, tab_list, spin_button"
                 ),
             ));
         }
@@ -806,6 +814,13 @@ mod derive_expansion_debug {
             ("table_cell", "TableCell"),
             ("column_header", "ColumnHeader"),
             ("canvas", "Canvas"),
+            ("radio", "Radio"),
+            ("radio_group", "RadioGroup"),
+            ("link", "Link"),
+            ("heading", "Heading"),
+            ("tab", "Tab"),
+            ("tab_list", "TabList"),
+            ("spin_button", "SpinButton"),
         ];
         for (word, variant) in words {
             let source = format!("#[widget(role = \"{word}\", label = \"x\")] struct W;");

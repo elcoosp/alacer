@@ -11,7 +11,8 @@ use alacer_view::{ElementProps, WidgetRegistry};
 /// M6 canon (`checkbox`, `text_input`, `table`, `table_row`, `table_cell`,
 /// `column_header`) plus the M32 value tier (`slider`, `progress`) plus the
 /// M82 paint seam (`canvas`) plus the M124 radio tier (`radio`,
-/// `radio_group`) plus the M125 link tier (`link`).
+/// `radio_group`) plus the M125 link tier (`link`) plus the M126 heading
+/// tier (`heading`) plus the M127 tab tier (`tab`, `tab_list`).
 #[must_use]
 pub fn default_registry() -> WidgetRegistry {
     let mut registry = WidgetRegistry::new();
@@ -34,6 +35,9 @@ pub fn default_registry() -> WidgetRegistry {
     registry.register("radio", radio_create, radio_patch);
     registry.register("radio_group", radio_group_create, radio_group_patch);
     registry.register("link", link_create, link_patch);
+    registry.register("heading", heading_create, heading_patch);
+    registry.register("tab", tab_create, tab_patch);
+    registry.register("tab_list", tab_list_create, tab_list_patch);
     registry
 }
 
@@ -679,6 +683,116 @@ fn progress_patch(progress: &mut crate::Progress, props: &ElementProps<'_>) -> b
         visual |= progress.set_value(value);
     }
     visual
+}
+
+/// The heading element (`heading { name: …, level: … }` — M126): the
+/// heading tier's DSL door — the section title, the depth the outline
+/// walks, the words the tree carries.
+fn heading_create(props: &ElementProps<'_>) -> crate::Heading {
+    let mut heading = crate::Heading::new(props.text("name").unwrap_or_default());
+    if let Some(level) = prop_index(props, "level") {
+        heading = heading.level(level);
+    }
+    if let Some(language) = props.text("language") {
+        heading = heading.language(language);
+    }
+    if let Some(color) = props.color("color") {
+        heading = heading.color(color);
+    }
+    if let Some(size) = props.number("font_size") {
+        heading = heading.font_size(size);
+    }
+    heading
+}
+
+fn heading_patch(heading: &mut crate::Heading, props: &ElementProps<'_>) -> bool {
+    let mut visual = false;
+    if let Some(name) = props.text("name") {
+        heading.set_name(name);
+        visual = true;
+    }
+    // The depth word (M113, ADR-0117): the write reporting the move —
+    // the idle write queues nothing (the M21 rule, at the heading
+    // tier).
+    if let Some(level) = prop_index(props, "level") {
+        let _ = heading.set_level(Some(level));
+    }
+    // The language word (M123, ADR-0127): the write reporting the
+    // move, the honest absence the withdrawal restores.
+    if let Some(language) = props.text("language") {
+        let _ = heading.set_language(Some(language.to_string()));
+    }
+    if let Some(color) = props.color("color") {
+        heading.set_color(color);
+        visual = true;
+    }
+    if let Some(size) = props.number("font_size") {
+        heading.set_font_size(size);
+        visual = true;
+    }
+    visual
+}
+
+/// The tab element (`tab { name: …, selected: …, on_select: … }` —
+/// M127): the tab tier's DSL door — the page word, the selection, the
+/// select handler the exclusivity rides.
+fn tab_create(props: &ElementProps<'_>) -> crate::Tab {
+    let mut tab = crate::Tab::new(props.text("name").unwrap_or_default());
+    if let Some(selected) = props.flag("selected") {
+        tab = tab.selected(selected);
+    }
+    if let Some(handler) = props.flag_handler("on_select") {
+        tab = tab.on_select(handler);
+    }
+    if let Some(description) = props.text("description") {
+        tab = tab.description(description);
+    }
+    if let Some(color) = props.color("accent") {
+        tab = tab.accent(color);
+    }
+    tab
+}
+
+fn tab_patch(tab: &mut crate::Tab, props: &ElementProps<'_>) -> bool {
+    let mut visual = false;
+    if let Some(name) = props.text("name") {
+        tab.set_name(name);
+        visual = true;
+    }
+    // The description word (M95, ADR-0099): the patch tier queues
+    // `A11Y` from the prop class, the write reporting the move.
+    if let Some(description) = props.text("description") {
+        tab.set_description(Some(description.to_string()));
+    }
+    if let Some(handler) = props.flag_handler("on_select") {
+        tab.set_on_select(Some(handler));
+    }
+    // The programmatic selection door: the patcher applies the prop
+    // the view carries, the user's doors never deselecting (the
+    // radio's own rule at the page tier).
+    if let Some(selected) = props.flag("selected") {
+        tab.set_selected(selected);
+    }
+    visual
+}
+
+/// The tab list element (`tab_list { name: … }` — M127): the strip the
+/// pages read as, the pages' horizontal layout — never a second
+/// channel to them.
+fn tab_list_create(props: &ElementProps<'_>) -> crate::TabList {
+    let mut strip = crate::TabList::new(props.text("name").unwrap_or_default());
+    style_apply(strip.style_mut(), props);
+    strip
+}
+
+fn tab_list_patch(strip: &mut crate::TabList, props: &ElementProps<'_>) -> bool {
+    let mut visual = false;
+    if let Some(name) = props.text("name") {
+        strip.set_name(name);
+        visual = true;
+    }
+    style_apply(strip.style_mut(), props);
+    style_visual_diff(props) || visual
 }
 
 #[cfg(test)]

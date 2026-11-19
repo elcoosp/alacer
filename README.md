@@ -86,7 +86,7 @@ cargo test --workspace                                          # headless: real
 > `ALACER_SOFTWARE=1` presents through softbuffer — the platform honors it at startup
 > (`BackendPreference::software_env`) whichever backend the app asked for; any other value is
 > refused with a named warning, never guessed. CI and the headless tests already run this path:
-> no mock renderer, no mock event loop. The full 106-example catalog lives in
+> no mock renderer, no mock event loop. The full 110-example catalog lives in
 > [docs/examples.md](https://github.com/elcoosp/alacer/blob/main/docs/examples.md).
 
 ## How it works
@@ -190,6 +190,8 @@ Accessibility is not a layer bolted on — it is the tree's own vocabulary:
 | **Shortcut** (M121)     | The chord the keymap rides, said by the tree: `keyboard_shortcut()` on the trait answering the string the app declared (the spellings the app's own vocabulary — no kind enum, AccessKit's `KeyboardShortcut` is a string property, the description precedent at the string tier, one branch with no translation), `Button` carrying the constructor word and the `set_keyboard_shortcut` door, AccessKit's `KeyboardShortcut` property (ARIA's `aria-keyshortcuts`) mapped in the same snapshot — the AT announcing "Save — Control+S" beside the name while the keymap's dispatch stays the dispatch it always was (the word says the chord the app named, it never binds a key — the word names a fact, it walls nothing); `None` the honest absence, never a guessed binding | 0125      |
 | **Multiline** (M122)    | The field's line capacity, said by the tree: `multiline()` on the trait answering a plain bool (`false` the honest absence — a field that declared no capacity announces none, never a guessed "multiline"; the ADR-0113 flag shape at the tier), `TextInput` carrying the constructor word and the `set_multiline` door, AccessKit's `MultilineTextInput` role resolved in the same snapshot (ARIA's `aria-multiline` beside the `textbox` role — the capacity word the vocabulary carries, there being no separate property to mirror; the secure tier's `PasswordInput` branch winning the role it has carried since M100) — the AT reading "edit text, multiline" before it types while the field's typing, caret, selection and submit routes stay the widget's own (the word names a capacity, it walls nothing); `false` the honest absence | 0126      |
 | **Language** (M123)     | The text's language, said by the tree: `language()` on the trait answering the string the app declared (the BCP 47 tag the AT voices the text with — no kind enum, AccessKit's `Language` is a string property, the description precedent at the string tier, one branch with no translation), `Label` carrying the constructor word and the `set_language` door, AccessKit's `Language` property mapped in the same snapshot — the AT voicing the text with the declared tag while the text's read stays the widget's own (the word says the text's language, it never translates the text — the word names a fact, it walls nothing); `None` the honest absence, never a guessed tag | 0127      |
+| **Radio** (M124)        | The one-of-N control and the group it reads as: `Role::Radio` carrying the selection the `toggled` contract announces (never the mixed summary — a radio has no third bit), `Role::RadioGroup` the named container the set words ride (`Radio::position_in_set` the member's place, `RadioGroup::size_of_set` the span — ADR-0123's vocabulary, never a second tier), `Radio`/`RadioGroup` in the widgets crate with the registry doors, AccessKit's `RadioButton` beside its `RadioGroup` mapped in the same snapshot — the user's doors selecting and never deselecting (the redundant ask the M21 idle frame, the one deselect door the programmatic write), the exclusivity the app's wiring; both roles join the required-name set | 0128      |
+| **Link** (M125)         | The hyperlink control and its activation verb: `Role::Link` carrying the "opens something" fact AccessKit's own `Link` role spells (not a button wearing styled text), `Link::on_open` the open act the app's navigation rides (the tree says "opens", never where — the name and the description the app's words), the click opening on release (the GTK rule) and the keyboard's verb the link's own (Enter opens, Space handed on — the M10 parity at the link tier), the Enter-open streaming the `Keyboard` rider (M70), AccessKit's `Link` role mapped in the same snapshot; the role joins the required-name set | 0129      |
 
 Since M20 the value tier is a widget — the `Slider` answers drag, arrows and AT writes from one
 funnel. Since M21 the value is reportable too — the read-only `Progress` names the door that has
@@ -334,6 +336,7 @@ Full wiring (`pipeline_default()`, `mount_view()`, `run_window()`) in
 `crates/alacer/examples/counter_view.rs`; direct assembly without the DSL in `counter.rs`.
 
 The shipped vocabulary: `Label` · `Button` · `TextInput` · `Checkbox` · `Slider` · `Progress` ·
+`Radio` · `RadioGroup` · `Link` ·
 `Column` · `Row` · `Spacer` · `List` · `Table` · `Panel` · `Canvas` — each with its required role and label,
 reading shared theme constants. Since M32 the value tier is view vocabulary too: `slider` and
 `progress` are `rsx!` elements with the value-carrying `on_change` handler and the f32 `binding`
@@ -363,7 +366,7 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `accent_follow`                                      | the OS's accent fact rides the same seam: the accent-only flip lands, the composition tints the palette's accent roles from the fact, the log names all four facts |
 | `todo` / `data_table`                                | the canons: a11y tree, record/replay, grid slots, keyboard navigation            |
 
-<details><summary><b>90 examples, grouped (recording, alloc_budget, input_budget, derive_widget, layout_probe, sort, level, current, has_popup, role_description, busy, key_routing, set, live, shortcut, and tri_state live in the catalog)</b></summary>
+<details><summary><b>94 examples, grouped (recording, alloc_budget, input_budget, derive_widget, layout_probe, sort, level, current, has_popup, role_description, busy, key_routing, set, live, shortcut, multiline, language, radio, link, and tri_state live in the catalog)</b></summary>
 
 **Start here**
 
@@ -498,6 +501,8 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `expanded` | the M110 expanded tier driven from the consumer side: the folder table whose rows say the disclosure — the open row beside the collapsed row and the wordless row, the word naming state and walling nothing — the live door moving the word, open, collapse, clear |
 | `auto_complete` | the M111 auto-complete tier driven from the consumer side: the listing field beside the inline field and the plain field between them, the contract word naming suggestions and walling nothing — the live door moving the word, list, inline, clear |
 | `a11y_queries` | the a11y query API as a runnable walkthrough: find by role and name, press through the AT's own `DefaultPress` door, click at the tree's own bounds, read the label's word back — the tree, never the internals |
+| `radio` | the M124 radio tier driven from the consumer side: the named group the set reads as, the members mounting checked and cleared from the signal, the select handler writing the one write the exclusivity rides, the redundant ask the idle frame, the status line reading the selection back the way the tree carries it |
+| `link` | the M125 link tier driven from the consumer side: the described link under the word, the plain link the honest absence beside it, every activation routing through the same door, the status line reading the destination back the way the app named it — the tree saying "opens", never where |
 
 </details>
 
@@ -518,7 +523,7 @@ is the query API as a runnable walkthrough.
 ## Status
 
 > [!NOTE]
-> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M123 of `docs/architecture.md` are
+> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M125 of `docs/architecture.md` are
 > complete, but the API still moves between minor versions. MSRV **1.99**, edition **2024**.
 
 | Platform            | CI coverage                                                                                                                                                           |
@@ -530,7 +535,7 @@ is the query API as a runnable walkthrough.
 ## Learn more
 
 - [Architecture](https://github.com/elcoosp/alacer/blob/main/docs/architecture.md) — design axioms, the ten-pass contract, rendering, accessibility, DX, performance, roadmap and kill criteria
-- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred and twenty-eight decision records, from workspace discipline to the M123 scope
+- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred and thirty decision records, from workspace discipline to the M125 scope
 - [Examples catalog](https://github.com/elcoosp/alacer/blob/main/docs/examples.md) — every example with the contract it exercises
 - [Migrating from Iced](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-iced.md) · [from egui](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-egui.md) — mental-model mappings, interop limits stated plainly
 - [Inspector protocol](https://github.com/elcoosp/alacer/blob/main/docs/inspector-protocol.md) — the versioned WebSocket contract behind `alacer-inspect`

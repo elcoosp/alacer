@@ -1,6 +1,7 @@
 //! The scrolling list: a clipped viewport whose children translate without
 //! re-measuring (§8.2 item 4 — the translation-only workhorse in action).
 
+use alacer_core::announce::Politeness;
 use alacer_core::events::{EventCtx, PointerEvent};
 use alacer_core::geom::Vector;
 use alacer_core::inspect::{
@@ -160,6 +161,10 @@ pub struct List {
     /// The busy tier's word (M117, ADR-0121): whether the list's
     /// subtree is being updated — `false` the honest absence.
     busy: bool,
+    /// The live tier's word (M120, ADR-0124): the list's declared live
+    /// region — `None` the honest absence, the container that declared
+    /// no region.
+    live: Option<Politeness>,
 }
 
 impl List {
@@ -184,6 +189,7 @@ impl List {
                 ..Style::column()
             },
             busy: false,
+            live: None,
         }
     }
 
@@ -214,6 +220,7 @@ impl List {
                 ..Style::column()
             },
             busy: false,
+            live: None,
         }
     }
 
@@ -263,6 +270,40 @@ impl List {
         true
     }
 
+    /// Mounts the list's declared live region (M120, ADR-0124): the
+    /// region whose changes the AT speaks, said by the tree from the
+    /// first frame — AccessKit's `Live` property (ARIA's `aria-live`)
+    /// names the region to the AT, the politeness ([`Politeness`]) the
+    /// announcement seam's own vocabulary carries, the declared
+    /// counterpart of the pipeline's reserved region (§11.6, ADR-0024
+    /// — the imperative half the framework owns, the declarative half
+    /// the app says). The word prices nothing but the word: the list's
+    /// doors answer exactly as they always did — the word names the
+    /// region the AT watches, it walls nothing. The app's live door
+    /// rides [`List::set_live`].
+    #[must_use]
+    pub fn live(mut self, live: Politeness) -> Self {
+        self.live = Some(live);
+        self
+    }
+
+    /// The live door (M120, ADR-0124): the app's declared region
+    /// moved — the word the tree says follows it on the re-announcement
+    /// the caller's `PAINT | A11Y` request pays for (the mutate seam's
+    /// shape, the way every app-side write rides). `None` clears the
+    /// word — the honest absence restored, the container that declared
+    /// no region. Report whether the word moved — the caller requests
+    /// `A11Y` only when this answers `true`, so a write that lands
+    /// where the word already is queues nothing (the M21 idle-frame
+    /// property, at the live tier).
+    pub fn set_live(&mut self, live: Option<Politeness>) -> bool {
+        if self.live == live {
+            return false;
+        }
+        self.live = live;
+        true
+    }
+
     /// Shared-borrow layout style access for view reconciliation (§6.1).
     #[must_use]
     pub const fn style_mut(&mut self) -> &mut Style {
@@ -299,6 +340,10 @@ impl Widget for List {
 
     fn busy(&self) -> bool {
         self.busy
+    }
+
+    fn live(&self) -> Option<Politeness> {
+        self.live
     }
 
     /// The declared axis (M98, ADR-0102): the constructor's own word —
@@ -882,6 +927,33 @@ mod tests {
         let style = list.style();
         assert!(style.clip_overflow);
         assert_eq!(style.size.height, Some(200.0));
+    }
+
+    #[test]
+    fn lists_carry_their_live_word() {
+        // M120, ADR-0124: the live tier's declared word — the region
+        // whose changes the AT speaks, the politeness the announcement
+        // seam's own vocabulary carries.
+        use alacer_core::announce::Politeness;
+        let mut list = List::new(80.0);
+        assert!(Widget::live(&list).is_none(), "the absence first");
+        list = list.live(Politeness::Polite);
+        assert_eq!(Widget::live(&list), Some(Politeness::Polite));
+        assert!(
+            list.set_live(Some(Politeness::Assertive)),
+            "the door reports the word moved"
+        );
+        assert_eq!(Widget::live(&list), Some(Politeness::Assertive));
+        assert!(
+            !list.set_live(Some(Politeness::Assertive)),
+            "the write that lands where the word already is queues nothing"
+        );
+        assert!(list.set_live(None), "the door carries the word away");
+        assert!(Widget::live(&list).is_none(), "the honest absence restored");
+        assert!(
+            !list.set_live(None),
+            "clearing the absence twice queues nothing"
+        );
     }
 
     #[test]

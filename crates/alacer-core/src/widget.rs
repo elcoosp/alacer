@@ -1098,6 +1098,36 @@ pub trait Widget: 'static {
         false
     }
 
+    /// Whether this container's subtree is being updated and its
+    /// announcements should be withheld until it is ready (M117,
+    /// ADR-0121): the busy tier's declared word — AccessKit's `Busy`
+    /// property, ARIA's `aria-busy`, mapped by `alacer-a11y` in the
+    /// same snapshot every other property rides. Through M116 the tree
+    /// said the collection's pick, capacity, disclosure, depth, order,
+    /// currency and target beside the form's ask and rejection — and
+    /// the word every bulk-update vocabulary speaks about the region
+    /// under construction ("this list is still loading, hold what you
+    /// would announce") had no tier: the AT announced every
+    /// half-settled intermediate the stream wrote into the subtree —
+    /// the declared-but-unreported gap, the M94 pattern at the busy
+    /// tier.
+    ///
+    /// The word prices the word and nothing else: a busy container's
+    /// doors answer exactly as they always did — the word names the
+    /// subtree's updating fact, it walls nothing, the children's press
+    /// and focus routes the widgets' own (a tree that refused on the
+    /// word's behalf would price a contract it does not own — the AT
+    /// defers its own speech, it is never the tree's to silence).
+    ///
+    /// `false` is the honest absence (the ADR-0087 presence rule at the
+    /// tier, the multiselectable shape): a container that declared
+    /// nothing announces nothing, never a guessed "updating". The
+    /// collection containers override this; every other role inherits
+    /// the default.
+    fn busy(&self) -> bool {
+        false
+    }
+
     /// Whether the collection member opens and closes (M110, ADR-0114):
     /// the expanded tier's declared word — AccessKit's `Expanded`
     /// property, ARIA's `aria-expanded`, mapped by `alacer-a11y` in the

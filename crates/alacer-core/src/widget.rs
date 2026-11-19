@@ -1432,6 +1432,39 @@ pub trait Widget: 'static {
         None
     }
 
+    /// The chord the control is invoked with (M121, ADR-0125): the
+    /// shortcut tier's declared word — AccessKit's `KeyboardShortcut`
+    /// property, ARIA's `aria-keyshortcuts`, mapped by `alacer-a11y` in
+    /// the same snapshot every other property rides. Through M120 the
+    /// tree said what a control *does*, what it opens, how it is read
+    /// as, the form facts, the collection facts, the declared live
+    /// region — and the word every menu-and-toolbar vocabulary speaks
+    /// about how a control is invoked from the keyboard ("Save —
+    /// Control+S") had no tier: the keymap named its bindings to the
+    /// causal trail (the M37 consult, ADR-0043) and the platform menus
+    /// carried their accelerators, while the control the AT walked to
+    /// announced its name and never its chord — the
+    /// declared-but-unreported gap, the M94 pattern at the shortcut
+    /// tier.
+    ///
+    /// The word prices the word and nothing else: a worded control's
+    /// doors answer exactly as they always did — the word names the
+    /// chord, it walls nothing, the control's press and focus routes
+    /// the widget's own (a tree that refused on the word's behalf would
+    /// price a contract it does not own), and the keymap's dispatch is
+    /// the dispatch it always was — the word says the chord the app
+    /// named, it never binds a key (the keymap seam owns the chords,
+    /// ADR-0043).
+    ///
+    /// `None` is the honest absence (the ADR-0087 presence rule at the
+    /// tier): a control that declared no chord announces none — the
+    /// attribute the AT read before the tier, never a guessed binding.
+    /// The actionable widgets override this; every other role inherits
+    /// the default.
+    fn keyboard_shortcut(&self) -> Option<&str> {
+        None
+    }
+
     /// The widget's toggle state for the a11y tree (M6): checkboxes report
     /// their checked state so screen readers announce "checked"/"not
     /// checked". Non-toggle roles return `None`.

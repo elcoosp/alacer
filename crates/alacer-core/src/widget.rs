@@ -141,6 +141,20 @@ pub enum Role {
     /// contract — `On` or `Off`, never `Mixed` (ADR-0098's rule at the
     /// switch tier: never a summary the control does not hold).
     Switch,
+    /// The named pane the selected page's content lives in (the
+    /// tab-panel tier, M131, ADR-0135): the "holds the selected page's
+    /// content" fact AccessKit's own `TabPanel` role spells — not a
+    /// bare box wearing no name (the set the AT cannot name is a set it
+    /// cannot walk, the ADR-5 rule the named roles carry) and not a
+    /// second tab list wearing the wrong word (a tab list *names the
+    /// pages' strip*; a tab panel *names the page's content*). The
+    /// member-and-container shape (ADR-0128) grown to its third word:
+    /// the member ([`Role::Tab`]), the strip ([`Role::TabList`]), the
+    /// pane ([`Role::TabPanel`]). The pane is the content's layout,
+    /// never a second channel to it — the children keep the roles and
+    /// labels they already carry, and the pane holds no focus and
+    /// answers no activation (the M126/M129 container rule).
+    TabPanel,
 }
 
 impl Role {
@@ -164,7 +178,9 @@ impl Role {
     /// strip reads as a bare box — the set the AT cannot name is a set
     /// it cannot walk. The switch joins in M130: an unnamed instant
     /// on/off reads as a bare pill — the ADR-5 rule the named roles
-    /// carry.
+    /// carry. The tab panel joins in M131: an unnamed pane reads as a
+    /// bare box — the set the AT cannot name is a set it cannot walk,
+    /// the named-container rule the strip and the tool strip carry.
     #[must_use]
     pub const fn requires_name(self) -> bool {
         matches!(
@@ -184,6 +200,7 @@ impl Role {
                 | Self::SpinButton
                 | Self::Toolbar
                 | Self::Switch
+                | Self::TabPanel
         )
     }
 
@@ -217,6 +234,7 @@ impl Role {
             Self::SpinButton => "spin_button",
             Self::Toolbar => "toolbar",
             Self::Switch => "switch",
+            Self::TabPanel => "tab_panel",
         }
     }
 }
@@ -1012,6 +1030,42 @@ pub trait Widget: 'static {
     /// secret to reveal). Editable controls override this; every
     /// other role inherits the default.
     fn secure_revealed(&self) -> bool {
+        false
+    }
+
+    /// Whether the field's purpose is search (M132, ADR-0136): the
+    /// word behind the search box — AccessKit's `SearchInput` role,
+    /// the declaration every platform AT announces and the find
+    /// conventions key off ("search, edit text"), ARIA's
+    /// `role="searchbox"`. Through M131 the tree said the field's
+    /// capacity (M122's multiline word), its form facts (M105-M107),
+    /// its suggestion contract (M111) — and never what the field was
+    /// *for*: an app wiring a search box mounted a plain
+    /// `TextInput`, and the AT read "edit text" where the vocabulary
+    /// says "search" — the declared-but-unreported gap, the M94
+    /// pattern at the purpose tier.
+    ///
+    /// The word prices nothing but the word: a declared field's doors
+    /// answer exactly as they always did — the edit, the selection,
+    /// the IME contract unchanged (the purpose is a tree word, never
+    /// an IME flavor: [`ImePurpose`](crate::passes::ImePurpose)
+    /// carries the platform's composition contract, and search rides
+    /// it as the ordinary text entry it is). One role per node: the
+    /// tree never guesses a composite. Where the facts compete the
+    /// words keep their precedence — the masked contract first (a
+    /// secured field keeps the `PasswordInput` word M100 mapped, the
+    /// reveal yielding it per M102), the capacity word claiming a
+    /// field that declared both (a multiline search box announces
+    /// `MultilineTextInput` — AccessKit's vocabulary has no
+    /// composite), and the purpose word re-rolling the single-line,
+    /// non-secured field — the rule the sink's role branch reads, the
+    /// re-open rule the ADR pre-registers beside it.
+    ///
+    /// The default is the honest absence: a widget that declared
+    /// nothing is no search field, and a non-input role answers
+    /// nothing. Editable controls override this; every other role
+    /// inherits the default.
+    fn search_field(&self) -> bool {
         false
     }
 

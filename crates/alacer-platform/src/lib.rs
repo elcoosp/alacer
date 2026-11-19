@@ -1655,6 +1655,8 @@ mod tests {
                 current: None,
                 has_popup: None,
                 role_description: None,
+                position_in_set: None,
+                size_of_set: None,
             }],
         });
         sink.apply(

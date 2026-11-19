@@ -31,7 +31,7 @@ use alacer_core::flux::Flux;
 use alacer_core::geom::{Point, Rect, Size};
 use alacer_core::passes::{LayoutEngine, PassPipeline};
 use alacer_core::trail::TrailLog;
-use alacer_core::widget::{A11yAction, Role, Widget};
+use alacer_core::widget::{A11yAction, EventResponse, Role, Widget};
 use alacer_layout::LayoutHost;
 use alacer_render::{SceneJournalImpl, SoftwareRenderer};
 use alacer_text::{ThreadLocalGlyphSource, ThreadLocalMeasurer, ThreadLocalTextSeam};
@@ -320,28 +320,43 @@ impl TestHarness {
     }
 
     /// Dispatches one key event to the focused widget, then settles (§10.3:
-    /// keyboard input is focus-routed; Tab cycles when ignored).
+    /// keyboard input is focus-routed; Tab cycles when ignored), and answers
+    /// the routing the pipeline answered (M118, ADR-0122): the funnel's own
+    /// verdict as data — [`EventResponse::Handled`] the focused widget (or
+    /// the keymap or a framework fallback) consumed the key,
+    /// [`EventResponse::Ignored`] it bubbled on. The dispatch is
+    /// byte-for-byte the dispatch the door always ran; the verdict is the
+    /// return value the funnel already computed, never a second route.
     ///
     /// # Panics
     ///
     /// Panics if layout fails.
-    pub fn key(&mut self, event: &alacer_core::events::KeyEvent) {
-        let _ = self.pipeline.dispatch_key(event);
+    pub fn key(&mut self, event: &alacer_core::events::KeyEvent) -> EventResponse {
+        let response = self.pipeline.dispatch_key(event);
         self.settle();
+        response
     }
 
-    /// Types `text` as character presses into the focused widget.
+    /// Types `text` as character presses into the focused widget, and
+    /// answers one routing verdict per dispatched character, in order
+    /// (M118, ADR-0122) — the field that took the characters, the wall
+    /// that consumed its refusals (M105), and the widget that takes no
+    /// text each name themselves. The settle rides once, after the last
+    /// character, exactly the dispatch the door always ran.
     ///
     /// # Panics
     ///
     /// Panics if layout fails.
-    pub fn type_text(&mut self, text: &str) {
+    pub fn type_text(&mut self, text: &str) -> Vec<EventResponse> {
+        let mut outcomes = Vec::with_capacity(text.chars().count());
         for ch in text.chars() {
-            let _ = self
-                .pipeline
-                .dispatch_key(&alacer_core::events::KeyEvent::char(ch));
+            outcomes.push(
+                self.pipeline
+                    .dispatch_key(&alacer_core::events::KeyEvent::char(ch)),
+            );
         }
         self.settle();
+        outcomes
     }
 
     /// Sets the clipboard's text payload (M14, ADR-0020: a test's paste
@@ -359,27 +374,33 @@ impl TestHarness {
         self.clipboard.text()
     }
 
-    /// Presses a special key (no text, no modifiers), then settles.
+    /// Presses a special key (no text, no modifiers), then settles, and
+    /// answers the routing the pipeline answered (M118, ADR-0122) — the
+    /// same verdict as [`TestHarness::key`], for the no-text shape.
     ///
     /// # Panics
     ///
     /// Panics if layout fails.
-    pub fn press_key(&mut self, key: alacer_core::events::Key) {
-        let _ = self
+    pub fn press_key(&mut self, key: alacer_core::events::Key) -> EventResponse {
+        let response = self
             .pipeline
             .dispatch_key(&alacer_core::events::KeyEvent::pressed(key));
         self.settle();
+        response
     }
 
     /// Dispatches one IME event to the focused widget, then settles (§10.3:
-    /// the fcitx5/ibus path — preedit composes, commit inserts).
+    /// the fcitx5/ibus path — preedit composes, commit inserts), and answers
+    /// the routing the pipeline answered (M118, ADR-0122) — the IME route's
+    /// own verdict, exactly the key doors'.
     ///
     /// # Panics
     ///
     /// Panics if layout fails.
-    pub fn ime(&mut self, event: &alacer_core::events::ImeEvent) {
-        let _ = self.pipeline.dispatch_ime(event);
+    pub fn ime(&mut self, event: &alacer_core::events::ImeEvent) -> EventResponse {
+        let response = self.pipeline.dispatch_ime(event);
         self.settle();
+        response
     }
 
     /// The IME request the pipeline derived from the focused widget (§10.3).

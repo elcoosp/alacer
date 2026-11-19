@@ -372,18 +372,18 @@ fn m27_the_surface_rides_the_same_cut() {
     );
     let readme = std::fs::read_to_string(root.join("README.md")).expect("README");
     assert!(
-        readme.contains("M0 through M121")
-            && readme.contains("a hundred and twenty-six decision records"),
+        readme.contains("M0 through M127")
+            && readme.contains("a hundred and thirty-two decision records"),
         "the README's status block and ADR count re-agree at M27"
     );
     assert!(
-        readme.contains("route_100_outcome_moves_1k") || readme.contains("141 criterion cases"),
+        readme.contains("route_100_outcome_moves_1k") || readme.contains("144 criterion cases"),
         "the README's perf bullet rides the shipped corpus"
     );
     let architecture = std::fs::read_to_string(root.join("docs/architecture.md"))
         .expect("the architecture document");
     assert!(
-        architecture.contains("a hundred and twenty-six decision records"),
+        architecture.contains("a hundred and thirty-two decision records"),
         "the architecture register re-agrees at 36 decision records"
     );
 

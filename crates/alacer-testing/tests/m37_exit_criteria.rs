@@ -505,7 +505,7 @@ fn m37_the_living_documents_re_agree() {
     let architecture = std::fs::read_to_string(root.join("docs/architecture.md"))
         .expect("the architecture document");
     assert!(
-        architecture.contains("a hundred and thirty-two decision records"),
+        architecture.contains("a hundred and thirty-four decision records"),
         "the architecture register re-agrees at 45 decision records"
     );
     assert!(
@@ -516,8 +516,8 @@ fn m37_the_living_documents_re_agree() {
     // The README's status block, count, and ADR line re-agree.
     let readme = std::fs::read_to_string(root.join("README.md")).expect("README");
     assert!(
-        readme.contains("M0 through M127")
-            && readme.contains("a hundred and thirty-two decision records"),
+        readme.contains("M0 through M129")
+            && readme.contains("a hundred and thirty-four decision records"),
         "the README's status block and ADR count re-agree at M37"
     );
 

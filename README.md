@@ -192,6 +192,8 @@ Accessibility is not a layer bolted on — it is the tree's own vocabulary:
 | **Language** (M123)     | The text's language, said by the tree: `language()` on the trait answering the string the app declared (the BCP 47 tag the AT voices the text with — no kind enum, AccessKit's `Language` is a string property, the description precedent at the string tier, one branch with no translation), `Label` carrying the constructor word and the `set_language` door, AccessKit's `Language` property mapped in the same snapshot — the AT voicing the text with the declared tag while the text's read stays the widget's own (the word says the text's language, it never translates the text — the word names a fact, it walls nothing); `None` the honest absence, never a guessed tag | 0127      |
 | **Radio** (M124)        | The one-of-N control and the group it reads as: `Role::Radio` carrying the selection the `toggled` contract announces (never the mixed summary — a radio has no third bit), `Role::RadioGroup` the named container the set words ride (`Radio::position_in_set` the member's place, `RadioGroup::size_of_set` the span — ADR-0123's vocabulary, never a second tier), `Radio`/`RadioGroup` in the widgets crate with the registry doors, AccessKit's `RadioButton` beside its `RadioGroup` mapped in the same snapshot — the user's doors selecting and never deselecting (the redundant ask the M21 idle frame, the one deselect door the programmatic write), the exclusivity the app's wiring; both roles join the required-name set | 0128      |
 | **Link** (M125)         | The hyperlink control and its activation verb: `Role::Link` carrying the "opens something" fact AccessKit's own `Link` role spells (not a button wearing styled text), `Link::on_open` the open act the app's navigation rides (the tree says "opens", never where — the name and the description the app's words), the click opening on release (the GTK rule) and the keyboard's verb the link's own (Enter opens, Space handed on — the M10 parity at the link tier), the Enter-open streaming the `Keyboard` rider (M70), AccessKit's `Link` role mapped in the same snapshot; the role joins the required-name set | 0129      |
+| **Heading** (M126)      | The section title the document outline walks, said by the tree: `Role::Heading` carrying the "names a section" fact AccessKit's own `Heading` role spells (not a bold label wearing bigger glyphs), the depth riding the level word the M113 tier published (`Widget::level` — the heading's natural carrier, never a second depth vocabulary), `Heading` in the widgets crate with the registry door (`set_level` beside `set_name`, the honest absence the flat title — never a guessed level), AccessKit's `Heading` role mapped in the same snapshot — a heading holds no focus and answers no activation: the word names structure, it walls nothing; the role joins the required-name set | 0130      |
+| **Tab** (M127)          | The page selector and the named strip it reads as, said by the tree: `Role::Tab` carrying the "selects a page" fact AccessKit's own `Tab` role spells, the selection riding the selected word the M108 tier published (never a second selection vocabulary), `Role::TabList` the named strip the AT announces before it walks the pages (the radio tier's own member-and-container shape, ADR-0128, re-proved), `Tab`/`TabList` in the widgets crate with the registry doors, AccessKit's `Tab` beside its `TabList` mapped in the same snapshot — the user's doors selecting and never deselecting (the redundant ask the M21 idle frame, the one deselect door the programmatic write), the exclusivity the app's wiring; both roles join the required-name set | 0131      |
 
 Since M20 the value tier is a widget — the `Slider` answers drag, arrows and AT writes from one
 funnel. Since M21 the value is reportable too — the read-only `Progress` names the door that has
@@ -366,7 +368,7 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `accent_follow`                                      | the OS's accent fact rides the same seam: the accent-only flip lands, the composition tints the palette's accent roles from the fact, the log names all four facts |
 | `todo` / `data_table`                                | the canons: a11y tree, record/replay, grid slots, keyboard navigation            |
 
-<details><summary><b>94 examples, grouped (recording, alloc_budget, input_budget, derive_widget, layout_probe, sort, level, current, has_popup, role_description, busy, key_routing, set, live, shortcut, multiline, language, radio, link, and tri_state live in the catalog)</b></summary>
+<details><summary><b>112 examples, grouped (recording, alloc_budget, input_budget, derive_widget, layout_probe, sort, level, current, has_popup, role_description, busy, key_routing, set, live, shortcut, multiline, language, radio, link, heading, tab, and tri_state live in the catalog)</b></summary>
 
 **Start here**
 
@@ -503,6 +505,8 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `a11y_queries` | the a11y query API as a runnable walkthrough: find by role and name, press through the AT's own `DefaultPress` door, click at the tree's own bounds, read the label's word back — the tree, never the internals |
 | `radio` | the M124 radio tier driven from the consumer side: the named group the set reads as, the members mounting checked and cleared from the signal, the select handler writing the one write the exclusivity rides, the redundant ask the idle frame, the status line reading the selection back the way the tree carries it |
 | `link` | the M125 link tier driven from the consumer side: the described link under the word, the plain link the honest absence beside it, every activation routing through the same door, the status line reading the destination back the way the app named it — the tree saying "opens", never where |
+| `heading` | the M126 heading tier driven from the consumer side: the outline under the word — the root title the honest absence beside, the nested sections riding their zero-based depths, the deepening write the one mask the outline costs, the status line reading the moved depth back the way the tree carries it — the word naming structure, it walls nothing |
+| `tab` | the M127 tab tier driven from the consumer side: the named strip the set reads as, the pages mounting selected and unselected from the signal, the select handler writing the one write the exclusivity rides, the redundant ask the idle frame, the status line reading the selection back the way the tree carries it |
 
 </details>
 
@@ -523,7 +527,7 @@ is the query API as a runnable walkthrough.
 ## Status
 
 > [!NOTE]
-> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M125 of `docs/architecture.md` are
+> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M127 of `docs/architecture.md` are
 > complete, but the API still moves between minor versions. MSRV **1.99**, edition **2024**.
 
 | Platform            | CI coverage                                                                                                                                                           |
@@ -535,7 +539,7 @@ is the query API as a runnable walkthrough.
 ## Learn more
 
 - [Architecture](https://github.com/elcoosp/alacer/blob/main/docs/architecture.md) — design axioms, the ten-pass contract, rendering, accessibility, DX, performance, roadmap and kill criteria
-- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred and thirty decision records, from workspace discipline to the M125 scope
+- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred and thirty-two decision records, from workspace discipline to the M127 scope
 - [Examples catalog](https://github.com/elcoosp/alacer/blob/main/docs/examples.md) — every example with the contract it exercises
 - [Migrating from Iced](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-iced.md) · [from egui](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-egui.md) — mental-model mappings, interop limits stated plainly
 - [Inspector protocol](https://github.com/elcoosp/alacer/blob/main/docs/inspector-protocol.md) — the versioned WebSocket contract behind `alacer-inspect`

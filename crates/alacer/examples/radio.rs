@@ -37,7 +37,7 @@ const PLANS: [&str; 3] = ["Standard", "Express", "Overnight"];
 /// The member each plan's radio sits at (one-based, the set tier's
 /// convention).
 fn position(plan: usize) -> f32 {
-    (plan + 1) as f32
+    alacer_core::num::usize_to_f32(plan + 1)
 }
 
 /// The view: the named group the set reads as, the members with their
@@ -56,7 +56,7 @@ fn radio_view(plan: &FluxRwSignal<usize>, wake: &Rc<dyn Fn()>) -> ViewNode {
     // the members, the span word its natural carrier.
     let mut group = ViewNode::element("radio_group")
         .prop("name", "Shipping")
-        .prop("size", PLANS.len() as f32)
+        .prop("size", alacer_core::num::usize_to_f32(PLANS.len()))
         .prop("gap", 6.0_f32);
 
     for (index, name) in PLANS.iter().enumerate() {

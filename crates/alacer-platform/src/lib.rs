@@ -1658,6 +1658,8 @@ mod tests {
                 position_in_set: None,
                 size_of_set: None,
                 keyboard_shortcut: None,
+                multiline: false,
+                language: None,
             }],
         });
         sink.apply(

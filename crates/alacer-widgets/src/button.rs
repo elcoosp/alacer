@@ -23,6 +23,9 @@ pub struct Button {
     /// The role-description tier's word (M116, ADR-0120): the role the
     /// control is *read as*; `None` is the honest absence.
     role_description: Option<String>,
+    /// The shortcut tier's word (M121, ADR-0125): the chord the control
+    /// is invoked with; `None` is the honest absence.
+    keyboard_shortcut: Option<String>,
     pressed: bool,
     enabled: Enabled,
     /// The app's fill override; `None` borrows the theme's accent role
@@ -69,6 +72,7 @@ impl Button {
             current: None,
             has_popup: None,
             role_description: None,
+            keyboard_shortcut: None,
             pressed: false,
             enabled: Enabled::Fixed(true),
             fill: None,
@@ -135,6 +139,18 @@ impl Button {
     #[must_use]
     pub fn role_description(mut self, role_description: impl Into<String>) -> Self {
         self.role_description = Some(role_description.into());
+        self
+    }
+
+    /// The shortcut word (M121, ADR-0125): the chord the control is
+    /// invoked with — the toolbar save's "Control+S", the print
+    /// dialog's "Control+Shift+P" — the chord the tree says from the
+    /// first frame (`aria-keyshortcuts`, AccessKit's `KeyboardShortcut`
+    /// property). The word names the chord the app announced, it never
+    /// binds a key: the keymap seam (ADR-0043) owns the dispatch.
+    #[must_use]
+    pub fn keyboard_shortcut(mut self, keyboard_shortcut: impl Into<String>) -> Self {
+        self.keyboard_shortcut = Some(keyboard_shortcut.into());
         self
     }
 
@@ -282,6 +298,19 @@ impl Button {
         self.text_color = Some(color);
     }
 
+    /// The one shortcut write (M121, ADR-0125, view reconciliation):
+    /// `None` clears to the honest absence. Report whether the word
+    /// moved — the caller requests `A11Y` only when this answers
+    /// `true`, so a write that lands where the word already is queues
+    /// nothing (the M21 idle-frame property, at the shortcut tier).
+    pub fn set_keyboard_shortcut(&mut self, keyboard_shortcut: Option<String>) -> bool {
+        if self.keyboard_shortcut == keyboard_shortcut {
+            return false;
+        }
+        self.keyboard_shortcut = keyboard_shortcut;
+        true
+    }
+
     /// Replaces the click handler in place (view reconciliation). `None`
     /// detaches the handler.
     pub fn set_on_click(&mut self, handler: Option<Box<dyn FnMut()>>) {
@@ -327,6 +356,13 @@ impl Widget for Button {
     /// inherits the default.
     fn role_description(&self) -> Option<&str> {
         self.role_description.as_deref()
+    }
+
+    /// The shortcut tier (M121, ADR-0125): the chord the control is
+    /// invoked with, the honest absence when the button carries none —
+    /// an actionable word, so every other role inherits the default.
+    fn keyboard_shortcut(&self) -> Option<&str> {
+        self.keyboard_shortcut.as_deref()
     }
 
     /// The availability tier (M22, ADR-0028): the flag the a11y tree

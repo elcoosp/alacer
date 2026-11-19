@@ -239,7 +239,7 @@ impl Widget for Progress {
     /// The M3 value contract: the AT reads the reported scalar, not just
     /// the name.
     fn value(&self) -> Option<String> {
-        Some(format!("{}", self.reported()))
+        Some(self.reported().to_string())
     }
 
     /// The range tier (M97, ADR-0101): the span the app declared — the

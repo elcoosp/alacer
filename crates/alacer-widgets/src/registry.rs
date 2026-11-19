@@ -14,7 +14,8 @@ use alacer_view::{ElementProps, WidgetRegistry};
 /// `radio_group`) plus the M125 link tier (`link`) plus the M126 heading
 /// tier (`heading`) plus the M127 tab tier (`tab`, `tab_list`) plus the
 /// M128 spin-button tier (`spin_button`) plus the M129 toolbar tier
-/// (`toolbar`) plus the M130 switch tier (`switch`).
+/// (`toolbar`) plus the M130 switch tier (`switch`) plus the M131
+/// tab-panel tier (`tab_panel`).
 #[must_use]
 pub fn default_registry() -> WidgetRegistry {
     let mut registry = WidgetRegistry::new();
@@ -43,6 +44,7 @@ pub fn default_registry() -> WidgetRegistry {
     registry.register("spin_button", spin_button_create, spin_button_patch);
     registry.register("toolbar", toolbar_create, toolbar_patch);
     registry.register("switch", switch_create, switch_patch);
+    registry.register("tab_panel", tab_panel_create, tab_panel_patch);
     registry
 }
 
@@ -478,6 +480,11 @@ fn text_input_create(props: &ElementProps<'_>) -> crate::TextInput {
     if props.flag("secure") == Some(true) {
         input = input.secure();
     }
+    // The purpose word (M132, ADR-0136): the search declaration rides
+    // the same door the M100 secure word rides.
+    if props.flag("search") == Some(true) {
+        input = input.search_field(true);
+    }
     if let Some(handler) = props.text_handler("on_changed") {
         input = input.on_changed(handler);
     }
@@ -504,6 +511,12 @@ fn text_input_patch(input: &mut crate::TextInput, props: &ElementProps<'_>) -> b
     // write itself reporting whether it moved (the idle-frame property).
     if let Some(description) = props.text("description") {
         input.set_description(Some(description.to_string()));
+    }
+    // The purpose word (M132, ADR-0136): the declaration moved live — the
+    // write reporting the move, the patch tier queueing `A11Y` only from
+    // it (the M21 idle-frame property, at the purpose tier).
+    if let Some(search) = props.flag("search") {
+        visual |= input.set_search_field(search);
     }
     if let Some(handler) = props.text_handler("on_changed") {
         input.set_on_changed(Some(handler));
@@ -917,6 +930,33 @@ fn switch_patch(switch: &mut crate::Switch, props: &ElementProps<'_>) -> bool {
     style_visual_diff(props) || visual
 }
 
+/// The tab panel element (`tab_panel { name: … }` — M131): the named
+/// pane the selected page's content lives in — the content's vertical
+/// layout, never a second channel to it.
+fn tab_panel_create(props: &ElementProps<'_>) -> crate::TabPanel {
+    let mut pane = crate::TabPanel::new(props.text("name").unwrap_or_default());
+    if let Some(description) = props.text("description") {
+        pane = pane.description(description);
+    }
+    style_apply(pane.style_mut(), props);
+    pane
+}
+
+fn tab_panel_patch(pane: &mut crate::TabPanel, props: &ElementProps<'_>) -> bool {
+    let mut visual = false;
+    if let Some(name) = props.text("name") {
+        pane.set_name(name);
+        visual = true;
+    }
+    // The description word (M95, ADR-0099): the patch tier queues
+    // `A11Y` from the prop class, the write reporting the move.
+    if let Some(description) = props.text("description") {
+        pane.set_description(Some(description.to_string()));
+    }
+    style_apply(pane.style_mut(), props);
+    style_visual_diff(props) || visual
+}
+
 #[cfg(test)]
 mod tests {
     use super::default_registry;
@@ -1080,6 +1120,10 @@ mod tests {
             "spin_button",
             // The M129 toolbar tier.
             "toolbar",
+            // The M130 switch tier.
+            "switch",
+            // The M131 tab-panel tier.
+            "tab_panel",
         ] {
             assert!(registry.contains(name), "{name} is a default element");
         }

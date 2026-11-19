@@ -346,6 +346,15 @@ pub struct TreeNode {
     /// absence — a widget that declared no language announces none,
     /// never a guessed tag.
     pub language: Option<String>,
+    /// The field's purpose word (M132, ADR-0136): whether the field
+    /// takes search criteria — the word the AT announces beside the
+    /// name and the find conventions key off (AccessKit's
+    /// `SearchInput` role, ARIA's `role="searchbox"`). The word prices
+    /// nothing but the word: the field's doors answer exactly as they
+    /// always did. `false` is the honest absence — a field that
+    /// declared nothing announces no purpose, never a guessed
+    /// "search".
+    pub search_field: bool,
 }
 
 /// The full accessibility snapshot of the widget tree, built by pass 9.
@@ -4130,6 +4139,7 @@ impl PassPipeline {
                 keyboard_shortcut: slot.widget().keyboard_shortcut().map(str::to_owned),
                 multiline: slot.widget().multiline(),
                 language: slot.widget().language().map(str::to_owned),
+                search_field: slot.widget().search_field(),
             };
             if snapshot.root.is_none() {
                 snapshot.root = Some(node.id);
@@ -4243,6 +4253,7 @@ impl PassPipeline {
             // The pipeline's own node: no language to say — the
             // region speaks its own content.
             language: None,
+            search_field: false,
         }
     }
 

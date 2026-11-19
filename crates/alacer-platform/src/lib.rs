@@ -1660,6 +1660,7 @@ mod tests {
                 keyboard_shortcut: None,
                 multiline: false,
                 language: None,
+                search_field: false,
             }],
         });
         sink.apply(

@@ -1,10 +1,10 @@
 {
   "schema": 1,
   "description": "Published Alacer performance baseline (M5, ADR-0011): one entry per criterion benchmark case, median/mean/MAD in nanoseconds. Ids are the criterion result directories under target/criterion. Regenerate with scripts/collect_baseline.py after `cargo bench`.",
-  "generated_at": "2026-11-19T01:15:40+00:00",
+  "generated_at": "2026-11-19T10:29:24+00:00",
   "toolchain": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
   "git": {
-    "commit": "bfea4991b05e9a412d9a4189da104c9725634831",
+    "commit": "5925230b2d9e5df4ee3550b5e9f38f01a6ad74ea",
     "dirty": true
   },
   "host": {
@@ -14,7 +14,7 @@
     "cpu_count": "2",
     "fingerprint": "ee37c3efc5995352"
   },
-  "bench_count": 137,
+  "bench_count": 140,
   "benches": {
     "a11y/full_rebuild_1k": {
       "median_ns": 97770.34297677959,
@@ -455,9 +455,9 @@
       "samples": 100
     },
     "numeric/snapshot_1k_valued": {
-      "median_ns": 316421.77383676585,
-      "mean_ns": 317424.38035264384,
-      "median_abs_dev_ns": 3530.949471788171,
+      "median_ns": 322492.1181722689,
+      "mean_ns": 322608.71182863606,
+      "median_abs_dev_ns": 8255.683550041089,
       "samples": 100
     },
     "orientation/snapshot_1k_vertical": {
@@ -509,9 +509,9 @@
       "samples": 100
     },
     "range/snapshot_1k_ranged": {
-      "median_ns": 317512.4615384615,
-      "mean_ns": 317879.11463598005,
-      "median_abs_dev_ns": 5367.135968189367,
+      "median_ns": 326949.97091932455,
+      "mean_ns": 327952.5354042506,
+      "median_abs_dev_ns": 4523.968213816133,
       "samples": 100
     },
     "read_only/snapshot_1k_read_only": {
@@ -737,15 +737,15 @@
       "samples": 100
     },
     "toggle/snapshot_1k_binary": {
-      "median_ns": 240248.22592592594,
-      "mean_ns": 242173.20390186342,
-      "median_abs_dev_ns": 2145.2048090261446,
+      "median_ns": 244728.11944444443,
+      "mean_ns": 248376.02554383146,
+      "median_abs_dev_ns": 3322.885918495703,
       "samples": 100
     },
     "toggle/snapshot_1k_tri_state": {
-      "median_ns": 239394.257277695,
-      "mean_ns": 246953.27387204592,
-      "median_abs_dev_ns": 3854.147569469927,
+      "median_ns": 237666.25349650352,
+      "mean_ns": 237974.1731350668,
+      "median_abs_dev_ns": 1292.546042175078,
       "samples": 100
     },
     "trail/reader_announce_100_1k": {
@@ -836,6 +836,24 @@
       "median_ns": 3515.8437941397447,
       "mean_ns": 4981.1703993522115,
       "median_abs_dev_ns": 137.93137339942342,
+      "samples": 100
+    },
+    "set/snapshot_1k_rows_set": {
+      "median_ns": 201906.78513071896,
+      "mean_ns": 204002.18518247138,
+      "median_abs_dev_ns": 2747.063145682338,
+      "samples": 100
+    },
+    "set/snapshot_1k_rows_bare": {
+      "median_ns": 199735.01388888888,
+      "mean_ns": 202721.83445309623,
+      "median_abs_dev_ns": 2754.1913178320165,
+      "samples": 100
+    },
+    "live/snapshot_1k_lists_live": {
+      "median_ns": 234089.08165584414,
+      "mean_ns": 235386.29343174506,
+      "median_abs_dev_ns": 5547.09186729085,
       "samples": 100
     }
   }

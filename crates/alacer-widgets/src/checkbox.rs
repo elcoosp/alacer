@@ -240,15 +240,19 @@ impl Checkbox {
     }
 
     /// The one toggle path: resolve the state, fire the handler with the
-    /// new checked flag, request the masks the change costs. The
-    /// availability tier guards the funnel's single entry (M22,
-    /// ADR-0028): an unavailable checkbox refuses, never munges (the M11
-    /// rule). The resolution rule (M94, ADR-0098): a mixed summary
-    /// resolves fully checked — the user's first press lands "all", the
-    /// resolved control toggles like any checkbox after it.
-    fn toggle(&mut self, ctx: &mut EventCtx) {
+    /// new checked flag, request the masks the change costs, and report
+    /// whether the toggle *landed* — `false` when the availability wall
+    /// held (an unavailable checkbox toggles nothing) or when the state
+    /// the ask resolves to is the state it already was, so the record the
+    /// keyboard's route streams answers the door it actually answered
+    /// (the funnel's own truth at the action route: a refused ask is a
+    /// refusal, never a munged `Delivered`). The availability tier guards
+    /// the funnel's single entry (M22, ADR-0028); the resolution rule
+    /// (M94, ADR-0098) resolves a mixed summary fully checked — the
+    /// user's first press lands "all".
+    fn toggle(&mut self, ctx: &mut EventCtx) -> bool {
         if !self.enabled {
-            return;
+            return false;
         }
         self.state = match self.state {
             ToggleState::Off | ToggleState::Mixed => ToggleState::On,
@@ -259,6 +263,7 @@ impl Checkbox {
         if let Some(handler) = &mut self.on_toggle {
             handler(resolved);
         }
+        true
     }
 
     /// Intrinsic size: the 18px box, a gap, and the label.
@@ -480,20 +485,30 @@ impl Widget for Checkbox {
         if event.state == alacer_core::events::KeyState::Pressed
             && event.key == alacer_core::events::Key::Space
         {
-            self.toggle(ctx);
+            let landed = self.toggle(ctx);
             // The keyboard activation names itself (M70, ADR-0076): the
             // toggle-on-press ride — the focused checkbox answering
             // Space like a click — streams one `ActionRecord` with
             // `Keyboard` beside it, the attribution declared where the
             // route is known (the M30 rider rule at the activation
-            // tier). The stamp rides the key route's guard (M45,
-            // ADR-0051) — the focused control's id, never guessed at
-            // the note site. One branch when nobody listens (the A7
-            // idle contract).
+            // tier). The record answers the door it actually answered:
+            // a toggle that landed is `Delivered`; one the availability
+            // wall held is the refusal the funnel's own route computes
+            // from the tree's one `enabled` truth (M22, ADR-0028) —
+            // never a munged `Delivered`. The stamp rides the key
+            // route's guard (M45, ADR-0051) — the focused control's id,
+            // never guessed at the note site. One branch when nobody
+            // listens (the A7 idle contract).
             alacer_core::action::note_action(alacer_core::ActionRecord {
                 ask: alacer_core::inspect::ActionAsk::Press,
                 target: None,
-                outcome: alacer_core::inspect::ActionOutcome::Delivered,
+                outcome: if landed {
+                    alacer_core::inspect::ActionOutcome::Delivered
+                } else {
+                    alacer_core::inspect::ActionOutcome::Refused(
+                        alacer_core::inspect::ActionRefusal::Unavailable,
+                    )
+                },
                 rider: alacer_core::inspect::ActionRider::Keyboard,
             });
             return EventResponse::Handled;

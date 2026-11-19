@@ -771,9 +771,11 @@ pub struct WireSelection {
     pub focus: usize,
 }
 
-/// The damage verdict's wire name.
+/// The damage verdict's wire name. The vocabulary rides the serialized
+/// events, so the helper stays module-internal — the crate's public
+/// surface is the wire the clients parse, never the naming of it.
 #[must_use]
-pub fn damage_name(damage: &alacer_core::Damage) -> &'static str {
+pub(crate) fn damage_name(damage: &alacer_core::Damage) -> &'static str {
     if damage.is_full() {
         "full"
     } else if damage.is_empty() {
@@ -784,9 +786,10 @@ pub fn damage_name(damage: &alacer_core::Damage) -> &'static str {
 }
 
 /// The `Change` mask's wire name: bit names joined with `+`, lowest bit
-/// first, stable for clients to parse.
+/// first, stable for clients to parse. Module-internal like
+/// [`damage_name`] — the surface is the wire, never the naming of it.
 #[must_use]
-pub fn masks_name(mask: alacer_core::Change) -> String {
+pub(crate) fn masks_name(mask: alacer_core::Change) -> String {
     let mut names: Vec<&'static str> = Vec::new();
     if mask.contains(alacer_core::Change::STRUCTURE) {
         names.push("structure");

@@ -355,7 +355,9 @@ pub fn key_from_name(name: &str) -> Option<Key> {
 /// editable controls the replay funnel routes (the container and
 /// decoration roles carry no door, so they never name a step). The
 /// radio joins in M124: the one-of-N control's select ask is the
-/// activation ask the recorder names by role.
+/// activation ask the recorder names by role. The tab joins in M127:
+/// the page's select ask is the same recordable activation — the
+/// strip and the heading carry no door, so they never name a step.
 #[must_use]
 pub fn role_from_name(name: &str) -> Option<Role> {
     match name {
@@ -374,6 +376,7 @@ pub fn role_from_name(name: &str) -> Option<Role> {
         "column_header" => Some(Role::ColumnHeader),
         "radio" => Some(Role::Radio),
         "link" => Some(Role::Link),
+        "tab" => Some(Role::Tab),
         _ => None,
     }
 }
@@ -437,6 +440,9 @@ mod tests {
             // The M125 link tier: the open ask is a recordable
             // activation.
             Role::Link,
+            // The M127 tab tier: the page's select ask is a recordable
+            // activation; the strip and the heading carry no door.
+            Role::Tab,
         ] {
             assert_eq!(
                 role_from_name(role.name()),
@@ -449,6 +455,16 @@ mod tests {
             role_from_name("radio_group"),
             None,
             "a container names no step — the recorder acts on doors"
+        );
+        assert_eq!(
+            role_from_name("tab_list"),
+            None,
+            "a container names no step — the recorder acts on doors"
+        );
+        assert_eq!(
+            role_from_name("heading"),
+            None,
+            "a heading carries no door — the recorder acts on doors"
         );
     }
 

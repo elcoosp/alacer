@@ -90,6 +90,27 @@ pub enum Role {
     /// "opens", never where — the name and the description carry the
     /// words the app declared.
     Link,
+    /// A section title the document outline walks (the heading tier,
+    /// M126, ADR-0130): the "names a section" fact AccessKit's own
+    /// `Heading` role spells — not a bold label wearing bigger glyphs.
+    /// The depth in the outline rides the level word the M113 tier
+    /// published ([`Widget::level`]): the heading's natural carrier,
+    /// never a second depth vocabulary. A heading names structure, it
+    /// walls nothing — the section's content reads as it always did.
+    Heading,
+    /// One page of a tab strip (the tab tier, M127, ADR-0131): the
+    /// "selects a page" fact AccessKit's own `Tab` role spells — not a
+    /// button wearing the strip's clothes. The selection rides the
+    /// selected word the tree already carries ([`Widget::selected`]):
+    /// the user's doors select and never deselect, the exclusivity the
+    /// app's wiring — the radio tier's own shape (ADR-0128) at the
+    /// page tier.
+    Tab,
+    /// The named strip a set of tabs reads as (the tab tier's
+    /// container half, M127, ADR-0131): the strip word the AT announces
+    /// before it walks the pages. An unnamed strip reads as a bare box
+    /// — the ADR-5 rule the named roles carry.
+    TabList,
 }
 
 impl Role {
@@ -103,7 +124,11 @@ impl Role {
     /// bare mark, and an unnamed group a bare box — the set the AT cannot
     /// name is a set it cannot walk. The link joins in M125: an unnamed
     /// link reads as bare styled text — the "goes somewhere" the AT
-    /// cannot announce.
+    /// cannot announce. The heading joins in M126: an unnamed section
+    /// title reads as bare styled text — the outline the AT cannot
+    /// walk. The tab and its strip join in M127: an unnamed page is a
+    /// bare mark, an unnamed strip a bare box — the ADR-5 rule the
+    /// named roles carry.
     #[must_use]
     pub const fn requires_name(self) -> bool {
         matches!(
@@ -117,6 +142,9 @@ impl Role {
                 | Self::Radio
                 | Self::RadioGroup
                 | Self::Link
+                | Self::Heading
+                | Self::Tab
+                | Self::TabList
         )
     }
 
@@ -144,6 +172,9 @@ impl Role {
             Self::Radio => "radio",
             Self::RadioGroup => "radio_group",
             Self::Link => "link",
+            Self::Heading => "heading",
+            Self::Tab => "tab",
+            Self::TabList => "tab_list",
         }
     }
 }
@@ -1618,6 +1649,7 @@ pub trait Widget: 'static {
                 | Role::Slider
                 | Role::Radio
                 | Role::Link
+                | Role::Tab
         ) && self.enabled()
     }
 

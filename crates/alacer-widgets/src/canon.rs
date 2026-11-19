@@ -413,7 +413,7 @@ fn generated_row(index: usize) -> Vec<String> {
     let shelf = 1 + (index % 9);
     vec![
         format!("Part {index}"),
-        format!("{}", 1 + (index * 3) % 97),
+        (1 + (index * 3) % 97).to_string(),
         format!("{letter}{shelf}"),
     ]
 }

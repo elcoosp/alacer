@@ -228,19 +228,34 @@ impl Widget for Link {
         // look still tells the truth the tree carries (M22, ADR-0028):
         // an unavailable link paints the muted text role — the link
         // that opens nothing reads as the muted text it is. A focused
-        // link paints the focus ring's color; the underline's absence
-        // keeps the corpus font-free.
+        // link paints the accent underline the keyboard walk lands on
+        // — the focus indicator the glyphs sit on, deterministic
+        // pixels with no glyph dependency (the snapshot corpus stays
+        // font-free).
         let palette = ctx.palette();
         let label_color = if self.enabled {
             self.text_color.unwrap_or(palette.accent)
         } else {
             palette.text_muted
         };
-        let _ = self.focused;
 
         alacer_core::text_seam::with_seam(|seam| {
             let layout = seam.layout_glyphs(&self.name, self.font_size, None);
             let text_origin = Point::new(2.0, (size.height - layout.height).max(0.0) * 0.5);
+            // The focus indicator (the M125 paint's own promise, kept
+            // where it was left unkept): a focused link's underline in
+            // the accent the link already speaks — the keyboard walk's
+            // landmark, priced once per focused frame and never on the
+            // idle one.
+            if self.focused && self.enabled {
+                ctx.push_quad(alacer_core::scene::Quad::filled(
+                    alacer_core::geom::Rect::new(
+                        Point::new(0.0, size.height - 2.0),
+                        alacer_core::geom::Size::new(layout.width.max(size.width), 2.0),
+                    ),
+                    self.text_color.unwrap_or(palette.accent),
+                ));
+            }
             for glyph in &layout.glyphs {
                 ctx.push_glyph(alacer_core::scene::Glyph {
                     position: Point::new(text_origin.x + glyph.x, text_origin.y + glyph.y),
@@ -525,7 +540,11 @@ mod tests {
         assert_eq!(link.label().resolve(), "API reference");
         link.set_enabled(false);
         assert!(!link.is_enabled());
-        let moved = link.set_on_open(None);
-        let _ = moved;
+        // The one handler write: the detach lands, the next open (if
+        // the app re-arms) the re-armed handler's — the write door
+        // pricing nothing but the swap.
+        link.set_on_open(None);
+        link.set_enabled(true);
+        assert!(link.on_a11y_action(A11yAction::DefaultPress));
     }
 }

@@ -169,3 +169,7 @@ harness = false
 [[bench]]
 name = "role_description"
 harness = false
+
+[[bench]]
+name = "busy"
+harness = false

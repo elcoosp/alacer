@@ -4142,94 +4142,108 @@ impl PassPipeline {
         // node in the snapshot, never a widget: the pipeline owns the
         // region, the AT speaks its changes, and announcing never moves
         // the tree's shape.
+        // The announcement region (§11.6, ADR-0024): the app's reserved
+        // live-region node — always present from the first frame, the
+        // root's last child, its name the last announcement's text
+        // ([`Self::announcement_node`], the pipeline's own node).
         if let Some(root) = snapshot.nodes.first_mut() {
             root.children.push(crate::announce::ANNOUNCEMENT_NODE_HASH);
-            let (text, politeness) = self
-                .announcement
-                .as_ref()
-                .map_or((String::new(), crate::announce::Politeness::Polite), |a| {
-                    (a.text.clone(), a.politeness)
-                });
-            snapshot.nodes.push(crate::passes::TreeNode {
-                id: crate::announce::ANNOUNCEMENT_NODE_HASH,
-                role: crate::widget::Role::LiveRegion,
-                label: text,
-                bounds: None,
-                children: Vec::new(),
-                value: None,
-                toggled: None,
-                table_slot: None,
-                selection: None,
-                live: Some(politeness),
-                enabled: true,
-                // The pipeline's own node: the region explains nothing —
-                // the announcement *is* its content (the honest absence).
-                description: None,
-                placeholder: None,
-                value_range: None,
-                numeric_value: None,
-                secure_entry: false,
-                secure_revealed: false,
-                scroll_orientation: None,
-                scroll_position: None,
-                // The pipeline's own node: no read-only word — the
-                // region's content is the announcement itself.
-                read_only: false,
-                required: false,
-                // The pipeline's own node: no invalid word — the
-                // region's content is the announcement itself.
-                invalid: None,
-                // The pipeline's own node: no selected word — the
-                // region belongs to no selection collection.
-                selected: None,
-                // The pipeline's own node: no capacity word — the
-                // region carries no collection to size.
-                multiselectable: false,
-                // The pipeline's own node: no updating word — the
-                // region is never withheld; it is the speech. Its
-                // politeness above is the live tier's own rider (M120,
-                // ADR-0124): the region the imperative channel speaks,
-                // beside the regions the app declares.
-                busy: false,
-                // The pipeline's own node: no disclosure word — the
-                // region opens and closes not.
-                expanded: None,
-                // The pipeline's own node: no suggestion contract —
-                // the announcement is the region's content.
-                auto_complete: None,
-                // The pipeline's own node: no sorted column — the
-                // region orders nothing.
-                sort_direction: None,
-                // The pipeline's own node: no depth to say — the
-                // region nests not.
-                level: None,
-                // The pipeline's own node: no set to stand in — the
-                // region is current for no item.
-                current: None,
-                // The pipeline's own node: nothing to open — the
-                // region speaks its own content.
-                has_popup: None,
-                // The pipeline's own node: no read-as role — the region
-                // is read as the live region it is.
-                role_description: None,
-                // The pipeline's own node: no place in a set — the
-                // region stands in no collection.
-                position_in_set: None,
-                // The pipeline's own node: no span to size — the
-                // region collects nothing.
-                size_of_set: None,
-                // The pipeline's own node: no chord to say — the region
-                // is invoked by no key.
-                keyboard_shortcut: None,
-                // The pipeline's own node: no capacity to take — the
-                // region is no field.
-                multiline: false,
-                // The pipeline's own node: no language to say — the
-                // region speaks its own content.
-                language: None,
-            });
+            snapshot.nodes.push(self.announcement_node());
         }
         snapshot
+    }
+
+    /// The announcement region's snapshot node (§11.6, ADR-0024): the
+    /// reserved live region the pipeline owns — one node in the snapshot,
+    /// never a widget: the pipeline owns the region, the AT speaks its
+    /// changes, and announcing never moves the tree's shape. Its content
+    /// is the last announcement; every word the widgets carry is
+    /// honestly absent — the region is the speech, it carries no other.
+    fn announcement_node(&self) -> crate::passes::TreeNode {
+        let (text, politeness) = self
+            .announcement
+            .as_ref()
+            .map_or((String::new(), crate::announce::Politeness::Polite), |a| {
+                (a.text.clone(), a.politeness)
+            });
+        crate::passes::TreeNode {
+            id: crate::announce::ANNOUNCEMENT_NODE_HASH,
+            role: crate::widget::Role::LiveRegion,
+            label: text,
+            bounds: None,
+            children: Vec::new(),
+            value: None,
+            toggled: None,
+            table_slot: None,
+            selection: None,
+            live: Some(politeness),
+            enabled: true,
+            // The pipeline's own node: the region explains nothing —
+            // the announcement *is* its content (the honest absence).
+            description: None,
+            placeholder: None,
+            value_range: None,
+            numeric_value: None,
+            secure_entry: false,
+            secure_revealed: false,
+            scroll_orientation: None,
+            scroll_position: None,
+            // The pipeline's own node: no read-only word — the
+            // region's content is the announcement itself.
+            read_only: false,
+            required: false,
+            // The pipeline's own node: no invalid word — the
+            // region's content is the announcement itself.
+            invalid: None,
+            // The pipeline's own node: no selected word — the
+            // region belongs to no selection collection.
+            selected: None,
+            // The pipeline's own node: no capacity word — the
+            // region carries no collection to size.
+            multiselectable: false,
+            // The pipeline's own node: no updating word — the
+            // region is never withheld; it is the speech. Its
+            // politeness above is the live tier's own rider (M120,
+            // ADR-0124): the region the imperative channel speaks,
+            // beside the regions the app declares.
+            busy: false,
+            // The pipeline's own node: no disclosure word — the
+            // region opens and closes not.
+            expanded: None,
+            // The pipeline's own node: no suggestion contract —
+            // the announcement is the region's content.
+            auto_complete: None,
+            // The pipeline's own node: no sorted column — the
+            // region orders nothing.
+            sort_direction: None,
+            // The pipeline's own node: no depth to say — the
+            // region nests not.
+            level: None,
+            // The pipeline's own node: no set to stand in — the
+            // region is current for no item.
+            current: None,
+            // The pipeline's own node: nothing to open — the
+            // region speaks its own content.
+            has_popup: None,
+            // The pipeline's own node: no read-as role — the region
+            // is read as the live region it is.
+            role_description: None,
+            // The pipeline's own node: no place in a set — the
+            // region stands in no collection.
+            position_in_set: None,
+            // The pipeline's own node: no span to size — the
+            // region collects nothing.
+            size_of_set: None,
+            // The pipeline's own node: no chord to say — the region
+            // is invoked by no key.
+            keyboard_shortcut: None,
+            // The pipeline's own node: no capacity to take — the
+            // region is no field.
+            multiline: false,
+            // The pipeline's own node: no language to say — the
+            // region speaks its own content.
+            language: None,
+        }
     }
 
     /// Pass 10 (`action`): routes an accessibility action to the widget whose

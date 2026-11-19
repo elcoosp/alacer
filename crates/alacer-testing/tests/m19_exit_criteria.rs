@@ -294,7 +294,7 @@ fn m19_the_living_documents_re_agree() {
         "the README's input bullet carries the capture contract"
     );
     assert!(
-        readme.contains("M0 through M121"),
+        readme.contains("M0 through M127"),
         "the README status reflects the living cut — the M26 sweep joins the \
          milestone literal to this suite's pin set, the chain cannot drift"
     );
@@ -312,7 +312,7 @@ fn m19_the_living_documents_re_agree() {
     for fragment in [
         "ADR-0025",
         "The captured drag",
-        "a hundred and thirty decision records",
+        "a hundred and thirty-two decision records",
         "implicitly holds its deepest accepting hit",
     ] {
         assert!(
@@ -338,7 +338,7 @@ fn m19_the_living_documents_re_agree() {
     let baselines = parse_workspace_json("benchmarks/baselines/baselines.json");
     assert_eq!(
         baselines["bench_count"],
-        serde_json::json!(141),
+        serde_json::json!(144),
         "the published corpus carries the capture case the code half promised"
     );
 }

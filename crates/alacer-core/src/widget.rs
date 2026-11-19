@@ -111,6 +111,26 @@ pub enum Role {
     /// before it walks the pages. An unnamed strip reads as a bare box
     /// — the ADR-5 rule the named roles carry.
     TabList,
+    /// A bounded number field the AT walks by arrows (the spin-button
+    /// tier, M128, ADR-0132): the "writes one bounded number" fact
+    /// AccessKit's own `SpinButton` role spells — not a slider wearing
+    /// text (a slider's write is the *continuous drag*, a spin
+    /// button's write is the *discrete step* the arrows speak) and not
+    /// a bare text input carrying no value words. The value rides the
+    /// M3 `value()` contract, the span the M97 range word, the number
+    /// the M99 numeric word — the value tier's own vocabulary, never a
+    /// second one.
+    SpinButton,
+    /// The named strip a set of tools reads as (the toolbar tier,
+    /// M129, ADR-0133): the strip word the AT announces before it
+    /// walks the tools — the tab-list/radio-group shape (the named
+    /// container, ADR-0128's member-and-container discipline) at the
+    /// tool tier. The tools are the members' own controls — buttons,
+    /// inputs, the vocabulary the app mounts — and the strip is their
+    /// layout (a horizontal run), never a second channel to them. An
+    /// unnamed strip reads as a bare box — the ADR-5 rule the named
+    /// roles carry.
+    Toolbar,
 }
 
 impl Role {
@@ -128,7 +148,11 @@ impl Role {
     /// title reads as bare styled text — the outline the AT cannot
     /// walk. The tab and its strip join in M127: an unnamed page is a
     /// bare mark, an unnamed strip a bare box — the ADR-5 rule the
-    /// named roles carry.
+    /// named roles carry. The spin button joins in M128: an unnamed
+    /// number field reads as a bare number — the slider's own rule at
+    /// the field tier. The toolbar joins in M129: an unnamed tool
+    /// strip reads as a bare box — the set the AT cannot name is a set
+    /// it cannot walk.
     #[must_use]
     pub const fn requires_name(self) -> bool {
         matches!(
@@ -145,6 +169,8 @@ impl Role {
                 | Self::Heading
                 | Self::Tab
                 | Self::TabList
+                | Self::SpinButton
+                | Self::Toolbar
         )
     }
 
@@ -175,6 +201,8 @@ impl Role {
             Self::Heading => "heading",
             Self::Tab => "tab",
             Self::TabList => "tab_list",
+            Self::SpinButton => "spin_button",
+            Self::Toolbar => "toolbar",
         }
     }
 }
@@ -1650,6 +1678,7 @@ pub trait Widget: 'static {
                 | Role::Radio
                 | Role::Link
                 | Role::Tab
+                | Role::SpinButton
         ) && self.enabled()
     }
 

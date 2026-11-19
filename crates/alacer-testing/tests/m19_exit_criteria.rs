@@ -294,7 +294,7 @@ fn m19_the_living_documents_re_agree() {
         "the README's input bullet carries the capture contract"
     );
     assert!(
-        readme.contains("M0 through M129"),
+        readme.contains("M0 through M130"),
         "the README status reflects the living cut — the M26 sweep joins the \
          milestone literal to this suite's pin set, the chain cannot drift"
     );
@@ -312,7 +312,7 @@ fn m19_the_living_documents_re_agree() {
     for fragment in [
         "ADR-0025",
         "The captured drag",
-        "a hundred and thirty-four decision records",
+        "a hundred and thirty-five decision records",
         "implicitly holds its deepest accepting hit",
     ] {
         assert!(

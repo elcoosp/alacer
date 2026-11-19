@@ -173,3 +173,11 @@ harness = false
 [[bench]]
 name = "busy"
 harness = false
+
+[[bench]]
+name = "set"
+harness = false
+
+[[bench]]
+name = "live"
+harness = false

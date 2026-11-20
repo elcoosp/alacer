@@ -162,6 +162,30 @@ pub fn map_role(role: Role) -> AccessKitRole {
         // M126/M129 container rule at the hover tier, no patch-tier
         // growth.
         Role::Tooltip => AccessKitRole::Tooltip,
+        // The menu bar (M137, ADR-0141): the "reads as a set of menus"
+        // fact AccessKit's own menu-bar role spells — the named strip
+        // the AT announces before it walks the menus; the children keep
+        // the roles the members already carry, the M126/M129 container
+        // rule at the menu tier, no patch-tier growth.
+        Role::MenuBar => AccessKitRole::MenuBar,
+        // The menu (M137, ADR-0141): the "reads as a list of commands"
+        // fact AccessKit's own menu role spells — the summoned list the
+        // AT announces while it is up (presence the app's wiring, the
+        // tooltip tier's rule); the children keep the roles the entries
+        // already carry, the M126/M129 container rule at the menu tier,
+        // no patch-tier growth.
+        Role::Menu => AccessKitRole::Menu,
+        // The menu item (M137, ADR-0141): the "fires one command" fact
+        // AccessKit's own menu-item role spells. The activation rides
+        // the default-action door the sink already publishes, the M10
+        // parity at the item tier, no patch-tier growth.
+        Role::MenuItem => AccessKitRole::MenuItem,
+        // The image (M138, ADR-0142): the "reads as a picture" fact
+        // AccessKit's own image role spells — the named content the AT
+        // announces as a picture; the pixel story stays the app's own,
+        // the alt text riding the description word M95 maps, no
+        // patch-tier growth.
+        Role::Image => AccessKitRole::Image,
     }
 }
 
@@ -1021,6 +1045,17 @@ mod tests {
         // summons — AccessKit's own `Tooltip`, the named-container
         // shape at the hover tier.
         assert_eq!(map_role(Role::Tooltip), AkRole::Tooltip);
+        // The M137 menu tier: the strip, the summoned list and the
+        // entry the command vocabulary walks — AccessKit's own
+        // `MenuBar` beside its `Menu` and `MenuItem`, the named-container
+        // shape at the menu tier.
+        assert_eq!(map_role(Role::MenuBar), AkRole::MenuBar);
+        assert_eq!(map_role(Role::Menu), AkRole::Menu);
+        assert_eq!(map_role(Role::MenuItem), AkRole::MenuItem);
+        // The M138 image tier: the named picture the AT announces as a
+        // picture — AccessKit's own `Image`, the alt text riding the
+        // description word the M95 tier maps.
+        assert_eq!(map_role(Role::Image), AkRole::Image);
     }
 
     #[test]

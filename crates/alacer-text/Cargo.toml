@@ -31,3 +31,7 @@ linebender_resource_handle = "0.1.1"
 [[bench]]
 name = "layout"
 harness = false
+
+[[bench]]
+name = "lru"
+harness = false

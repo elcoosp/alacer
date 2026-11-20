@@ -31,9 +31,16 @@ impl SpecCell {
     }
 
     /// Reads the current spec (measure closure).
+    ///
+    /// # Panics
+    ///
+    /// If the cell's lock is poisoned — the same contract the write side
+    /// carries: a panicked writer means the frame is corrupt either way,
+    /// and a silent `None` here would turn the corruption into a
+    /// mis-measured node instead of a named crash.
     #[must_use]
     pub fn get(&self) -> Option<MeasureSpec> {
-        self.0.read().ok().and_then(|guard| guard.clone())
+        self.0.read().expect("spec cell lock").clone()
     }
 }
 

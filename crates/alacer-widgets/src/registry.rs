@@ -16,7 +16,8 @@ use alacer_view::{ElementProps, WidgetRegistry};
 /// M128 spin-button tier (`spin_button`) plus the M129 toolbar tier
 /// (`toolbar`) plus the M130 switch tier (`switch`) plus the M131
 /// tab-panel tier (`tab_panel`) plus the M133 meter tier (`meter`)
-/// plus the M134 dialog tier (`dialog`).
+/// plus the M134 dialog tier (`dialog`) plus the M135 tree tier (`tree`,
+/// `tree_item`).
 #[must_use]
 pub fn default_registry() -> WidgetRegistry {
     let mut registry = WidgetRegistry::new();
@@ -48,6 +49,8 @@ pub fn default_registry() -> WidgetRegistry {
     registry.register("switch", switch_create, switch_patch);
     registry.register("tab_panel", tab_panel_create, tab_panel_patch);
     registry.register("dialog", dialog_create, dialog_patch);
+    registry.register("tree", tree_create, tree_patch);
+    registry.register("tree_item", tree_item_create, tree_item_patch);
     registry
 }
 
@@ -1036,6 +1039,95 @@ fn dialog_patch(window: &mut crate::Dialog, props: &ElementProps<'_>) -> bool {
     style_visual_diff(props) || visual
 }
 
+/// The tree element (`tree { name: … }` — M135): the tree tier's
+/// container DSL door — the collection the AT walks by disclosure and
+/// depth, the members' vertical layout, never a second channel to
+/// them.
+fn tree_create(props: &ElementProps<'_>) -> crate::Tree {
+    let mut collection = crate::Tree::new(props.text("name").unwrap_or_default());
+    if let Some(description) = props.text("description") {
+        collection = collection.description(description);
+    }
+    if let Some(multiselectable) = props.flag("multiselectable") {
+        collection = collection.multiselectable(multiselectable);
+    }
+    if let Some(busy) = props.flag("busy") {
+        collection = collection.busy(busy);
+    }
+    if let Some(size_of_set) = prop_index(props, "size_of_set") {
+        collection = collection.size_of_set(size_of_set);
+    }
+    style_apply(collection.style_mut(), props);
+    collection
+}
+
+fn tree_patch(collection: &mut crate::Tree, props: &ElementProps<'_>) -> bool {
+    let mut visual = false;
+    if let Some(name) = props.text("name") {
+        collection.set_name(name);
+        visual = true;
+    }
+    // The description word (M95, ADR-0099): the patch tier queues
+    // `A11Y` from the prop class, the write reporting the move.
+    if let Some(description) = props.text("description") {
+        collection.set_description(Some(description.to_string()));
+    }
+    if let Some(multiselectable) = props.flag("multiselectable") {
+        collection.set_multiselectable(multiselectable);
+    }
+    if let Some(busy) = props.flag("busy") {
+        collection.set_busy(busy);
+    }
+    if let Some(size_of_set) = prop_index(props, "size_of_set") {
+        collection.set_size_of_set(Some(size_of_set));
+    }
+    style_apply(collection.style_mut(), props);
+    style_visual_diff(props) || visual
+}
+
+/// The tree-item element (`tree_item { name: … }` — M135): the tree
+/// tier's member DSL door — the branch or leaf word, the collection
+/// words riding the tiers the tree already published.
+fn tree_item_create(props: &ElementProps<'_>) -> crate::TreeItem {
+    let mut member = crate::TreeItem::new(props.text("name").unwrap_or_default());
+    if let Some(selected) = props.flag("selected") {
+        member = member.selected(selected);
+    }
+    if let Some(expanded) = props.flag("expanded") {
+        member = member.expanded(expanded);
+    }
+    if let Some(level) = prop_index(props, "level") {
+        member = member.level(level);
+    }
+    if let Some(position_in_set) = prop_index(props, "position_in_set") {
+        member = member.position_in_set(position_in_set);
+    }
+    style_apply(member.style_mut(), props);
+    member
+}
+
+fn tree_item_patch(member: &mut crate::TreeItem, props: &ElementProps<'_>) -> bool {
+    let mut visual = false;
+    if let Some(name) = props.text("name") {
+        member.set_name(name);
+        visual = true;
+    }
+    if let Some(selected) = props.flag("selected") {
+        member.set_selected(Some(selected));
+    }
+    if let Some(expanded) = props.flag("expanded") {
+        member.set_expanded(Some(expanded));
+    }
+    if let Some(level) = prop_index(props, "level") {
+        member.set_level(Some(level));
+    }
+    if let Some(position_in_set) = prop_index(props, "position_in_set") {
+        member.set_position_in_set(Some(position_in_set));
+    }
+    style_apply(member.style_mut(), props);
+    style_visual_diff(props) || visual
+}
+
 #[cfg(test)]
 mod tests {
     use super::default_registry;
@@ -1207,6 +1299,9 @@ mod tests {
             "meter",
             // The M134 dialog tier.
             "dialog",
+            // The M135 tree tier.
+            "tree",
+            "tree_item",
         ] {
             assert!(registry.contains(name), "{name} is a default element");
         }

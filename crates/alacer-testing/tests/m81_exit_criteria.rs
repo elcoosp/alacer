@@ -641,7 +641,7 @@ fn m81_the_disabled_trail_still_lands() {
 fn m81_the_living_documents_re_agree() {
     let readme = read_workspace_file("README.md");
     assert!(
-        readme.contains("M0 through M132"),
+        readme.contains("M0 through M134"),
         "the README status reflects the living cut — the chain cannot drift"
     );
     assert!(
@@ -658,7 +658,7 @@ fn m81_the_living_documents_re_agree() {
         "the architecture carries the accent fact's decision"
     );
     assert!(
-        architecture.contains("a hundred and thirty-seven decision records"),
+        architecture.contains("a hundred and thirty-nine decision records"),
         "the register grew the M81 row"
     );
     let baselines = serde_json::from_str::<serde_json::Value>(&read_workspace_file(
@@ -684,7 +684,7 @@ fn m81_the_living_documents_re_agree() {
     // the m80 suite's documents pin moved to M81's cut.
     let m80 = read_workspace_file("crates/alacer-testing/tests/m80_exit_criteria.rs");
     assert!(
-        m80.contains("M0 through M132"),
+        m80.contains("M0 through M134"),
         "the m80 suite's pins moved with the documents"
     );
 }

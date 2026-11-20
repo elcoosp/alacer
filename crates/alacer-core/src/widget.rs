@@ -229,6 +229,58 @@ pub enum Role {
     /// container rule, at the tree tier). An unnamed member reads as a
     /// bare mark — the ADR-5 rule the named roles carry.
     TreeItem,
+    /// The named strip of menus a menu bar reads as (the menu tier's
+    /// container half, M137, ADR-0141): the "reads as a set of menus"
+    /// fact AccessKit's own `MenuBar` role spells — not a toolbar
+    /// wearing the wrong word (a toolbar *offers tools*, a menu bar
+    /// *names the menus the commands live in*) and not a bare row
+    /// wearing no name — the set the AT cannot name is a set it cannot
+    /// walk, the ADR-5 rule the named roles carry. The strip is the
+    /// menus' layout (a horizontal run), never a second channel to
+    /// them — the children ride the arena exactly a toolbar's do, each
+    /// keeping the role and label it already carries — and the strip
+    /// holds no focus and answers no activation (the M126/M129
+    /// container rule, at the menu tier).
+    MenuBar,
+    /// The named list of commands a menu offers (the menu tier's
+    /// summoned half, M137, ADR-0141): the "reads as a list of
+    /// commands" fact AccessKit's own `Menu` role spells — not a dialog
+    /// wearing the wrong transient (a dialog is a modal window the walk
+    /// bounds itself into; a menu is a transient list the opener
+    /// summons, present exactly while the app mounts it — the tooltip
+    /// tier's presence rule, ADR-0140) and not a bare column wearing no
+    /// name — the ADR-5 rule the named roles carry. The list is the
+    /// entries' layout (a vertical run, the shape a menu is), never a
+    /// second channel to them — the children ride the arena exactly a
+    /// pane's do — and the list holds no focus and answers no
+    /// activation (the M126/M129 container rule, at the menu tier).
+    Menu,
+    /// One command a menu offers (the menu tier's entry half, M137,
+    /// ADR-0141): the "fires one command" fact AccessKit's own
+    /// `MenuItem` role spells — not a button wearing the wrong container
+    /// (a button stands wherever the app mounts it; a menu item stands
+    /// in a named menu the AT walks by name) and not a bare label
+    /// carrying no activation at all. The activation funnel is the
+    /// button tier's own (the M10 parity): the click on release, Enter
+    /// while focused, and the AT's default action the door answers —
+    /// and the availability tier guards it (M22: an unavailable entry
+    /// refuses, never munges). An unnamed entry reads as a bare mark —
+    /// the ADR-5 rule the named roles carry.
+    MenuItem,
+    /// A named picture the app presents (the image tier, M138,
+    /// ADR-0142): the "reads as a picture" fact AccessKit's own `Image`
+    /// role spells — not a bare label wearing no picture word (the
+    /// picture the AT cannot name is a picture it cannot offer on
+    /// demand, the ADR-5 rule the named roles carry) and not a canvas
+    /// wearing the wrong half (the canvas tier, M82, names a *drawing
+    /// surface the app paints into*; a picture is *named content the
+    /// app presents*). The pixel story is the app's own — the paint
+    /// seam the canvas tier published, or the embedded raster the app
+    /// owns; the word never paints. The alt text rides the M95
+    /// description word beside the name, and the picture holds no focus
+    /// and answers no activation (the M126/M129 container rule, at the
+    /// picture tier).
+    Image,
 }
 
 impl Role {
@@ -264,7 +316,10 @@ impl Role {
     /// bare mark — the named-container rule the strip and the tool
     /// strip carry, at the hierarchical tier. The tooltip joins in
     /// M136: an unnamed bubble reads as a bare box — the ADR-5 rule
-    /// the named roles carry, at the hover tier.
+    /// the named roles carry, at the hover tier. The menu bar, the menu
+    /// and the menu item join in M137: an unnamed strip, an unnamed
+    /// list and an unnamed entry read as bare boxes and a bare mark —
+    /// the ADR-5 rule the named roles carry, at the menu tier.
     #[must_use]
     pub const fn requires_name(self) -> bool {
         matches!(
@@ -290,6 +345,10 @@ impl Role {
                 | Self::Tree
                 | Self::TreeItem
                 | Self::Tooltip
+                | Self::MenuBar
+                | Self::Menu
+                | Self::MenuItem
+                | Self::Image
         )
     }
 
@@ -329,6 +388,10 @@ impl Role {
             Self::Tree => "tree",
             Self::TreeItem => "tree_item",
             Self::Tooltip => "tooltip",
+            Self::MenuBar => "menu_bar",
+            Self::Menu => "menu",
+            Self::MenuItem => "menu_item",
+            Self::Image => "image",
         }
     }
 }
@@ -961,8 +1024,8 @@ pub trait Widget: 'static {
 
     /// Handles a key event routed to this widget because it holds focus
     /// (§10.3 — keyboard input is focus-routed, never hit-tested). Editing
-    /// widgets act on [`crate::events::KeyState::Pressed`] only; returning [`EventResponse::
-    /// Ignored`] lets the framework take the key (Tab's focus cycling).
+    /// widgets act on [`crate::events::KeyState::Pressed`] only; returning
+    /// [`EventResponse::Ignored`] lets the framework take the key (Tab's focus cycling).
     fn on_key_event(&mut self, ctx: &mut EventCtx, event: &KeyEvent) -> EventResponse {
         let _ = (ctx, event);
         EventResponse::Ignored
@@ -986,8 +1049,8 @@ pub trait Widget: 'static {
         let _ = focused;
     }
 
-    /// The IME flavor this widget wants while focused (§10.3). [`ImePurpose::
-    /// Off`] (the default) tells the platform no IME is needed; the pipeline
+    /// The IME flavor this widget wants while focused (§10.3).
+    /// [`crate::passes::ImePurpose::Off`] (the default) tells the platform no IME is needed; the pipeline
     /// derives the frame's [`crate::passes::ImeRequest`] from the focused
     /// widget's answer.
     fn ime_purpose(&self) -> crate::passes::ImePurpose {
@@ -1842,6 +1905,7 @@ pub trait Widget: 'static {
                 | Role::Tab
                 | Role::SpinButton
                 | Role::Switch
+                | Role::MenuItem
         ) && self.enabled()
     }
 

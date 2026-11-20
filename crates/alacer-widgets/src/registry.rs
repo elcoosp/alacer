@@ -15,7 +15,8 @@ use alacer_view::{ElementProps, WidgetRegistry};
 /// tier (`heading`) plus the M127 tab tier (`tab`, `tab_list`) plus the
 /// M128 spin-button tier (`spin_button`) plus the M129 toolbar tier
 /// (`toolbar`) plus the M130 switch tier (`switch`) plus the M131
-/// tab-panel tier (`tab_panel`).
+/// tab-panel tier (`tab_panel`) plus the M133 meter tier (`meter`)
+/// plus the M134 dialog tier (`dialog`).
 #[must_use]
 pub fn default_registry() -> WidgetRegistry {
     let mut registry = WidgetRegistry::new();
@@ -34,6 +35,7 @@ pub fn default_registry() -> WidgetRegistry {
     registry.register("column_header", column_header_create, column_header_patch);
     registry.register("slider", slider_create, slider_patch);
     registry.register("progress", progress_create, progress_patch);
+    registry.register("meter", meter_create, meter_patch);
     registry.register("canvas", canvas_create, canvas_patch);
     registry.register("radio", radio_create, radio_patch);
     registry.register("radio_group", radio_group_create, radio_group_patch);
@@ -45,6 +47,7 @@ pub fn default_registry() -> WidgetRegistry {
     registry.register("toolbar", toolbar_create, toolbar_patch);
     registry.register("switch", switch_create, switch_patch);
     registry.register("tab_panel", tab_panel_create, tab_panel_patch);
+    registry.register("dialog", dialog_create, dialog_patch);
     registry
 }
 
@@ -703,6 +706,54 @@ fn progress_patch(progress: &mut crate::Progress, props: &ElementProps<'_>) -> b
     visual
 }
 
+/// The meter element (`meter { name: …, min: …, max: …, value: … }` —
+/// M133): the gauge tier's DSL door — the scalar measurement the AT
+/// reads as a gauge, the scale the app declares, the reading riding
+/// the value tier's own words.
+fn meter_create(props: &ElementProps<'_>) -> crate::Meter {
+    let name = props.text("name").unwrap_or_default();
+    let min = props.number("min").unwrap_or(0.0);
+    let max = props.number("max").unwrap_or(100.0);
+    // The two doors the value tier's report half ships (the M21
+    // progress rule, at the meter tier): the reactive bridge (a
+    // `binding` prop — the flux bridge owns the reading, §6.1) or the
+    // static value. The binding wins, the bound label's rule.
+    if let Some(binding) = props.number_binding() {
+        return crate::Meter::bound(name, min, max, binding);
+    }
+    let mut meter = crate::Meter::new(name, min, max);
+    if let Some(value) = props.number("value") {
+        meter = meter.value(value);
+    }
+    if let Some(fill) = props.color("fill") {
+        meter = meter.fill(fill);
+    }
+    meter
+}
+
+fn meter_patch(meter: &mut crate::Meter, props: &ElementProps<'_>) -> bool {
+    let mut visual = false;
+    if let Some(name) = props.text("name") {
+        meter.set_name(name);
+        visual = true;
+    }
+    if let Some(binding) = props.number_binding() {
+        // The bridge owns a bound gauge's reading: re-hanging the same
+        // binding is a no-op, never a visual change (the bound label's
+        // rule, at the value tier).
+        let _ = binding;
+        return visual;
+    }
+    if let Some(value) = props.number("value") {
+        // The widget's own answer is the idle-frame property: a write
+        // that lands where the reading already is reports `false` — no
+        // masks, an idle frame (the M21 progress rule, at the meter
+        // tier).
+        visual |= meter.set_value(value);
+    }
+    visual
+}
+
 /// The heading element (`heading { name: …, level: … }` — M126): the
 /// heading tier's DSL door — the section title, the depth the outline
 /// walks, the words the tree carries.
@@ -957,6 +1008,34 @@ fn tab_panel_patch(pane: &mut crate::TabPanel, props: &ElementProps<'_>) -> bool
     style_visual_diff(props) || visual
 }
 
+/// The dialog element (`dialog { name: … }` — M134): the dialog tier's
+/// DSL door — the window the modal vocabulary speaks as "this is a
+/// dialog", the content's vertical layout, never a second channel to
+/// it.
+fn dialog_create(props: &ElementProps<'_>) -> crate::Dialog {
+    let mut window = crate::Dialog::new(props.text("name").unwrap_or_default());
+    if let Some(description) = props.text("description") {
+        window = window.description(description);
+    }
+    style_apply(window.style_mut(), props);
+    window
+}
+
+fn dialog_patch(window: &mut crate::Dialog, props: &ElementProps<'_>) -> bool {
+    let mut visual = false;
+    if let Some(name) = props.text("name") {
+        window.set_name(name);
+        visual = true;
+    }
+    // The description word (M95, ADR-0099): the patch tier queues
+    // `A11Y` from the prop class, the write reporting the move.
+    if let Some(description) = props.text("description") {
+        window.set_description(Some(description.to_string()));
+    }
+    style_apply(window.style_mut(), props);
+    style_visual_diff(props) || visual
+}
+
 #[cfg(test)]
 mod tests {
     use super::default_registry;
@@ -1124,6 +1203,10 @@ mod tests {
             "switch",
             // The M131 tab-panel tier.
             "tab_panel",
+            // The M133 meter tier.
+            "meter",
+            // The M134 dialog tier.
+            "dialog",
         ] {
             assert!(registry.contains(name), "{name} is a default element");
         }
@@ -1222,6 +1305,96 @@ mod tests {
         assert!(!registry.patch(widget.as_mut(), &rebuilt));
     }
 
+    #[test]
+    fn meter_props_create_and_patch_and_the_idle_frame() {
+        let registry = default_registry();
+        let node = ViewNode::element("meter")
+            .prop("name", "Disk usage")
+            .prop("min", 0.0_f32)
+            .prop("max", 100.0_f32)
+            .prop("value", 62.0_f32);
+        let mut widget = registry.create(&node);
+        assert_eq!(widget.label().resolve(), "Disk usage");
+        assert_eq!(widget.role(), alacer_core::widget::Role::Meter);
+        assert!(
+            downcast_meter(widget.as_mut()).is_some_and(|m| same_value(m.current_value(), 62.0)),
+            "the reported reading lands at create"
+        );
+
+        let updated = ViewNode::element("meter").prop("value", 48.0_f32);
+        assert!(registry.patch(widget.as_mut(), &updated));
+        assert!(
+            downcast_meter(widget.as_mut()).is_some_and(|m| same_value(m.current_value(), 48.0)),
+            "the reading patch lands in place"
+        );
+
+        // A write that lands where the reading already is queues no
+        // masks (the M21 idle-frame property at the meter tier — the
+        // patcher's `false` is exactly the widget's own `set_value`
+        // answer).
+        let again = ViewNode::element("meter").prop("value", 48.0_f32);
+        assert!(!registry.patch(widget.as_mut(), &again));
+
+        // The name's patch is the visual truth it always was.
+        let renamed = ViewNode::element("meter").prop("name", "Disk free");
+        assert!(registry.patch(widget.as_mut(), &renamed));
+        assert_eq!(widget.label().resolve(), "Disk free", "patched in place");
+    }
+
+    #[test]
+    fn meter_binds_its_reading_and_rehangs_idempotently() {
+        let registry = default_registry();
+        let binding = alacer_core::flux::RenderBinding::new(87.0_f32);
+        let node = ViewNode::element("meter")
+            .prop("name", "Battery")
+            .prop("min", 0.0_f32)
+            .prop("max", 100.0_f32)
+            .prop("binding", binding.clone());
+        let mut widget = registry.create(&node);
+        assert!(
+            downcast_meter(widget.as_mut()).is_some_and(|m| same_value(m.current_value(), 87.0)),
+            "the number binding rides the bound constructor"
+        );
+
+        // The flux bridge owns a bound gauge's reading (§6.1): a rebuild
+        // re-hangs the same binding slot — a no-op patch, never a visual
+        // change (the bound label's rule, at the value tier).
+        let rebuilt = ViewNode::element("meter").prop("binding", binding);
+        assert!(!registry.patch(widget.as_mut(), &rebuilt));
+    }
+
+    #[test]
+    fn dialog_props_create_and_patch_in_place() {
+        let registry = default_registry();
+        let node = ViewNode::element("dialog")
+            .prop("name", "Confirm publish")
+            .prop("description", "The file goes live");
+        let mut widget = registry.create(&node);
+        assert_eq!(widget.label().resolve(), "Confirm publish");
+        assert_eq!(widget.role(), alacer_core::widget::Role::Dialog);
+        assert_eq!(
+            widget.description(),
+            Some("The file goes live"),
+            "the help text lands at create"
+        );
+
+        // The name's patch is the visual truth it always was (the
+        // container's word is the app's declaration).
+        let renamed = ViewNode::element("dialog").prop("name", "Confirm deploy");
+        assert!(registry.patch(widget.as_mut(), &renamed));
+        assert_eq!(
+            widget.label().resolve(),
+            "Confirm deploy",
+            "patched in place"
+        );
+
+        // The description write reporting the move: the idle write —
+        // the text landing where it already is — queues nothing (the
+        // M21 idle-frame property, at the description tier).
+        let again = ViewNode::element("dialog").prop("description", "The file goes live");
+        assert!(!registry.patch(widget.as_mut(), &again));
+    }
+
     /// The float equality the tests borrow: `total_cmp` ordering, the
     /// widget's own rule (`f32::eq` is a lint trap the whole workspace
     /// refuses).
@@ -1238,6 +1411,10 @@ mod tests {
     /// Downcasts the erased widget to `Progress` (the test's introspection).
     fn downcast_progress(widget: &mut dyn alacer_core::Widget) -> Option<&mut crate::Progress> {
         widget.as_any_mut().downcast_mut::<crate::Progress>()
+    }
+
+    fn downcast_meter(widget: &mut dyn alacer_core::Widget) -> Option<&mut crate::Meter> {
+        widget.as_any_mut().downcast_mut::<crate::Meter>()
     }
 
     #[test]

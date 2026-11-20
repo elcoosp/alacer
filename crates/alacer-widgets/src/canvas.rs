@@ -192,7 +192,7 @@ mod tests {
     use alacer_core::Widget as _;
     use alacer_core::color::Color;
     use alacer_core::geom::{Point, Rect};
-    use alacer_core::scene::{PaintSink, Primitive, Quad};
+    use alacer_core::scene::{Image, ImageSampling, PaintSink, Primitive, Quad};
     use alacer_core::style::MeasureSpec;
     use alacer_core::theme::Palette;
     use alacer_core::widget::Role;
@@ -290,6 +290,54 @@ mod tests {
             sink.primitives.is_empty(),
             "the honest blank paints nothing"
         );
+    }
+
+    #[test]
+    fn the_painter_records_the_raster_tier() {
+        // An opaque 2 × 2 checker: premultiplied RGBA8 with a=255 — the
+        // premultiplied form equals the straight one, the byte contract
+        // the image primitive documents.
+        let bytes: std::sync::Arc<[u8]> = vec![
+            255, 31, 122, 77, // a red-green cell
+            255, 31, 122, 77, 255, 12, 12, 16, // a near-black cell
+            255, 12, 12, 16,
+        ]
+        .into();
+        let expected = std::sync::Arc::clone(&bytes);
+        let canvas = Canvas::new("The waveform").painter(move |ctx| {
+            ctx.push_image(Image {
+                bytes: std::sync::Arc::clone(&bytes),
+                width: 2,
+                height: 2,
+                src: Rect::new(Point::new(0.0, 0.0), alacer_core::geom::Size::new(2.0, 2.0)),
+                dst: Rect::new(Point::new(0.0, 0.0), ctx.size()),
+                clip: None,
+                sampling: ImageSampling::Nearest,
+            });
+        });
+
+        let clip = Rect::new(
+            Point::new(0.0, 0.0),
+            alacer_core::geom::Size::new(60.0, 120.0),
+        );
+        let mut sink = Record::default();
+        let mut ctx = test_ctx(&mut sink, Point::new(40.0, 60.0), Some(clip));
+        canvas.paint(&mut ctx);
+
+        let [Primitive::Image(image)] = &sink.primitives[..] else {
+            panic!(
+                "the painter recorded exactly one image, got {:?}",
+                sink.primitives
+            );
+        };
+        // The app's own closure reaches the raster tier through the same
+        // paint seam the `Image` widget rides: the blit translates to the
+        // canvas's absolute origin and the clip stack rides the record.
+        assert_eq!(image.dst.origin, Point::new(40.0, 60.0));
+        assert_eq!(image.dst.size, alacer_core::geom::Size::new(120.0, 120.0));
+        assert_eq!(image.clip, Some(clip), "the clip stack rides the blit");
+        assert_eq!(image.bytes, expected, "the app's pixels ride untouched");
+        assert_eq!(image.sampling, ImageSampling::Nearest);
     }
 
     #[test]

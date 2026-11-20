@@ -86,7 +86,7 @@ cargo test --workspace                                          # headless: real
 > `ALACER_SOFTWARE=1` presents through softbuffer — the platform honors it at startup
 > (`BackendPreference::software_env`) whichever backend the app asked for; any other value is
 > refused with a named warning, never guessed. CI and the headless tests already run this path:
-> no mock renderer, no mock event loop. The full 115-example catalog lives in
+> no mock renderer, no mock event loop. The full 120-example catalog lives in
 > [docs/examples.md](https://github.com/elcoosp/alacer/blob/main/docs/examples.md).
 
 ## How it works
@@ -199,6 +199,7 @@ Accessibility is not a layer bolted on — it is the tree's own vocabulary:
 | **Search field** (M132) | The field whose purpose is search, said by the tree: `Widget::search_field` carrying the "takes search criteria" fact AccessKit's own `SearchInput` role spells (ARIA's `role="searchbox"` — the purpose the platform's find conventions key off, the AT announcing "search, edit text" beside the name), `TextInput::search_field` the builder word and `set_search_field` the one write reporting the move (the M21 idle-frame property at the purpose tier), the `search` prop joining the text-input element beside the M100 `secure` word's door, the sink re-rolling the field in the same snapshot every other property rides — one role per node: the masked contract first (a secured field keeps the `PasswordInput` word M100 mapped, the reveal yielding it per M102), the capacity word claiming a field that declared both (a multiline search box keeps the `MultilineTextInput` word M122 mapped — the ADR pre-registers the re-open rule), the doors answering unchanged beside the word
 | **Meter** (M133)       | The gauge whose reading is a measurement, said by the tree: `Role::Meter` carrying the "reads as a gauge" fact AccessKit's own `Meter` role spells (not a progress bar wearing the wrong word — a progress bar's value is *task progress*, how far some task has come toward done; a meter's value is a *measurement* on a scale the app declares — how much of something there is, ARIA's `role="meter"` beside its `role="progressbar"`), `Meter` in the widgets crate with the registry door, the reading riding the value tier's own words (the M3 `value()` spoken word, the M97 range word, the M99 numeric word — never a second value language), AccessKit's `Meter` mapped in the same snapshot, the gauge holding no focus and answering no activation (the M126 rule at the value tier's read half), the AT tier read-only by construction (the M21 progress rule, at the meter tier), the role joining the required-name set
 | **Dialog** (M134)      | The window the modal vocabulary speaks as "this is a dialog", said by the tree: `Role::Dialog` carrying the "reads as a modal window" fact AccessKit's own `Dialog` role spells (not a bare panel wearing no name — the ADR-5 rule the named roles carry — and not a second tab panel wearing the wrong word: a tab panel names *the selected page's content*, a dialog names *the window the conversation lives in*), `Dialog` in the widgets crate with the registry door, the children riding the arena exactly as a tab panel's (each child keeping its role, its label, and its doors), the window holding no focus and answering no activation (the M126/M129 container rule, at the modal tier), the modal *semantics* riding the focus scope the M25 tier published (`focus_move_in`, ADR-0031 — the word names the window, the walk bounds it), the role joining the required-name set
+| **Tree** (M135)        | The hierarchical collection the AT walks by disclosure and depth, said by the tree: `Role::Tree` beside `Role::TreeItem` carrying the collection word and the member word AccessKit's own roles spell (not the table's grid wearing the wrong geometry — a grid's geometry is rows × columns, a tree's is parentage — and not a bare list whose members cannot say what branches they stand in), `Tree`/`TreeItem` in the widgets crate with the registry doors, the hierarchy the arena's own nesting — a member's children riding under it exactly a row's cells do — and every word the members say a tier the tree already published (the M108 pick, the M110 disclosure, the M113 depth, the M119 place; on the container the M119 span, the M109 capacity, the M117 updating word, the M120 declared region), both roles joining the required-name set and neither the focusable set (the M126/M129 container rule, at the tree tier)
 | **Tab panel** (M131)    | The named pane the selected page's content lives in, said by the tree: `Role::TabPanel` carrying the "holds the selected page's content" fact AccessKit's own `TabPanel` role spells (not a bare box wearing no name — the ADR-5 rule the named roles carry — and not a second tab list wearing the wrong word: a tab list names the pages' strip, a tab panel names the page's content), the member-and-container shape (ADR-0128) grown to its third word — member, strip, pane — `TabPanel` in the widgets crate with the registry door, AccessKit's `TabPanel` mapped in the same snapshot, the children keeping the roles and labels they already carry, the pane holding no focus and answering no activation (the M126/M129 container rule), the role joining the required-name set
 | **Switch** (M130)      | The instant on/off control, said by the tree: `Role::Switch` carrying the "writes one on/off fact" fact AccessKit's own `Switch` role spells (not a checkbox wearing the wrong word — a checkbox's write resolves a *form contract*: checked, unchecked, the mixed summary the select-all parent needs; a switch's write is the instant on/off the settings vocabulary speaks — and not a button wearing no state at all), the binary pair riding the `toggled` contract (`On` or `Off`, never `Mixed` — a switch has no summary to hold), `Switch` in the widgets crate with the registry door, AccessKit's `Switch` mapped in the same snapshot beside the `Toggled` property the sink has mapped since M6 — three doors one funnel (the click, the Space key while focused, the AT's default action), the role joining the required-name set and the focusable set, the availability wall refusing every door on an unavailable control | 0134 |
 
@@ -346,6 +347,7 @@ Full wiring (`pipeline_default()`, `mount_view()`, `run_window()`) in
 
 The shipped vocabulary: `Label` · `Button` · `TextInput` · `Checkbox` · `Slider` · `SpinButton` ·
 `Progress` · `Radio` · `RadioGroup` · `Link` · `Heading` · `Tab` · `TabList` · `TabPanel` · `Toolbar` ·
+`Switch` · `Meter` · `Dialog` · `Tree` · `TreeItem` ·
 `Column` · `Row` · `Spacer` · `List` · `Table` · `Panel` · `Canvas` — each with its required role and label,
 reading shared theme constants. Since M32 the value tier is view vocabulary too: `slider` and
 `progress` are `rsx!` elements with the value-carrying `on_change` handler and the f32 `binding`
@@ -374,8 +376,9 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `follow_os`                                          | the palette follows the OS: one composer, the facts beside dark — the composition door swaps it on every flip and calms it when motion asks, the log answers |
 | `accent_follow`                                      | the OS's accent fact rides the same seam: the accent-only flip lands, the composition tints the palette's accent roles from the fact, the log names all four facts |
 | `todo` / `data_table`                                | the canons: a11y tree, record/replay, grid slots, keyboard navigation            |
+| `tree`                                               | the tree tier: the named collection, its nested members, the words the published tiers already carried |
 
-<details><summary><b>119 examples, grouped (recording, alloc_budget, input_budget, derive_widget, layout_probe, sort, level, current, has_popup, role_description, busy, key_routing, set, live, shortcut, multiline, language, radio, link, heading, tab, switch, tab_panel, search_field, meter, dialog, and tri_state live in the catalog)</b></summary>
+<details><summary><b>120 examples, grouped (recording, alloc_budget, input_budget, derive_widget, layout_probe, sort, level, current, has_popup, role_description, busy, key_routing, set, live, shortcut, multiline, language, radio, link, heading, tab, switch, tab_panel, search_field, meter, dialog, tree, and tri_state live in the catalog)</b></summary>
 
 **Start here**
 
@@ -535,7 +538,7 @@ is the query API as a runnable walkthrough.
 ## Status
 
 > [!NOTE]
-> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M134 of `docs/architecture.md` are
+> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M135 of `docs/architecture.md` are
 > complete, but the API still moves between minor versions. MSRV **1.99**, edition **2024**.
 
 | Platform            | CI coverage                                                                                                                                                           |
@@ -547,7 +550,7 @@ is the query API as a runnable walkthrough.
 ## Learn more
 
 - [Architecture](https://github.com/elcoosp/alacer/blob/main/docs/architecture.md) — design axioms, the ten-pass contract, rendering, accessibility, DX, performance, roadmap and kill criteria
-- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred and thirty-nine decision records, from workspace discipline to the M134 scope
+- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred and forty decision records, from workspace discipline to the M135 scope
 - [Examples catalog](https://github.com/elcoosp/alacer/blob/main/docs/examples.md) — every example with the contract it exercises
 - [Migrating from Iced](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-iced.md) · [from egui](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-egui.md) — mental-model mappings, interop limits stated plainly
 - [Inspector protocol](https://github.com/elcoosp/alacer/blob/main/docs/inspector-protocol.md) — the versioned WebSocket contract behind `alacer-inspect`

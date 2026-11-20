@@ -150,9 +150,103 @@ impl LayoutCache {
     }
 }
 
+/// The glyph-atlas LRU book (§9.4's pre-registered re-open, shipped): the
+/// tick-ordered eviction policy the GPU glyph atlas drives. Every hit
+/// refreshes the key's stamp, every miss admits one, and eviction always
+/// takes the oldest stamp — so a hot working set survives a cold stream
+/// that would thrash a full-clear, the egui-shaped failure §9.4 names.
+///
+/// The book is pure policy: no storage, no geometry. The atlas owns the
+/// shelf and the bytes; the book owns the order and the count. The
+/// eviction counter rides the observability idiom the caches already
+/// speak (`hits`, `misses`) — the ledger read a consumer tests against.
+pub struct Lru<K> {
+    tick: u64,
+    stamps: FxHashMap<K, u64>,
+    evictions: u64,
+}
+
+impl<K: Eq + std::hash::Hash + Copy> Lru<K> {
+    /// An empty book.
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            tick: 0,
+            stamps: FxHashMap::default(),
+            evictions: 0,
+        }
+    }
+
+    /// Records a hit: refreshes `key`'s stamp. Answers whether the key was
+    /// resident — the answer the atlas's hit path rides (a miss re-places).
+    pub fn touch(&mut self, key: &K) -> bool {
+        if let Some(stamp) = self.stamps.get_mut(key) {
+            self.tick += 1;
+            *stamp = self.tick;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Records a miss: admits `key` with a fresh stamp (the newest tick).
+    pub fn admit(&mut self, key: K) {
+        self.tick += 1;
+        self.stamps.insert(key, self.tick);
+    }
+
+    /// Withdraws `key` explicitly — the caller dropped the entry without
+    /// the policy evicting it (a stale-identity replacement, the atlas's
+    /// pointer-miss rule). Answers whether it was resident. Never counted:
+    /// the counter names policy evictions, not housekeeping.
+    pub fn withdraw(&mut self, key: &K) -> bool {
+        self.stamps.remove(key).is_some()
+    }
+
+    /// Takes the least-recently-used key — the eviction's victim — and
+    /// counts it. `None` when the book is empty (the atlas's stop signal:
+    /// nothing left to evict, the glyph oversized).
+    pub fn evict_lru(&mut self) -> Option<K> {
+        // Stamps are unique: every admit and touch takes a fresh tick, so
+        // the minimum is one key's, and the order is total.
+        let victim = self
+            .stamps
+            .iter()
+            .min_by_key(|(_, stamp)| *stamp)
+            .map(|(key, _)| *key)?;
+        self.stamps.remove(&victim);
+        self.evictions += 1;
+        Some(victim)
+    }
+
+    /// Policy evictions the book took (the ledger read).
+    #[must_use]
+    pub fn evictions(&self) -> u64 {
+        self.evictions
+    }
+
+    /// Resident keys.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.stamps.len()
+    }
+
+    /// `true` when nothing is resident.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.stamps.is_empty()
+    }
+}
+
+impl<K: Eq + std::hash::Hash + Copy> Default for Lru<K> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{CacheKey, LayoutCache};
+    use super::{CacheKey, LayoutCache, Lru};
     use crate::TextLayout;
 
     fn key(text: &str) -> CacheKey {
@@ -214,5 +308,85 @@ mod tests {
         let _ = cache.get(&k);
         assert_eq!(cache.hits(), 1);
         assert_eq!(cache.misses(), 1);
+    }
+
+    /// Atlas-shaped glyph keys (the book's consumer is the GPU atlas).
+    fn glyph_key(glyph_id: u32) -> alacer_core::scene::GlyphKey {
+        alacer_core::scene::GlyphKey {
+            font_id: 1,
+            glyph_id,
+            size_bits: 16.0_f32.to_bits(),
+        }
+    }
+
+    #[test]
+    fn eviction_takes_the_least_recently_used_key_in_order() {
+        let mut book = Lru::new();
+        book.admit(glyph_key(1));
+        book.admit(glyph_key(2));
+        book.admit(glyph_key(3));
+        // The refresh moves a key behind the two that stayed cold.
+        assert!(book.touch(&glyph_key(1)), "resident keys answer true");
+        assert_eq!(book.evict_lru(), Some(glyph_key(2)));
+        assert_eq!(book.evict_lru(), Some(glyph_key(3)));
+        assert_eq!(book.evict_lru(), Some(glyph_key(1)));
+        assert_eq!(book.evict_lru(), None, "an empty book refuses to evict");
+    }
+
+    #[test]
+    fn evictions_count_only_policy_evictions() {
+        let mut book = Lru::new();
+        book.admit(glyph_key(1));
+        book.admit(glyph_key(2));
+        assert!(book.evict_lru().is_some());
+        assert_eq!(book.evictions(), 1, "the policy eviction counts");
+        // The explicit withdrawal is housekeeping, not policy.
+        assert!(book.withdraw(&glyph_key(2)));
+        assert_eq!(book.evictions(), 1, "withdrawals never count");
+        assert!(!book.withdraw(&glyph_key(2)), "a dead key withdraws false");
+        book.admit(glyph_key(3));
+        assert!(book.evict_lru().is_some());
+        assert_eq!(book.evictions(), 2);
+    }
+
+    #[test]
+    fn touch_answers_residency_and_misses_stay_out() {
+        let mut book = Lru::new();
+        assert!(!book.touch(&glyph_key(7)), "an unknown key is no hit");
+        book.admit(glyph_key(7));
+        assert!(book.touch(&glyph_key(7)));
+        assert_eq!(book.len(), 1);
+        assert!(!book.is_empty());
+    }
+
+    #[test]
+    fn a_hot_working_set_survives_a_cold_stream() {
+        // The atlas's drive: admit a hot set, then stream cold keys past
+        // it, touching the hot set every cycle. A full-clear would wipe
+        // the hot keys at every capacity bound; the LRU's evictions take
+        // the cold tail instead.
+        let hot: Vec<_> = (0..8).map(glyph_key).collect();
+        let mut book = Lru::new();
+        for glyph in &hot {
+            book.admit(*glyph);
+        }
+        for cold in 100..140_u32 {
+            for glyph in &hot {
+                assert!(book.touch(glyph), "the hot set stays resident");
+            }
+            book.admit(glyph_key(cold));
+            // The capacity discipline the atlas drives: hold the hot set
+            // by evicting the LRU tail.
+            while book.len() > hot.len() + 1 {
+                assert!(book.evict_lru().is_some());
+            }
+        }
+        for glyph in &hot {
+            assert!(book.touch(glyph), "every hot key survived the stream");
+        }
+        // The first cold admission fills the book exactly (8 hot + 1 cold
+        // = the held bound); every later cycle evicts exactly one — 39 of
+        // the 40 cold keys paid an eviction, and no hot key did.
+        assert_eq!(book.evictions(), 39, "the cold stream paid the evictions");
     }
 }

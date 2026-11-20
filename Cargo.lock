@@ -212,6 +212,7 @@ version = "0.17.0"
 dependencies = [
  "alacer-core",
  "base64",
+ "criterion",
  "serde",
  "serde_json",
  "sha1",

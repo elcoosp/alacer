@@ -216,15 +216,15 @@ fn m134_the_living_documents_re_agree() {
     // the dialog tier's record.
     let readme = read("README.md");
     assert!(
-        readme.contains("M0 through M136"),
+        readme.contains("M0 through M138"),
         "the README status reflects the living cut — the chain cannot drift"
     );
     assert!(
-        readme.contains("a hundred and forty-one decision records"),
+        readme.contains("a hundred and forty-three decision records"),
         "the register grew the M134 row"
     );
     assert!(
-        read("docs/architecture.md").contains("a hundred and forty-one decision records"),
+        read("docs/architecture.md").contains("a hundred and forty-three decision records"),
         "the architecture carries the dialog fact's decision"
     );
 
@@ -244,7 +244,7 @@ fn m134_the_living_documents_re_agree() {
     // pin the corpus, and their pins re-agreed with it).
     let m81 = read("crates/alacer-testing/tests/m81_exit_criteria.rs");
     assert!(
-        m81.contains("M0 through M136"),
+        m81.contains("M0 through M138"),
         "the m81 suite's pins moved with the documents"
     );
 }

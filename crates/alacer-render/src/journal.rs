@@ -87,6 +87,7 @@ pub fn partition(scene: &SceneSnapshot) -> SceneBatches {
         match primitive {
             Primitive::Quad(quad) => batches.quads.push(*quad),
             Primitive::Glyph(glyph) => batches.glyphs.push(*glyph),
+            Primitive::Image(image) => batches.images.push(image.clone()),
         }
     }
     batches
@@ -99,6 +100,9 @@ pub struct SceneBatches {
     pub quads: Vec<alacer_core::scene::Quad>,
     /// All glyphs in paint order.
     pub glyphs: Vec<alacer_core::scene::Glyph>,
+    /// All raster image blits in paint order (the rasters ride by `Arc` —
+    /// the partition clones the handle, never the bytes).
+    pub images: Vec<alacer_core::scene::Image>,
 }
 
 #[cfg(test)]
@@ -191,11 +195,25 @@ mod tests {
                     glyph_id: 65,
                     clip: None,
                 }),
+                Primitive::Image(alacer_core::scene::Image {
+                    bytes: std::sync::Arc::from(vec![255_u8, 0, 0, 255].into_boxed_slice()),
+                    width: 1,
+                    height: 1,
+                    src: Rect::new(Point::new(0.0, 0.0), Size::new(1.0, 1.0)),
+                    dst: Rect::new(Point::new(4.0, 4.0), Size::new(8.0, 8.0)),
+                    clip: None,
+                    sampling: alacer_core::scene::ImageSampling::Nearest,
+                }),
             ],
         );
         let snapshot = journal.snapshot(&[node]);
         let batches = partition(&snapshot);
         assert_eq!(batches.quads.len(), 1);
         assert_eq!(batches.glyphs.len(), 1);
+        assert_eq!(batches.images.len(), 1, "the raster rides its own batch");
+        assert_eq!(
+            batches.images[0].dst,
+            Rect::new(Point::new(4.0, 4.0), Size::new(8.0, 8.0))
+        );
     }
 }

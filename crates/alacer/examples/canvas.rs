@@ -1,5 +1,8 @@
 //! The canvas (M82): the app's own paint closure through the paint seam —
-//! a tone's level bar that follows the slider, one signal write away.
+//! a tone's level bar that follows the slider, one signal write away, over
+//! a procedural raster the closure blits through `push_image` — the same
+//! raster-tier primitive the `Image` widget records, proving the seam at
+//! the app's own drawing surface.
 //!
 //! Run with `cargo run -p alacer --example canvas`. The slider's change
 //! handler writes one signal inside one batch (the ADR-6 contract); the
@@ -14,8 +17,30 @@ use alacer::widgets::{BoxedWidget as _, Canvas, Column, Label, Slider};
 use alacer_core::Change;
 use alacer_core::color::Color;
 use alacer_core::flux::RenderBinding;
-use alacer_core::geom::{Point, Rect};
+use alacer_core::geom::{Point, Rect, Size};
+use alacer_core::num::u32_to_f32;
+use alacer_core::scene::{Image, ImageSampling};
 use reactive_graph::traits::Set as _;
+
+/// The checker's bitmap edge in pixels: 8 cells of 8 px.
+const CHECKER_PX: u32 = 64;
+
+/// Builds the painter's procedural raster: a `cells × cells` checkerboard
+/// of `cell_px` squares, premultiplied RGBA8, row-major — every cell
+/// opaque (a = 255), so the premultiplied bytes equal the straight ones,
+/// the byte contract the image primitive documents.
+fn checker_raster(cells: u32, cell_px: u32) -> Vec<u8> {
+    let edge = cells * cell_px;
+    let mut bytes = Vec::with_capacity((edge * edge * 4) as usize);
+    for y in 0..edge {
+        for x in 0..edge {
+            let light = ((x / cell_px) + (y / cell_px)).is_multiple_of(2);
+            let (r, g, b) = if light { (31, 122, 77) } else { (24, 24, 30) };
+            bytes.extend_from_slice(&[r, g, b, 255]);
+        }
+    }
+    bytes
+}
 
 fn main() {
     let mut pipeline = pipeline_default();
@@ -30,6 +55,10 @@ fn main() {
     // The painter's own read door: an `Rc`-cheap clone of the same
     // binding, so the bridge's writes are visible at paint time.
     let paint_binding = binding.clone();
+    // The procedural raster the painter blits: built once outside the
+    // closure, shared through one `Arc` allocation — the image primitive's
+    // own sharing rule (app, journal, and renderers read the same bytes).
+    let checker: std::sync::Arc<[u8]> = checker_raster(8, 8).into();
 
     let canvas = pipeline.add_child(
         root,
@@ -46,6 +75,23 @@ fn main() {
                     border_color: palette.border,
                     border_width: 1.0,
                     clip: None,
+                });
+                // The raster tier through the app's own closure: the
+                // checker blits through `push_image`, scaled into the
+                // whole rail with crisp texel copies (`Nearest`) — the
+                // same primitive the `Image` widget records, now proving
+                // the seam at the app's own drawing surface.
+                ctx.push_image(Image {
+                    bytes: std::sync::Arc::clone(&checker),
+                    width: CHECKER_PX,
+                    height: CHECKER_PX,
+                    src: Rect::new(
+                        Point::new(0.0, 0.0),
+                        Size::new(u32_to_f32(CHECKER_PX), u32_to_f32(CHECKER_PX)),
+                    ),
+                    dst: Rect::new(Point::new(0.0, 0.0), size),
+                    clip: None,
+                    sampling: ImageSampling::Nearest,
                 });
                 // The level bar: the binding's share of the rail, painted
                 // in the canon accent (the fact a signal write moved).

@@ -17,7 +17,7 @@ use alacer_view::{ElementProps, WidgetRegistry};
 /// (`toolbar`) plus the M130 switch tier (`switch`) plus the M131
 /// tab-panel tier (`tab_panel`) plus the M133 meter tier (`meter`)
 /// plus the M134 dialog tier (`dialog`) plus the M135 tree tier (`tree`,
-/// `tree_item`).
+/// `tree_item`) plus the M136 tooltip tier (`tooltip`).
 #[must_use]
 pub fn default_registry() -> WidgetRegistry {
     let mut registry = WidgetRegistry::new();
@@ -51,6 +51,7 @@ pub fn default_registry() -> WidgetRegistry {
     registry.register("dialog", dialog_create, dialog_patch);
     registry.register("tree", tree_create, tree_patch);
     registry.register("tree_item", tree_item_create, tree_item_patch);
+    registry.register("tooltip", tooltip_create, tooltip_patch);
     registry
 }
 
@@ -1125,6 +1126,25 @@ fn tree_item_patch(member: &mut crate::TreeItem, props: &ElementProps<'_>) -> bo
         member.set_position_in_set(Some(position_in_set));
     }
     style_apply(member.style_mut(), props);
+    style_visual_diff(props) || visual
+}
+
+/// The tooltip element (`tooltip { name: … }` — M136): the named help
+/// bubble the pointer pair summons — the help's vertical layout, never
+/// a second channel to it.
+fn tooltip_create(props: &ElementProps<'_>) -> crate::Tooltip {
+    let mut bubble = crate::Tooltip::new(props.text("name").unwrap_or_default());
+    style_apply(bubble.style_mut(), props);
+    bubble
+}
+
+fn tooltip_patch(bubble: &mut crate::Tooltip, props: &ElementProps<'_>) -> bool {
+    let mut visual = false;
+    if let Some(name) = props.text("name") {
+        bubble.set_name(name);
+        visual = true;
+    }
+    style_apply(bubble.style_mut(), props);
     style_visual_diff(props) || visual
 }
 

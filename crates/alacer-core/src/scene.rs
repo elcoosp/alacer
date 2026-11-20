@@ -56,6 +56,47 @@ pub struct Glyph {
     pub clip: Option<Rect>,
 }
 
+/// How a raster image samples its source pixels when `src` and `dst` differ
+/// in size: crisp texel copies (`Nearest`, the honest default for UI
+/// rasters) or blended edges (`Bilinear`, for scaled thumbnails).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ImageSampling {
+    /// Texel copies: each destination pixel reads its nearest source pixel.
+    Nearest,
+    /// Blended sampling: destination pixels average their source neighbors.
+    Bilinear,
+}
+
+/// One raster image blit (the raster tier): premultiplied RGBA8 pixels
+/// sampled from `src` (a window in bitmap space) into `dst` (absolute
+/// scene space). The bytes ride an [`std::sync::Arc`] — app, journal, and
+/// renderers share one allocation, the glyph coverage's own sharing rule.
+///
+/// The byte contract is **premultiplied** RGBA8, row-major, exactly
+/// `width · height · 4` bytes: blending (software and GPU both) consumes
+/// premultiplied colors directly, and the premultiplied form is what PNG
+/// decode produces. A raster whose bytes cannot hold its declared
+/// dimensions, whose source or destination is empty, or whose premultiplied
+/// channels exceed their alpha is refused honestly — renderers draw
+/// nothing for it, never a guessed pixel.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Image {
+    /// Premultiplied RGBA8 pixels, row-major.
+    pub bytes: std::sync::Arc<[u8]>,
+    /// Bitmap width in pixels.
+    pub width: u32,
+    /// Bitmap height in pixels.
+    pub height: u32,
+    /// The source window, in bitmap pixel coordinates.
+    pub src: Rect,
+    /// The destination rect, in absolute scene coordinates.
+    pub dst: Rect,
+    /// Effective clip rect at record time.
+    pub clip: Option<Rect>,
+    /// How `src` scales into `dst` when their sizes differ.
+    pub sampling: ImageSampling,
+}
+
 /// One recorded paint operation.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Primitive {
@@ -63,6 +104,8 @@ pub enum Primitive {
     Quad(Quad),
     /// A positioned glyph.
     Glyph(Glyph),
+    /// A raster image blit (the raster tier).
+    Image(Image),
 }
 
 /// Sink the paint pass records primitives into — implemented by the
@@ -220,6 +263,16 @@ impl<'a> PaintCtx<'a> {
         }));
     }
 
+    /// Records one raster image blit; `dst` is relative to this node's
+    /// origin (the source window rides bitmap coordinates untouched).
+    pub fn push_image(&mut self, image: Image) {
+        self.sink.push(Primitive::Image(Image {
+            dst: image.dst.translate(self.origin.to_vector()),
+            clip: self.clip,
+            ..image
+        }));
+    }
+
     /// This node's absolute origin.
     #[must_use]
     pub fn origin(&self) -> Point {
@@ -258,7 +311,9 @@ pub fn inflate(rect: Rect, margin: f32) -> Rect {
 /// glyphs span a generous box around the baseline origin, because bitmap
 /// metrics belong to the font (up to ~1.05 em above the baseline, ~0.45 em
 /// below, ±0.5 em horizontally) and the pipeline must not depend on font
-/// internals to compute damage.
+/// internals to compute damage; images span their destination rect plus the
+/// AA margin — sampling reads inside `src` and writes inside `dst`, so the
+/// destination is the whole render footprint.
 #[must_use]
 pub fn primitive_extent(primitive: &Primitive) -> Rect {
     match primitive {
@@ -276,6 +331,7 @@ pub fn primitive_extent(primitive: &Primitive) -> Rect {
                 ),
             )
         }
+        Primitive::Image(image) => inflate(image.dst, PAINT_DAMAGE_MARGIN),
     }
 }
 
@@ -380,5 +436,54 @@ mod tests {
             panic!("expected glyph");
         };
         assert_eq!(glyph.position, Point::new(102.0, 58.0));
+    }
+
+    #[test]
+    fn paint_ctx_translates_image_destinations() {
+        let mut sink = Collector::default();
+        let mut ctx = PaintCtx::new(
+            &mut sink,
+            Point::new(100.0, 50.0),
+            crate::geom::Size::new(10.0, 10.0),
+            Some(crate::geom::Rect::new(
+                Point::new(0.0, 0.0),
+                Size::new(50.0, 50.0),
+            )),
+            crate::theme::Palette::CANON,
+            false,
+            false,
+            false,
+            None,
+        );
+
+        ctx.push_image(super::Image {
+            bytes: std::sync::Arc::from(vec![255_u8, 0, 0, 255].into_boxed_slice()),
+            width: 1,
+            height: 1,
+            src: Rect::new(Point::new(0.0, 0.0), Size::new(1.0, 1.0)),
+            dst: Rect::new(Point::new(2.0, 3.0), Size::new(4.0, 4.0)),
+            clip: None,
+            sampling: super::ImageSampling::Nearest,
+        });
+
+        assert_eq!(sink.0.len(), 1);
+        let Primitive::Image(image) = &sink.0[0] else {
+            panic!("expected image");
+        };
+        assert_eq!(
+            image.dst,
+            Rect::new(Point::new(102.0, 53.0), Size::new(4.0, 4.0)),
+            "the destination rides absolute coordinates"
+        );
+        assert_eq!(
+            image.clip,
+            Some(Rect::new(Point::new(0.0, 0.0), Size::new(50.0, 50.0))),
+            "the clip stack rides"
+        );
+        assert_eq!(
+            image.src.size,
+            Size::new(1.0, 1.0),
+            "the source window stays in bitmap space"
+        );
     }
 }

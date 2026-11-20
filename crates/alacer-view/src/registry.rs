@@ -155,6 +155,17 @@ impl<'a> ElementProps<'a> {
             _ => None,
         }
     }
+
+    /// An embedded-raster prop (`pixels: Pixels::new(…)`): the premultiplied
+    /// RGBA8 bytes and dimensions the image element presents (the raster
+    /// tier). The clone rides the bytes' `Arc` — the buffer is never copied.
+    #[must_use]
+    pub fn pixels(&self, name: &str) -> Option<crate::view::Pixels> {
+        match self.props.get(name)? {
+            crate::view::PropValue::Pixels(pixels) => Some(pixels.clone()),
+            _ => None,
+        }
+    }
 }
 
 /// A boxed text-carrying handler, ready to hang on a widget.

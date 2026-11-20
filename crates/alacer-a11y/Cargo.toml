@@ -20,6 +20,14 @@ rustc-hash.workspace = true
 
 [dev-dependencies]
 criterion.workspace = true
+# The canon tree-shape proof (tests/canon_tree_shape.rs): the *composed*
+# canons ride the headless harness (TestHarness + the real pipeline) so the
+# proof reads this crate's own sink output — a dev-only cycle (alacer-testing
+# depends on alacer-a11y), the shape cargo's dev-dependencies exist for. The
+# runtime DAG stays foundation-only (ADR-9); the edges are dev-scoped and
+# pinned in scripts/check_dag.py's allowed set.
+alacer-widgets.workspace = true
+alacer-testing.workspace = true
 
 [[bench]]
 name = "tree_update"

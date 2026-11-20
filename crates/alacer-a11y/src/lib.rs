@@ -128,6 +128,20 @@ pub fn map_role(role: Role) -> AccessKitRole {
         // grown to its third word (the M127 tab/tab-list pair beside
         // this branch), no patch-tier growth.
         Role::TabPanel => AccessKitRole::TabPanel,
+        // The meter (M133, ADR-0137): the "reads as a gauge" fact
+        // AccessKit's own meter role spells — a scalar measurement on
+        // the scale the app declared, never the progress tier's task
+        // word. The reading rides the value tier's own properties (the
+        // `NumericValue` / `MinNumericValue` / `MaxNumericValue` set
+        // the sink maps at the M97/M99 tiers), no second branch.
+        Role::Meter => AccessKitRole::Meter,
+        // The dialog (M134, ADR-0138): the "reads as a modal window"
+        // fact AccessKit's own dialog role spells — the named container
+        // the AT announces before it walks the conversation; the
+        // children keep the roles the members already carry, the
+        // M126/M129 container rule at the modal tier, no patch-tier
+        // growth.
+        Role::Dialog => AccessKitRole::Dialog,
     }
 }
 
@@ -969,6 +983,14 @@ mod tests {
         // content lives in — AccessKit's own `TabPanel`, the third word
         // beside the tab pair's member and strip.
         assert_eq!(map_role(Role::TabPanel), AkRole::TabPanel);
+        // The M133 meter tier: the scalar measurement the AT reads as
+        // a gauge — AccessKit's own `Meter`, the value words riding
+        // the M97/M99 properties the sink maps generically.
+        assert_eq!(map_role(Role::Meter), AkRole::Meter);
+        // The M134 dialog tier: the window the modal vocabulary
+        // speaks as "this is a dialog" — AccessKit's own `Dialog`,
+        // the named-container shape at the modal tier.
+        assert_eq!(map_role(Role::Dialog), AkRole::Dialog);
     }
 
     #[test]

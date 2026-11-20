@@ -34,6 +34,15 @@ pub struct Hello {
 pub enum ClientMessage {
     /// Clear the server-side history (the client keeps its own buffer).
     Clear,
+    /// Ask the server to replay the facts its rings hold — the durable
+    /// per-tier history a reconnecting panel never sees through the
+    /// shared broadcast queue (whose contents a first session's drain
+    /// already took). The answer is one burst of the rings' events,
+    /// oldest first per trail, in the event vocabulary's order; the
+    /// ask drains nothing, so facts a session saw live may repeat in
+    /// the burst — the client folds the duplicates (the additive
+    /// control ADR-0010's versioning rule admits at version 1).
+    Replay,
     /// The client is going away; the server closes the socket.
     Bye,
 }

@@ -183,6 +183,37 @@ pub enum Role {
     /// (ADR-0031's `focus_move_in`), never a second channel: the word
     /// names the window, the walk bounds it.
     Dialog,
+    /// The named collection the AT walks by disclosure and depth (the
+    /// tree tier's container half, M135, ADR-0139): the "reads as a
+    /// hierarchical collection" fact AccessKit's own `Tree` role
+    /// spells — not a table wearing the wrong geometry (a grid's
+    /// geometry is rows × columns; a tree's is parentage) and not a
+    /// bare list whose members cannot say what branches they stand
+    /// in. The hierarchy *is* the arena's own nesting — the member
+    /// word ([`Role::TreeItem`]) rides under the container exactly a
+    /// row's cells ride under the table — and the container carries
+    /// the collection words the tiers already published: the M119
+    /// span word ([`Widget::size_of_set`]), the M109 capacity word
+    /// ([`Widget::multiselectable`]), the M117 updating word
+    /// ([`Widget::busy`]), the M120 declared region ([`Widget::live`]).
+    /// An unnamed collection reads as a bare box — the ADR-5 rule the
+    /// named roles carry.
+    Tree,
+    /// One member of a hierarchical collection (the tree tier's member
+    /// half, M135, ADR-0139): the "reads as a branch or a leaf" fact
+    /// AccessKit's own `TreeItem` role spells — not a row wearing the
+    /// wrong container (a table row stands in a grid; a tree item
+    /// stands in parentage). The words the member says are the tiers
+    /// the tree already published, never a second vocabulary: the M108
+    /// pick ([`Widget::selected`]), the M110 disclosure
+    /// ([`Widget::expanded`]), the M113 depth ([`Widget::level`]), the
+    /// M119 place ([`Widget::position_in_set`]). The member's children
+    /// ride the arena exactly a row's cells do — nested items under a
+    /// branch, the app's own controls under either — and a tree item
+    /// holds no focus and answers no activation (the M126/M129
+    /// container rule, at the tree tier). An unnamed member reads as a
+    /// bare mark — the ADR-5 rule the named roles carry.
+    TreeItem,
 }
 
 impl Role {
@@ -213,7 +244,10 @@ impl Role {
     /// number — the M21 progress rule's own shape, at the meter tier.
     /// The dialog joins in M134: an unnamed window reads as a bare
     /// box — the named-container rule the strip and the tool strip
-    /// carry, at the modal tier.
+    /// carry, at the modal tier. The tree and its items join in M135:
+    /// an unnamed collection reads as a bare box, an unnamed member a
+    /// bare mark — the named-container rule the strip and the tool
+    /// strip carry, at the hierarchical tier.
     #[must_use]
     pub const fn requires_name(self) -> bool {
         matches!(
@@ -236,6 +270,8 @@ impl Role {
                 | Self::TabPanel
                 | Self::Meter
                 | Self::Dialog
+                | Self::Tree
+                | Self::TreeItem
         )
     }
 
@@ -272,6 +308,8 @@ impl Role {
             Self::TabPanel => "tab_panel",
             Self::Meter => "meter",
             Self::Dialog => "dialog",
+            Self::Tree => "tree",
+            Self::TreeItem => "tree_item",
         }
     }
 }

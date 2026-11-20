@@ -35,6 +35,7 @@ mod tab_panel;
 mod table;
 mod text_input;
 mod toolbar;
+mod tree;
 
 pub use button::Button;
 pub use canon::{DataTableHandles, TodoHandles, TodoItem, data_table_app, todo_app};
@@ -59,6 +60,7 @@ pub use tab_panel::TabPanel;
 pub use table::{ColumnHeader, Table, TableCell, TableRow};
 pub use text_input::TextInput;
 pub use toolbar::Toolbar;
+pub use tree::{Tree, TreeItem};
 
 use alacer_core::widget::Widget;
 

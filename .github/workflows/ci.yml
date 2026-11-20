@@ -213,3 +213,18 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Headless tests (software backend)
         run: cargo test -p alacer-core -p alacer-layout -p alacer-view -p alacer-widgets -p alacer-a11y
+
+  macos-smoke:
+    name: macos build (smoke)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install Rust (rust-toolchain.toml)
+        run: rustup show active-toolchain
+      - uses: Swatinem/rust-cache@v2
+      - name: The workspace checks on the winit/wgpu path
+        run: cargo check --workspace --all-features
+      - name: Headless tests (display-free crates)
+        run: cargo test -p alacer-core -p alacer-layout -p alacer-view -p alacer-widgets

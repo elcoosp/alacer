@@ -1216,12 +1216,34 @@ fn menu_item_patch(entry: &mut crate::MenuItem, props: &ElementProps<'_>) -> boo
     style_visual_diff(props) || visual
 }
 
-/// The image element (`image { name: …, description: … }` — M138): the
-/// image tier's DSL door, the word the pixels' app owns.
+/// The sampling prop's word (`sampling: "nearest" | "bilinear"`): the
+/// raster tier's sampling enum spelled the checkbox `state` word's way —
+/// unknown words refused by absence (the patcher applies only the props
+/// it understands).
+fn sampling_word(word: &str) -> Option<alacer_core::scene::ImageSampling> {
+    match word {
+        "nearest" => Some(alacer_core::scene::ImageSampling::Nearest),
+        "bilinear" => Some(alacer_core::scene::ImageSampling::Bilinear),
+        _ => None,
+    }
+}
+
+/// The image element (`image { name: …, description: …, pixels: …,
+/// sampling: … }` — M138): the image tier's DSL door, the word the
+/// pixels' app owns — the raster word riding the same door the tier
+/// already had.
 fn image_create(props: &ElementProps<'_>) -> crate::Image {
     let mut picture = crate::Image::new(props.text("name").unwrap_or_default());
     if let Some(description) = props.text("description") {
         picture = picture.description(description);
+    }
+    if let Some(pixels) = props.pixels("pixels") {
+        picture = picture.pixels(pixels.bytes, pixels.width, pixels.height);
+    }
+    if let Some(word) = props.text("sampling")
+        && let Some(sampling) = sampling_word(word)
+    {
+        picture = picture.sampling(sampling);
     }
     style_apply(picture.style_mut(), props);
     picture
@@ -1238,6 +1260,18 @@ fn image_patch(picture: &mut crate::Image, props: &ElementProps<'_>) -> bool {
     // write itself reporting whether it moved (the idle-frame property).
     if let Some(description) = props.text("description") {
         picture.set_description(Some(description.to_string()));
+    }
+    // The raster word (the raster tier): the buffer's identity is the
+    // repaint contract (the painter's own rule) — a rebuilt buffer reports
+    // visual, a write that lands where the bytes already are queues
+    // nothing (the idle-frame property, at the raster tier).
+    if let Some(pixels) = props.pixels("pixels") {
+        visual |= picture.set_pixels(pixels.bytes, pixels.width, pixels.height);
+    }
+    if let Some(word) = props.text("sampling")
+        && let Some(sampling) = sampling_word(word)
+    {
+        visual |= picture.set_sampling(sampling);
     }
     style_apply(picture.style_mut(), props);
     style_visual_diff(props) || visual

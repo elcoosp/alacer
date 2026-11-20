@@ -981,6 +981,21 @@ Clears the server-side history (rings and latest frame). The client keeps
 its own buffer.
 
 ```json
+{"kind":"replay"}
+```
+Asks the server to replay the facts its rings hold — the durable per-tier
+history a reconnecting panel never sees through the shared broadcast queue
+(whose contents a first session's drain already took). The answer is one
+burst of the rings' events, oldest first per trail, in the event
+vocabulary's order (§ above, the kinds' own sequence), the frames last.
+The ask drains nothing: the broadcast queue is untouched, the rings keep
+their contents, so facts the session saw live may repeat in the burst —
+the client folds the duplicates. An empty history answers an empty burst
+(the session simply keeps serving). Additive at version 1: servers older
+than the ask close the session on the unknown control, the documented
+unknown-frame behavior — a client that needs the ask can probe or reconnect.
+
+```json
 {"kind":"bye"}
 ```
 Ends the session; the server echoes `close` and the socket closes. Any
@@ -995,7 +1010,8 @@ malformed text frame is treated as `bye`.
   inputs 512, focus 512, edits 512, announces 512, keys 512,
   clipboards 512, values 512, gestures 512, scrolls 512, text_writes 512,
   route_drops 512, key_edits 512, preedits 512, a11y_echoes 512, actions
-  512); `clear` empties them.
+  512, frame_refusals 512, view_patches 512, themes 512, settings 512);
+  `clear` empties them; `replay` reads them without disturbing.
 - Recording is opt-in: the pipeline forwards only when an observer is
   installed, and the flux records activations and provenance only when
   `Flux::set_causal_capture(true)`. With both off, the framework's default

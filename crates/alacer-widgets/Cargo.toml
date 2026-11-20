@@ -1,6 +1,6 @@
 [package]
 name = "alacer-widgets"
-description = "Alacer's widget library: the M0 canon (label, button, column, row, spacer, panel, list), the M6 checkbox and data-table canons, the M3 text input, the value tier (slider, spin button, progress), the named-container and control vocabulary (radio, link, heading, tab, tab panel, toolbar, switch, meter, dialog, tree), the canvas, and the todo/data-table app canons"
+description = "Alacer's widget library: the M0 canon (label, button, column, row, spacer, panel, list), the M6 checkbox and data-table canons, the M3 text input, the value tier (slider, spin button, progress), the named-container and control vocabulary (radio, link, heading, tab, tab panel, toolbar, switch, meter, dialog, tree, tooltip), the canvas, and the todo/data-table app canons"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -67,4 +67,8 @@ harness = false
 
 [[bench]]
 name = "search_field"
+harness = false
+
+[[bench]]
+name = "tooltip"
 harness = false

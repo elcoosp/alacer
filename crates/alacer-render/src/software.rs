@@ -13,8 +13,10 @@
 
 use alacer_core::color::Color;
 use alacer_core::damage::Damage;
-use alacer_core::num::{f32_to_i32, f32_to_u8};
-use alacer_core::scene::{Glyph, GlyphSource, Primitive, Quad, SceneSnapshot, primitive_extent};
+use alacer_core::num::{f32_to_i32, f32_to_u8, u32_to_f32};
+use alacer_core::scene::{
+    Glyph, GlyphSource, Image, ImageSampling, Primitive, Quad, SceneSnapshot, primitive_extent,
+};
 use std::sync::Arc;
 use tiny_skia::{
     FillRule, FilterQuality, Mask, Paint, Path, PathBuilder, Pixmap, PixmapPaint,
@@ -57,6 +59,7 @@ impl SoftwareRenderer {
                     Primitive::Glyph(glyph) => {
                         Self::draw_glyph(&mut painter, glyph, glyphs, None);
                     }
+                    Primitive::Image(image) => Self::draw_image(&mut painter, image, None),
                 }
             }
         }
@@ -121,6 +124,9 @@ impl SoftwareRenderer {
                     }
                     Primitive::Glyph(glyph) => {
                         Self::draw_glyph(&mut painter, glyph, glyphs, scissor.as_ref());
+                    }
+                    Primitive::Image(image) => {
+                        Self::draw_image(&mut painter, image, scissor.as_ref());
                     }
                 }
             }
@@ -200,6 +206,124 @@ impl SoftwareRenderer {
                 quality: FilterQuality::Nearest,
             },
             Transform::identity(),
+            clip.as_ref(),
+        );
+    }
+
+    /// Blits one raster image: the source window crops into a premultiplied
+    /// stamp, the destination maps it (1:1 blits are pixel-exact integer
+    /// copies; scaled ones sample per [`ImageSampling`]), and the mask is
+    /// the same combined clip + partial-paint scissor the quads and glyphs
+    /// honor — the Q8 equivalence holds for images because the image path
+    /// touches only pixels its region owns, exactly like the other kinds.
+    ///
+    /// The honest refusals draw nothing: missing bytes, bytes that cannot
+    /// hold the declared dimensions, an empty source window, a non-positive
+    /// destination, or malformed premultiplied pixels (a channel above its
+    /// own alpha) — never a guessed pixel.
+    fn draw_image(
+        painter: &mut tiny_skia::PixmapMut<'_>,
+        image: &Image,
+        extra_scissor: Option<&Mask>,
+    ) {
+        if image.bytes.is_empty() || image.width == 0 || image.height == 0 {
+            return;
+        }
+        let pixels_count = usize::try_from(image.width)
+            .ok()
+            .and_then(|w| {
+                usize::try_from(image.height)
+                    .ok()
+                    .and_then(|h| w.checked_mul(h))
+            })
+            .and_then(|pixels| pixels.checked_mul(4));
+        let Some(expected) = pixels_count else {
+            return;
+        };
+        if image.bytes.len() < expected {
+            return;
+        }
+        if image.dst.size.width <= 0.0 || image.dst.size.height <= 0.0 {
+            return;
+        }
+
+        // The source window, clamped to the bitmap's pixel bounds.
+        let bitmap_w = i32::try_from(image.width).unwrap_or(i32::MAX);
+        let bitmap_h = i32::try_from(image.height).unwrap_or(i32::MAX);
+        let x0 = f32_to_i32(image.src.origin.x).clamp(0, bitmap_w);
+        let y0 = f32_to_i32(image.src.origin.y).clamp(0, bitmap_h);
+        let x1 = f32_to_i32(image.src.origin.x + image.src.size.width).clamp(0, bitmap_w);
+        let y1 = f32_to_i32(image.src.origin.y + image.src.size.height).clamp(0, bitmap_h);
+        let (src_w, src_h) = (x1 - x0, y1 - y0);
+        if src_w <= 0 || src_h <= 0 {
+            return;
+        }
+        let (src_w, src_h) = (
+            u32::try_from(src_w).unwrap_or(0),
+            u32::try_from(src_h).unwrap_or(0),
+        );
+
+        let Some(mut stamp) = Pixmap::new(src_w, src_h) else {
+            return;
+        };
+        {
+            let stamp_pixels = stamp.pixels_mut();
+            let row_stride = i64::from(bitmap_w);
+            for row in 0..src_h {
+                for col in 0..src_w {
+                    let index = (i64::from(y0 + i32::try_from(row).unwrap_or(0)) * row_stride)
+                        + i64::from(x0 + i32::try_from(col).unwrap_or(0));
+                    let byte = |offset: i64| -> u8 {
+                        let index = usize::try_from(index * 4 + offset).unwrap_or(usize::MAX);
+                        image.bytes.get(index).copied().unwrap_or(0)
+                    };
+                    // The bytes are premultiplied already; a malformed pixel
+                    // (a channel above its alpha) is refused by absence.
+                    if let Some(pixel) =
+                        PremultipliedColorU8::from_rgba(byte(0), byte(1), byte(2), byte(3))
+                    {
+                        let slot = usize::try_from(row).ok().and_then(|r| {
+                            usize::try_from(src_w).ok().and_then(|w| {
+                                r.checked_mul(w).and_then(|base| {
+                                    base.checked_add(usize::try_from(col).unwrap_or(0))
+                                })
+                            })
+                        });
+                        if let Some(slot) = slot
+                            && let Some(target) = stamp_pixels.get_mut(slot)
+                        {
+                            *target = pixel;
+                        }
+                    }
+                }
+            }
+        }
+
+        let clip = combined_mask(image.clip, extra_scissor, painter.width(), painter.height());
+        let quality = match image.sampling {
+            ImageSampling::Nearest => FilterQuality::Nearest,
+            ImageSampling::Bilinear => FilterQuality::Bilinear,
+        };
+        let scale_x = image.dst.size.width / u32_to_f32(src_w);
+        let scale_y = image.dst.size.height / u32_to_f32(src_h);
+        let transform = Transform::from_row(
+            scale_x,
+            0.0,
+            0.0,
+            scale_y,
+            image.dst.origin.x,
+            image.dst.origin.y,
+        );
+        painter.draw_pixmap(
+            0,
+            0,
+            stamp.as_ref(),
+            &PixmapPaint {
+                opacity: 1.0,
+                blend_mode: tiny_skia::BlendMode::SourceOver,
+                quality,
+            },
+            transform,
             clip.as_ref(),
         );
     }
@@ -384,6 +508,22 @@ pub fn solid_bitmap(w: u32, h: u32, left: i32, top: i32) -> alacer_core::scene::
         height: h,
         coverage: Arc::from(vec![255_u8; len].into_boxed_slice()),
     }
+}
+
+/// Decodes a PNG into the raster image primitive's byte contract:
+/// premultiplied RGBA8, row-major, beside its pixel dimensions. Returns
+/// `None` when `png` is not a decodable PNG — the honest absence, never a
+/// guessed raster. This is the consumer door the embedded-asset path rides
+/// (`include_bytes!` + this decode = a picture in the journal).
+#[must_use]
+pub fn decode_png_rgba(png: &[u8]) -> Option<(u32, u32, Arc<[u8]>)> {
+    let pixmap = Pixmap::decode_png(png).ok()?;
+    let width = pixmap.width();
+    let height = pixmap.height();
+    // tiny-skia's pixmap rows are already premultiplied RGBA — the
+    // primitive's contract verbatim, copied as decoded.
+    let rgba = pixmap.data().to_vec();
+    Some((width, height, Arc::from(rgba.into_boxed_slice())))
 }
 
 #[cfg(test)]

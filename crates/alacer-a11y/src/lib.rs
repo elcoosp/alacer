@@ -155,6 +155,13 @@ pub fn map_role(role: Role) -> AccessKitRole {
         // M110, M113 and M119 tiers published (the properties the sink
         // maps generically), never a second vocabulary.
         Role::TreeItem => AccessKitRole::TreeItem,
+        // The tooltip (M136, ADR-0140): the named help bubble the
+        // pointer pair summons. AccessKit's tooltip role says exactly
+        // that — the AT announces the bubble while it is up; the
+        // children keep the roles the members already carry, the
+        // M126/M129 container rule at the hover tier, no patch-tier
+        // growth.
+        Role::Tooltip => AccessKitRole::Tooltip,
     }
 }
 
@@ -1010,6 +1017,10 @@ mod tests {
         // M119 properties the sink maps generically.
         assert_eq!(map_role(Role::Tree), AkRole::Tree);
         assert_eq!(map_role(Role::TreeItem), AkRole::TreeItem);
+        // The M136 tooltip tier: the help bubble the pointer pair
+        // summons — AccessKit's own `Tooltip`, the named-container
+        // shape at the hover tier.
+        assert_eq!(map_role(Role::Tooltip), AkRole::Tooltip);
     }
 
     #[test]

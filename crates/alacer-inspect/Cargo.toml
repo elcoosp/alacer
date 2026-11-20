@@ -23,3 +23,13 @@ base64.workspace = true
 # the adopted core every other crate already rides, so no new dependency
 # enters the graph.
 tracing.workspace = true
+
+[dev-dependencies]
+# The replay burst's cost benchmark (`benches/replay.rs`): the connect-time
+# price the reconnection experience pays, measured like every other
+# workspace contract.
+criterion.workspace = true
+
+[[bench]]
+name = "replay"
+harness = false

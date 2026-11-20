@@ -2,7 +2,10 @@
 //! socket, a raw TCP client doing the RFC 6455 handshake, and the JSON
 //! stream pinned against `docs/inspector-protocol.md`.
 
-use alacer_core::inspect::{InputKind, InputRecord, InspectEvent, InspectObserver as _};
+use alacer_core::inspect::{
+    InputKind, InputRecord, InspectEvent, InspectObserver as _, SettingRecord, SignalWrite,
+    ThemeRecord,
+};
 use alacer_inspect::{CausalRecorder, InspectorServer};
 use std::io::{BufRead as _, BufReader, Read, Write};
 use std::net::TcpStream;
@@ -520,4 +523,215 @@ fn dummy_frame(number: u64) -> alacer_core::inspect::FrameSummary {
         dirty: Vec::new(),
         dirty_truncated: 0,
     }
+}
+
+/// Sends one masked client text frame (the RFC's client-side masking
+/// rule) carrying `text` as the payload.
+fn send_client_text(mut socket: &TcpStream, text: &[u8]) {
+    let mut frame_bytes = vec![0x81_u8, 0x80 | alacer_core::num::usize_to_u8(text.len())];
+    frame_bytes.extend_from_slice(&[0_u8, 0, 0, 0]);
+    frame_bytes.extend_from_slice(text);
+    socket
+        .write_all(frame_bytes.as_slice())
+        .expect("client frame");
+}
+
+#[test]
+fn a_replay_ask_returns_the_history_the_rings_hold() {
+    let recorder = CausalRecorder::new("replay");
+    // The facts a first session lived through, recorded before any
+    // socket exists: the rings are the durable history.
+    recorder
+        .clone_handle()
+        .observe(InspectEvent::Write(SignalWrite {
+            signal: 7,
+            sequence: 1,
+            origin: std::borrow::Cow::Borrowed("user click"),
+        }));
+    let mut first = dummy_frame(1);
+    first.paint_ran = true;
+    recorder.clone_handle().observe(InspectEvent::Frame(first));
+
+    let server = InspectorServer::bind("127.0.0.1:0", recorder.clone(), "replay").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let _hello = read_text_frame(&mut reader);
+    // The first session's broadcast drain (hello, then the pre-connect
+    // facts it finds queued) — the panel watched live.
+    let write = read_text_frame(&mut reader);
+    assert!(write.contains(r#""kind":"write""#), "live write: {write}");
+    let frame = read_text_frame(&mut reader);
+    assert!(frame.contains(r#""kind":"frame""#), "live frame: {frame}");
+
+    let socket = reader.get_ref().try_clone().expect("clone");
+    send_client_text(&socket, br#"{"kind":"bye"}"#);
+    std::thread::sleep(Duration::from_millis(50));
+
+    // The reconnect: the second panel is the late client. One more
+    // write lands while no session polls the broadcast queue.
+    recorder
+        .clone_handle()
+        .observe(InspectEvent::Write(SignalWrite {
+            signal: 7,
+            sequence: 2,
+            origin: std::borrow::Cow::Borrowed("user click"),
+        }));
+
+    let server_two =
+        InspectorServer::bind("127.0.0.1:0", recorder.clone(), "replay-two").expect("rebind");
+    let port_two = server_two.port();
+    std::thread::spawn(move || server_two.serve_once());
+    let mut reader = connect_ws(port_two);
+    let _hello = read_text_frame(&mut reader);
+    // The delta the broadcast queue holds for this session only.
+    let live = read_text_frame(&mut reader);
+    assert!(
+        live.contains(r#""sequence":2"#),
+        "the session's own delta: {live}"
+    );
+
+    // The ask: the rings' history, the facts the broadcast queue never
+    // held for this session (the write the first panel's drain took).
+    let socket = reader.get_ref().try_clone().expect("clone");
+    send_client_text(&socket, br#"{"kind":"replay"}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let burst_write_one = read_text_frame(&mut reader);
+    assert!(
+        burst_write_one.contains(r#""kind":"write""#)
+            && burst_write_one.contains(r#""sequence":1"#),
+        "the rings' oldest write replays: {burst_write_one}"
+    );
+    let burst_write_two = read_text_frame(&mut reader);
+    assert!(
+        burst_write_two.contains(r#""kind":"write""#)
+            && burst_write_two.contains(r#""sequence":2"#),
+        "the younger write replays beside it: {burst_write_two}"
+    );
+    let burst_frame = read_text_frame(&mut reader);
+    assert!(
+        burst_frame.contains(r#""kind":"frame""#) && burst_frame.contains(r#""number":1"#),
+        "the ring's frame replays in the vocabulary order: {burst_frame}"
+    );
+
+    // The look left the rings whole: the next live fact streams once.
+    recorder
+        .clone_handle()
+        .observe(InspectEvent::Input(InputRecord {
+            kind: InputKind::Wheel,
+            target: None,
+        }));
+    let next = read_text_frame(&mut reader);
+    assert!(
+        next.contains(r#""kind":"input""#),
+        "live after the ask: {next}"
+    );
+}
+
+#[test]
+fn a_replay_ask_twice_answers_the_same_history() {
+    let recorder = CausalRecorder::new("replay-twice");
+    recorder
+        .clone_handle()
+        .observe(InspectEvent::Input(InputRecord {
+            kind: InputKind::Key,
+            target: None,
+        }));
+    let server =
+        InspectorServer::bind("127.0.0.1:0", recorder.clone(), "replay-twice").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let _hello = read_text_frame(&mut reader);
+    // The session's first loop pass drains the broadcast queue (the
+    // pre-connect input) — read it, then the socket is quiet.
+    let live = read_text_frame(&mut reader);
+    assert!(live.contains(r#""kind":"input""#), "the live drain: {live}");
+    std::thread::sleep(Duration::from_millis(60));
+    let socket = reader.get_ref().try_clone().expect("clone");
+    send_client_text(&socket, br#"{"kind":"replay"}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let first = read_text_frame(&mut reader);
+    assert!(
+        first.contains(r#""kind":"input""#) && first.contains(r#""input":"key""#),
+        "the ring's input replays: {first}"
+    );
+    send_client_text(&socket, br#"{"kind":"replay"}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let second = read_text_frame(&mut reader);
+    assert_eq!(first, second, "the ask reads without disturbing — twice");
+}
+
+#[test]
+fn a_replay_ask_after_a_clear_answers_nothing_and_lives() {
+    let recorder = CausalRecorder::new("replay-clear");
+    recorder
+        .clone_handle()
+        .observe(InspectEvent::Input(InputRecord {
+            kind: InputKind::Wheel,
+            target: None,
+        }));
+    recorder
+        .clone_handle()
+        .observe(InspectEvent::Theme(ThemeRecord {
+            palette: "midnight".to_string(),
+            repainted: 3,
+        }));
+    recorder
+        .clone_handle()
+        .observe(InspectEvent::Setting(SettingRecord {
+            dark: true,
+            reduced_motion: false,
+            high_contrast: false,
+            accent: None,
+            repainted: 0,
+        }));
+    let server =
+        InspectorServer::bind("127.0.0.1:0", recorder.clone(), "replay-clear").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let _hello = read_text_frame(&mut reader);
+    // The connect-time broadcast drain (the three pre-connect facts),
+    // read so the socket is quiet before the controls land.
+    let live_input = read_text_frame(&mut reader);
+    assert!(live_input.contains(r#""kind":"input""#), "{live_input}");
+    let live_theme = read_text_frame(&mut reader);
+    assert!(live_theme.contains(r#""kind":"theme""#), "{live_theme}");
+    let live_setting = read_text_frame(&mut reader);
+    assert!(
+        live_setting.contains(r#""kind":"setting""#),
+        "{live_setting}"
+    );
+
+    let socket = reader.get_ref().try_clone().expect("clone");
+    send_client_text(&socket, br#"{"kind":"clear"}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    assert_eq!(recorder.inputs().len(), 0, "the input ring resets");
+    assert_eq!(
+        recorder.themes().len(),
+        0,
+        "the theme ring resets with the rest"
+    );
+    assert_eq!(
+        recorder.settings().len(),
+        0,
+        "the setting ring resets with the rest"
+    );
+
+    // The empty burst answers nothing on the socket; the session keeps
+    // serving — the next live fact arrives whole.
+    send_client_text(&socket, br#"{"kind":"replay"}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    recorder
+        .clone_handle()
+        .observe(InspectEvent::Input(InputRecord {
+            kind: InputKind::PointerDown,
+            target: None,
+        }));
+    let next = read_text_frame(&mut reader);
+    assert!(
+        next.contains(r#""kind":"input""#) && next.contains(r#""input":"pointer_down""#),
+        "the session lives past an empty burst: {next}"
+    );
 }

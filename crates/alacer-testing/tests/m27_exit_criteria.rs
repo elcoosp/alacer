@@ -372,8 +372,8 @@ fn m27_the_surface_rides_the_same_cut() {
     );
     let readme = std::fs::read_to_string(root.join("README.md")).expect("README");
     assert!(
-        readme.contains("M0 through M138")
-            && readme.contains("a hundred and forty-three decision records"),
+        readme.contains("M0 through M139")
+            && readme.contains("a hundred and forty-four decision records"),
         "the README's status block and ADR count re-agree at M27"
     );
     assert!(
@@ -383,7 +383,7 @@ fn m27_the_surface_rides_the_same_cut() {
     let architecture = std::fs::read_to_string(root.join("docs/architecture.md"))
         .expect("the architecture document");
     assert!(
-        architecture.contains("a hundred and forty-three decision records"),
+        architecture.contains("a hundred and forty-four decision records"),
         "the architecture register re-agrees at 36 decision records"
     );
 

@@ -57,6 +57,36 @@ jobs:
       - name: doctests
         run: cargo test --workspace --doc
 
+  screenshot-gate:
+    name: screenshot gate (headless launch asset)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install Rust (rust-toolchain.toml)
+        run: rustup show active-toolchain
+      - uses: Swatinem/rust-cache@v2
+      - name: Ensure Xvfb (the gate's display shim)
+        run: |
+          command -v Xvfb >/dev/null 2>&1 || {
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends xvfb
+          }
+      - name: Render the launch asset (image_raster, headless)
+        run: xvfb-run -a cargo run -p alacer --features backend-softbuffer --example image_raster -- --save-screenshot /tmp/alacer_launch.png
+      - name: The PNG exists and is a real frame
+        run: |
+          test -f /tmp/alacer_launch.png
+          test -s /tmp/alacer_launch.png
+          test "$(wc -c < /tmp/alacer_launch.png)" -gt 10240
+          file /tmp/alacer_launch.png | grep -q "PNG image data, 1024 x 768"
+      - name: Upload the launch asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: alacer-launch-screenshot
+          path: /tmp/alacer_launch.png
+
   doc:
     name: docs
     runs-on: ubuntu-latest

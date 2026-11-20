@@ -427,7 +427,7 @@ fn m76_the_disabled_trail_still_counts() {
 fn m76_the_living_documents_re_agree() {
     let readme = read_workspace_file("README.md");
     assert!(
-        readme.contains("M0 through M136"),
+        readme.contains("M0 through M138"),
         "the README status reflects the living cut — the chain cannot drift"
     );
     assert!(
@@ -440,7 +440,7 @@ fn m76_the_living_documents_re_agree() {
         "the architecture carries the count's decision"
     );
     assert!(
-        architecture.contains("a hundred and forty-one decision records"),
+        architecture.contains("a hundred and forty-three decision records"),
         "the register grew the M76 row"
     );
     let baselines = serde_json::from_str::<serde_json::Value>(&read_workspace_file(

@@ -8,7 +8,7 @@ use crate::server::push_broadcast;
 use crate::wire::WireEvent;
 use alacer_core::inspect::{
     AnnounceRecord, ClipboardRecord, EdgeActivation, EditRecord, FocusRecord, InputKind,
-    InspectEvent, InspectObserver, KeyRecord, SignalWrite,
+    InputRecord, InspectEvent, InspectObserver, KeyRecord, SignalWrite,
 };
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -453,7 +453,11 @@ impl CausalRecorder {
         self.frames_seen.load(Ordering::Relaxed)
     }
 
-    /// Clears every ring (the client's `clear` control message).
+    /// Clears every ring (the client's `clear` control message) — every
+    /// ring, not the sixteen the first door grew: the a11y-echo, action,
+    /// frame-refusal, view-patch, theme, and setting rings the later
+    /// tiers added answer the same reset, or a cleared panel would keep
+    /// those trails and the door's own sentence would lie.
     pub fn clear(&self) {
         if let Ok(mut recording) = self.recording.lock() {
             recording.frames.clear();
@@ -472,7 +476,103 @@ impl CausalRecorder {
             recording.route_drops.clear();
             recording.key_edits.clear();
             recording.preedits.clear();
+            recording.a11y_echoes.clear();
+            recording.actions.clear();
+            recording.frame_refusals.clear();
+            recording.view_patches.clear();
+            recording.themes.clear();
+            recording.settings.clear();
         }
+    }
+
+    /// The rings' history as one replay burst, oldest first per trail,
+    /// tiers in the event vocabulary's order — the durable facts the
+    /// broadcast queue never holds for a session that connects after a
+    /// first panel's drain took them (the wire door the rings never
+    /// had). The look reads without disturbing: no ring drains, the
+    /// broadcast queue is untouched, and a session that saw facts live
+    /// folds the burst's repeats client-side (the ask's own rule, the
+    /// wire's `Replay` control). A poisoned mutex answers an empty
+    /// burst — the readers' honest absence, the data that survives.
+    #[must_use]
+    pub fn replay(&self) -> Vec<WireEvent> {
+        let Some(recording) = self.try_lock() else {
+            return Vec::new();
+        };
+        let mut burst = Vec::new();
+        let mut push = |event: InspectEvent| {
+            burst.push(crate::server::wire_event_of(&event));
+        };
+        for activation in &recording.edges {
+            push(InspectEvent::Edge(activation.clone()));
+        }
+        for write in &recording.writes {
+            push(InspectEvent::Write(write.clone()));
+        }
+        for (kind, target) in &recording.inputs {
+            push(InspectEvent::Input(InputRecord {
+                kind: *kind,
+                target: *target,
+            }));
+        }
+        for record in &recording.focus {
+            push(InspectEvent::Focus(*record));
+        }
+        for record in &recording.edits {
+            push(InspectEvent::Edit(*record));
+        }
+        for record in &recording.announces {
+            push(InspectEvent::Announce(*record));
+        }
+        for record in &recording.keys {
+            push(InspectEvent::Key(record.clone()));
+        }
+        for record in &recording.clipboards {
+            push(InspectEvent::Clipboard(*record));
+        }
+        for record in &recording.values {
+            push(InspectEvent::Value(*record));
+        }
+        for record in &recording.gestures {
+            push(InspectEvent::Gesture(*record));
+        }
+        for record in &recording.scrolls {
+            push(InspectEvent::Scroll(*record));
+        }
+        for record in &recording.text_writes {
+            push(InspectEvent::TextWrite(*record));
+        }
+        for record in &recording.route_drops {
+            push(InspectEvent::RouteDrop(*record));
+        }
+        for record in &recording.key_edits {
+            push(InspectEvent::KeyEdit(*record));
+        }
+        for record in &recording.preedits {
+            push(InspectEvent::Preedit(*record));
+        }
+        for record in &recording.a11y_echoes {
+            push(InspectEvent::A11yEcho(*record));
+        }
+        for record in &recording.actions {
+            push(InspectEvent::Action(*record));
+        }
+        for record in &recording.frame_refusals {
+            push(InspectEvent::FrameRefusal(*record));
+        }
+        for record in &recording.view_patches {
+            push(InspectEvent::ViewPatch(*record));
+        }
+        for record in &recording.themes {
+            push(InspectEvent::Theme(record.clone()));
+        }
+        for record in &recording.settings {
+            push(InspectEvent::Setting(*record));
+        }
+        for frame in &recording.frames {
+            push(InspectEvent::Frame(frame.summary.clone()));
+        }
+        burst
     }
 
     /// Drains the broadcast queue (the session's push source), oldest first.

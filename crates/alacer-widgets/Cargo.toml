@@ -72,3 +72,11 @@ harness = false
 [[bench]]
 name = "tooltip"
 harness = false
+
+[[bench]]
+name = "menu_bar"
+harness = false
+
+[[bench]]
+name = "image"
+harness = false

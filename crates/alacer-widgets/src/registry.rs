@@ -17,7 +17,9 @@ use alacer_view::{ElementProps, WidgetRegistry};
 /// (`toolbar`) plus the M130 switch tier (`switch`) plus the M131
 /// tab-panel tier (`tab_panel`) plus the M133 meter tier (`meter`)
 /// plus the M134 dialog tier (`dialog`) plus the M135 tree tier (`tree`,
-/// `tree_item`) plus the M136 tooltip tier (`tooltip`).
+/// `tree_item`) plus the M136 tooltip tier (`tooltip`) plus the M137 menu
+/// tier (`menu_bar`, `menu`, `menu_item`) plus the M138 image tier
+/// (`image`).
 #[must_use]
 pub fn default_registry() -> WidgetRegistry {
     let mut registry = WidgetRegistry::new();
@@ -52,6 +54,10 @@ pub fn default_registry() -> WidgetRegistry {
     registry.register("tree", tree_create, tree_patch);
     registry.register("tree_item", tree_item_create, tree_item_patch);
     registry.register("tooltip", tooltip_create, tooltip_patch);
+    registry.register("menu_bar", menu_bar_create, menu_bar_patch);
+    registry.register("menu", menu_create, menu_patch);
+    registry.register("menu_item", menu_item_create, menu_item_patch);
+    registry.register("image", image_create, image_patch);
     registry
 }
 
@@ -1145,6 +1151,95 @@ fn tooltip_patch(bubble: &mut crate::Tooltip, props: &ElementProps<'_>) -> bool 
         visual = true;
     }
     style_apply(bubble.style_mut(), props);
+    style_visual_diff(props) || visual
+}
+
+/// The menu-bar element (`menu_bar { name: … }` — M137): the menu
+/// tier's strip door, the menus riding its arena slots.
+fn menu_bar_create(props: &ElementProps<'_>) -> crate::MenuBar {
+    let mut strip = crate::MenuBar::new(props.text("name").unwrap_or_default());
+    style_apply(strip.style_mut(), props);
+    strip
+}
+
+fn menu_bar_patch(strip: &mut crate::MenuBar, props: &ElementProps<'_>) -> bool {
+    let mut visual = false;
+    if let Some(name) = props.text("name") {
+        strip.set_name(name);
+        visual = true;
+    }
+    style_apply(strip.style_mut(), props);
+    style_visual_diff(props) || visual
+}
+
+/// The menu element (`menu { name: … }` — M137): the menu tier's
+/// summoned-list door, the entries riding its arena slots (presence the
+/// app's wiring — the view mounts the list exactly while the menu is up).
+fn menu_create(props: &ElementProps<'_>) -> crate::Menu {
+    let mut list = crate::Menu::new(props.text("name").unwrap_or_default());
+    style_apply(list.style_mut(), props);
+    list
+}
+
+fn menu_patch(list: &mut crate::Menu, props: &ElementProps<'_>) -> bool {
+    let mut visual = false;
+    if let Some(name) = props.text("name") {
+        list.set_name(name);
+        visual = true;
+    }
+    style_apply(list.style_mut(), props);
+    style_visual_diff(props) || visual
+}
+
+/// The menu-item element (`menu_item { text: …, on_click: … }` — M137):
+/// the menu tier's entry door, the activation funnel the button
+/// element's own.
+fn menu_item_create(props: &ElementProps<'_>) -> crate::MenuItem {
+    let mut entry = crate::MenuItem::new(props.text("text").unwrap_or_default());
+    if let Some(handler) = props.handler("on_click") {
+        entry = entry.on_click(handler);
+    }
+    style_apply(entry.style_mut(), props);
+    entry
+}
+
+fn menu_item_patch(entry: &mut crate::MenuItem, props: &ElementProps<'_>) -> bool {
+    let mut visual = false;
+    if let Some(text) = props.text("text") {
+        entry.set_label(text);
+        visual = true;
+    }
+    if let Some(handler) = props.handler("on_click") {
+        entry.set_on_click(Some(handler));
+    }
+    style_apply(entry.style_mut(), props);
+    style_visual_diff(props) || visual
+}
+
+/// The image element (`image { name: …, description: … }` — M138): the
+/// image tier's DSL door, the word the pixels' app owns.
+fn image_create(props: &ElementProps<'_>) -> crate::Image {
+    let mut picture = crate::Image::new(props.text("name").unwrap_or_default());
+    if let Some(description) = props.text("description") {
+        picture = picture.description(description);
+    }
+    style_apply(picture.style_mut(), props);
+    picture
+}
+
+fn image_patch(picture: &mut crate::Image, props: &ElementProps<'_>) -> bool {
+    let mut visual = false;
+    if let Some(name) = props.text("name") {
+        picture.set_name(name);
+        visual = true;
+    }
+    // The description word (M95, ADR-0099): the tree's truth the pixels
+    // never carry — the patch tier queues `A11Y` from the prop class, the
+    // write itself reporting whether it moved (the idle-frame property).
+    if let Some(description) = props.text("description") {
+        picture.set_description(Some(description.to_string()));
+    }
+    style_apply(picture.style_mut(), props);
     style_visual_diff(props) || visual
 }
 

@@ -369,7 +369,21 @@ fn read_client_frame(reader: &mut BufReader<TcpStream>) -> std::io::Result<Clien
     if masked {
         reader.read_exact(&mut mask)?;
     }
-    let mut payload = vec![0_u8; usize::try_from(length).unwrap_or(0)];
+    // A declared length this platform cannot address is a protocol
+    // violation, refused honestly — never munged into an empty payload
+    // and called a frame (the "named refusals, never silent drops"
+    // rule: the old `unwrap_or(0)` turned an out-of-range length into a
+    // zero-byte read, the munge reading as success where the wire said
+    // otherwise).
+    let length = usize::try_from(length).map_err(|source| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!(
+                "the client frame declares {length} bytes, outside this platform's addressable range: {source}"
+            ),
+        )
+    })?;
+    let mut payload = vec![0_u8; length];
     if !payload.is_empty() {
         reader.read_exact(&mut payload)?;
     }

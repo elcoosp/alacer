@@ -14,16 +14,25 @@
 //!
 //! Run with `cargo run -p alacer --example image_raster`.
 //! `ALACER_SOFTWARE=1` forces the softbuffer path (VMs, CI, no-GPU).
+//! `--save-screenshot <path>` renders one ticked frame through the
+//! software tier and writes it as a PNG — no window, no event loop, no
+//! display server (the launch-asset seam: README pixels straight from
+//! the full pipeline, image primitive → journal → raster → file). The
+//! launch render is the 1024×768 hero shape the README assets want, not
+//! the demo window's own 320×240 start size.
 
 use alacer::pipeline_default;
 use alacer::platform::{AlacerApp, BackendPreference, PatchChannel};
 use alacer_core::FluxRwSignal;
 use alacer_core::flux::Flux;
+use alacer_core::geom::Size;
+use alacer_core::passes::PassPipeline;
 use alacer_render::software::decode_png_rgba;
 use alacer_view::{Pixels, PropValue, ViewNode, ViewRoot};
 use alacer_widgets::default_registry;
 use reactive_graph::traits::{GetUntracked as _, Set as _};
 use std::cell::RefCell;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -132,6 +141,62 @@ fn image_raster_view(
     root
 }
 
+/// How this run launches: the windowed app, or the headless screenshot
+/// save (`--save-screenshot <path>`).
+enum Launch {
+    /// The windowed app as always.
+    Window,
+    /// One ticked frame rendered headless and saved as a PNG.
+    Screenshot(PathBuf),
+}
+
+/// Parses `--save-screenshot <path>` from `std::env::args` — simple and
+/// dependency-free. A bare `--save-screenshot` (no path) refuses honestly
+/// with exit code 2: a flag the invocation half-made is a fact about the
+/// invocation, never a guess.
+fn launch_mode() -> Launch {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let Some(index) = args.iter().position(|arg| arg == "--save-screenshot") else {
+        return Launch::Window;
+    };
+    let Some(path) = args.get(index + 1) else {
+        eprintln!("alacer: --save-screenshot needs a path argument");
+        std::process::exit(2);
+    };
+    Launch::Screenshot(PathBuf::from(path))
+}
+
+/// The headless save: the mounted view's pipeline ticks exactly once (the
+/// 1024×768 launch-asset shape), the frame renders through the software
+/// tier — the same stage the softbuffer present path runs — and the PNG
+/// lands at `path`. No window, no event loop, no parking: the caller exits
+/// right after, cleanly.
+fn save_screenshot(pipeline: &mut PassPipeline, path: &Path) {
+    let report = pipeline
+        .tick(Size::new(1024.0, 768.0))
+        .expect("the screenshot frame's layout resolves");
+    let mut glyphs = alacer::text::ThreadLocalGlyphSource;
+    match alacer::render::screenshot::save_png(
+        &report.scene,
+        1024,
+        768,
+        alacer::widgets::theme::SURFACE,
+        &mut glyphs,
+        path,
+    ) {
+        Ok(written) => {
+            println!(
+                "alacer: screenshot saved ({written} bytes) to {}",
+                path.display()
+            );
+        }
+        Err(error) => {
+            eprintln!("alacer: {error}");
+            std::process::exit(1);
+        }
+    }
+}
+
 fn main() {
     // The embedded asset decodes once; a PNG that cannot decode refuses
     // honestly — the example names the asset and stops.
@@ -153,6 +218,13 @@ fn main() {
 
     let view = image_raster_view(&original, &swapped, &channels_swapped, &wake);
     let mut root = ViewRoot::mount(&view, &mut pipeline, default_registry());
+
+    // The screenshot branch rides out before any window exists: one ticked
+    // frame, one file, exit 0 — the CI gate's whole surface.
+    if let Launch::Screenshot(path) = launch_mode() {
+        save_screenshot(&mut pipeline, &path);
+        return;
+    }
 
     let mut app = AlacerApp::new(
         pipeline,

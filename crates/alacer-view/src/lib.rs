@@ -26,7 +26,7 @@ pub mod view;
 pub use hot::{HotView, ViewGeneration};
 pub use mount::{PatchReport, ViewRoot};
 pub use registry::{ElementProps, WidgetRegistry};
-pub use view::{Painter, PropValue, SharedPainter, ViewNode};
+pub use view::{Painter, Pixels, PropValue, SharedPainter, ViewNode};
 
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::hash::Hash;

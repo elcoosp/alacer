@@ -199,6 +199,21 @@ pub enum Role {
     /// An unnamed collection reads as a bare box — the ADR-5 rule the
     /// named roles carry.
     Tree,
+    /// The named help bubble the pointer pair summons (the tooltip
+    /// tier, M136, ADR-0140): the "reads as a hover-help bubble" fact
+    /// AccessKit's own `Tooltip` role spells — not a description
+    /// wearing a role (the M95 description tier is the help text
+    /// *beside a name*, always on; a tooltip is *the bubble itself*,
+    /// present exactly while the app mounts it) and not a dialog
+    /// wearing one word (a dialog is a modal window the walk bounds
+    /// itself into; a tooltip is a transient bubble the pointer pair
+    /// summons). The bubble is the help's layout, never a second
+    /// channel to it — the children ride the arena exactly a pane's
+    /// do, each keeping the role and label it already carries — and
+    /// the bubble holds no focus and answers no activation (the
+    /// M126/M129 container rule, at the hover tier). An unnamed bubble
+    /// reads as a bare box — the ADR-5 rule the named roles carry.
+    Tooltip,
     /// One member of a hierarchical collection (the tree tier's member
     /// half, M135, ADR-0139): the "reads as a branch or a leaf" fact
     /// AccessKit's own `TreeItem` role spells — not a row wearing the
@@ -247,7 +262,9 @@ impl Role {
     /// carry, at the modal tier. The tree and its items join in M135:
     /// an unnamed collection reads as a bare box, an unnamed member a
     /// bare mark — the named-container rule the strip and the tool
-    /// strip carry, at the hierarchical tier.
+    /// strip carry, at the hierarchical tier. The tooltip joins in
+    /// M136: an unnamed bubble reads as a bare box — the ADR-5 rule
+    /// the named roles carry, at the hover tier.
     #[must_use]
     pub const fn requires_name(self) -> bool {
         matches!(
@@ -272,6 +289,7 @@ impl Role {
                 | Self::Dialog
                 | Self::Tree
                 | Self::TreeItem
+                | Self::Tooltip
         )
     }
 
@@ -310,6 +328,7 @@ impl Role {
             Self::Dialog => "dialog",
             Self::Tree => "tree",
             Self::TreeItem => "tree_item",
+            Self::Tooltip => "tooltip",
         }
     }
 }

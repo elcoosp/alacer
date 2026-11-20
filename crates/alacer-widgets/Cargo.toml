@@ -26,6 +26,14 @@ name = "radio"
 harness = false
 
 [[bench]]
+name = "meter"
+harness = false
+
+[[bench]]
+name = "dialog"
+harness = false
+
+[[bench]]
 name = "link"
 harness = false
 

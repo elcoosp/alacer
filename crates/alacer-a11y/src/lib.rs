@@ -142,6 +142,19 @@ pub fn map_role(role: Role) -> AccessKitRole {
         // M126/M129 container rule at the modal tier, no patch-tier
         // growth.
         Role::Dialog => AccessKitRole::Dialog,
+        // The tree (M135, ADR-0139): the "reads as a hierarchical
+        // collection" fact AccessKit's own tree role spells — the named
+        // container the AT announces before it walks the branches; the
+        // members keep the roles the arena's own nesting gives them,
+        // the M126/M129 container rule at the hierarchical tier, no
+        // patch-tier growth.
+        Role::Tree => AccessKitRole::Tree,
+        // The tree item (M135, ADR-0139): the "reads as a branch or a
+        // leaf" fact AccessKit's own tree-item role spells. The
+        // disclosure, pick, depth and place ride the words the M108,
+        // M110, M113 and M119 tiers published (the properties the sink
+        // maps generically), never a second vocabulary.
+        Role::TreeItem => AccessKitRole::TreeItem,
     }
 }
 
@@ -991,6 +1004,12 @@ mod tests {
         // speaks as "this is a dialog" — AccessKit's own `Dialog`,
         // the named-container shape at the modal tier.
         assert_eq!(map_role(Role::Dialog), AkRole::Dialog);
+        // The M135 tree tier: the collection and the member the AT
+        // walks by disclosure and depth — AccessKit's own `Tree`
+        // beside its `TreeItem`, the words riding the M108/M110/M113/
+        // M119 properties the sink maps generically.
+        assert_eq!(map_role(Role::Tree), AkRole::Tree);
+        assert_eq!(map_role(Role::TreeItem), AkRole::TreeItem);
     }
 
     #[test]

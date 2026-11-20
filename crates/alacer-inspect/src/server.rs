@@ -263,6 +263,26 @@ fn run_session(
             ClientFrame::Text(text) => {
                 match serde_json::from_str::<ClientMessage>(&text) {
                     Ok(ClientMessage::Clear) => recorder.clear(),
+                    Ok(ClientMessage::Replay) => {
+                        // The rings' durable history as one burst (the
+                        // ask's own rule): per trail oldest first, the
+                        // vocabulary's order, nothing drained — the live
+                        // stream beside it continues untouched, and the
+                        // facts the session saw live may repeat (the
+                        // client folds them; ADR-0029's observability
+                        // rule names the burst on the log).
+                        let burst = recorder.replay();
+                        tracing::debug!(
+                            target: "alacer::inspect",
+                            events = burst.len(),
+                            "inspector client asked for the rings' replay"
+                        );
+                        for event in burst {
+                            let payload = serde_json::to_string(&event)
+                                .map_err(|error| serialize("wire event", error))?;
+                            send_text(stream, &payload)?;
+                        }
+                    }
                     Ok(ClientMessage::Bye) => break,
                     Err(error) => {
                         // A malformed control frame is not a goodbye: the

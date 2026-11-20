@@ -137,6 +137,42 @@ impl std::fmt::Debug for Painter {
     }
 }
 
+/// A premultiplied RGBA8 bitmap a view prop carries to the image element
+/// (`pixels: Pixels::new(bytes, width, height)`): the raster the scene
+/// journal's image primitive presents. The bytes ride by `Arc` — the app,
+/// the view, and the journal sharing one allocation, the glyph coverage's
+/// own sharing rule.
+#[derive(Clone)]
+pub struct Pixels {
+    /// Premultiplied RGBA8 pixels, row-major.
+    pub bytes: std::sync::Arc<[u8]>,
+    /// Bitmap width in pixels.
+    pub width: u32,
+    /// Bitmap height in pixels.
+    pub height: u32,
+}
+
+impl Pixels {
+    /// Builds from the byte contract the scene journal's image primitive
+    /// spells: premultiplied RGBA8, row-major, exactly `width · height · 4`
+    /// bytes (a short buffer refuses honestly at paint, never a guessed
+    /// pixel).
+    #[must_use]
+    pub fn new(bytes: std::sync::Arc<[u8]>, width: u32, height: u32) -> Self {
+        Self {
+            bytes,
+            width,
+            height,
+        }
+    }
+}
+
+impl std::fmt::Debug for Pixels {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Pixels({}×{})", self.width, self.height)
+    }
+}
+
 /// A property value: the small, typed vocabulary `rsx!` props compile to.
 #[derive(Clone)]
 pub enum PropValue {
@@ -171,6 +207,10 @@ pub enum PropValue {
     /// A paint closure (`on_paint: Painter::new(|ctx| …)` — M82): the
     /// custom-paint callback a canvas element runs at paint time.
     Painter(Painter),
+    /// An embedded raster (`pixels: Pixels::new(…)`): the premultiplied
+    /// RGBA8 bytes and dimensions the image element presents (the raster
+    /// tier).
+    Pixels(Pixels),
 }
 
 impl std::fmt::Debug for PropValue {
@@ -185,6 +225,7 @@ impl std::fmt::Debug for PropValue {
             Self::FlagHandler(_) => f.debug_tuple("FlagHandler").field(&"<fn>").finish(),
             Self::NumberHandler(_) => f.debug_tuple("NumberHandler").field(&"<fn>").finish(),
             Self::Painter(_) => f.debug_tuple("Painter").field(&"<closure>").finish(),
+            Self::Pixels(pixels) => f.debug_tuple("Pixels").field(pixels).finish(),
             Self::Binding(_) => f.debug_tuple("Binding").field(&"<bound>").finish(),
             Self::NumberBinding(_) => f.debug_tuple("NumberBinding").field(&"<bound>").finish(),
         }
@@ -205,6 +246,15 @@ impl PartialEq for PropValue {
             (Self::FlagHandler(a), Self::FlagHandler(b)) => Rc::ptr_eq(a, b),
             (Self::NumberHandler(a), Self::NumberHandler(b)) => Rc::ptr_eq(a, b),
             (Self::Painter(a), Self::Painter(b)) => Rc::ptr_eq(&a.inner, &b.inner),
+            // Rasters compare by identity, not by content (the handlers'
+            // rule): a rebuilt buffer is a move even when the pixels are
+            // the same — the write reports visual, the idle re-hang does
+            // not.
+            (Self::Pixels(a), Self::Pixels(b)) => {
+                std::sync::Arc::ptr_eq(&a.bytes, &b.bytes)
+                    && a.width == b.width
+                    && a.height == b.height
+            }
             // Bindings never compare equal — nor does any other pairing:
             // a rebuild re-hangs the same binding slot, and the patcher
             // re-hangs idempotently.

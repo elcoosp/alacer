@@ -40,7 +40,12 @@ ALLOWED: dict[str, set[str]] = {
     "alacer-layout": {"alacer-core"},
     "alacer-text": {"alacer-core"},
     "alacer-render": {"alacer-core"},
-    "alacer-a11y": {"alacer-core"},
+    # Foundation-only in the runtime graph. The two extra edges pin the canon
+    # tree-shape proof (tests/canon_tree_shape.rs): the composed canons ride
+    # the headless harness through a *dev-dependency* cycle — cargo's own
+    # rule keeps them out of the runtime graph, and no normal dependency may
+    # use them.
+    "alacer-a11y": {"alacer-core", "alacer-widgets", "alacer-testing"},
     # Widgets consume the core seam only (ADR-9 M1 tightening: the text
     # services reach widgets through alacer-core's TextSeam, installed at
     # assembly sites).
@@ -110,17 +115,29 @@ def check(root: Path) -> list[str]:
             continue
         data = tomllib.loads(manifest.read_text(encoding="utf-8"))
         used: set[str] = set()
+        dev_only: set[str] = set()
         for section in ("dependencies", "dev-dependencies", "build-dependencies"):
             for dep in (data.get(section) or {}):
                 if dep in INTERNAL:
                     used.add(dep)
+                    # A dep is *dev-only* when the runtime [dependencies]
+                    # section does not name it: cargo keeps dev-dependencies
+                    # out of the runtime graph, so a dev-only edge may ride
+                    # upward through a pinned seam (ALLOWED) — the shape
+                    # cargo's dev-cycle rule exists for. Anything the runtime
+                    # names keeps the strict layer order below.
+                    if (
+                        section == "dev-dependencies"
+                        and dep not in (data.get("dependencies") or {})
+                    ):
+                        dev_only.add(dep)
         disallowed = used - ALLOWED[crate]
         for dep in sorted(disallowed):
             violations.append(
                 f"{crate}: depends on {dep} — not in the allowed set (ADR-9 DAG)"
             )
         for dep in used:
-            if layer_of(dep) > layer_of(crate):
+            if layer_of(dep) > layer_of(crate) and dep not in dev_only:
                 violations.append(
                     f"{crate}: depends DOWNWARD-inverting on {dep} "
                     f"(layer order violated)"

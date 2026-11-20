@@ -298,7 +298,16 @@ impl WgpuRenderer {
             force_fallback_adapter: false,
             apply_limit_buckets: false,
         }))
-        .map_err(|_| BackendError::NoAdapter)?;
+        .map_err(|error| {
+            // The typed contract stays the leaf (`NoAdapter` is the
+            // platform's own fact about the host — the source chain ends
+            // there), but the host's own answer is never dropped
+            // silently: the clipboard seam's observability idiom (the
+            // `tracing::warn!` naming the value it saw), at the adapter
+            // seam.
+            tracing::warn!(%error, "no wgpu adapter matched the surface; refusing the wgpu path");
+            BackendError::NoAdapter
+        })?;
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
             label: Some("alacer device"),
             required_features: wgpu::Features::empty(),

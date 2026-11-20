@@ -190,7 +190,19 @@ jobs:
         run: rustup show active-toolchain
       - uses: Swatinem/rust-cache@v2
       - name: Bench (reduced sampling — the ratio budgets are the portable contracts)
-        run: cargo bench --workspace --benches -- --warm-up-time 1 --measurement-time 2
+        run: |
+          # Criterion args must ride explicit `--bench` selection: cargo's
+          # default (and `--benches`) selection also runs each crate's lib
+          # unittests through the libtest harness, which rejects criterion's
+          # flags (`Unrecognized option: 'warm-up-time'`). Naming the bench
+          # targets routes the args to criterion only. Bench names equal
+          # their file stems everywhere, so a new benches/*.rs joins the
+          # run by existing.
+          benches=""
+          for file in crates/*/benches/*.rs; do
+            benches="$benches --bench $(basename "$file" .rs)"
+          done
+          cargo bench --workspace $benches -- --warm-up-time 1 --measurement-time 2
       - name: Enforce the budget contracts against the published baseline
         run: python3 scripts/check_perf_contracts.py
       - name: Regenerate the published dashboard

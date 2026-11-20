@@ -155,6 +155,34 @@ pub enum Role {
     /// labels they already carry, and the pane holds no focus and
     /// answers no activation (the M126/M129 container rule).
     TabPanel,
+    /// A scalar measurement within a declared scale (the meter tier,
+    /// M133, ADR-0137): the "reads as a gauge" fact AccessKit's own
+    /// `Meter` role spells — not a progress bar wearing the wrong word
+    /// (a progress bar's value is *task progress*, how far some task
+    /// has come toward done; a meter's value is a *measurement* on a
+    /// scale the app declares — how much of something there is, ARIA's
+    /// `role="meter"` beside its `role="progressbar"`). The reading
+    /// rides the value tier's own vocabulary — the M3 `value()` word,
+    /// the M97 range word, the M99 numeric word — never a second value
+    /// language. The gauge holds no focus and answers no activation
+    /// (the M126 heading's own rule at the value tier's read half),
+    /// and the AT tier is read-only by construction.
+    Meter,
+    /// The window the modal vocabulary speaks as "this is a dialog"
+    /// (the dialog tier, M134, ADR-0138): the "reads as a modal
+    /// window" fact AccessKit's own `Dialog` role spells — not a bare
+    /// panel wearing no name (the set the AT cannot name is a set it
+    /// cannot walk, the ADR-5 rule the named roles carry) and not a
+    /// second tab panel wearing the wrong word (a tab panel names the
+    /// *selected page's content*; a dialog names *the window the
+    /// conversation lives in*). The container is the content's
+    /// layout — the children keep the roles and labels they already
+    /// carry — and the window holds no focus and answers no
+    /// activation (the M126/M129 container rule). The modal
+    /// *semantics* ride the focus scope the M25 tier published
+    /// (ADR-0031's `focus_move_in`), never a second channel: the word
+    /// names the window, the walk bounds it.
+    Dialog,
 }
 
 impl Role {
@@ -181,6 +209,11 @@ impl Role {
     /// carry. The tab panel joins in M131: an unnamed pane reads as a
     /// bare box — the set the AT cannot name is a set it cannot walk,
     /// the named-container rule the strip and the tool strip carry.
+    /// The meter joins in M133: an unnamed gauge reads as a bare
+    /// number — the M21 progress rule's own shape, at the meter tier.
+    /// The dialog joins in M134: an unnamed window reads as a bare
+    /// box — the named-container rule the strip and the tool strip
+    /// carry, at the modal tier.
     #[must_use]
     pub const fn requires_name(self) -> bool {
         matches!(
@@ -201,6 +234,8 @@ impl Role {
                 | Self::Toolbar
                 | Self::Switch
                 | Self::TabPanel
+                | Self::Meter
+                | Self::Dialog
         )
     }
 
@@ -235,6 +270,8 @@ impl Role {
             Self::Toolbar => "toolbar",
             Self::Switch => "switch",
             Self::TabPanel => "tab_panel",
+            Self::Meter => "meter",
+            Self::Dialog => "dialog",
         }
     }
 }

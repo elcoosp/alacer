@@ -35,6 +35,7 @@ mod tab_panel;
 mod table;
 mod text_input;
 mod toolbar;
+mod tooltip;
 mod tree;
 
 pub use button::Button;
@@ -60,6 +61,7 @@ pub use tab_panel::TabPanel;
 pub use table::{ColumnHeader, Table, TableCell, TableRow};
 pub use text_input::TextInput;
 pub use toolbar::Toolbar;
+pub use tooltip::Tooltip;
 pub use tree::{Tree, TreeItem};
 
 use alacer_core::widget::Widget;

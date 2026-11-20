@@ -186,6 +186,11 @@ fn m0_list_clips_content_to_the_viewport() {
                 alacer_core::geom::Rect::new(g.position, alacer_core::geom::Size::new(1.0, 12.0)),
                 g.clip,
             ),
+            // The raster image primitive joined the journal vocabulary
+            // (the raster tier this suite predates): its destination rect
+            // is the render footprint, the clip riding the primitive as
+            // the other kinds'.
+            alacer_core::scene::Primitive::Image(image) => (image.dst, image.clip),
         };
         let effective = match clip {
             Some(clip) => clip.intersection(&rect),

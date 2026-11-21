@@ -220,12 +220,139 @@ class ExpandSeedUniverseTest(unittest.TestCase):
 
 
 class PackageCommandTest(unittest.TestCase):
-    """The proof command packages one crate and tolerates the dirty tree."""
+    """The proof command packages one crate and tolerates the dirty tree.
+
+    `--no-verify` because the tarball's verification is the proof's own
+    explicit step (see `VerifyCommandTest`), not cargo's implicit one.
+    """
 
     def test_command_shape(self) -> None:
         self.assertEqual(
             check_publish.package_command("alacer-core"),
-            ["cargo", "package", "-p", "alacer-core", "--allow-dirty"],
+            ["cargo", "package", "-p", "alacer-core", "--allow-dirty", "--no-verify"],
+        )
+
+
+class VerifyCommandTest(unittest.TestCase):
+    """The verification step is exactly `cargo check --lib`, nothing more.
+
+    The published package is verified in its shipped shape: the library
+    compiles. `cargo test` / `cargo check --all-targets` would demand the
+    dev-dependency *targets* — local-development furniture the cut's own
+    dev-cycle (alacer-a11y ↔ alacer-testing) turns into a resolution
+    deadlock the publish step never faces.
+    """
+
+    def test_command_shape(self) -> None:
+        self.assertEqual(
+            check_publish.verify_command(), ["cargo", "check", "--lib"]
+        )
+
+    def test_command_never_names_test_targets(self) -> None:
+        command = check_publish.verify_command()
+        for banned in ("--all-targets", "--tests", "--benches", "--examples", "test"):
+            self.assertNotIn(banned, command)
+
+
+class VerifyUnpackedTest(unittest.TestCase):
+    """Each packaged `.crate` is verified extracted, in the shipped shape."""
+
+    def setUp(self) -> None:
+        self.root = make_workspace(["a-core"], {"a-core": {}})
+        package_dir = self.root / "target" / "package"
+        package_dir.mkdir(parents=True)
+        self.crate_file = self._build_crate_tarball("a-core", "0.1.0")
+
+    def _build_crate_tarball(self, crate: str, version: str) -> Path:
+        staging = Path(tempfile.mkdtemp(prefix="check-publish-verify-"))
+        payload = staging / f"{crate}-{version}"
+        payload.mkdir()
+        (payload / "Cargo.toml").write_text(
+            f'[package]\nname = "{crate}"\nversion = "{version}"\n', encoding="utf-8"
+        )
+        (payload / "src").mkdir()
+        (payload / "src" / "lib.rs").write_text("pub fn real() {}\n", encoding="utf-8")
+        crate_file = self.root / "target" / "package" / f"{crate}-{version}.crate"
+        with tarfile.open(crate_file, "w:gz") as archive:
+            archive.add(payload, arcname=payload.name)
+        return crate_file
+
+    def test_verifies_the_extracted_crate_in_the_shipped_shape(self) -> None:
+        observed: dict[str, object] = {}
+
+        def recording_runner(command: list[str], **kwargs: object) -> int:
+            # The extraction is cleaned after the check, so the shipped
+            # shape is captured at call time.
+            cwd = Path(str(kwargs["cwd"]))
+            observed["command"] = command
+            observed["cwd"] = str(cwd)
+            observed["manifest"] = (cwd / "Cargo.toml").read_text(encoding="utf-8")
+            observed["lib"] = (cwd / "src" / "lib.rs").is_file()
+            return 0
+
+        code = check_publish.verify_unpacked(
+            self.root, "a-core", self.crate_file, runner=recording_runner
+        )
+        self.assertEqual(code, 0)
+        self.assertEqual(
+            observed["command"], check_publish.verify_command()
+        )
+        extracted = Path(str(observed["cwd"]))
+        self.assertEqual(extracted.name, "a-core-0.1.0")
+        self.assertEqual(observed["manifest"], '[package]\nname = "a-core"\nversion = "0.1.0"\n')
+        self.assertTrue(observed["lib"], "the shipped lib is in the extraction")
+        self.assertFalse(extracted.exists(), "the extraction is cleaned after")
+
+    def test_nonzero_verification_code_propagates(self) -> None:
+        def failing_runner(_command: list[str], **_kwargs: object) -> int:
+            return 3
+
+        code = check_publish.verify_unpacked(
+            self.root, "a-core", self.crate_file, runner=failing_runner
+        )
+        self.assertEqual(code, 3)
+
+    def test_vendor_fill_travels_as_the_extraction_config(self) -> None:
+        seen: list[str | None] = []
+
+        def recording_runner(_command: list[str], **kwargs: object) -> int:
+            # The extraction is cleaned after the check: capture now.
+            cwd = Path(str(kwargs["cwd"]))
+            config = cwd / ".cargo" / "config.toml"
+            seen.append(config.read_text(encoding="utf-8") if config.is_file() else None)
+            return 0
+
+        # No vendor fill: the check resolves against the ambient registry.
+        check_publish.verify_unpacked(
+            self.root, "a-core", self.crate_file, runner=recording_runner
+        )
+        self.assertIsNone(seen[-1])
+        # With the fill present, the source replacement rides a local
+        # config pointing at the absolute vendor path.
+        vendor = self.root / check_publish.VENDOR_DIR
+        vendor.mkdir()
+        check_publish.verify_unpacked(
+            self.root, "a-core", self.crate_file, runner=recording_runner
+        )
+        self.assertIn('replace-with = "alacer-cut"', str(seen[-1]))
+        self.assertIn(f'directory = "{vendor.resolve().as_posix()}"', str(seen[-1]))
+
+    def test_extraction_base_is_outside_the_workspace_walk_up(self) -> None:
+        # The shipped manifest carries no `[workspace]` table, so an
+        # extraction inside the repo is claimed by the repo's workspace
+        # walk-up; the temp base must not sit under the repo root.
+        seen: list[Path] = []
+
+        def recording_runner(_command: list[str], **kwargs: object) -> int:
+            seen.append(Path(str(kwargs["cwd"])))
+            return 0
+
+        check_publish.verify_unpacked(
+            self.root, "a-core", self.crate_file, runner=recording_runner
+        )
+        self.assertFalse(
+            seen[-1].is_relative_to(self.root),
+            "the extraction must live outside the repo tree",
         )
 
 
@@ -418,6 +545,15 @@ class RunProofTest(unittest.TestCase):
 
         def fake_runner(command: list[str], **_kwargs: object) -> int:
             ran.append(command)
+            if command[:2] == ["cargo", "clean"]:
+                return 0
+            if command == check_publish.verify_command():
+                return 0
+            crate = command[command.index("-p") + 1]
+            crate_file = root / "target" / "package" / f"{crate}-0.1.0.crate"
+            crate_file.parent.mkdir(parents=True, exist_ok=True)
+            with tarfile.open(crate_file, "w:gz") as archive:
+                archive.add(root / "crates" / crate, arcname=f"{crate}-0.1.0")
             return 0
 
         summary = check_publish.run_proof(
@@ -447,6 +583,42 @@ class RunProofTest(unittest.TestCase):
         )
         self.assertEqual(summary, (0, 1))
 
+    def test_verification_failure_counts_and_stops(self) -> None:
+        # The tarball packages, but the lib-only check on the extraction
+        # fails: the crate counts failed, and the proof stops there.
+        root = make_workspace(RUNTIME_ONLY_MEMBERS, {
+            name: manifests
+            for name, manifests in FIXTURE_MANIFESTS.items()
+            if name in RUNTIME_ONLY_MEMBERS
+        })
+        commands: list[list[str]] = []
+
+        def flaky_checker(command: list[str], **_kwargs: object) -> int:
+            commands.append(command)
+            if command == check_publish.verify_command():
+                return 7
+            if command[:2] == ["cargo", "vendor"]:
+                (root / ".publish-vendor").mkdir(parents=True, exist_ok=True)
+                return 0
+            if command[:2] == ["cargo", "clean"]:
+                return 0
+            crate = command[command.index("-p") + 1]
+            crate_file = root / "target" / "package" / f"{crate}-0.1.0.crate"
+            crate_file.parent.mkdir(parents=True, exist_ok=True)
+            with tarfile.open(crate_file, "w:gz") as archive:
+                archive.add(root / "crates" / crate, arcname=f"{crate}-0.1.0")
+            return 0
+
+        summary = check_publish.run_proof(
+            root, runner=flaky_checker, simulate=True, threshold_bytes=0
+        )
+        self.assertEqual(summary, (0, 1))
+        self.assertTrue(
+            any(command == check_publish.verify_command() for command in commands)
+        )
+        # The tree is restored even on the verification stop.
+        self.assertFalse((root / ".cargo").exists())
+
     def test_simulated_run_stages_tarballs_and_restores_the_tree(self) -> None:
         root = make_workspace(RUNTIME_ONLY_MEMBERS, {
             name: manifests
@@ -462,6 +634,8 @@ class RunProofTest(unittest.TestCase):
                 vendor.mkdir(parents=True, exist_ok=True)
                 return 0
             if command[:2] == ["cargo", "clean"]:
+                return 0
+            if command == check_publish.verify_command():
                 return 0
             crate = command[command.index("-p") + 1]
             crate_file = root / "target" / "package" / f"{crate}-0.1.0.crate"
@@ -496,6 +670,8 @@ class RunProofTest(unittest.TestCase):
                 (root / ".publish-vendor").mkdir(parents=True, exist_ok=True)
                 return 0
             if command[:2] == ["cargo", "clean"]:
+                return 0
+            if command == check_publish.verify_command():
                 return 0
             crate = command[command.index("-p") + 1]
             crate_file = root / "target" / "package" / f"{crate}-0.1.0.crate"

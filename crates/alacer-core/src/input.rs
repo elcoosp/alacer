@@ -68,6 +68,22 @@ impl EventCoalescer {
         std::mem::take(&mut self.pending)
     }
 
+    /// Drains at most `cap` coalesced events, returning them with the
+    /// number left queued — the degradation ladder's budgeted arm
+    /// (§14.4 rung 1): a frame behind its input share routes the
+    /// batch's head in slices, checks its budget between slices, and
+    /// keeps the remainder queued for the next frame's drain. Never a
+    /// lost event: a postponed one (the queue's order and the wheel
+    /// accumulation ride untouched — the next [`Self::drain`] or slice
+    /// picks up exactly where this one stopped).
+    #[must_use]
+    pub fn drain_batch(&mut self, cap: usize) -> (Vec<PointerEvent>, usize) {
+        self.flush_wheel();
+        let take = self.pending.len().min(cap.max(1));
+        let drained: Vec<PointerEvent> = self.pending.drain(..take).collect();
+        (drained, self.pending.len())
+    }
+
     fn flush_wheel(&mut self) {
         if self.wheel_accumulated != Vector::zero() {
             // The wheel run's position is its first event's — every run

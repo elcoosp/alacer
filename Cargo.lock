@@ -190,6 +190,8 @@ version = "0.17.0"
 dependencies = [
  "accesskit",
  "alacer-core",
+ "alacer-testing",
+ "alacer-widgets",
  "criterion",
  "rustc-hash 2.1.3",
 ]

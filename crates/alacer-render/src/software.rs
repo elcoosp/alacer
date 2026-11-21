@@ -97,25 +97,31 @@ impl SoftwareRenderer {
             f32::from(u16::try_from(frame.height()).unwrap_or(u16::MAX)),
         );
         for region in damage.regions(viewport) {
-            clear_region(frame, &region, background);
+            // One pixel-snapped region drives everything: the clear, the
+            // scissor mask, and the primitive-intersection test draw the
+            // same line. tiny-skia's non-AA mask fill and rect fill
+            // disagree at sub-pixel edges — the Q8 equivalence fuzz
+            // caught boundary pixels repainting over stale blends — and
+            // any disagreement shows up as boundary pixels that never
+            // match the full render. Outward is the conservative
+            // direction: a pixel the damage nominally touches is
+            // repainted, never skipped, and every snapped-in pixel gets
+            // the full clear+redraw treatment the equivalence is proven
+            // over.
+            let Some(snapped) = snap_region_to_pixels(&region, frame.width(), frame.height())
+            else {
+                continue;
+            };
+            clear_region(frame, &snapped, background);
             // One scissor mask per region: a primitive may only touch pixels
             // the region owns (blending is not idempotent outside it).
-            let scissor = tiny_region(&region, frame.width(), frame.height()).and_then(|r| {
-                rect_mask(
-                    alacer_core::geom::Rect::new(
-                        alacer_core::geom::Point::new(r.left(), r.top()),
-                        alacer_core::geom::Size::new(r.width(), r.height()),
-                    ),
-                    frame.width(),
-                    frame.height(),
-                )
-            });
+            let scissor = rect_mask(snapped, frame.width(), frame.height());
             let mut painter = frame.as_mut();
             for primitive in &scene.primitives {
                 // Only primitives reaching into this region draw. Clean ones
                 // are redrawn within the region; their pixels outside keep
                 // the previous frame's identical values.
-                if !primitive_extent(primitive).intersects(&region) {
+                if !primitive_extent(primitive).intersects(&snapped) {
                     continue;
                 }
                 match primitive {
@@ -383,8 +389,16 @@ fn rect_mask(clip: alacer_core::geom::Rect, width: u32, height: u32) -> Option<M
 }
 
 /// Clears one region to `background` (the partial path's erase step).
+/// The region is pixel-snapped ([`snap_region_to_pixels`]), so the
+/// non-AA fill covers whole pixels exactly — no sub-pixel edge to
+/// disagree with the scissor mask about.
 fn clear_region(frame: &mut Pixmap, region: &alacer_core::geom::Rect, background: Color) {
-    let Some(rect) = tiny_region(region, frame.width(), frame.height()) else {
+    let Some(rect) = Rect::from_xywh(
+        region.origin.x,
+        region.origin.y,
+        region.size.width,
+        region.size.height,
+    ) else {
         return;
     };
     let mut paint = Paint::default();
@@ -392,20 +406,35 @@ fn clear_region(frame: &mut Pixmap, region: &alacer_core::geom::Rect, background
     frame.fill_rect(rect, &paint, Transform::identity(), None);
 }
 
-/// A damage region as a clamped tiny-skia rect.
-fn tiny_region(region: &alacer_core::geom::Rect, width: u32, height: u32) -> Option<Rect> {
-    let x = region.origin.x.max(0.0);
-    let y = region.origin.y.max(0.0);
-    let right = region
-        .max_x()
-        .min(f32::from(u16::try_from(width).unwrap_or(u16::MAX)));
-    let bottom = region
-        .max_y()
-        .min(f32::from(u16::try_from(height).unwrap_or(u16::MAX)));
-    if right <= x || bottom <= y {
+/// The region's whole-pixel form: integer bounds expanded outward (the
+/// floor of the left/top edge, the ceil of the right/bottom), clamped to
+/// the pixmap.
+///
+/// The clear, the scissor mask, and the primitive-intersection test must
+/// draw the same line: tiny-skia's non-AA mask fill and rect fill
+/// disagree at sub-pixel edges — the Q8 equivalence fuzz caught boundary
+/// pixels repainting over stale blends — and any disagreement shows up
+/// as boundary pixels that never match the full render. Outward is the
+/// conservative direction: a pixel the damage nominally touches (its
+/// area intersects the rect) is repainted, never skipped.
+fn snap_region_to_pixels(
+    region: &alacer_core::geom::Rect,
+    width: u32,
+    height: u32,
+) -> Option<alacer_core::geom::Rect> {
+    let max_x = f32::from(u16::try_from(width).unwrap_or(u16::MAX));
+    let max_y = f32::from(u16::try_from(height).unwrap_or(u16::MAX));
+    let left = region.origin.x.floor().max(0.0);
+    let top = region.origin.y.floor().max(0.0);
+    let right = region.max_x().ceil().min(max_x);
+    let bottom = region.max_y().ceil().min(max_y);
+    if right <= left || bottom <= top {
         return None;
     }
-    Rect::from_xywh(x, y, right - x, bottom - y)
+    Some(alacer_core::geom::Rect::new(
+        alacer_core::geom::Point::new(left, top),
+        alacer_core::geom::Size::new(right - left, bottom - top),
+    ))
 }
 
 /// Builds the quad path — sharp when `radius` is 0, rounded otherwise.

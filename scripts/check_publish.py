@@ -6,7 +6,7 @@ changelog, and publishes on a `v*` tag — but nothing before that tag ever
 proves the twelve workspace crates actually `cargo package` in the order
 crates.io demands. This script is that pre-flight.
 
-The mechanics it has to model (discovered the hard way, on cargo 1.99):
+The mechanics it has to model (probed on cargo 1.99.1):
 
 `cargo package` resolves the *published* manifest of each crate — paths
 stripped, workspace inheritance materialized — against a registry. A first
@@ -16,31 +16,40 @@ script therefore simulates the registry fill that the real sequential
 publish performs:
 
 1. `cargo vendor` unpacks every locked external crate into
-   `target/publish-vendor/` (the locked versions, exactly).
+   `.publish-vendor/` (the locked versions, exactly).
 2. A transient `.cargo/config.toml` replaces the `crates.io` source with
    that directory for the duration of the run (restored byte-identically
    — the file is removed in a `finally`).
 3. In topological order (runtime edges), each crate runs
-   `cargo package -p <crate> --allow-dirty`; on success its `.crate`
-   tarball is unpacked into the vendor directory — the registry fill.
-4. When a crate's dependency closure (runtime *and* dev edges — package
-   resolution covers dev-dependencies too) names a sibling whose package
-   step has not run yet, that sibling is seeded into the vendor directory
-   from workspace source with a materialized manifest. This happens for
-   the `alacer-a11y` ↔ `alacer-testing` dev-cycle, which cannot be
-   published in *any* order against a real empty registry — the seed is
-   the simulation's stand-in for "the sibling is already published", and
-   the report calls the gap out.
+   `cargo package -p <crate> --allow-dirty --no-verify`; on success its
+   `.crate` tarball is unpacked into the vendor directory — the registry
+   fill.
+4. Package resolution covers dev-dependencies too (the probe is blunt: a
+   manifest whose dev-dependencies cannot resolve fails `cargo package`
+   with `--no-verify`, at the "prepare local package" step). When a
+   crate's closure names a sibling whose package step has not run yet —
+   the `alacer-a11y` ↔ `alacer-testing` dev-cycle — that sibling is
+   seeded into the vendor directory from workspace source with a
+   materialized manifest: the simulation's stand-in for "the sibling is
+   already published". The seeds are resolution-only; nothing compiles
+   them.
+5. The verification is the proof's own explicit, asserted step: each
+   packaged `.crate` is extracted to `target/publish-verify/` and must
+   pass `cargo check --lib` — exit code counted, per crate, in the
+   shipped manifest's own shape. `--no-verify` keeps cargo from running
+   its built-in (unasserted) check on top; the test/bench/example targets
+   are never built (`cargo test` / `cargo check --all-targets` would drag
+   the dev-dependency builds in, furniture no publish step compiles).
 
 The result: every one of the twelve `.crate` tarballs the cut will upload
-is created and verified in isolation against a registry whose internal
-content is the cut's own earlier tarballs (plus the documented seeds).
-`--allow-dirty` is passed because the handoff regime leaves the tree
-intentionally dirty; the tarball content is what a tag publish ships.
+is created and lib-verified in isolation against a registry whose internal
+content is the cut's own earlier tarballs (plus the dev-cycle seeds).
 
-Disk management: between crates the script removes the extracted
-verification directories under `target/package/` (keeping the `.crate`
-files) — the builds are the sandbox's pressure point. `--dry-run` prints
+Disk management: between crates the script runs a full `cargo clean`
+(`target/debug` is where verification builds actually accumulate — they
+share the main workspace target; the vendor tree sits outside `target/`,
+where it survives, and each verification extraction is removed after its
+check). The builds are the sandbox's pressure point. `--dry-run` prints
 the order and staging plan only.
 
 Run with `python3 scripts/check_publish.py [--no-simulate] [--dry-run]
@@ -177,10 +186,74 @@ def expand_seed_universe(
     return universe
 
 
+def _run(command: list[str], cwd: str) -> int:
+    """The real runner: subprocess exit code, output inherited (streamed)."""
+    return subprocess.run(command, cwd=cwd).returncode
+
+
 def package_command(crate: str) -> list[str]:
-    """The per-crate proof command. `--allow-dirty` because the handoff
-    regime leaves the tree dirty by design (see module docstring)."""
-    return ["cargo", "package", "-p", crate, "--allow-dirty"]
+    """The per-crate packaging command. `--allow-dirty` because the handoff
+    regime leaves the tree dirty by design; `--no-verify` because the
+    tarball's verification is the proof's own explicit step
+    ([`verify_command`] on the extraction) — cargo's built-in verify is an
+    implicit build this script neither asserts nor reports, and the proof
+    replaces it rather than stacking an unasserted second check on top."""
+    return ["cargo", "package", "-p", crate, "--allow-dirty", "--no-verify"]
+
+
+def verify_command() -> list[str]:
+    """The verification step each unpacked `.crate` must pass: exactly
+    `cargo check --lib`.
+
+    The published package ships its library; that is what the proof
+    compiles, in the shipped manifest's own shape. The test/bench/example
+    targets (`cargo test`, `cargo check --all-targets`) are NOT built —
+    they drag the dev-dependencies into the build, furniture that only
+    exists for local development (the `alacer-a11y` ↔ `alacer-testing`
+    dev-cycle) and that no publish step of this cut ever compiles. The
+    lib-only check keeps the proof's assertion on the publish surface and
+    nothing else."""
+    return ["cargo", "check", "--lib"]
+
+
+def verify_unpacked(
+    root: Path, crate: str, crate_file: Path, runner=_run
+) -> int:
+    """Verifies the packaged crate in its shipped shape: the `.crate`
+    extracted OUTSIDE the repository tree, [`verify_command`] run from
+    there, everything removed after.
+
+    Outside, because the extraction must resolve as its own workspace
+    root — cargo 1.99.1 does not append a `[workspace]` table to the
+    packaged manifest, so an extraction under the repo is claimed by the
+    repo's workspace walk-up and refused ("believes it's in a workspace
+    when it's not"). A fresh temp dir per crate keeps the shipped
+    manifest byte-identical to the tarball's. When the registry fill
+    exists (the simulate run), a transient `.cargo/config.toml` in the
+    extraction carries the source replacement — an absolute directory
+    path, so the check resolves the same vendor tree the packages
+    resolved against. Returns the runner's exit code; `0` is the only
+    passing value."""
+    vendor = root / VENDOR_DIR
+    base = Path(tempfile.mkdtemp(prefix="publish-verify-"))
+    extracted = base / crate_file.stem.removesuffix(".crate")
+    try:
+        with tarfile.open(crate_file, "r:gz") as archive:
+            archive.extractall(base, filter="data")
+        if vendor.is_dir():
+            cargo_dir = extracted / ".cargo"
+            cargo_dir.mkdir()
+            (cargo_dir / "config.toml").write_text(
+                "[source.crates-io]\n"
+                'replace-with = "alacer-cut"\n'
+                "\n"
+                "[source.alacer-cut]\n"
+                f'directory = "{vendor.resolve().as_posix()}"\n',
+                encoding="utf-8",
+            )
+        return runner(verify_command(), cwd=str(extracted))
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
 
 
 def _emit_value(value: object) -> str:
@@ -307,11 +380,6 @@ def stage_real_crate(root: Path, crate: str, vendor: Path, crate_file: Path) -> 
     return target
 
 
-def _run(command: list[str], cwd: str) -> int:
-    """The real runner: subprocess exit code, output inherited (streamed)."""
-    return subprocess.run(command, cwd=cwd).returncode
-
-
 def wipe_verification_artifacts(root: Path, runner=_run) -> None:
     """The between-crate disk valve: a full `cargo clean`.
 
@@ -364,15 +432,19 @@ def run_proof(
     threshold_bytes: int = int(DEFAULT_THRESHOLD_GIB * 1024**3),
     keep_vendor: bool = False,
 ) -> tuple[int, int]:
-    """Packages every crate in publish order; returns (passed, failed).
+    """Packages every crate in publish order and verifies each unpacked
+    `.crate`; returns (passed, failed).
 
-    Stops at the first failing crate. With `simulate`, the vendor tree
-    stands in for the registry (see the module docstring). Between crates
-    a full `cargo clean` runs (`wipe_between`) — verification builds share
-    the main `target/debug`, which is what fills the disk; the threshold
-    refuses to START a crate below it, before a build can ENOSPC. The
-    vendor tree and the source config are transient; `keep_vendor` leaves
-    the fill in place for inspection.
+    Stops at the first failing crate — packaging or verification. With
+    `simulate`, the vendor tree stands in for the registry (see the module
+    docstring). Each crate counts `passed` only when its tarball packaged
+    AND its extraction passed [`verify_command`] (`cargo check --lib`) —
+    the proof's own assertion, in the published manifest's own shape.
+    Between crates a full `cargo clean` runs (`wipe_between`) —
+    verification builds share the main `target/debug`, which is what fills
+    the disk; the threshold refuses to START a crate below it, before a
+    build can ENOSPC. The vendor tree and the source config are transient;
+    `keep_vendor` leaves the fill in place for inspection.
     """
     order = topological_order(build_graph(root, set(parse_members(root))))
     print(f"publish order ({len(order)} crates): {', '.join(order)}")
@@ -416,20 +488,24 @@ def run_proof(
                     seeded = seed_crate(root, dep, vendor)
                     print(f"  seeded {dep} -> {seeded.relative_to(root)}")
             print(f"--- packaging {crate} ({index}/{len(order)}) ---")
-            if runner(package_command(crate), cwd=str(root)) == 0:
-                passed += 1
-                if simulate:
-                    crate_file = root / "target" / "package" / f"{crate}-*.crate"
-                    matches = sorted(crate_file.parent.glob(crate_file.name))
-                    if not matches:
-                        raise SystemExit(f"cargo package reported success but no .crate for {crate}")
-                    staged = stage_real_crate(root, crate, vendor, matches[-1])
-                    print(f"  staged {matches[-1].name} -> {staged.relative_to(root)}")
-                real_staged.add(crate)
-            else:
+            if runner(package_command(crate), cwd=str(root)) != 0:
                 print(f"FAILED: cargo package -p {crate}")
                 failed += 1
                 break
+            crate_file = root / "target" / "package" / f"{crate}-*.crate"
+            matches = sorted(crate_file.parent.glob(crate_file.name))
+            if not matches:
+                raise SystemExit(f"cargo package reported success but no .crate for {crate}")
+            if simulate:
+                staged = stage_real_crate(root, crate, vendor, matches[-1])
+                print(f"  staged {matches[-1].name} -> {staged.relative_to(root)}")
+            real_staged.add(crate)
+            print(f"--- verifying {crate} ({index}/{len(order)}) ---")
+            if verify_unpacked(root, crate, matches[-1], runner) != 0:
+                print(f"FAILED: {verify_command()} on the unpacked {crate}")
+                failed += 1
+                break
+            passed += 1
     finally:
         if config_written:
             remove_source_config(root)
@@ -484,9 +560,10 @@ def main() -> int:
     )
     total = len(order)
     if failed:
-        print(f"publish proof FAILED: {passed}/{total} packaged")
+        print(f"publish proof FAILED: {passed}/{total} crates packaged and verified")
         return 1
-    print(f"publish proof OK: {passed}/{total} crates packaged in publish order")
+    print(f"publish proof OK: {passed}/{total} crates packaged and verified "
+          "(cargo check --lib on each extraction) in publish order")
     return 0
 
 

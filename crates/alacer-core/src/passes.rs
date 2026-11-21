@@ -907,6 +907,70 @@ pub enum ScrollIntoViewOutcome {
     Refused(ScrollIntoViewRefusal),
 }
 
+/// The degradation ladder's step (§14.4): what a frame over budget gave
+/// up, in the ladder's own order. One step per frame — the decisions run
+/// in ladder order, so the step recorded is the deepest rung the tick
+/// reached. The ladder arms only where a budget is installed
+/// ([`PassPipeline::set_frame_budget`]): a disarmed pipeline — the
+/// default — reports [`DegradationStep::None`] every frame, so the
+/// shipped shape is byte-for-byte the pre-ladder tick's and no pass ever
+/// skips uninvited.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DegradationStep {
+    /// Every pass ran inside the budget — nothing was given up.
+    None,
+    /// The input drain blew its share of the budget: the batch's
+    /// remainder stays queued and rides the next frame's drain (§14.4
+    /// rung 1 — coalesce the flux work into the next frame). Never a
+    /// dropped event: a postponed one — the queue drains to empty on the
+    /// frames that can afford it.
+    DropInput,
+    /// The paint pass blew its share of the budget on a partial frame:
+    /// the merged regions collapse to one full-frame present (§14.4 rung
+    /// 3 — present full frame). The verdict widens, the scene does not —
+    /// a full present shows the same frame, the backend just stops
+    /// paying region bookkeeping while behind.
+    ForceFullPaint,
+    /// The frame was past its budget's halfway line when the a11y pass
+    /// came due: the pass's *dirty updates* defer — their masks re-queue
+    /// and the next frame's pass lands the delta whole. Focus moves,
+    /// announcements, first frames, and structural churn never defer
+    /// (§14.4's own contract: latency may degrade, correctness may not)
+    /// — the deferral is one frame of latency for the dirty entries,
+    /// never a lost fact, and a sustained overload defers every frame
+    /// rather than pushing any past its budget.
+    SkipA11y,
+}
+
+impl DegradationStep {
+    /// The step's name — the wire vocabulary's `snake_case` tag (the
+    /// protocol's stable, documented field values; see
+    /// `docs/inspector-protocol.md`, the `frame` event).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::DropInput => "drop_input",
+            Self::ForceFullPaint => "force_full_paint",
+            Self::SkipA11y => "skip_a11y",
+        }
+    }
+}
+
+/// The ladder's decision thresholds, as shares of the installed frame
+/// budget (§14.4): the input drain owns the first quarter, the per-pass
+/// overrun line is the halfway mark — a frame that reaches the a11y pass
+/// past it defers the dirty updates ([`DegradationStep::SkipA11y`]), a
+/// paint pass past it collapses a partial present to one full frame
+/// ([`DegradationStep::ForceFullPaint`]).
+const DEGRADATION_INPUT_SHARE: u32 = 4;
+
+/// The input drain's batch slice: the ladder drains the queue in slices
+/// of this many events so the budget is checked between dispatches —
+/// the granularity the rung's honesty rides (a storm of thousands
+/// routes its head, the remainder stays queued, never a lost event).
+const DEGRADATION_INPUT_BATCH: usize = 32;
+
 /// One frame's outcome, returned by [`PassPipeline::tick`].
 #[derive(Debug, Clone)]
 #[expect(
@@ -941,15 +1005,24 @@ pub struct FrameReport {
     pub passes: std::sync::Arc<Vec<PassRun>>,
     /// Focus moved this frame.
     pub focus_changed: bool,
+    /// The degradation ladder's deepest rung this frame reached (§14.4).
+    /// [`DegradationStep::None`] on every disarmed pipeline and on every
+    /// frame that fit its budget.
+    pub degradation_step: DegradationStep,
     /// Total tick wall time, when timings are on (else 0).
     pub total_nanos: u64,
 }
 
 impl FrameReport {
-    /// `true` when no pass had work — the idle contract (A7).
+    /// `true` when no pass had work — the idle contract (A7). A frame
+    /// that deferred a11y updates ([`DegradationStep::SkipA11y`]) is
+    /// never idle: its work is queued, the next frame owes it.
     #[must_use]
     pub fn is_idle(&self) -> bool {
-        !self.layout_ran && !self.paint_ran && !self.a11y_ran
+        !self.layout_ran
+            && !self.paint_ran
+            && !self.a11y_ran
+            && self.degradation_step == DegradationStep::None
     }
 
     /// The ledger entry for `kind`.
@@ -1034,6 +1107,15 @@ pub struct PassPipeline {
     /// pipeline is the honest shape — the deltas equal the deltas the
     /// direct `Instant::now` reads answered, from one fixed origin.
     clock_anchor: std::time::Instant,
+    /// The frame budget the degradation ladder arms against (§14.4).
+    /// `None` — the default — leaves every pass unconditional: the
+    /// shipped shape is the pre-ladder tick's. A budget installed
+    /// ([`Self::set_frame_budget`]) makes the tick's over-budget
+    /// decisions rung by rung: the input drain's remainder coalesces
+    /// into the next frame, a behind-schedule paint presents one full
+    /// frame, and a frame past the halfway line defers the a11y pass's
+    /// dirty updates ([`DegradationStep::SkipA11y`]).
+    frame_budget: Option<std::time::Duration>,
     /// Pass ledger entries for dispatch-driven passes (event, action),
     /// attributed to the next tick's report.
     interframe: Vec<PassRun>,
@@ -1121,6 +1203,7 @@ impl PassPipeline {
             timings: false,
             clock: None,
             clock_anchor: std::time::Instant::now(),
+            frame_budget: None,
             interframe: Vec::new(),
             idle_ledger: None,
             style_cache: FxHashMap::default(),
@@ -1465,6 +1548,34 @@ impl PassPipeline {
     /// behavior is byte-for-byte the pre-seam tick's.
     pub fn set_clock(&mut self, clock: Box<dyn crate::time::TimeSeam>) {
         self.clock = Some(clock);
+    }
+
+    /// Installs the frame budget the degradation ladder arms against
+    /// (§14.4): a frame that can't fit its budget degrades rung by rung —
+    /// the input batch's remainder coalesces into the next frame
+    /// ([`DegradationStep::DropInput`]), a behind-schedule paint
+    /// presents one full frame ([`DegradationStep::ForceFullPaint`]),
+    /// and a frame past the budget's halfway line defers the a11y
+    /// pass's dirty updates ([`DegradationStep::SkipA11y`]) — their
+    /// masks re-queue, the next frame lands the delta, and focus moves,
+    /// announcements, first frames, and structural churn never defer
+    /// (latency may degrade, correctness may not). `None` disarms the
+    /// ladder: every pass runs unconditionally, the shipped default.
+    ///
+    /// The decisions read the same clock the ledger rides — the
+    /// installed [`crate::time::TimeSeam`] answers them when one is
+    /// installed, real monotonic time otherwise — so a seam clock makes
+    /// the ladder deterministic in tests, exactly as it makes the
+    /// ledger.
+    pub fn set_frame_budget(&mut self, budget: Option<std::time::Duration>) {
+        self.frame_budget = budget;
+    }
+
+    /// The installed frame budget, `None` when the ladder is disarmed
+    /// (the default).
+    #[must_use]
+    pub const fn frame_budget(&self) -> Option<std::time::Duration> {
+        self.frame_budget
     }
 
     /// One timing read: the installed seam's monotonic nanos, or the
@@ -2828,6 +2939,7 @@ impl PassPipeline {
             paint_ran: report.paint_ran,
             a11y_ran: report.a11y_ran,
             focus_changed: report.focus_changed,
+            degradation_step: report.degradation_step,
             damage: report.damage.clone(),
             viewport,
             a11y_updated: report.a11y_delta.updated.len(),
@@ -3121,6 +3233,13 @@ impl PassPipeline {
     )]
     pub fn tick(&mut self, viewport: Size) -> Result<FrameReport, LayoutError> {
         let total_start = self.timings.then(|| self.read_clock_nanos());
+        // The degradation ladder's start read (§14.4): the frame's own
+        // elapsed time, read at every decision point against the
+        // installed budget. One read when armed, none when disarmed —
+        // the default pipeline prices the ladder at nothing.
+        let ladder_budget = self.frame_budget;
+        let ladder_start = ladder_budget.map(|_| self.read_clock_nanos());
+        let mut degradation = DegradationStep::None;
 
         // The a11y-echo drain (§13.3, ADR-0073): the adapter tier's facts
         // — the full-tree echo a connect or reconnect answered — ride the
@@ -3138,8 +3257,36 @@ impl PassPipeline {
         // Frame-batched input (§10.2, ADR-0014): the queued storm coalesces
         // and routes here, before the ledger is taken — its event passes are
         // this frame's, exactly as if the platform had dispatched one event.
-        for event in self.input.drain() {
-            self.dispatch_pointer(&event);
+        // The degradation ladder's first rung rides the drain (§14.4): a
+        // frame behind its input share routes the batch's head and keeps the
+        // remainder queued — the next frame's drain routes it (coalesce the
+        // flux work into the next frame). Never a lost event: a postponed
+        // one, and the rung is recorded where the decision resolves.
+        match ladder_budget {
+            Some(budget) => {
+                let drain_start = self.read_clock_nanos();
+                let input_share =
+                    crate::num::u128_to_u64((budget / DEGRADATION_INPUT_SHARE).as_nanos());
+                loop {
+                    let (batch, remaining) = self.input.drain_batch(DEGRADATION_INPUT_BATCH);
+                    for event in batch {
+                        self.dispatch_pointer(&event);
+                    }
+                    if remaining == 0 {
+                        break;
+                    }
+                    let elapsed = self.read_clock_nanos().saturating_sub(drain_start);
+                    if elapsed > input_share {
+                        degradation = DegradationStep::DropInput;
+                        break;
+                    }
+                }
+            }
+            None => {
+                for event in self.input.drain() {
+                    self.dispatch_pointer(&event);
+                }
+            }
         }
 
         // The announcement drain (§11.6, ADR-0024): the speech acts event
@@ -3553,6 +3700,11 @@ impl PassPipeline {
         let mut paint_work = 0_u64;
         let mut scene = None;
         let mut damage = DamageBuilder::new();
+        // The ladder's own read around the paint pass (§14.4): measured
+        // whenever a budget is installed, independent of the ledger's
+        // timings gate — the rung's honesty does not depend on the M1
+        // gate's instrumentation being on.
+        let paint_ladder_start = ladder_budget.map(|_| self.read_clock_nanos());
         ledger.push(self.run_pass(PassKind::Paint, |s| {
             if paint_ran {
                 let start = s.timings.then(|| s.read_clock_nanos());
@@ -3579,13 +3731,28 @@ impl PassPipeline {
         }
         // The damage ladder (§9.3): structural/first frames repaint in full,
         // silent frames cost nothing, partial frames carry their regions.
-        let damage = if !paint_ran {
+        let mut damage = if !paint_ran {
             Damage::NONE
         } else if structure_changed || first_frame {
             Damage::FULL
         } else {
             damage.finish(viewport)
         };
+        // The degradation ladder's third rung (§14.4): a paint pass past
+        // the budget's halfway line, on a partial frame, collapses its
+        // merged regions to one full-frame present — present full frame.
+        // The scene is unchanged (a full present shows the same frame);
+        // only the region bookkeeping stops while the frame is behind.
+        let paint_ladder_nanos =
+            paint_ladder_start.map_or(0, |t| self.read_clock_nanos().saturating_sub(t));
+        if let Some(budget) = ladder_budget {
+            let halfway = crate::num::u128_to_u64((budget / 2).as_nanos());
+            if paint_ran && !damage.is_empty() && !damage.is_full() && paint_ladder_nanos > halfway
+            {
+                damage = Damage::FULL;
+                degradation = DegradationStep::ForceFullPaint;
+            }
+        }
 
         // Pass 9 — accessibility: the M3 a11y contract (§11.1). The delta
         // carries dirty ids only, the ids structural churn removed, and the
@@ -3605,10 +3772,49 @@ impl PassPipeline {
         if announcement_dirty {
             a11y_set.insert(crate::announce::ANNOUNCEMENT_NODE_HASH);
         }
-        let a11y_ran = first_frame || !a11y_set.is_empty() || focus_changed;
+        // The degradation ladder's deferral rung (§14.4): a frame past the
+        // budget's halfway line when the a11y pass came due defers the
+        // pass's *dirty updates* — the masks re-queue and the next frame
+        // lands the delta. The rung is for dirty/translated updates only:
+        // focus moves, announcements, first frames, and structural churn
+        // never defer (latency may degrade, correctness may not — the
+        // facts those triggers carry cannot be reconstructed from a
+        // re-queued mask).
+        let mut a11y_ran = first_frame || !a11y_set.is_empty() || focus_changed;
+        let a11y_deferred = match ladder_budget {
+            Some(budget) => {
+                let halfway = crate::num::u128_to_u64((budget / 2).as_nanos());
+                let elapsed = self
+                    .read_clock_nanos()
+                    .saturating_sub(ladder_start.unwrap_or_default());
+                a11y_ran
+                    && !focus_changed
+                    && !announcement_dirty
+                    && !first_frame
+                    && !structure_changed
+                    && elapsed > halfway
+            }
+            None => false,
+        };
         let mut a11y_work = 0_u64;
         let mut a11y_delta = A11yDelta::empty();
         ledger.push(self.run_pass(PassKind::Accessibility, |s| {
+            if a11y_deferred {
+                // The deferral's own bookkeeping: the masks that drove the
+                // pass re-queue, so the next frame's pass is due with the
+                // same set (the dirty nodes keep their A11Y mask; the
+                // translated nodes re-join it the same way). No fact lost:
+                // a postponed one.
+                for (node, mask) in &dirty {
+                    if mask.forces_a11y() || mask.intersects(Change::LAYOUT) {
+                        s.arena.merge_mask(*node, Change::A11Y);
+                    }
+                }
+                for node in &translated {
+                    s.arena.merge_mask(*node, Change::A11Y);
+                }
+                return false;
+            }
             if a11y_ran {
                 s.announcement_dirty = false;
                 let start = s.timings.then(|| s.read_clock_nanos());
@@ -3640,6 +3846,13 @@ impl PassPipeline {
             run.work_nanos = a11y_work;
             run.nanos = a11y_work;
         }
+        if a11y_deferred {
+            degradation = DegradationStep::SkipA11y;
+            // The report's flag stays honest: the pass did not run this
+            // frame — the delta is queued, not applied (the ledger entry
+            // and this flag name the same fact).
+            a11y_ran = false;
+        }
 
         let total_nanos = total_start.map_or(0, |t| self.read_clock_nanos().saturating_sub(t));
         // A frame that skipped paint replays the cached materialization —
@@ -3659,6 +3872,7 @@ impl PassPipeline {
             a11y_delta,
             passes,
             focus_changed,
+            degradation_step: degradation,
             total_nanos,
         };
         self.notify_frame(&report, &dirty, viewport);

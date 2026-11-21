@@ -510,6 +510,7 @@ fn dummy_frame(number: u64) -> alacer_core::inspect::FrameSummary {
         paint_ran: false,
         a11y_ran: false,
         focus_changed: false,
+        degradation_step: alacer_core::passes::DegradationStep::None,
         damage: alacer_core::Damage::NONE,
         viewport: alacer_core::geom::Size::new(120.0, 90.0),
         a11y_updated: 0,

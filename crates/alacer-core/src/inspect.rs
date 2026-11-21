@@ -30,7 +30,7 @@ use crate::geom::Size;
 use crate::history::EditAction;
 use crate::keymap::{Chord, KeymapConsult};
 use crate::mask::Change;
-use crate::passes::{FocusMove, FocusMoveOutcome, PassKind};
+use crate::passes::{DegradationStep, FocusMove, FocusMoveOutcome, PassKind};
 use crate::widget::Role;
 
 /// Identity of one signal in the causal log: a 64-bit key hashed from the
@@ -143,6 +143,10 @@ pub struct FrameSummary {
     pub a11y_ran: bool,
     /// Whether focus moved.
     pub focus_changed: bool,
+    /// The degradation ladder's deepest rung this frame reached (§14.4)
+    /// — what a frame over budget gave up, recorded where the decision
+    /// resolved. [`DegradationStep::None`] on disarmed pipelines.
+    pub degradation_step: DegradationStep,
     /// The frame's paint damage (§9.3).
     pub damage: Damage,
     /// The viewport the frame rendered into.

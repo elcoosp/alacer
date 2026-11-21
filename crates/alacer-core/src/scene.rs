@@ -5,7 +5,86 @@
 //! [`PaintCtx`]; the journal storage and rasterizers live in `alacer-render`.
 
 use crate::color::Color;
-use crate::geom::{Point, Rect, Size};
+use crate::geom::{Point, Rect, Size, Vector};
+use crate::num::f32_to_u8;
+
+/// The compose tier's per-node paint state (§14.2's W3 mechanism): the
+/// fade and the translation a node paints with. The compose pass folds a
+/// node's own state beside every ancestor's into the paint context
+/// (fades multiply down the tree — a faded parent fades its subtree, the
+/// CSS rule; translations add), and pushes apply the fold at record time:
+/// the fade into the alpha channel the renderers already blend with, the
+/// translation into the recorded coordinates the origin already rides.
+///
+/// The state is a *paint* fact, never a layout one (styles stay
+/// layout-only, §7.2 pass 5): an animated frame moves it without
+/// re-measuring — the M8 scrolling contract's tier, generalized from the
+/// scroll offset to any compose state. `is_identity` gates the fold: a
+/// frame where nobody composes records exactly the primitives the
+/// pre-compose pipeline recorded — the byte-identical baseline the
+/// compose-opacity suite pins.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Compose {
+    /// The node's paint opacity, clamped to 0.0–1.0 at use; 1.0 paints
+    /// untouched.
+    pub opacity: f32,
+    /// The translation the node's paint rides, in pixels.
+    pub translation: Vector,
+}
+
+impl Compose {
+    /// The identity: full opacity, no translation. Every push records
+    /// exactly what it recorded before the compose tier existed.
+    pub const IDENTITY: Self = Self {
+        opacity: 1.0,
+        translation: euclid::Vector2D::new(0.0, 0.0),
+    };
+
+    /// A fade-only compose: the subtree paints at `opacity`.
+    #[must_use]
+    pub const fn faded(opacity: f32) -> Self {
+        Self {
+            opacity,
+            translation: euclid::Vector2D::new(0.0, 0.0),
+        }
+    }
+
+    /// A translation-only compose: the subtree paints shifted by
+    /// `translation`.
+    #[must_use]
+    pub const fn shifted(translation: Vector) -> Self {
+        Self {
+            opacity: 1.0,
+            translation,
+        }
+    }
+
+    /// Whether this state composes nothing: the gate that keeps a static
+    /// frame's recorded scene byte-identical to the baseline. The compare
+    /// is the bit pattern, not a margin: 1.0 is the exact identity (a ×1.0
+    /// fold is the no-op the byte-identity contract names), so the gate
+    /// answers "is this the identity constant", never "is this close to
+    /// one".
+    #[must_use]
+    pub fn is_identity(&self) -> bool {
+        self.opacity.to_bits() == Self::IDENTITY.opacity.to_bits()
+            && self.translation == euclid::Vector2D::new(0.0, 0.0)
+    }
+}
+
+/// One color's fade: the alpha `opacity` scales, the channels keep —
+/// storage is non-premultiplied, the renderers premultiply at their own
+/// boundary. A ×1.0 fold is the exact identity (`f32::from` × 1.0 is the
+/// same f32, the rounding is the same), so a fully opaque compose can
+/// never move a byte; callers gate on [`Compose::is_identity`] anyway.
+fn faded(color: Color, opacity: f32) -> Color {
+    Color::new(
+        color.r,
+        color.g,
+        color.b,
+        f32_to_u8(f32::from(color.a) * opacity),
+    )
+}
 
 /// A filled (optionally rounded, optionally bordered) rectangle.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -145,6 +224,10 @@ pub struct PaintCtx<'a> {
     reduced_motion: bool,
     high_contrast: bool,
     accent: Option<Color>,
+    /// The compose state this context's pushes record with — the compose
+    /// pass's inheritance write ([`Self::set_compose`]), identity until
+    /// the pass says otherwise.
+    compose: Compose,
 }
 
 impl<'a> PaintCtx<'a> {
@@ -182,6 +265,7 @@ impl<'a> PaintCtx<'a> {
             reduced_motion,
             high_contrast,
             accent,
+            compose: Compose::IDENTITY,
         }
     }
 
@@ -245,29 +329,58 @@ impl<'a> PaintCtx<'a> {
         self.accent
     }
 
-    /// Records one quad, translated to absolute coordinates.
+    /// Records one quad, translated to absolute coordinates: the node's
+    /// origin beside the compose translation (the compose tier rides the
+    /// same record-time fold the origin does), and the compose fade folded
+    /// into the fill's and border's alpha — the channel the renderers
+    /// already blend with, so a faded quad is an ordinary quad to every
+    /// backend (the premultiplied pipelines need no new fact).
     pub fn push_quad(&mut self, quad: Quad) {
-        self.sink.push(Primitive::Quad(Quad {
-            rect: quad.rect.translate(self.origin.to_vector()),
+        let mut quad = Quad {
+            rect: quad
+                .rect
+                .translate(self.origin.to_vector() + self.compose.translation),
             clip: self.clip,
             ..quad
-        }));
+        };
+        if self.compose.opacity.to_bits() != Compose::IDENTITY.opacity.to_bits() {
+            quad.color = faded(quad.color, self.compose.opacity);
+            quad.border_color = faded(quad.border_color, self.compose.opacity);
+        }
+        self.sink.push(Primitive::Quad(quad));
     }
 
-    /// Records one glyph; `position` is relative to this node's origin.
+    /// Records one glyph; `position` is relative to this node's origin,
+    /// beside the compose translation (the compose tier's ride). The
+    /// compose fade folds into the glyph's alpha — the coverage stamp
+    /// multiplies it in, the same channel the atlas blend consumes.
     pub fn push_glyph(&mut self, glyph: Glyph) {
-        self.sink.push(Primitive::Glyph(Glyph {
-            position: glyph.position + self.origin.to_vector(),
+        let mut glyph = Glyph {
+            position: glyph.position + self.origin.to_vector() + self.compose.translation,
             clip: self.clip,
             ..glyph
-        }));
+        };
+        if self.compose.opacity.to_bits() != Compose::IDENTITY.opacity.to_bits() {
+            glyph.color = faded(glyph.color, self.compose.opacity);
+        }
+        self.sink.push(Primitive::Glyph(glyph));
     }
 
     /// Records one raster image blit; `dst` is relative to this node's
-    /// origin (the source window rides bitmap coordinates untouched).
+    /// origin beside the compose translation (the compose tier's ride).
+    /// The source window rides bitmap coordinates untouched.
+    ///
+    /// The compose fade does *not* fold into an image: its bytes are a
+    /// shared `Arc` (the app, journal, and renderers own one allocation —
+    /// the glyph coverage's sharing rule), and fading would fork the
+    /// allocation the warm-path budget forbids (§14.3, ADR-0088). Images
+    /// compose translation only; their own alpha rides the premultiplied
+    /// bytes as decoded.
     pub fn push_image(&mut self, image: Image) {
         self.sink.push(Primitive::Image(Image {
-            dst: image.dst.translate(self.origin.to_vector()),
+            dst: image
+                .dst
+                .translate(self.origin.to_vector() + self.compose.translation),
             clip: self.clip,
             ..image
         }));
@@ -277,6 +390,23 @@ impl<'a> PaintCtx<'a> {
     #[must_use]
     pub fn origin(&self) -> Point {
         self.origin
+    }
+
+    /// The compose pass's inheritance write: installs the compose state in
+    /// effect at this node — the node's own beside every ancestor's, the
+    /// product the pass's ancestor walk folded ([`Compose`]'s contract).
+    /// Called once per painted node, before the widget paints; the
+    /// untouched context composes nothing.
+    pub fn set_compose(&mut self, compose: Compose) {
+        self.compose = compose;
+    }
+
+    /// The compose state this context records with — the pass's
+    /// inheritance product. A widget composing its own parts consults it;
+    /// every push applies it whether the widget reads it or not.
+    #[must_use]
+    pub const fn compose(&self) -> Compose {
+        self.compose
     }
 }
 
@@ -383,9 +513,9 @@ pub trait GlyphSource {
 
 #[cfg(test)]
 mod tests {
-    use super::{Glyph, PaintSink, Primitive, Quad};
+    use super::{Compose, Glyph, PaintSink, Primitive, Quad};
     use crate::color::Color;
-    use crate::geom::{Point, Rect, Size};
+    use crate::geom::{Point, Rect, Size, Vector};
     use crate::scene::PaintCtx;
 
     #[derive(Default)]
@@ -436,6 +566,126 @@ mod tests {
             panic!("expected glyph");
         };
         assert_eq!(glyph.position, Point::new(102.0, 58.0));
+    }
+
+    /// The test's quad: an opaque red 20×10 rect at the local origin.
+    fn red_quad() -> Quad {
+        Quad::filled(
+            Rect::new(Point::new(0.0, 0.0), Size::new(20.0, 10.0)),
+            Color::rgb(255, 0, 0),
+        )
+    }
+
+    #[test]
+    fn identity_compose_records_the_baseline_primitive() {
+        // The byte-identical contract: a context the pass never touched
+        // and one set to the identity record the *same* primitive — the
+        // static frame's zero-regression gate.
+        let mut plain = Collector::default();
+        let mut composed = Collector::default();
+        let facts = (
+            Point::new(4.0, 6.0),
+            Size::new(40.0, 30.0),
+            crate::theme::Palette::CANON,
+        );
+        {
+            let mut ctx = PaintCtx::new(
+                &mut plain, facts.0, facts.1, None, facts.2, false, false, false, None,
+            );
+            ctx.push_quad(red_quad());
+        }
+        {
+            let mut ctx = PaintCtx::new(
+                &mut composed,
+                facts.0,
+                facts.1,
+                None,
+                facts.2,
+                false,
+                false,
+                false,
+                None,
+            );
+            ctx.set_compose(Compose::IDENTITY);
+            ctx.push_quad(red_quad());
+        }
+        assert_eq!(plain.0, composed.0, "the identity composes nothing");
+    }
+
+    #[test]
+    fn compose_fade_folds_into_the_recorded_alpha() {
+        let mut sink = Collector::default();
+        let mut ctx = PaintCtx::new(
+            &mut sink,
+            Point::new(0.0, 0.0),
+            Size::new(40.0, 30.0),
+            None,
+            crate::theme::Palette::CANON,
+            false,
+            false,
+            false,
+            None,
+        );
+        ctx.set_compose(Compose::faded(0.5));
+        ctx.push_quad(red_quad());
+
+        let Primitive::Quad(quad) = &sink.0[0] else {
+            panic!("expected quad");
+        };
+        assert_eq!(
+            quad.color.a, 128,
+            "the fade folded into the alpha (255 × 0.5, rounded once), channels untouched"
+        );
+        assert_eq!(
+            (quad.color.r, quad.color.g, quad.color.b),
+            (255, 0, 0),
+            "the fade is an alpha fact, never a color rewrite"
+        );
+        assert_eq!(
+            quad.rect,
+            Rect::new(Point::new(0.0, 0.0), Size::new(20.0, 10.0)),
+            "a fade moves no geometry"
+        );
+    }
+
+    #[test]
+    fn compose_translation_rides_the_recorded_geometry() {
+        let mut sink = Collector::default();
+        let mut ctx = PaintCtx::new(
+            &mut sink,
+            Point::new(10.0, 20.0),
+            Size::new(40.0, 30.0),
+            None,
+            crate::theme::Palette::CANON,
+            false,
+            false,
+            false,
+            None,
+        );
+        ctx.set_compose(Compose::shifted(Vector::new(5.0, 3.0)));
+        ctx.push_quad(red_quad());
+        ctx.push_glyph(Glyph {
+            position: Point::new(2.0, 8.0),
+            size: 12.0,
+            color: Color::BLACK,
+            font_id: 1,
+            glyph_id: 65,
+            clip: None,
+        });
+
+        let Primitive::Quad(quad) = &sink.0[0] else {
+            panic!("expected quad");
+        };
+        assert_eq!(
+            quad.rect.origin,
+            Point::new(15.0, 23.0),
+            "origin beside the compose translation"
+        );
+        let Primitive::Glyph(glyph) = &sink.0[1] else {
+            panic!("expected glyph");
+        };
+        assert_eq!(glyph.position, Point::new(17.0, 31.0));
+        assert_eq!(glyph.color.a, 255, "a shift is not a fade");
     }
 
     #[test]

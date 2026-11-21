@@ -982,6 +982,25 @@ pub trait Widget: 'static {
         false
     }
 
+    /// The compose tier's paint state ([`crate::scene::Compose`], §14.2's
+    /// W3 mechanism): the fade and translation this widget paints itself
+    /// and its subtree with. The compose pass folds a node's own state
+    /// beside every ancestor's into the paint context — nested fades
+    /// multiply, translations add — and the pushes apply the product at
+    /// record time, the fade into the alpha channel the renderers already
+    /// blend with, the translation into the recorded coordinates. The
+    /// default composes nothing: a widget that never overrides it records
+    /// exactly the primitives it always did (the byte-identical baseline
+    /// the compose-opacity suite pins).
+    ///
+    /// The state is a *paint* fact, never a layout one (styles stay
+    /// layout-only, §7.2 pass 5): an animated frame moves it without
+    /// re-measuring — the M8 scrolling contract's tier, generalized from
+    /// the scroll offset to any compose state.
+    fn compose(&self) -> crate::scene::Compose {
+        crate::scene::Compose::IDENTITY
+    }
+
     /// The container's half of the bring-into-view door (M88, ADR-0092):
     /// the pipeline reads the bounds ledger it already owns, computes the
     /// minimal offset that lands the aimed node fully inside this

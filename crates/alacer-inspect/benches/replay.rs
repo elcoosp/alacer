@@ -37,6 +37,7 @@ fn filled_recorder() -> CausalRecorder {
             paint_ran: true,
             a11y_ran: false,
             focus_changed: false,
+            degradation_step: alacer_core::passes::DegradationStep::None,
             damage: alacer_core::Damage::NONE,
             viewport: alacer_core::geom::Size::new(800.0, 600.0),
             a11y_updated: 0,

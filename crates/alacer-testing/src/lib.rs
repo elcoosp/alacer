@@ -15,8 +15,12 @@
 //!   checker the warm-frame zero-allocation contract is enforced with.
 
 pub mod alloc;
+pub mod fuzz_scene;
+pub mod hot_patch;
 pub mod recording;
 
+pub use fuzz_scene::{FUZZ_VIEWPORT, FuzzGlyphs, Lcg, SceneGenerator};
+pub use hot_patch::{HotPatchDriver, PatchTrigger};
 pub use recording::{
     RECORDING_SCHEMA, Recording, Session, Step, key_from_name, key_name, role_from_name,
 };

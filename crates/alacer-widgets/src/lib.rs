@@ -41,7 +41,7 @@ mod tooltip;
 mod tree;
 
 pub use button::Button;
-pub use canon::{DataTableHandles, TodoHandles, TodoItem, data_table_app, todo_app};
+pub use canon::{DataTableHandles, TodoFilter, TodoHandles, TodoItem, data_table_app, todo_app};
 pub use canvas::Canvas;
 pub use checkbox::Checkbox;
 pub use column::{Column, Row, Spacer};

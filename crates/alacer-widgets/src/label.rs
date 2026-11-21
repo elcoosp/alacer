@@ -3,8 +3,8 @@
 use alacer_core::color::Color;
 use alacer_core::events::{EventCtx, PointerEvent};
 use alacer_core::flux::RenderBinding;
-use alacer_core::geom::Point;
-use alacer_core::scene::PaintCtx;
+use alacer_core::geom::{Point, Vector};
+use alacer_core::scene::{Compose, PaintCtx};
 use alacer_core::style::{MeasureSpec, Style, TextSpec};
 use alacer_core::widget::{EventResponse, LabelSource, Role, Widget};
 
@@ -19,6 +19,10 @@ pub struct Label {
     /// retheme, the override never does.
     color: Option<Color>,
     font_size: f32,
+    /// The compose tier's paint state (§14.2's W3): the fade and
+    /// translation the label paints with — a paint fact, never a layout
+    /// one; an animated frame moves it without re-measuring.
+    compose: Compose,
     style: Style,
 }
 
@@ -36,6 +40,7 @@ impl Label {
             language: None,
             color: None,
             font_size: crate::theme::FONT_SIZE,
+            compose: Compose::IDENTITY,
             style: Style::default(),
         }
     }
@@ -70,6 +75,40 @@ impl Label {
     pub fn style(mut self, style: Style) -> Self {
         self.style = style;
         self
+    }
+
+    /// The compose fade (§14.2's W3 mechanism): the opacity the label
+    /// paints with — the compose tier's own fact, never a color rewrite.
+    /// An animated frame moves it without touching layout, the palette,
+    /// or the text: the fade rides the compose pass, the alpha folds into
+    /// the glyphs at record time. Clamped to 0.0–1.0.
+    #[must_use]
+    pub fn opacity(mut self, opacity: f32) -> Self {
+        self.compose.opacity = opacity.clamp(0.0, 1.0);
+        self
+    }
+
+    /// The compose translation (the M8 scrolling contract's tier): the
+    /// offset the label paints at, in pixels — record-time coordinates
+    /// riding the paint pass, never a layout move (no re-measure rides
+    /// it).
+    #[must_use]
+    pub fn translate(mut self, translation: Vector) -> Self {
+        self.compose.translation = translation;
+        self
+    }
+
+    /// Replaces the compose state in place (view reconciliation) — the
+    /// animated frame's door. Reports whether the state moved, so the
+    /// caller requests `PAINT` only when the answer is `true` (the
+    /// idle-frame rule at the compose tier: a write landing where the
+    /// state already is queues nothing).
+    pub fn set_compose(&mut self, compose: Compose) -> bool {
+        if self.compose == compose {
+            return false;
+        }
+        self.compose = compose;
+        true
     }
 
     /// The language word (M123, ADR-0127): the language the label's
@@ -157,6 +196,13 @@ impl Widget for Label {
         self.style.clone()
     }
 
+    /// The compose tier's ride: the label's built fade and translation
+    /// join the walk — its own glyphs fold them in at record time, and a
+    /// subtree under the label would inherit them the same way.
+    fn compose(&self) -> Compose {
+        self.compose
+    }
+
     fn paint(&self, ctx: &mut PaintCtx<'_>) {
         let text = self.current_text();
         if text.is_empty() {
@@ -193,5 +239,50 @@ impl Widget for Label {
 
     fn on_pointer_event(&mut self, _ctx: &mut EventCtx, _event: &PointerEvent) -> EventResponse {
         EventResponse::Ignored
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Label;
+    use alacer_core::Widget as _;
+    use alacer_core::geom::Vector;
+    use alacer_core::scene::Compose;
+
+    #[test]
+    fn the_builders_set_the_compose_state_the_pass_reads() {
+        let label = Label::new("LIVE")
+            .opacity(0.5)
+            .translate(Vector::new(4.0, 0.0));
+        let compose = label.compose();
+        assert_eq!(compose.opacity, 0.5, "the fade the compose pass will fold");
+        assert_eq!(
+            compose.translation,
+            Vector::new(4.0, 0.0),
+            "the shift the compose pass will fold"
+        );
+    }
+
+    #[test]
+    fn opacity_clamps_to_the_unit_range() {
+        assert_eq!(Label::new("LIVE").opacity(1.5).compose().opacity, 1.0);
+        assert_eq!(Label::new("LIVE").opacity(-0.5).compose().opacity, 0.0);
+    }
+
+    #[test]
+    fn set_compose_reports_whether_the_state_moved() {
+        let mut label = Label::new("LIVE");
+        assert!(
+            !label.set_compose(Compose::IDENTITY),
+            "the identity lands where the label already is — no mask, an idle frame"
+        );
+        assert!(
+            label.set_compose(Compose::faded(0.4)),
+            "a new fade moves the state — PAINT is worth requesting"
+        );
+        assert!(
+            !label.set_compose(Compose::faded(0.4)),
+            "the same fade lands where it already is — the idle-frame rule"
+        );
     }
 }

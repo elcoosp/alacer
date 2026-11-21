@@ -939,6 +939,7 @@ The theme tier's own fact (M73, ADR-0079): the palette the widgets borrow for th
   "paint_ran":true,
   "a11y_ran":false,
   "focus_changed":false,
+  "degradation_step":"none",
   "damage":"partial",
   "regions":1,
   "a11y_updated":2,
@@ -957,6 +958,18 @@ The theme tier's own fact (M73, ADR-0079): the palette the widgets borrow for th
 ```
 
 - `number` — monotonic per pipeline.
+- `degradation_step` — the degradation ladder's step (architecture §14.4):
+  what a frame over budget gave up — `none` (every pass ran inside the
+  budget; the ladder is disarmed by default and every frame reports it),
+  `drop_input` (the input drain blew its share — the batch's remainder
+  stays queued and rides the next frame's drain, never a lost event),
+  `force_full_paint` (a behind-schedule paint collapsed a partial
+  present to one full frame), or `skip_a11y` (the frame was past the
+  budget's halfway line when the a11y pass came due — the dirty updates
+  deferred, their masks re-queued, the next frame lands the delta; focus
+  moves, announcements, first frames, and structural churn never defer).
+  The additive field the versioning rule admits at version 1 — clients
+  that ignore unknown fields are unaffected.
 - `damage` — `none` (the present is skipped), `partial` (≤3 regions), or
   `full`; `regions` counts the merged boxes.
 - `passes` — the tick's ledger in §7.2 contract order (`mutate`,

@@ -570,13 +570,22 @@ fn table_patch(table: &mut crate::Table, props: &ElementProps<'_>) -> bool {
 
 fn table_row_create(props: &ElementProps<'_>) -> crate::TableRow {
     let mut row = crate::TableRow::new();
+    if let Some(selected) = props.flag("selected") {
+        row = row.selected(selected);
+    }
     style_apply(row.style_mut(), props);
     row
 }
 
 fn table_row_patch(row: &mut crate::TableRow, props: &ElementProps<'_>) -> bool {
+    let mut visual = false;
+    if let Some(selected) = props.flag("selected")
+        && row.set_selected(Some(selected))
+    {
+        visual = true;
+    }
     style_apply(row.style_mut(), props);
-    style_visual_diff(props)
+    style_visual_diff(props) || visual
 }
 
 fn table_cell_create(props: &ElementProps<'_>) -> crate::TableCell {
@@ -601,10 +610,14 @@ fn table_cell_patch(cell: &mut crate::TableCell, props: &ElementProps<'_>) -> bo
 }
 
 fn column_header_create(props: &ElementProps<'_>) -> crate::ColumnHeader {
-    crate::ColumnHeader::new(
+    let mut header = crate::ColumnHeader::new(
         props.text("text").unwrap_or_default(),
         prop_index(props, "column").unwrap_or(0),
-    )
+    );
+    if let Some(direction) = props.text("sort").and_then(sort_word) {
+        header = header.sort(direction);
+    }
+    header
 }
 
 fn column_header_patch(header: &mut crate::ColumnHeader, props: &ElementProps<'_>) -> bool {
@@ -613,7 +626,27 @@ fn column_header_patch(header: &mut crate::ColumnHeader, props: &ElementProps<'_
         header.set_text(text);
         visual = true;
     }
+    if let Some(word) = props.text("sort")
+        && header.set_sort(sort_word(word))
+    {
+        visual = true;
+    }
     visual
+}
+
+/// The sort word's direction — the M112 vocabulary at the DSL tier:
+/// `"ascending"`, `"descending"`, and `"other"` name the order
+/// AccessKit's `SortDirection` property carries (ARIA's `aria-sort`);
+/// `"none"` (and any unknown word) is the honest absence — the header
+/// declares no sort, the way a view states `selected: false` instead of
+/// omitting the word so the patch can clear it.
+fn sort_word(word: &str) -> Option<alacer_core::SortDirection> {
+    match word {
+        "ascending" => Some(alacer_core::SortDirection::Ascending),
+        "descending" => Some(alacer_core::SortDirection::Descending),
+        "other" => Some(alacer_core::SortDirection::Other),
+        _ => None,
+    }
 }
 
 // ---------------------------------------------------------------------------

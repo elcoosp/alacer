@@ -4026,6 +4026,12 @@ impl PassPipeline {
         let origin = bounds.map_or(Point::zero(), |b| b.origin);
         let size = bounds.map_or(crate::geom::Size::zero(), |b| b.size);
         let clip = self.ancestor_clip(node);
+        // The compose tier's inheritance product (§14.2's W3 mechanism):
+        // the node's own compose state beside every ancestor's, folded by
+        // the walk before the context exists — the pushes apply it at
+        // record time, and an identity product records the baseline
+        // primitives byte for byte.
+        let compose = self.ancestor_compose(node);
         let mut out = Vec::new();
         {
             let mut sink = JournalVec { out: &mut out };
@@ -4040,10 +4046,32 @@ impl PassPipeline {
                 high_contrast,
                 accent,
             );
+            ctx.set_compose(compose);
             let widget = &self.arena.slot(node).widget;
             widget.paint(&mut ctx);
         }
         out
+    }
+
+    /// The compose state in effect at `node` (the compose tier's
+    /// inheritance, §14.2's W3 mechanism): the node's own beside every
+    /// ancestor's — fades multiplying down the tree (a faded parent fades
+    /// its subtree, the CSS rule), translations adding — the same
+    /// ancestor walk [`Self::ancestor_clip`] prices, one `compose()` read
+    /// per visited node (the pass-overhead class the clip walk already
+    /// pays, over painted nodes only). The identity when nobody composes:
+    /// the recorded scene is the byte-identical baseline.
+    fn ancestor_compose(&self, node: NodeId) -> crate::scene::Compose {
+        let mut compose = crate::scene::Compose::IDENTITY;
+        let mut cursor = Some(node);
+        while let Some(id) = cursor {
+            let slot = self.arena.slot(id);
+            let own = slot.widget().compose();
+            compose.opacity *= own.opacity;
+            compose.translation += own.translation;
+            cursor = slot.parent;
+        }
+        compose
     }
 
     /// The most restrictive ancestor clip in effect at `node` (scroll
@@ -4378,10 +4406,12 @@ mod tests {
         LayoutEngine, LayoutError, PassKind, PassPipeline, SceneJournal, TreeSnapshot,
     };
     use crate::arena::{Arena, NodeId};
+    use crate::color::Color;
     use crate::events::PointerEvent;
     use crate::flux::Flux;
     use crate::geom::{Point, Rect, Size, Vector};
     use crate::mask::Change;
+    use crate::scene::Quad;
     use crate::style::Style;
     use crate::widget::{EventResponse, LabelSource, Role, Widget};
     use reactive_graph::traits::Set;
@@ -6409,6 +6439,174 @@ mod tests {
             Box::new(MemoryJournal::default()),
             Box::new(RecordingA11y::default()),
         )
+    }
+
+    /// A fixed-size box that paints one quad of its own color and carries
+    /// a compose state — the compose tier's test rig: the parent composes
+    /// over its subtree, the child answers the walk.
+    struct QuadBox {
+        size: crate::geom::Size,
+        color: Color,
+        compose: crate::scene::Compose,
+    }
+
+    impl QuadBox {
+        fn new(size: crate::geom::Size, color: Color) -> Self {
+            Self {
+                size,
+                color,
+                compose: crate::scene::Compose::IDENTITY,
+            }
+        }
+
+        fn with_compose(mut self, compose: crate::scene::Compose) -> Self {
+            self.compose = compose;
+            self
+        }
+    }
+
+    impl Widget for QuadBox {
+        fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+            self
+        }
+        fn role(&self) -> Role {
+            Role::Container
+        }
+        fn label(&self) -> LabelSource {
+            LabelSource::text("quad box")
+        }
+        fn style(&self) -> Style {
+            Style {
+                size: crate::style::Size2 {
+                    width: Some(self.size.width),
+                    height: Some(self.size.height),
+                },
+                ..Style::default()
+            }
+        }
+        fn compose(&self) -> crate::scene::Compose {
+            self.compose
+        }
+        fn paint(&self, ctx: &mut crate::scene::PaintCtx<'_>) {
+            ctx.push_quad(Quad::filled(
+                Rect::new(Point::zero(), ctx.size()),
+                self.color,
+            ));
+        }
+        fn measure_spec(&self) -> Option<crate::style::MeasureSpec> {
+            Some(crate::style::MeasureSpec::Fixed(self.size))
+        }
+    }
+
+    /// The compose rig: a root, a composing parent, and a child under it —
+    /// the snapshot's first quad is the parent's (blue), the second the
+    /// child's (red), pre-order paint order. `StackLayout` puts the parent
+    /// at (0, 0) and the child stacked below it.
+    fn compose_tree(
+        parent: crate::scene::Compose,
+        child: crate::scene::Compose,
+    ) -> crate::scene::SceneSnapshot {
+        let mut p = pipeline();
+        let root = p.mount_root(Box::new(Fixed {
+            size: Size::new(200.0, 400.0),
+        }));
+        let box_node = p.add_child(
+            root,
+            Box::new(
+                QuadBox::new(Size::new(30.0, 10.0), Color::rgb(0, 0, 255)).with_compose(parent),
+            ),
+        );
+        let _ = p.add_child(
+            box_node,
+            Box::new(
+                QuadBox::new(Size::new(30.0, 10.0), Color::rgb(255, 0, 0)).with_compose(child),
+            ),
+        );
+        let report = p.tick(viewport()).expect("the compose frame");
+        (*report.scene).clone()
+    }
+
+    fn quad_at(scene: &crate::scene::SceneSnapshot, index: usize) -> Quad {
+        match scene.primitives.get(index) {
+            Some(crate::scene::Primitive::Quad(quad)) => *quad,
+            Some(other) => panic!("expected a quad at {index}, got {other:?}"),
+            None => panic!("primitive {index} absent"),
+        }
+    }
+
+    #[test]
+    fn compose_fade_propagates_from_the_parent_to_the_child() {
+        let scene = compose_tree(
+            crate::scene::Compose::faded(0.5),
+            crate::scene::Compose::IDENTITY,
+        );
+        let parent = quad_at(&scene, 0);
+        assert_eq!(
+            parent.color.a, 128,
+            "the parent's own quad paints at its fade (255 × 0.5)"
+        );
+        let child = quad_at(&scene, 1);
+        assert_eq!(
+            child.color.a, 128,
+            "the child inherits the parent's fade through the compose walk"
+        );
+        assert_eq!(
+            (child.color.r, child.color.g, child.color.b),
+            (255, 0, 0),
+            "a fade is an alpha fact, never a color rewrite"
+        );
+    }
+
+    #[test]
+    fn nested_fades_multiply_down_the_tree() {
+        let scene = compose_tree(
+            crate::scene::Compose::faded(0.5),
+            crate::scene::Compose::faded(0.5),
+        );
+        let child = quad_at(&scene, 1);
+        assert_eq!(
+            child.color.a, 64,
+            "0.5 × 0.5 folds to 0.25 (255 × 0.25, rounded once) — the CSS rule"
+        );
+    }
+
+    #[test]
+    fn compose_translation_propagates_and_adds() {
+        let scene = compose_tree(
+            crate::scene::Compose::shifted(Vector::new(10.0, 0.0)),
+            crate::scene::Compose::shifted(Vector::new(5.0, 0.0)),
+        );
+        let parent = quad_at(&scene, 0);
+        assert_eq!(
+            parent.rect.origin,
+            Point::new(10.0, 0.0),
+            "the parent's own quad rides its shift"
+        );
+        let child = quad_at(&scene, 1);
+        assert_eq!(
+            child.rect.origin,
+            Point::new(15.0, 0.0),
+            "the child rides its own shift beside the parent's (additive) — the sole child stacks at the parent's origin"
+        );
+        assert_eq!(child.color.a, 255, "a shift is not a fade");
+    }
+
+    #[test]
+    fn identity_compose_replays_the_baseline_scene() {
+        let scene = compose_tree(
+            crate::scene::Compose::IDENTITY,
+            crate::scene::Compose::IDENTITY,
+        );
+        let parent = quad_at(&scene, 0);
+        assert_eq!(parent.color.a, 255, "nobody composed: full alpha");
+        assert_eq!(parent.rect.origin, Point::new(0.0, 0.0));
+        let child = quad_at(&scene, 1);
+        assert_eq!(child.color.a, 255);
+        assert_eq!(
+            child.rect.origin,
+            Point::new(0.0, 0.0),
+            "the sole child's stacked position, compose untouched"
+        );
     }
 
     fn mount_row(p: &mut PassPipeline) -> Vec<NodeId> {

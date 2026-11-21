@@ -10,6 +10,10 @@
 //! cycle (ADR-6).
 //!
 //! Run with `cargo run -p alacer --example gallery`.
+//! `--dump-a11y-tree` mounts the gallery headlessly, prints the exact
+//! tree a screen reader receives (role, name, state — the settled
+//! `TreeUpdate`), and exits 0: no winit loop, no window, the §11
+//! "accessible by construction" claim made a shareable artifact.
 //! `ALACER_SOFTWARE=1` forces the softbuffer path (VMs, CI, no-GPU machines).
 
 use alacer::pipeline_default;
@@ -19,11 +23,13 @@ use alacer::widgets::{
     BoxedWidget as _, Button, Canvas, Checkbox, Column, ColumnHeader, Image, Label, List, Panel,
     Row, Spacer, Table, TableCell, TableRow, TextInput,
 };
+use alacer_a11y::AccessKitSink;
 use alacer_core::color::Color;
 use alacer_core::flux::RenderBinding;
 use alacer_core::geom::{Point, Rect, Size};
 use alacer_core::style::CrossAxisAlignment;
 use reactive_graph::traits::{GetUntracked as _, Set as _};
+use std::collections::{HashMap, HashSet};
 
 /// The image tier's in-memory raster shape: 4 cells of 8 px make the
 /// 32×32 checkerboard the gallery presents.
@@ -33,6 +39,15 @@ const GALLERY_CHECKER_PX: u32 = GALLERY_CHECKER_CELLS * GALLERY_CHECKER_CELL_PX;
 
 /// The sine strip's sample count: the bars the canvas painter draws.
 const GALLERY_SINE_SAMPLES: usize = 48;
+
+/// The dump path's settle budget: at most this many headless ticks before
+/// the tree is taken as it stands (the a11y demos' settle shape — the
+/// first tick builds the full tree, the next reports idle).
+const GALLERY_DUMP_SETTLE_TICKS: usize = 16;
+
+/// The dump path's viewport: the same window shape the gallery opens
+/// live, so the settled tree is the one the real window would hand over.
+const GALLERY_DUMP_VIEWPORT: Size = Size::new(480.0, 780.0);
 
 /// Builds the gallery's procedural raster: a `cells × cells` checkerboard
 /// of `cell_px` squares, premultiplied RGBA8, row-major — every cell
@@ -255,12 +270,7 @@ fn main() {
                     Color::rgb(234, 179, 8),
                     Color::rgb(239, 68, 68),
                 ];
-                for (index, color) in ramp
-                    .iter()
-                    .cycle()
-                    .take(GALLERY_SINE_SAMPLES)
-                    .enumerate()
-                {
+                for (index, color) in ramp.iter().cycle().take(GALLERY_SINE_SAMPLES).enumerate() {
                     let scaled =
                         alacer_core::num::u32_to_f32(u32::try_from(index).unwrap_or(u32::MAX));
                     let t = scaled / sample_count;
@@ -336,6 +346,14 @@ fn main() {
         .boxed(),
     );
 
+    // The virality path: `--dump-a11y-tree` never opens a window — the
+    // gallery mounts, settles headlessly, and prints the tree a screen
+    // reader receives (the §11 contract as a copy-pasteable artifact).
+    if std::env::args().any(|arg| arg == "--dump-a11y-tree") {
+        dump_a11y_tree(&mut pipeline);
+        return;
+    }
+
     if let Err(error) =
         alacer::run_window(pipeline, "Alacer gallery", (480.0, 780.0), backend_choice())
     {
@@ -350,5 +368,106 @@ fn backend_choice() -> BackendPreference {
         BackendPreference::Softbuffer
     } else {
         BackendPreference::Wgpu
+    }
+}
+
+/// The `--dump-a11y-tree` path: mount (already done), settle headlessly,
+/// downcast the pipeline's sink to the concrete adapter the facade
+/// installed (the platform drain's own [`A11ySink::as_any_mut`] seam),
+/// take the settled full-tree update, and print it — role, name, state,
+/// in the update's own child order — then exit 0. No winit loop to park:
+/// the window is never opened, so the teardown is immediate.
+///
+/// The printed artifact is what a screen reader is handed on first
+/// connection: the whole gallery — labels, buttons, the bound counter,
+/// the text input, the checkbox, the data table, the canvas, the image,
+/// the list — named and role'd, straight from the produced update.
+fn dump_a11y_tree(pipeline: &mut alacer_core::passes::PassPipeline) {
+    for _ in 0..GALLERY_DUMP_SETTLE_TICKS {
+        let report = pipeline
+            .tick(GALLERY_DUMP_VIEWPORT)
+            .expect("the gallery lays out headlessly");
+        if report.is_idle() {
+            break;
+        }
+    }
+    let sink = pipeline
+        .a11y_sink_mut()
+        .as_any_mut()
+        .and_then(|any| any.downcast_mut::<AccessKitSink>())
+        .expect("pipeline_default installs the AccessKitSink");
+    let Some(update) = sink.full_tree_update() else {
+        eprintln!("alacer: the a11y sink never settled a tree — nothing to dump");
+        std::process::exit(1);
+    };
+    println!(
+        "a11y tree dump: {} nodes across {} produced update(s)",
+        update.nodes.len(),
+        sink.update_count()
+    );
+    // The update is rendered through plain std data, so this example
+    // names no accesskit type — the facade stays adapter-independent
+    // (ADR-0015) while the dump stays honest to the produced update.
+    let mut lines: HashMap<u64, String> = HashMap::new();
+    let mut children: HashMap<u64, Vec<u64>> = HashMap::new();
+    for (id, node) in &update.nodes {
+        let name = match node.label() {
+            Some(name) => format!(" name={name:?}"),
+            None => " name=(unnamed)".to_string(),
+        };
+        let mut states: Vec<String> = Vec::new();
+        if let Some(toggled) = node.toggled() {
+            states.push(format!("toggled={toggled:?}"));
+        }
+        for (set, flag) in [
+            (node.is_disabled(), "disabled"),
+            (node.is_selected().unwrap_or_default(), "selected"),
+            (node.is_expanded().unwrap_or_default(), "expanded"),
+            (node.is_required(), "required"),
+        ] {
+            if set {
+                states.push(flag.to_string());
+            }
+        }
+        let state = if states.is_empty() {
+            String::new()
+        } else {
+            format!(" state={}", states.join("|"))
+        };
+        lines.insert(id.0, format!("[{}] {:?}{name}{state}", id.0, node.role()));
+        children.insert(id.0, node.children().iter().map(|child| child.0).collect());
+    }
+    // The root is the one node nobody names as a child — settled from the
+    // child sets, no guessing at id magnitudes (the ids are hashes, so
+    // "smallest id" is not the root).
+    let child_ids: HashSet<u64> = children.values().flatten().copied().collect();
+    let roots: Vec<u64> = lines
+        .keys()
+        .copied()
+        .filter(|id| !child_ids.contains(id))
+        .collect();
+    if roots.len() != 1 {
+        eprintln!(
+            "alacer: the settled tree has {} roots — refusing to guess",
+            roots.len()
+        );
+        std::process::exit(1);
+    }
+    print_a11y_subtree(&lines, &children, roots[0], 0);
+}
+
+/// Prints one node and its descendants from the plain-data shape
+/// [`dump_a11y_tree`] built — the readable, copy-pasteable traversal.
+fn print_a11y_subtree(
+    lines: &HashMap<u64, String>,
+    children: &HashMap<u64, Vec<u64>>,
+    id: u64,
+    depth: usize,
+) {
+    if let Some(line) = lines.get(&id) {
+        println!("{}{}", "  ".repeat(depth), line);
+    }
+    for child in children.get(&id).into_iter().flatten() {
+        print_a11y_subtree(lines, children, *child, depth + 1);
     }
 }

@@ -722,6 +722,13 @@ pub enum WireEvent {
         a11y_ran: bool,
         /// Whether focus moved.
         focus_changed: bool,
+        /// The degradation ladder's step (§14.4): what a frame over
+        /// budget gave up — `"none"`, `"drop_input"`, `"force_full_paint"`,
+        /// or `"skip_a11y"` (the stable, documented field values the
+        /// protocol document pins). The additive field the versioning
+        /// rule admits at version 1, so the inspector logs when
+        /// backpressure triggers.
+        degradation_step: String,
         /// The damage verdict ("none", "partial", "full").
         damage: String,
         /// The damage region count.
@@ -848,6 +855,7 @@ pub fn wire_frame(summary: &FrameSummary) -> WireEvent {
         paint_ran: summary.paint_ran,
         a11y_ran: summary.a11y_ran,
         focus_changed: summary.focus_changed,
+        degradation_step: summary.degradation_step.name().to_string(),
         damage: damage_name(&summary.damage).to_string(),
         regions,
         a11y_updated: summary.a11y_updated,
@@ -2975,6 +2983,7 @@ mod tests {
             paint_ran: true,
             a11y_ran: false,
             focus_changed: false,
+            degradation_step: alacer_core::passes::DegradationStep::None,
             damage: alacer_core::Damage::FULL,
             viewport: Size::new(100.0, 80.0),
             a11y_updated: 0,

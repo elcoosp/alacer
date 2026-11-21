@@ -298,9 +298,7 @@ fn build(
 /// origin, shifted by the compose state — never a layout move). Under
 /// reduced motion the cursor parks at the half: the fact answers when
 /// motion itself is the question.
-fn chart_painter(
-    shared: Arc<Mutex<Dashboard>>,
-) -> impl for<'ctx> Fn(&mut PaintCtx<'ctx>) {
+fn chart_painter(shared: Arc<Mutex<Dashboard>>) -> impl for<'ctx> Fn(&mut PaintCtx<'ctx>) {
     move |ctx: &mut PaintCtx<'_>| {
         let state = shared.lock().expect("dashboard state");
         let size = ctx.size();
@@ -311,25 +309,21 @@ fn chart_painter(
             ctx.set_compose(Compose::faded(0.35 + 0.65 * age));
             let x = u32_to_f32(u32::try_from(index).unwrap_or(0)) * slot_w;
             let cpu_h = slot * (size.height - 8.0);
-            ctx.push_quad(
-                Quad::filled(
-                    Rect::new(
-                        Point::new(x + 1.0, size.height - cpu_h),
-                        Size::new(slot_w * 0.42, cpu_h),
-                    ),
-                    ctx.palette().accent,
+            ctx.push_quad(Quad::filled(
+                Rect::new(
+                    Point::new(x + 1.0, size.height - cpu_h),
+                    Size::new(slot_w * 0.42, cpu_h),
                 ),
-            );
+                ctx.palette().accent,
+            ));
             let mem_h = state.mem.get(index).copied().unwrap_or(0.0) * (size.height - 8.0);
-            ctx.push_quad(
-                Quad::filled(
-                    Rect::new(
-                        Point::new(x + 1.0 + slot_w * 0.46, size.height - mem_h),
-                        Size::new(slot_w * 0.42, mem_h),
-                    ),
-                    ctx.palette().text_muted,
+            ctx.push_quad(Quad::filled(
+                Rect::new(
+                    Point::new(x + 1.0 + slot_w * 0.46, size.height - mem_h),
+                    Size::new(slot_w * 0.42, mem_h),
                 ),
-            );
+                ctx.palette().text_muted,
+            ));
         }
         let sweep =
             (u64_to_f32(state.frame % CURSOR_PERIOD) / u64_to_f32(CURSOR_PERIOD)).clamp(0.0, 1.0);
@@ -339,12 +333,10 @@ fn chart_painter(
             sweep * size.width
         };
         ctx.set_compose(Compose::shifted(Vector::new(cursor_x, 0.0)));
-        ctx.push_quad(
-            Quad::filled(
-                Rect::new(Point::new(0.0, 0.0), Size::new(2.0, size.height)),
-                ctx.palette().accent_pressed,
-            ),
-        );
+        ctx.push_quad(Quad::filled(
+            Rect::new(Point::new(0.0, 0.0), Size::new(2.0, size.height)),
+            ctx.palette().accent_pressed,
+        ));
     }
 }
 

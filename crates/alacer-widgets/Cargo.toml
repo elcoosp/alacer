@@ -78,5 +78,5 @@ name = "menu_bar"
 harness = false
 
 [[bench]]
-name = "image"
+name = "image_word"
 harness = false

@@ -368,8 +368,8 @@ fn m72_the_late_observer_reads_the_patches_from_installation() {
 fn m72_the_living_documents_re_agree() {
     let readme = read_workspace_file("README.md");
     for fragment in [
-        "M0 through M139",
-        "a hundred and forty-four decision records",
+        "M0 through M141",
+        "a hundred and forty-six decision records",
         "Since M72 the view's patches answer on the log too",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
@@ -378,7 +378,7 @@ fn m72_the_living_documents_re_agree() {
     let architecture = read_workspace_file("docs/architecture.md");
     for fragment in [
         "ADR-0078",
-        "a hundred and forty-four decision records",
+        "a hundred and forty-six decision records",
         "the view's patch joins the causal log",
         // The M71 cut's own register row rides the same sweep (the
         // ADR-0077 row the register was missing, the m71 pin's phrase).
@@ -415,7 +415,7 @@ fn m72_the_living_documents_re_agree() {
     let baselines = parse_workspace_json("benchmarks/baselines/baselines.json");
     assert_eq!(
         baselines["bench_count"],
-        serde_json::json!(144),
+        serde_json::json!(151),
         "the published corpus carries the four new cases the two cuts promised"
     );
     for case in [
@@ -435,12 +435,12 @@ fn m72_the_living_documents_re_agree() {
     // suite's corpus const re-agrees with the published data.
     let m71 = read_workspace_file("crates/alacer-testing/tests/m71_exit_criteria.rs");
     assert!(
-        m71.contains("M0 through M139"),
+        m71.contains("M0 through M141"),
         "the m71 suite's pins moved with the documents"
     );
     let m5 = read_workspace_file("crates/alacer-testing/tests/m5_exit_criteria.rs");
     assert!(
-        m5.contains("const EXPECTED_BENCH_COUNT: usize = 144;"),
+        m5.contains("const EXPECTED_BENCH_COUNT: usize = 151;"),
         "the m5 suite's corpus const re-agrees with the published baseline"
     );
 }

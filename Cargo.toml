@@ -70,6 +70,12 @@ wgpu = "30.0.1"
 tiny-skia = "0.12.0"
 softbuffer = "0.4.8"
 raw-window-handle = "0.6.2"
+# Masonry's tree arena (ADR-9, §7.1): the upstream O(1) hash-map arena —
+# adopted only behind alacer-core's `fast-arena` feature, and with the
+# crate's `safe_tree` default OFF: the feature's whole point is the
+# upstream hash-map storage, fuzz-proven identical to Alacer's safe
+# default before it can ship.
+tree_arena = { version = "0.2", default-features = false }
 # The clipboard round trip (ADR-0020): the adopted core the clipboard
 # seam's engine rides — the platform owns the adapter dependency (ADR-9),
 # widgets only ever see the seam in core.

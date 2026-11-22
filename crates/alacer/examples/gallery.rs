@@ -5,9 +5,16 @@
 //! so a new contributor can see everything in one runnable file (M6 adds
 //! the canon widgets to the tour).
 //!
-//! Every dynamic value rides the one currency: handlers write signals in one
-//! batch, the flux bridge queues masks, the next tick is one layout+paint
-//! cycle (ADR-6).
+//! The *entire* static layout is compiled by the `rsx!` macro (§13.1): one
+//! declarative tree over the default element registry, no builder chains.
+//! The catalog's elements compile to the retained widgets they name —
+//! `Label`, `Button`, `TextInput`, `Checkbox`, `Table`, `Canvas`, `Image`,
+//! `List`, `Panel`, `Row`, `Column`, `Spacer`, and the table's own
+//! `TableRow`, `TableCell`, `ColumnHeader` — through the registry's own
+//! factories (§6.1), so the DSL's vocabulary is the widget vocabulary.
+//! Every dynamic value rides the one currency: handlers write signals in
+//! one batch, the flux bridge queues masks, the next tick is one
+//! layout+paint cycle (ADR-6).
 //!
 //! Run with `cargo run -p alacer --example gallery`.
 //! `--dump-a11y-tree` mounts the gallery headlessly, prints the exact
@@ -18,18 +25,17 @@
 
 use alacer::pipeline_default;
 use alacer::platform::BackendPreference;
+use alacer::prelude::*;
 use alacer::widgets::theme;
-use alacer::widgets::{
-    BoxedWidget as _, Button, Canvas, Checkbox, Column, ColumnHeader, Image, Label, List, Panel,
-    Row, Spacer, Table, TableCell, TableRow, TextInput,
-};
-use alacer_a11y::AccessKitSink;
 use alacer_core::color::Color;
 use alacer_core::flux::RenderBinding;
 use alacer_core::geom::{Point, Rect, Size};
-use alacer_core::style::CrossAxisAlignment;
+use alacer_view::{Painter, Pixels, PropValue};
 use reactive_graph::traits::{GetUntracked as _, Set as _};
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
+use std::sync::Arc;
 
 /// The image tier's in-memory raster shape: 4 cells of 8 px make the
 /// 32×32 checkerboard the gallery presents.
@@ -49,6 +55,30 @@ const GALLERY_DUMP_SETTLE_TICKS: usize = 16;
 /// live, so the settled tree is the one the real window would hand over.
 const GALLERY_DUMP_VIEWPORT: Size = Size::new(480.0, 780.0);
 
+/// The scrolling list's churn floor: enough rows to scroll and to spot
+/// clipping.
+const GALLERY_LIST_ITEMS: usize = 20;
+
+/// One list row's height — the panels' height and the content height's
+/// unit.
+const GALLERY_ROW_PX: f32 = 28.0;
+
+/// The list rows' and the painter's bars cycle the accent ramp.
+const GALLERY_RAMP: [Color; 5] = [
+    Color::rgb(37, 99, 235),
+    Color::rgb(14, 165, 233),
+    Color::rgb(22, 163, 74),
+    Color::rgb(234, 179, 8),
+    Color::rgb(239, 68, 68),
+];
+
+/// The data table's inventory (headers are declared beside it in the view).
+const GALLERY_INVENTORY: [[&str; 3]; 3] = [
+    ["Nails", "12", "A1"],
+    ["Screws", "5", "B2"],
+    ["Bolts", "40", "C3"],
+];
+
 /// Builds the gallery's procedural raster: a `cells × cells` checkerboard
 /// of `cell_px` squares, premultiplied RGBA8, row-major — every cell
 /// opaque (a = 255), so the premultiplied bytes equal the straight ones,
@@ -66,284 +96,261 @@ fn checker_raster(cells: u32, cell_px: u32) -> Vec<u8> {
     bytes
 }
 
+/// The gallery's whole static catalog as one `rsx!` tree (§13.1): the
+/// styled labels, the bound labels, the buttons, the text input, the
+/// checkbox, the data table (the emphasized tier riding its prop), the
+/// canvas painter, the named picture, the scrolling list with its rows,
+/// the spacer — compiled into `ViewNode`s against the default registry.
 #[expect(
     clippy::too_many_lines,
     reason = "the gallery is one declarative walk through the widget vocabulary; splitting it would hide the catalog it exists to show"
 )]
+fn gallery_view(
+    count: &alacer_core::FluxRwSignal<i32>,
+    counter_binding: &RenderBinding<String>,
+    typed: &alacer_core::FluxRwSignal<String>,
+    echo_binding: &RenderBinding<String>,
+    toggles: &alacer_core::FluxRwSignal<i32>,
+    toggle_binding: &RenderBinding<String>,
+    checker: &Arc<[u8]>,
+) -> ViewNode {
+    let counter_binding = counter_binding.clone();
+    let echo_binding = echo_binding.clone();
+    let toggle_binding = toggle_binding.clone();
+    let count_signal = *count;
+    let typed_signal = *typed;
+    let toggles_signal = *toggles;
+    let checker = Arc::clone(checker);
+    // The list's rows: one `(key, color)` pair per row, the ramp cycled
+    // over the churn floor — and the content height the scroll seam's
+    // contract rides (rows × row height, the builder gallery's own math).
+    let rows: Vec<(u64, Color)> = GALLERY_RAMP
+        .iter()
+        .cycle()
+        .take(GALLERY_LIST_ITEMS)
+        .enumerate()
+        .map(|(index, color)| (u64::try_from(index).unwrap_or(u64::MAX), *color))
+        .collect();
+    let list_content_height =
+        alacer_core::num::u32_to_f32(u32::try_from(GALLERY_LIST_ITEMS).unwrap_or(u32::MAX))
+            * GALLERY_ROW_PX;
+
+    rsx! {
+        column { padding: 20.0, gap: 14.0,
+            label { text: "Alacer gallery", font_size: 24.0, color: theme::TEXT }
+            label {
+                text: "Every core widget, one window. Type below, click, scroll.",
+                font_size: 13.0,
+                color: theme::TEXT_MUTED,
+            }
+            label { binding: counter_binding, font_size: theme::FONT_SIZE }
+            row { gap: 10.0,
+                button {
+                    text: "Increment",
+                    color: theme::ACCENT,
+                    on_click: move || {
+                        // One write batch per click: the ADR-6 contract at
+                        // the seam — one layout+paint cycle.
+                        alacer_core::flux::Flux::batch_of(|| {
+                            let current = count_signal.try_get_untracked().unwrap_or_default();
+                            count_signal.set(current + 1);
+                        });
+                    }
+                }
+                button {
+                    text: "Reset",
+                    color: theme::BORDER,
+                    text_color: theme::TEXT,
+                    on_click: move || {
+                        alacer_core::flux::Flux::batch_of(|| count_signal.set(0_i32));
+                    }
+                }
+            }
+            label {
+                binding: echo_binding,
+                font_size: 13.0,
+                color: theme::TEXT_MUTED,
+            }
+            text_input {
+                name: "Gallery input",
+                placeholder: "type here — IME friendly",
+                on_changed: PropValue::TextHandler(Rc::new(RefCell::new(move |value: &str| {
+                    alacer_core::flux::Flux::batch_of(|| typed_signal.set(value.to_string()));
+                }))),
+            }
+            label {
+                binding: toggle_binding,
+                font_size: 13.0,
+                color: theme::TEXT_MUTED,
+            }
+            checkbox {
+                name: "Ship in bulk",
+                on_toggle: PropValue::FlagHandler(Rc::new(RefCell::new(move |_checked: bool| {
+                    alacer_core::flux::Flux::batch_of(|| {
+                        let current = toggles_signal.try_get_untracked().unwrap_or_default();
+                        toggles_signal.set(current + 1);
+                    });
+                }))),
+            }
+            table {
+                name: "Inventory",
+                columns: 3,
+                header_fill: Color::rgb(30, 41, 59),
+                table_row {
+                    column_header { text: "Item", column: 0 }
+                    column_header { text: "Quantity", column: 1 }
+                    column_header { text: "Location", column: 2 }
+                }
+                for (index, cells) in GALLERY_INVENTORY.iter().enumerate() {
+                    table_row {
+                        for (column, cell) in cells.iter().enumerate() {
+                            // The quantity column is the emphasized tier:
+                            // header-like data cells, the `strong` prop.
+                            table_cell {
+                                text: *cell,
+                                row: index,
+                                column: column,
+                                strong: column == 1,
+                            }
+                        }
+                    }
+                }
+            }
+            row { gap: 14.0,
+                canvas {
+                    name: "Gallery sine strip",
+                    width: 240.0,
+                    height: 120.0,
+                    on_paint: PropValue::Painter(Painter::new(|ctx| {
+                        let size = ctx.size();
+                        let palette = ctx.palette();
+                        // The rail: a recessed surface the wave rides.
+                        ctx.push_quad(alacer_core::scene::Quad {
+                            rect: Rect::new(Point::new(0.0, 0.0), size),
+                            color: palette.surface,
+                            corner_radius: 8.0,
+                            border_color: palette.border,
+                            border_width: 1.0,
+                            clip: None,
+                        });
+                        // The wave: one filled quad per sample, the bar's
+                        // height the sine's share of the rail, the color
+                        // cycling the accent ramp — a procedural pattern,
+                        // straight from the painter's own math.
+                        let sample_count = alacer_core::num::u32_to_f32(
+                            u32::try_from(GALLERY_SINE_SAMPLES).unwrap_or(u32::MAX),
+                        );
+                        let bar_width = size.width / sample_count;
+                        let center = size.height * 0.5;
+                        let amplitude = size.height * 0.35;
+                        for (index, color) in GALLERY_RAMP
+                            .iter()
+                            .cycle()
+                            .take(GALLERY_SINE_SAMPLES)
+                            .enumerate()
+                        {
+                            let scaled =
+                                alacer_core::num::u32_to_f32(u32::try_from(index).unwrap_or(u32::MAX));
+                            let t = scaled / sample_count;
+                            let share = (t * std::f32::consts::TAU).sin() * 0.5 + 0.5;
+                            let bar_height = amplitude * share * 2.0;
+                            ctx.push_quad(alacer_core::scene::Quad::filled(
+                                Rect::new(
+                                    Point::new(scaled * bar_width + 1.0, center - bar_height * 0.5),
+                                    Size::new((bar_width - 2.0).max(1.0), bar_height),
+                                ),
+                                *color,
+                            ));
+                        }
+                    }))
+                }
+                image {
+                    name: "Gallery checker",
+                    description: "A 32 by 32 checkerboard generated in memory, four cells of eight pixels",
+                    width: 96.0,
+                    height: 96.0,
+                    pixels: PropValue::Pixels(Pixels::new(
+                        checker,
+                        GALLERY_CHECKER_PX,
+                        GALLERY_CHECKER_PX,
+                    ))
+                }
+            }
+            list { height: 120.0, content_height: list_content_height,
+                for (index, color) in rows.into_iter() {
+                    row { gap: 8.0,
+                        panel { height: 28.0, color: color }
+                        label {
+                            text: "item {index}",
+                            font_size: 12.0,
+                            color: theme::TEXT_MUTED,
+                        }
+                    }
+                }
+            }
+            spacer { size: 8.0 }
+            label {
+                text: "labels · buttons · bindings · text input · checkbox · table · canvas · image · panels · list · rows · spacers",
+                font_size: 11.0,
+                color: theme::BORDER,
+            }
+        }
+    }
+}
+
 fn main() {
     let mut pipeline = pipeline_default();
-    let root = pipeline.mount_root(
-        Column::new()
-            .padding(20.0)
-            .gap(14.0)
-            .align(CrossAxisAlignment::Stretch)
-            .boxed(),
-    );
 
-    // Labels: the styled text vocabulary — title, body, muted caption.
-    let _ = pipeline.add_child(
-        root,
-        Label::new("Alacer gallery")
-            .font_size(24.0)
-            .color(theme::TEXT)
-            .boxed(),
-    );
-    let _ = pipeline.add_child(
-        root,
-        Label::new("Every core widget, one window. Type below, click, scroll.")
-            .font_size(13.0)
-            .color(theme::TEXT_MUTED)
-            .boxed(),
-    );
-
-    // Buttons + a bound label: the scheduling contract live. One write batch
-    // per click coalesces into exactly one layout+paint cycle (ADR-6).
+    // The gallery's dynamics ride signals and bindings: handlers write in
+    // one batch, the flux bridge queues masks, the next tick is one
+    // layout+paint cycle (ADR-6).
     let count = pipeline.flux().signal(0_i32);
     let counter_binding = RenderBinding::new("Clicked 0 times".to_string());
-    let counter_label = pipeline.add_child(
-        root,
-        Label::bound(counter_binding.clone())
-            .font_size(theme::FONT_SIZE)
-            .boxed(),
-    );
-    let actions = pipeline.add_child(root, Row::new().gap(10.0).boxed());
-    let _ = pipeline.add_child(
-        actions,
-        Button::new("Increment")
-            .colors(theme::ACCENT, theme::ACCENT_PRESSED)
-            .on_click(move || {
-                alacer_core::flux::Flux::batch_of(|| {
-                    let current = count.try_get_untracked().unwrap_or_default();
-                    count.set(current + 1);
-                });
-            })
-            .boxed(),
-    );
-    let _ = pipeline.add_child(
-        actions,
-        Button::new("Reset")
-            .colors(theme::BORDER, theme::BORDER)
-            .text_color(theme::TEXT)
-            .on_click(move || {
-                alacer_core::flux::Flux::batch_of(|| count.set(0_i32));
-            })
-            .boxed(),
-    );
+    let typed = pipeline.flux().signal(String::new());
+    let echo_binding = RenderBinding::new("echo: (empty)".to_string());
+    let toggles = pipeline.flux().signal(0_i32);
+    let toggle_binding = RenderBinding::new("toggled 0 times".to_string());
+    let checker: Arc<[u8]> = checker_raster(GALLERY_CHECKER_CELLS, GALLERY_CHECKER_CELL_PX).into();
 
+    // The whole catalog compiles from one rsx! tree and mounts once — the
+    // bindings carry every dynamic value, no view re-run needed.
+    let view = gallery_view(
+        &count,
+        &counter_binding,
+        &typed,
+        &echo_binding,
+        &toggles,
+        &toggle_binding,
+        &checker,
+    );
+    let _root = alacer::mount_view(&view, &mut pipeline);
+
+    // The flux bridge drives the three bound labels: the targets are the
+    // labels the registry mounted, found by the initial text each binding
+    // resolves to at assembly time (the a11y query path, at assembly).
+    let counter_node = bound_label_node(&pipeline, "Clicked 0 times");
     pipeline.flux_mut().bind_value(
         count,
-        counter_label,
+        counter_node,
         &counter_binding,
         alacer_core::Change::LAYOUT.union(alacer_core::Change::PAINT),
         |n: &i32| format!("Clicked {n} times"),
     );
-
-    // The text input: the IME contract's reference widget (UTF-16 caret,
-    // inline preedit, commit). Its echo rides a signal too — effects never
-    // mutate widgets; they queue masks (axiom A1).
-    let typed = pipeline.flux().signal(String::new());
-    let echo_binding = RenderBinding::new("echo: (empty)".to_string());
-    let echo_label = pipeline.add_child(
-        root,
-        Label::bound(echo_binding.clone())
-            .font_size(13.0)
-            .color(theme::TEXT_MUTED)
-            .boxed(),
-    );
-    let _ = pipeline.add_child(
-        root,
-        TextInput::new("Gallery input")
-            .placeholder("type here — IME friendly")
-            .on_changed(move |value: &str| {
-                alacer_core::flux::Flux::batch_of(|| typed.set(value.to_string()));
-            })
-            .boxed(),
-    );
+    let echo_node = bound_label_node(&pipeline, "echo: (empty)");
     pipeline.flux_mut().bind_value(
         typed,
-        echo_label,
+        echo_node,
         &echo_binding,
         alacer_core::Change::LAYOUT.union(alacer_core::Change::PAINT),
         |value: &String| format!("echo: {}", if value.is_empty() { "(empty)" } else { value }),
     );
-
-    // The checkbox (M6): click, Space, or the a11y default action all toggle
-    // it; the count rides a signal in one batch.
-    let toggles = pipeline.flux().signal(0_i32);
-    let toggle_binding = RenderBinding::new("toggled 0 times".to_string());
-    let toggle_label = pipeline.add_child(
-        root,
-        Label::bound(toggle_binding.clone())
-            .font_size(13.0)
-            .color(theme::TEXT_MUTED)
-            .boxed(),
-    );
-    let _ = pipeline.add_child(
-        root,
-        Checkbox::new("Ship in bulk")
-            .on_toggle(move |_checked| {
-                alacer_core::flux::Flux::batch_of(|| {
-                    let current = toggles.try_get_untracked().unwrap_or_default();
-                    toggles.set(current + 1);
-                });
-            })
-            .boxed(),
-    );
+    let toggle_node = bound_label_node(&pipeline, "toggled 0 times");
     pipeline.flux_mut().bind_value(
         toggles,
-        toggle_label,
+        toggle_node,
         &toggle_binding,
         alacer_core::Change::LAYOUT.union(alacer_core::Change::PAINT),
         |n: &i32| format!("toggled {n} times"),
-    );
-
-    // The data table (M6): headers + positioned cells, the navigable-grid
-    // a11y contract live. The header row rides the builder's own fill, and
-    // one emphasized data cell shows the strong tier (the builder
-    // vocabulary the canon's `header_fill`/`strong` carry).
-    let table = pipeline.add_child(
-        root,
-        Table::new("Inventory", 3)
-            .header_fill(Color::rgb(30, 41, 59))
-            .boxed(),
-    );
-    let header_row = pipeline.add_child(table, TableRow::new().boxed());
-    for (column, name) in ["Item", "Quantity", "Location"].iter().enumerate() {
-        let _ = pipeline.add_child(header_row, ColumnHeader::new(*name, column).boxed());
-    }
-    for (row_index, row_data) in [
-        ["Nails", "12", "A1"],
-        ["Screws", "5", "B2"],
-        ["Bolts", "40", "C3"],
-    ]
-    .iter()
-    .enumerate()
-    {
-        let row = pipeline.add_child(table, TableRow::new().boxed());
-        for (column, cell) in row_data.iter().enumerate() {
-            let cell = TableCell::new(*cell, row_index, column);
-            // The quantity column is the emphasized tier: header-like
-            // data cells, the `strong` builder's own styling.
-            let cell = if column == 1 { cell.strong(true) } else { cell };
-            let _ = pipeline.add_child(row, cell.boxed());
-        }
-    }
-
-    // The canvas (M82) + the image tier (M138): the app's own paint
-    // closure and the app's own pixels, live in the canonical consumer
-    // example. The painter draws a procedural sine strip through
-    // `push_quad` (no signals, no assets — the painter's own math), the
-    // image presents a 32×32 checkerboard generated in memory through
-    // `Image::pixels` — both primitives the isolated harness tests prove,
-    // now riding the same scene journal as the core widget set above.
-    let raster_row = pipeline.add_child(root, Row::new().gap(14.0).boxed());
-    let _ = pipeline.add_child(
-        raster_row,
-        Canvas::new("Gallery sine strip")
-            .size(240.0, 120.0)
-            .painter(|ctx| {
-                let size = ctx.size();
-                let palette = ctx.palette();
-                // The rail: a recessed surface the wave rides.
-                ctx.push_quad(alacer_core::scene::Quad {
-                    rect: Rect::new(Point::new(0.0, 0.0), size),
-                    color: palette.surface,
-                    corner_radius: 8.0,
-                    border_color: palette.border,
-                    border_width: 1.0,
-                    clip: None,
-                });
-                // The wave: one filled quad per sample, the bar's height
-                // the sine's share of the rail, the color cycling the
-                // accent ramp — a procedural pattern, straight from the
-                // painter's own math.
-                let sample_count = alacer_core::num::u32_to_f32(
-                    u32::try_from(GALLERY_SINE_SAMPLES).unwrap_or(u32::MAX),
-                );
-                let bar_width = size.width / sample_count;
-                let center = size.height * 0.5;
-                let amplitude = size.height * 0.35;
-                let ramp = [
-                    Color::rgb(37, 99, 235),
-                    Color::rgb(14, 165, 233),
-                    Color::rgb(22, 163, 74),
-                    Color::rgb(234, 179, 8),
-                    Color::rgb(239, 68, 68),
-                ];
-                for (index, color) in ramp.iter().cycle().take(GALLERY_SINE_SAMPLES).enumerate() {
-                    let scaled =
-                        alacer_core::num::u32_to_f32(u32::try_from(index).unwrap_or(u32::MAX));
-                    let t = scaled / sample_count;
-                    let share = (t * std::f32::consts::TAU).sin() * 0.5 + 0.5;
-                    let bar_height = amplitude * share * 2.0;
-                    ctx.push_quad(alacer_core::scene::Quad::filled(
-                        Rect::new(
-                            Point::new(scaled * bar_width + 1.0, center - bar_height * 0.5),
-                            Size::new((bar_width - 2.0).max(1.0), bar_height),
-                        ),
-                        *color,
-                    ));
-                }
-            })
-            .boxed(),
-    );
-
-    // The image tier (M138): the named picture the AT announces as a
-    // picture, its raster generated in memory (no embedded asset needed)
-    // and passed through `Image::pixels` — opaque premultiplied RGBA8,
-    // the byte contract the scene journal's image primitive spells, the
-    // crisp `Nearest` default sampling it up.
-    let checker: std::sync::Arc<[u8]> =
-        checker_raster(GALLERY_CHECKER_CELLS, GALLERY_CHECKER_CELL_PX).into();
-    let _ = pipeline.add_child(
-        raster_row,
-        Image::new("Gallery checker")
-            .description("A 32 by 32 checkerboard generated in memory, four cells of eight pixels")
-            .width(96.0)
-            .height(96.0)
-            .pixels(checker, GALLERY_CHECKER_PX, GALLERY_CHECKER_PX)
-            .boxed(),
-    );
-
-    // The scrolling list: translation-only wheel updates, zero measure calls
-    // per scroll tick (§8.2). Panel + label rows cycle the accent ramp.
-    let list = List::new(120.0);
-    let handle = list.handle();
-    let list_node = pipeline.add_child(root, list.boxed());
-    let ramp = [
-        Color::rgb(37, 99, 235),
-        Color::rgb(14, 165, 233),
-        Color::rgb(22, 163, 74),
-        Color::rgb(234, 179, 8),
-        Color::rgb(239, 68, 68),
-    ];
-    // The list's churn floor: enough rows to scroll and to spot clipping.
-    let items: usize = 20;
-    for (index, color) in ramp.iter().cycle().take(items).enumerate() {
-        let row = pipeline.add_child(list_node, Row::new().gap(8.0).boxed());
-        let _ = pipeline.add_child(row, Panel::new(28.0, *color).boxed());
-        let _ = pipeline.add_child(
-            row,
-            Label::new(format!("item {index}"))
-                .font_size(12.0)
-                .color(theme::TEXT_MUTED)
-                .boxed(),
-        );
-    }
-    handle.set_content_height(
-        alacer_core::num::u32_to_f32(u32::try_from(items).unwrap_or(u32::MAX)) * 28.0,
-    );
-
-    // Spacer: the flexible gap vocabulary.
-    let _ = pipeline.add_child(root, Spacer::new(8.0).boxed());
-    let _ = pipeline.add_child(
-        root,
-        Label::new(
-            "labels · buttons · bindings · text input · checkbox · table · canvas · image · panels · list · rows · spacers",
-        )
-        .font_size(11.0)
-        .color(theme::BORDER)
-        .boxed(),
     );
 
     // The virality path: `--dump-a11y-tree` never opens a window — the
@@ -371,6 +378,25 @@ fn backend_choice() -> BackendPreference {
     }
 }
 
+/// The arena node of the view-mounted label whose resolved name is the
+/// binding's initial text — the assembly-time lookup the bridge needs.
+fn bound_label_node(
+    pipeline: &alacer_core::passes::PassPipeline,
+    initial: &str,
+) -> alacer_core::NodeId {
+    let arena = pipeline.arena();
+    let mut found = None;
+    arena.for_each_pre_order(&mut |id, slot| {
+        if found.is_none()
+            && slot.widget().role() == alacer_core::Role::Label
+            && slot.widget().label().resolve() == initial
+        {
+            found = Some(id);
+        }
+    });
+    found.expect("the view mounted the bound label")
+}
+
 /// The `--dump-a11y-tree` path: mount (already done), settle headlessly,
 /// downcast the pipeline's sink to the concrete adapter the facade
 /// installed (the platform drain's own [`A11ySink::as_any_mut`] seam),
@@ -394,7 +420,7 @@ fn dump_a11y_tree(pipeline: &mut alacer_core::passes::PassPipeline) {
     let sink = pipeline
         .a11y_sink_mut()
         .as_any_mut()
-        .and_then(|any| any.downcast_mut::<AccessKitSink>())
+        .and_then(|any| any.downcast_mut::<alacer_a11y::AccessKitSink>())
         .expect("pipeline_default installs the AccessKitSink");
     let Some(update) = sink.full_tree_update() else {
         eprintln!("alacer: the a11y sink never settled a tree — nothing to dump");

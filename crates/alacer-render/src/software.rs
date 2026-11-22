@@ -13,6 +13,7 @@
 
 use alacer_core::color::Color;
 use alacer_core::damage::Damage;
+use alacer_core::geom::Point;
 use alacer_core::num::{f32_to_i32, f32_to_u8, u32_to_f32};
 use alacer_core::scene::{
     Glyph, GlyphSource, Image, ImageSampling, Primitive, Quad, SceneSnapshot, primitive_extent,
@@ -20,7 +21,7 @@ use alacer_core::scene::{
 use std::sync::Arc;
 use tiny_skia::{
     FillRule, FilterQuality, Mask, Paint, Path, PathBuilder, Pixmap, PixmapPaint,
-    PremultipliedColorU8, Rect, Stroke, Transform,
+    PremultipliedColorU8, Rect, Transform,
 };
 
 /// Renders scenes into CPU pixmaps.
@@ -168,15 +169,26 @@ impl SoftwareRenderer {
         );
 
         if quad.border_width > 0.0 && quad.border_color.a > 0 {
-            let stroke = Stroke {
-                width: quad.border_width,
-                ..Stroke::default()
+            // The border is the stroked ring, filled as the **annulus** —
+            // the outer rounded rect (the rect stroked by `border_width`)
+            // minus the inner one — under `EvenOdd`, through the same AA
+            // rasterizer as the fill. tiny-skia's stroker approximates the
+            // offset curve by recursive subdivision, so a stroked ring's
+            // coverage has no closed form for the wgpu shader to cut at;
+            // the annulus is the same two contours analytically — the
+            // cross-backend pixel-equal contract (Q8) needs both backends
+            // rasterizing the same curve, and the fuzz pins them to it.
+            let Some(annulus) = annulus_path(rect, quad.corner_radius, quad.border_width) else {
+                return;
             };
-            let border_paint = fill_paint(quad.border_color);
-            painter.stroke_path(
-                &path,
+            let border_paint = Paint {
+                blend_mode: tiny_skia::BlendMode::SourceOver,
+                ..fill_paint(quad.border_color)
+            };
+            painter.fill_path(
+                &annulus,
                 &border_paint,
-                &stroke,
+                FillRule::EvenOdd,
                 Transform::identity(),
                 clip.as_ref(),
             );
@@ -422,19 +434,58 @@ fn snap_region_to_pixels(
     width: u32,
     height: u32,
 ) -> Option<alacer_core::geom::Rect> {
-    let max_x = f32::from(u16::try_from(width).unwrap_or(u16::MAX));
-    let max_y = f32::from(u16::try_from(height).unwrap_or(u16::MAX));
-    let left = region.origin.x.floor().max(0.0);
-    let top = region.origin.y.floor().max(0.0);
-    let right = region.max_x().ceil().min(max_x);
-    let bottom = region.max_y().ceil().min(max_y);
-    if right <= left || bottom <= top {
-        return None;
+    alacer_core::geom::snap_region_to_pixels(region, width, height)
+}
+
+/// The arc's parabola inset at one row: the quadratic bezier `quad_to`
+/// corner arc (control at the rect corner) has the exact closed form
+/// `inset(u) = r − 2·√(r·u) + u` for `u` rows past the arc's flat edge —
+/// the shared curve both backends rasterize. `u` is clamped into the
+/// arc's row span, so a supersample row that only clips the arc's end
+/// reads the endpoint the walk itself starts from.
+#[must_use]
+fn arc_inset(radius: f32, u: f32) -> f32 {
+    let u = u.clamp(0.0, radius);
+    if radius <= 0.0 || u <= 0.0 {
+        return radius;
     }
-    Some(alacer_core::geom::Rect::new(
-        alacer_core::geom::Point::new(left, top),
-        alacer_core::geom::Size::new(right - left, bottom - top),
-    ))
+    radius - 2.0 * (radius * u).sqrt() + u
+}
+
+/// Emits one corner arc as a **polyline of quarter-row segments**: the
+/// vertices sit on the absolute quarter-pixel row grid (every supersample
+/// row the rasterizer walks gets its own vertex), with the arc's two
+/// endpoints kept exact. tiny-skia's bezier walk forward-differences the
+/// curve in fixed point — a parametrization no closed form can shadow —
+/// but a polyline's `LineEdge` per quarter-row segment starts exactly at
+/// its vertex, so the scanline's crossing for every supersample row IS
+/// the vertex x. The wgpu shader evaluates the same clamped parabola at
+/// the same rows: one curve, two backends, pixel-equal (Q8).
+fn push_arc(b: &mut PathBuilder, start: Point, end: Point, x_at: impl Fn(f32) -> f32) {
+    // Walk the absolute quarter-row grid between the endpoints, in the
+    // traversal's y direction; the endpoints themselves stay exact (a
+    // grid row that coincides with one is skipped — the endpoint call
+    // below already lands there).
+    let rows: Vec<f32> = if end.y >= start.y {
+        let first = (start.y * 4.0).ceil() as i64;
+        let last = (end.y * 4.0).floor() as i64;
+        (first..=last)
+            .map(|m| alacer_core::num::i32_to_f32(i32::try_from(m).unwrap_or(0)) / 4.0)
+            .collect()
+    } else {
+        let first = (end.y * 4.0).ceil() as i64;
+        let last = (start.y * 4.0).floor() as i64;
+        (first..=last)
+            .rev()
+            .map(|m| alacer_core::num::i32_to_f32(i32::try_from(m).unwrap_or(0)) / 4.0)
+            .collect()
+    };
+    for y in rows {
+        if y != start.y && y != end.y {
+            b.line_to(x_at(y), y);
+        }
+    }
+    b.line_to(end.x, end.y);
 }
 
 /// Builds the quad path — sharp when `radius` is 0, rounded otherwise.
@@ -454,15 +505,114 @@ fn quad_path(rect: Rect, radius: f32) -> Path {
     let mut b = PathBuilder::new();
     b.move_to(x0 + r, y0);
     b.line_to(x1 - r, y0);
-    b.quad_to(x1, y0, x1, y0 + r);
+    push_arc(
+        &mut b,
+        Point::new(x1 - r, y0),
+        Point::new(x1, y0 + r),
+        |y| x1 - arc_inset(r, y - y0),
+    );
     b.line_to(x1, y1 - r);
-    b.quad_to(x1, y1, x1 - r, y1);
+    push_arc(
+        &mut b,
+        Point::new(x1, y1 - r),
+        Point::new(x1 - r, y1),
+        |y| x1 - arc_inset(r, y1 - y),
+    );
     b.line_to(x0 + r, y1);
-    b.quad_to(x0, y1, x0, y1 - r);
+    push_arc(
+        &mut b,
+        Point::new(x0 + r, y1),
+        Point::new(x0, y1 - r),
+        |y| x0 + arc_inset(r, y1 - y),
+    );
     b.line_to(x0, y0 + r);
-    b.quad_to(x0, y0, x0 + r, y0);
+    push_arc(
+        &mut b,
+        Point::new(x0, y0 + r),
+        Point::new(x0 + r, y0),
+        |y| x0 + arc_inset(r, y - y0),
+    );
     b.close();
     b.finish().expect("rounded path")
+}
+
+/// Builds the stroked ring as an **annulus path**: the rect stroked by
+/// `width` (the outer rounded rect) with the eroded one as a second
+/// contour — filled under `EvenOdd`, the second contour subtracts. The
+/// contours are the exact analytic curves the wgpu shader's ring branch
+/// replicates (`rr_x_interval` at `radius ± width/2` over the stroked
+/// extents), so both backends rasterize the same ring.
+///
+/// `None` when the stroke swallows the shape (the eroded rect collapses)
+/// — the caller fills the outer contour alone, the ring there is the
+/// whole rect.
+#[must_use]
+fn annulus_path(rect: Rect, radius: f32, width: f32) -> Option<Path> {
+    let band = width * 0.5;
+    let mut b = PathBuilder::new();
+    let outer = Rect::from_xywh(
+        rect.left() - band,
+        rect.top() - band,
+        rect.width() + width,
+        rect.height() + width,
+    )?;
+    push_contour(&mut b, outer, radius + band);
+    let inner = Rect::from_xywh(
+        rect.left() + band,
+        rect.top() + band,
+        rect.width() - width,
+        rect.height() - width,
+    )?;
+    if inner.width() > 0.0 && inner.height() > 0.0 {
+        push_contour(&mut b, inner, (radius - band).max(0.0));
+    }
+    b.finish()
+}
+
+/// Pushes one rounded-rect contour (the [`quad_path`] walk — the arcs are
+/// quarter-row polylines, see [`push_arc`]).
+fn push_contour(b: &mut PathBuilder, rect: Rect, radius: f32) {
+    let r = radius
+        .max(0.0)
+        .min(rect.width() * 0.5)
+        .min(rect.height() * 0.5);
+    if r <= 0.0 {
+        b.push_rect(rect);
+        return;
+    }
+    let x0 = rect.left();
+    let y0 = rect.top();
+    let x1 = rect.right();
+    let y1 = rect.bottom();
+    b.move_to(x0 + r, y0);
+    b.line_to(x1 - r, y0);
+    push_arc(
+        b,
+        Point::new(x1 - r, y0),
+        Point::new(x1, y0 + r),
+        |y| x1 - arc_inset(r, y - y0),
+    );
+    b.line_to(x1, y1 - r);
+    push_arc(
+        b,
+        Point::new(x1, y1 - r),
+        Point::new(x1 - r, y1),
+        |y| x1 - arc_inset(r, y1 - y),
+    );
+    b.line_to(x0 + r, y1);
+    push_arc(
+        b,
+        Point::new(x0 + r, y1),
+        Point::new(x0, y1 - r),
+        |y| x0 + arc_inset(r, y1 - y),
+    );
+    b.line_to(x0, y0 + r);
+    push_arc(
+        b,
+        Point::new(x0, y0 + r),
+        Point::new(x0 + r, y0),
+        |y| x0 + arc_inset(r, y - y0),
+    );
 }
 
 /// Converts coverage + color into a premultiplied RGBA stamp.

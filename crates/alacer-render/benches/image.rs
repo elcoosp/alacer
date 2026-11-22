@@ -4,9 +4,10 @@
 //! same scene landing where the frame already is — `Damage::NONE`, the
 //! honest floor of a frame the pipeline can skip the present for).
 //!
-//! This bench rides *outside* the published corpus: the coordinated rule
-//! grows the baseline at the next published cut, never at a crate bench's
-//! (the m138 widget-bench rule's shape).
+//! The bench joins the published corpus at the M141 cut (ADR-0011's
+//! rule: every workspace benchmark is a published baseline and gated)
+//! — the `image` group it always named, the cases the corpus carries
+//! beside the widget word-write bench's own `image_word` group.
 
 use alacer_core::color::Color;
 use alacer_core::damage::{Damage, DamageBuilder};

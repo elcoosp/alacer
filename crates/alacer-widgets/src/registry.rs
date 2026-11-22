@@ -287,6 +287,9 @@ fn list_create(props: &ElementProps<'_>) -> crate::List {
     if let Some(grow) = props.number("grow") {
         list = list.grow(grow);
     }
+    if let Some(content_height) = props.number("content_height") {
+        list.handle().set_content_height(content_height);
+    }
     list
 }
 
@@ -299,6 +302,12 @@ fn list_patch(list: &mut crate::List, props: &ElementProps<'_>) -> bool {
     if let Some(grow) = props.number("grow") {
         list.style_mut().grow = grow;
         visual = true;
+    }
+    // The content's own height (the scroll seam's contract): the handle's
+    // write queues the scroll tier's masks and names its clamps (ADR-0057),
+    // so the patch ride carries the list's whole scroll story.
+    if let Some(content_height) = props.number("content_height") {
+        list.handle().set_content_height(content_height);
     }
     visual
 }
@@ -546,6 +555,9 @@ fn table_create(props: &ElementProps<'_>) -> crate::Table {
         prop_index(props, "columns").unwrap_or(0),
     );
     table.set_row_count(prop_index(props, "rows").unwrap_or(0));
+    if let Some(color) = props.color("header_fill") {
+        table = table.header_fill(color);
+    }
     style_apply(table.style_mut(), props);
     table
 }
@@ -562,6 +574,12 @@ fn table_patch(table: &mut crate::Table, props: &ElementProps<'_>) -> bool {
     }
     if let Some(columns) = prop_index(props, "columns") {
         table.set_column_count(columns);
+        visual = true;
+    }
+    // The header fill rides `Option` both ways: a present prop sets the
+    // override, an absent one restores the theme's panel role (ADR-0079) —
+    // the write reporting whether the tier moved (the idle-frame property).
+    if table.set_header_fill(props.color("header_fill")) {
         visual = true;
     }
     style_apply(table.style_mut(), props);
@@ -589,11 +607,15 @@ fn table_row_patch(row: &mut crate::TableRow, props: &ElementProps<'_>) -> bool 
 }
 
 fn table_cell_create(props: &ElementProps<'_>) -> crate::TableCell {
-    crate::TableCell::new(
+    let cell = crate::TableCell::new(
         props.text("text").unwrap_or_default(),
         prop_index(props, "row").unwrap_or(0),
         prop_index(props, "column").unwrap_or(0),
-    )
+    );
+    if props.flag("strong").unwrap_or(false) {
+        return cell.strong(true);
+    }
+    cell
 }
 
 fn table_cell_patch(cell: &mut crate::TableCell, props: &ElementProps<'_>) -> bool {
@@ -604,6 +626,12 @@ fn table_cell_patch(cell: &mut crate::TableCell, props: &ElementProps<'_>) -> bo
     }
     if let (Some(row), Some(column)) = (prop_index(props, "row"), prop_index(props, "column")) {
         cell.set_slot(row, column);
+        visual = true;
+    }
+    // The emphasis tier rides the flag both ways: `false` (or an absent
+    // prop — the flag's default) is the honest baseline, the write
+    // reporting whether the tier moved (the idle-frame property).
+    if cell.set_strong(props.flag("strong").unwrap_or(false)) {
         visual = true;
     }
     visual

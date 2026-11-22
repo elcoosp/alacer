@@ -81,10 +81,12 @@ fn a_session_streams_hello_then_recorded_events_in_order() {
     std::thread::spawn(move || server.serve_once());
     let mut reader = connect_ws(port);
 
-    // The greeting names the app and the protocol version.
+    // The greeting names the app, the protocol version, and the
+    // recorder's fact count (the cursor source a reconnecting client
+    // asks its replay with).
     let hello = read_text_frame(&mut reader);
     assert_eq!(
-        hello, r#"{"kind":"hello","version":1,"app":"protocol"}"#,
+        hello, r#"{"kind":"hello","version":1,"app":"protocol","facts":0}"#,
         "the documented greeting"
     );
 
@@ -498,6 +500,230 @@ fn a_session_streams_focus_records_over_the_real_socket() {
             && focus.contains(r#""movement":"down""#)
             && focus.contains(r#""moved":true"#),
         "focus event over the socket: {focus}"
+    );
+}
+
+#[test]
+fn the_greeting_names_the_facts_the_recorder_holds() {
+    // The greeting's `facts` field is the cursor source (M140): the
+    // count of facts the recorder has observed since its first — a
+    // reconnecting client asks its replay with the number its first
+    // greeting named, and the burst skips everything at or below it.
+    let recorder = CausalRecorder::new("facts");
+    recorder
+        .clone_handle()
+        .observe(InspectEvent::Input(InputRecord {
+            kind: InputKind::Key,
+            target: None,
+        }));
+    let server = InspectorServer::bind("127.0.0.1:0", recorder.clone(), "facts").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let hello = read_text_frame(&mut reader);
+    assert_eq!(
+        hello, r#"{"kind":"hello","version":1,"app":"facts","facts":1}"#,
+        "the greeting carries the fact count the cursor asks with"
+    );
+}
+
+#[test]
+fn a_replay_ask_with_a_cursor_skips_the_facts_it_names() {
+    // Two facts recorded before any socket exists. A panel whose first
+    // greeting named `facts: 1` (it connected after the write landed)
+    // asks the replay for the rest — the burst answers fact two and
+    // skips fact one, the history the panel already carried never
+    // repeating (the cursor's own rule: at-or-below stays silent).
+    let recorder = CausalRecorder::new("cursor");
+    recorder
+        .clone_handle()
+        .observe(InspectEvent::Write(SignalWrite {
+            signal: 7,
+            sequence: 1,
+            origin: std::borrow::Cow::Borrowed("user click"),
+        }));
+    let mut skipped = dummy_frame(1);
+    skipped.paint_ran = true;
+    recorder
+        .clone_handle()
+        .observe(InspectEvent::Frame(skipped));
+
+    let server = InspectorServer::bind("127.0.0.1:0", recorder.clone(), "cursor").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let hello = read_text_frame(&mut reader);
+    assert!(
+        hello.contains(r#""facts":2"#),
+        "the greeting names both facts: {hello}"
+    );
+    // The connect-time drain (the two pre-connect facts, the queue's
+    // own contents) — the panel watched the whole history live once.
+    let live_write = read_text_frame(&mut reader);
+    assert!(live_write.contains(r#""kind":"write""#), "{live_write}");
+    let live_frame = read_text_frame(&mut reader);
+    assert!(live_frame.contains(r#""kind":"frame""#), "{live_frame}");
+
+    // The ask with the cursor: fact one (the write) stays silent, fact
+    // two (the frame) answers — the burst is the delta, not the rings.
+    let socket = reader.get_ref().try_clone().expect("clone");
+    send_client_text(&socket, br#"{"kind":"replay","after":1}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let burst_frame = read_text_frame(&mut reader);
+    assert!(
+        burst_frame.contains(r#""kind":"frame""#) && burst_frame.contains(r#""number":1"#),
+        "the fact above the cursor replays: {burst_frame}"
+    );
+
+    // The burst ended exactly at the cursor's answer: the next frame
+    // the socket carries is a live fact, not a leaked write.
+    recorder
+        .clone_handle()
+        .observe(InspectEvent::Input(InputRecord {
+            kind: InputKind::Wheel,
+            target: None,
+        }));
+    let next = read_text_frame(&mut reader);
+    assert!(
+        next.contains(r#""kind":"input""#) && next.contains(r#""input":"wheel""#),
+        "the session lives past the cursor ask — the next fact is live: {next}"
+    );
+}
+
+#[test]
+fn a_replay_ask_above_every_fact_answers_an_empty_burst_and_lives() {
+    // A cursor the recorder has not reached (the greeting's own fact
+    // count) names no facts: the honest answer is the empty burst —
+    // the session keeps serving, the next live fact arrives whole.
+    let recorder = CausalRecorder::new("cursor-empty");
+    recorder
+        .clone_handle()
+        .observe(InspectEvent::Input(InputRecord {
+            kind: InputKind::Key,
+            target: None,
+        }));
+    let server =
+        InspectorServer::bind("127.0.0.1:0", recorder.clone(), "cursor-empty").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let hello = read_text_frame(&mut reader);
+    assert!(hello.contains(r#""facts":1"#), "{hello}");
+    let live = read_text_frame(&mut reader);
+    assert!(live.contains(r#""kind":"input""#), "{live}");
+
+    let socket = reader.get_ref().try_clone().expect("clone");
+    send_client_text(&socket, br#"{"kind":"replay","after":1}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    recorder
+        .clone_handle()
+        .observe(InspectEvent::Input(InputRecord {
+            kind: InputKind::PointerDown,
+            target: None,
+        }));
+    let next = read_text_frame(&mut reader);
+    assert!(
+        next.contains(r#""kind":"input""#) && next.contains(r#""input":"pointer_down""#),
+        "the empty burst answers nothing and the session lives: {next}"
+    );
+}
+
+#[test]
+fn a_stats_ask_answers_the_occupancy_the_rings_hold() {
+    // The ask: one wire event answering what every ring holds right
+    // now — the fact count beside one row per ring (the stream's own
+    // bound first, the trails in the vocabulary's order), each row
+    // naming its occupancy, its cap, and the evictions the cap caused.
+    // The look reads without disturbing (the replay ask's own rule at
+    // the stats tier), and the session keeps serving.
+    let recorder = CausalRecorder::new("stats");
+    recorder
+        .clone_handle()
+        .observe(InspectEvent::Input(InputRecord {
+            kind: InputKind::Key,
+            target: None,
+        }));
+    recorder
+        .clone_handle()
+        .observe(InspectEvent::Theme(ThemeRecord {
+            palette: "midnight".to_string(),
+            repainted: 3,
+        }));
+    let server = InspectorServer::bind("127.0.0.1:0", recorder.clone(), "stats").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let hello = read_text_frame(&mut reader);
+    assert!(hello.contains(r#""facts":2"#), "{hello}");
+    // The connect-time drain reads the two pre-connect facts, then the
+    // socket is quiet before the ask lands.
+    let _live_one = read_text_frame(&mut reader);
+    let _live_two = read_text_frame(&mut reader);
+
+    let socket = reader.get_ref().try_clone().expect("clone");
+    send_client_text(&socket, br#"{"kind":"stats"}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let stats = read_text_frame(&mut reader);
+    for fragment in [
+        r#""kind":"stats""#,
+        r#""facts":2"#,
+        r#""name":"broadcast""#,
+        r#""name":"edges""#,
+        r#""name":"inputs","held":1,"cap":512,"evicted":0"#,
+        r#""name":"themes","held":1,"cap":512,"evicted":0"#,
+    ] {
+        assert!(stats.contains(fragment), "missing {fragment} in {stats}");
+    }
+
+    // The look left everything whole: the next live fact streams once.
+    recorder
+        .clone_handle()
+        .observe(InspectEvent::Input(InputRecord {
+            kind: InputKind::Wheel,
+            target: None,
+        }));
+    let next = read_text_frame(&mut reader);
+    assert!(
+        next.contains(r#""kind":"input""#),
+        "the session lives past the stats ask: {next}"
+    );
+}
+
+#[test]
+fn a_stats_ask_names_the_evictions_the_caps_caused() {
+    // The frame ring's cap is the 256-order one: 258 frames fill it
+    // twice over and the stats answer names the two oldest evicted —
+    // the loss named, never swallowed (the trail reader's own rule at
+    // the wire tier), and the fact count carrying the whole story.
+    let recorder = CausalRecorder::new("stats-evictions");
+    let mut handle = recorder.clone_handle();
+    for number in 0..258_u64 {
+        handle.observe(InspectEvent::Frame(dummy_frame(number)));
+    }
+    let server =
+        InspectorServer::bind("127.0.0.1:0", recorder.clone(), "stats-evictions").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let hello = read_text_frame(&mut reader);
+    assert!(hello.contains(r#""facts":258"#), "{hello}");
+    // The connect-time drain (258 events, the queue's own contents) —
+    // read to the end so the socket is quiet before the ask lands.
+    for _ in 0..258 {
+        let _live = read_text_frame(&mut reader);
+    }
+
+    let socket = reader.get_ref().try_clone().expect("clone");
+    send_client_text(&socket, br#"{"kind":"stats"}"#);
+    std::thread::sleep(Duration::from_millis(120));
+    let stats = read_text_frame(&mut reader);
+    assert!(
+        stats.contains(r#""kind":"stats""#) && stats.contains(r#""facts":258"#),
+        "the fact count is the whole story: {stats}"
+    );
+    assert!(
+        stats.contains(r#""name":"frames","held":256,"cap":256,"evicted":2"#),
+        "the frame ring names its two evictions: {stats}"
     );
 }
 

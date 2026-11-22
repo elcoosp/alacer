@@ -462,28 +462,27 @@ fn arc_inset(radius: f32, u: f32) -> f32 {
 /// the vertex x. The wgpu shader evaluates the same clamped parabola at
 /// the same rows: one curve, two backends, pixel-equal (Q8).
 fn push_arc(b: &mut PathBuilder, start: Point, end: Point, x_at: impl Fn(f32) -> f32) {
-    // Walk the absolute quarter-row grid between the endpoints, in the
-    // traversal's y direction; the endpoints themselves stay exact (a
-    // grid row that coincides with one is skipped — the endpoint call
-    // below already lands there).
-    let rows: Vec<f32> = if end.y >= start.y {
-        let first = (start.y * 4.0).ceil() as i64;
-        let last = (end.y * 4.0).floor() as i64;
-        (first..=last)
-            .map(|m| alacer_core::num::i32_to_f32(i32::try_from(m).unwrap_or(0)) / 4.0)
-            .collect()
+    // Walk the absolute quarter-row grid strictly between the endpoints,
+    // in the traversal's y direction; the endpoints themselves stay exact
+    // (the endpoint calls below land on them with the exact x). The
+    // range arithmetic carries the exclusion a grid-row-equals-endpoint
+    // test used to perform: the first interior row past an edge is
+    // `floor(q) + 1` and the last is `ceil(q) − 1` — a grid row landing
+    // exactly on the edge is excluded whether or not the edge sits on
+    // the grid, so the walk never re-lands on a vertex the endpoint
+    // calls already own, and the loop needs no float comparison.
+    let rows: Vec<i32> = if end.y >= start.y {
+        let first = alacer_core::num::f32_to_i32((start.y * 4.0).floor()) + 1;
+        let last = alacer_core::num::f32_to_i32((end.y * 4.0).ceil()) - 1;
+        (first..=last).collect()
     } else {
-        let first = (end.y * 4.0).ceil() as i64;
-        let last = (start.y * 4.0).floor() as i64;
-        (first..=last)
-            .rev()
-            .map(|m| alacer_core::num::i32_to_f32(i32::try_from(m).unwrap_or(0)) / 4.0)
-            .collect()
+        let first = alacer_core::num::f32_to_i32((end.y * 4.0).floor()) + 1;
+        let last = alacer_core::num::f32_to_i32((start.y * 4.0).ceil()) - 1;
+        (first..=last).rev().collect()
     };
-    for y in rows {
-        if y != start.y && y != end.y {
-            b.line_to(x_at(y), y);
-        }
+    for m in rows {
+        let y = alacer_core::num::i32_to_f32(m) / 4.0;
+        b.line_to(x_at(y), y);
     }
     b.line_to(end.x, end.y);
 }
@@ -586,33 +585,21 @@ fn push_contour(b: &mut PathBuilder, rect: Rect, radius: f32) {
     let y1 = rect.bottom();
     b.move_to(x0 + r, y0);
     b.line_to(x1 - r, y0);
-    push_arc(
-        b,
-        Point::new(x1 - r, y0),
-        Point::new(x1, y0 + r),
-        |y| x1 - arc_inset(r, y - y0),
-    );
+    push_arc(b, Point::new(x1 - r, y0), Point::new(x1, y0 + r), |y| {
+        x1 - arc_inset(r, y - y0)
+    });
     b.line_to(x1, y1 - r);
-    push_arc(
-        b,
-        Point::new(x1, y1 - r),
-        Point::new(x1 - r, y1),
-        |y| x1 - arc_inset(r, y1 - y),
-    );
+    push_arc(b, Point::new(x1, y1 - r), Point::new(x1 - r, y1), |y| {
+        x1 - arc_inset(r, y1 - y)
+    });
     b.line_to(x0 + r, y1);
-    push_arc(
-        b,
-        Point::new(x0 + r, y1),
-        Point::new(x0, y1 - r),
-        |y| x0 + arc_inset(r, y1 - y),
-    );
+    push_arc(b, Point::new(x0 + r, y1), Point::new(x0, y1 - r), |y| {
+        x0 + arc_inset(r, y1 - y)
+    });
     b.line_to(x0, y0 + r);
-    push_arc(
-        b,
-        Point::new(x0, y0 + r),
-        Point::new(x0 + r, y0),
-        |y| x0 + arc_inset(r, y - y0),
-    );
+    push_arc(b, Point::new(x0, y0 + r), Point::new(x0 + r, y0), |y| {
+        x0 + arc_inset(r, y - y0)
+    });
 }
 
 /// Converts coverage + color into a premultiplied RGBA stamp.

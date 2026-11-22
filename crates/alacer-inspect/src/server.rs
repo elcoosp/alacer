@@ -13,7 +13,7 @@
 //! observation into the broadcast queue as it happens, and the session
 //! thread drains it over the socket.
 
-use crate::recorder::CausalRecorder;
+use crate::recorder::{BROADCAST_RING_CAP, CausalRecorder};
 use crate::wire::{self, ClientMessage, Hello, PROTOCOL_VERSION, WireEvent};
 use base64::Engine as _;
 use sha1::{Digest, Sha1};
@@ -22,11 +22,6 @@ use std::net::{TcpListener, TcpStream};
 
 /// The RFC 6455 magic GUID (fixed by the spec).
 const WS_GUID: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-
-/// The broadcast queue's cap: pending wire events before the oldest drop
-/// (a slow client must never back-pressure the app's observer thread,
-/// §14.3's bounded-buffer rule).
-const BROADCAST_CAP: usize = 4_096;
 
 /// The inspector server: bound listener + the recorder it streams from.
 pub struct InspectorServer {
@@ -244,6 +239,11 @@ fn run_session(
         kind: "hello",
         version: PROTOCOL_VERSION,
         app: app.to_string(),
+        // The fact count the reconnecting client's cursor asks with
+        // (M140): the number this greeting names is the `after` the
+        // panel's later replay ask carries, and the burst answers only
+        // the facts recorded since.
+        facts: recorder.facts(),
     };
     let hello_json = serde_json::to_string(&hello).map_err(|error| serialize("hello", error))?;
     send_text(stream, &hello_json)?;
@@ -263,18 +263,25 @@ fn run_session(
             ClientFrame::Text(text) => {
                 match serde_json::from_str::<ClientMessage>(&text) {
                     Ok(ClientMessage::Clear) => recorder.clear(),
-                    Ok(ClientMessage::Replay) => {
+                    Ok(ClientMessage::Replay { after }) => {
                         // The rings' durable history as one burst (the
                         // ask's own rule): per trail oldest first, the
                         // vocabulary's order, nothing drained — the live
                         // stream beside it continues untouched, and the
                         // facts the session saw live may repeat (the
                         // client folds them; ADR-0029's observability
-                        // rule names the burst on the log).
-                        let burst = recorder.replay();
+                        // rule names the burst on the log). Since M140
+                        // the ask may carry the `after` cursor: only the
+                        // facts recorded above it answer, the history
+                        // the client already carried staying silent.
+                        let burst = match after {
+                            Some(cursor) => recorder.replay_after(cursor),
+                            None => recorder.replay(),
+                        };
                         tracing::debug!(
                             target: "alacer::inspect",
                             events = burst.len(),
+                            cursor = ?after,
                             "inspector client asked for the rings' replay"
                         );
                         for event in burst {
@@ -282,6 +289,21 @@ fn run_session(
                                 .map_err(|error| serialize("wire event", error))?;
                             send_text(stream, &payload)?;
                         }
+                    }
+                    Ok(ClientMessage::Stats) => {
+                        // The rings' occupancy as one event (M141): the
+                        // fact count beside one row per ring, the look
+                        // reading without disturbing — the replay ask's
+                        // own rule at the stats tier (ADR-0029's rule
+                        // names the ask on the log).
+                        let answer = recorder.stats();
+                        tracing::debug!(
+                            target: "alacer::inspect",
+                            "inspector client asked what the rings hold"
+                        );
+                        let payload = serde_json::to_string(&answer)
+                            .map_err(|error| serialize("stats", error))?;
+                        send_text(stream, &payload)?;
                     }
                     Ok(ClientMessage::Bye) => break,
                     Err(error) => {
@@ -453,10 +475,19 @@ pub fn inspector_html() -> String {
 }
 
 /// The broadcast push the recorder handle performs (kept here so the wire
-/// vocabulary and its cap live beside the session that drains them).
-pub(crate) fn push_broadcast(queue: &mut std::collections::VecDeque<WireEvent>, event: WireEvent) {
-    if queue.len() >= BROADCAST_CAP {
+/// vocabulary and its cap live beside the session that drains them — the
+/// cap the recorder imports from [`crate::recorder`], one constant the
+/// two halves share, never two numbers a comment has to hold together).
+/// The eviction is counted, not swallowed: the stats answer's `broadcast`
+/// row names the stream's own loss (M141).
+pub(crate) fn push_broadcast(
+    queue: &mut std::collections::VecDeque<WireEvent>,
+    evicted: &mut u64,
+    event: WireEvent,
+) {
+    if queue.len() >= BROADCAST_RING_CAP {
         queue.pop_front();
+        *evicted = evicted.saturating_add(1);
     }
     queue.push_back(event);
 }

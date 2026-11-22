@@ -206,6 +206,7 @@ dependencies = [
  "reactive_graph",
  "rustc-hash 2.1.3",
  "tracing",
+ "tree_arena",
 ]
 
 [[package]]
@@ -285,6 +286,7 @@ dependencies = [
  "alacer-inspect",
  "alacer-layout",
  "alacer-macro",
+ "alacer-platform",
  "alacer-render",
  "alacer-text",
  "alacer-view",
@@ -3694,6 +3696,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "db97caf9d906fbde555dd62fa95ddba9eecfd14cb388e4f491a66d74cd5fb79a"
 dependencies = [
  "once_cell",
+]
+
+[[package]]
+name = "tree_arena"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a72475b77c3e2b3094409266c8bf161dae59803d7b90821983b9b5262cfc2521"
+dependencies = [
+ "hashbrown 0.16.1",
 ]
 
 [[package]]

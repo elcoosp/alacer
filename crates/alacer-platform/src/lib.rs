@@ -17,12 +17,19 @@ pub mod keys;
 pub mod softbuffer;
 #[cfg(feature = "backend-wgpu")]
 pub mod wgpu_backend;
+// The headless readback twin (§9.3, Q8): same shader, same packing, an
+// offscreen target and a `DownloadBuffer` readback — the cross-backend
+// equivalence fuzz's GPU side, runnable on adapter-carrying CI machines.
+#[cfg(feature = "backend-wgpu")]
+pub mod wgpu_headless;
 
 pub use keys::{ime_cursor_utf16, map_ime_event, map_key, map_logical_key};
 #[cfg(feature = "backend-softbuffer")]
 pub use softbuffer::{SoftbufferPresenter, pixmap_to_argb};
 #[cfg(feature = "backend-wgpu")]
 pub use wgpu_backend::{BackendError, WgpuRenderer};
+#[cfg(feature = "backend-wgpu")]
+pub use wgpu_headless::HeadlessRenderer;
 
 use accesskit_winit::{Adapter, Event as AccessKitEvent, WindowEvent as AccessKitWindowEvent};
 use alacer_a11y::AccessKitSink;

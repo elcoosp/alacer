@@ -16,11 +16,23 @@ use std::num::NonZeroU64;
 
 /// WGSL: one pipeline for all three primitive kinds; `kind` selects the
 /// fragment path (SDF rounded rect vs coverage-atlas sample vs premultiplied
-/// RGBA image sample).
-const SHADER: &str = r"
+/// RGBA image sample). Shared verbatim by the surface and headless
+/// renderers — one shader, one pixel contract (Q8). The clip rect rides a
+/// second instance buffer (the primitive's own `clip`, or the unclipped
+/// sentinel): a fragment whose pixel lies outside is discarded, with the
+/// pixel-index rule the software path's non-AA rect mask rasterizes — a
+/// pixel belongs to the clip iff its index satisfies `k >= x && k < x+w`,
+/// and the half-pixel shift below turns the fragment's pixel center into
+/// that index, so both backends cut at the same pixels instead of at two
+/// interpretations of a fractional edge. The rule is the pixel center:
+/// tiny-skia's non-AA rect mask covers the pixels whose centers fall in
+/// the rect, and the fragment position IS the pixel center — the
+/// comparison below is that same test, unshifted.
+pub(crate) const SHADER: &str = r"
 struct Uniforms {
     view: vec2<f32>,
     pad: vec2<f32>,
+    bg: vec4<f32>,
 };
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
 @group(0) @binding(1) var s: sampler;
@@ -38,6 +50,8 @@ struct VOut {
     @location(1) geom: vec4<f32>,
     @location(2) color: vec4<f32>,
     @location(3) uv: vec4<f32>,
+    @location(4) clip: vec4<f32>,
+    @location(5) border: vec4<f32>,
 };
 
 @vertex
@@ -47,9 +61,21 @@ fn vs_main(
     @location(1) geom: vec4<f32>,   // radius, border_width, kind, nearest
     @location(2) color: vec4<f32>,
     @location(3) uv: vec4<f32>,     // quads: (w, h, 0, 0) · glyphs: (u0, v0, u1, v1) · images: (u0, v0, u1, v1)
+    @location(4) clip: vec4<f32>,   // x, y, w, h (device px); w/h = +inf when unclipped
+    @location(5) border: vec4<f32>, // the quad kind's border ink (rgba, straight alpha)
 ) -> VOut {
     let corner = CORNERS[vi];
-    let p = rect.xy + corner * rect.zw;
+    // The quad kind's geometry inflates half a pixel on every side: the
+    // software path's quad fills are ANTI-ALIASED (unlike its image blits
+    // — `draw_pixmap` fills non-AA), so an edge pixel a fractional quad
+    // only partially covers still blends, and the binary rasterizer needs
+    // the inflated quad to generate its fragment at all. The fragment
+    // stage turns the pixel center's signed distance to the TRUE rect
+    // into exactly that area coverage via the linear SDF window.
+    let is_quad = geom.z < 0.5;
+    let span = select(rect.zw, rect.zw + vec2<f32>(1.0, 1.0), is_quad);
+    let origin = select(rect.xy, rect.xy - vec2<f32>(0.5, 0.5), is_quad);
+    let p = origin + corner * span;
     var out: VOut;
     out.pos = vec4<f32>(
         p.x / uniforms.view.x * 2.0 - 1.0,
@@ -57,35 +83,79 @@ fn vs_main(
         0.0,
         1.0,
     );
-    out.local = corner * rect.zw;
+    // The TRUE local (pixel-center offset from the un-inflated rect's
+    // origin): across the inflated quad the span crosses [-0.5, w+0.5], so
+    // the fragment stage's SDF reads real distances, not compressed ones.
+    out.local = select(corner * rect.zw, corner * span - vec2<f32>(0.5, 0.5), is_quad);
     out.geom = geom;
     out.color = color;
     // The texture kinds (glyph kind 1, image kind 2) mix their atlas window
     // per corner here: corner is a per-vertex constant, so the mix equals
     // the fragment-side `local / size` a 1:1 blit computes — generalized to
     // destinations that do not match the source size (the image path's
-    // scaled blits). Quads keep their raw (w, h) SDF payload.
+    // scaled blits). Quads keep their raw (w, h) SDF payload. The image
+    // kind's half-texel phase lives in the uv attribute itself (the pack
+    // shifts bilinear windows half a texel — the software sampler's
+    // convention), so both kinds interpolate plain windows here.
     if (geom.z > 0.5) {
         out.uv = vec4<f32>(mix(uv.xy, uv.zw, corner), vec2<f32>(0.0, 0.0));
     } else {
         out.uv = uv;
     }
+    out.clip = clip;
+    out.border = border;
     return out;
 }
 
-fn rect_sdf(local: vec2<f32>, half_size: vec2<f32>, radius: f32) -> f32 {
-    let r = min(radius, min(half_size.x, half_size.y));
-    let q = abs(local) - half_size + vec2<f32>(r, r);
-    return length(max(q, vec2<f32>(0.0, 0.0))) + min(max(q.x, q.y), 0.0) - r;
+/// The rounded rect's interior x-interval at one local row — empty (0,0)
+/// outside the shape's y-span. The corner arcs' chords are analytic, so a
+/// subrow's exact span (the software scanline's own quantity) needs no
+/// sampling.
+fn rr_x_interval(y: f32, w: f32, h: f32, radius: f32) -> vec2<f32> {
+    if (y < 0.0 || y > h || w <= 0.0 || h <= 0.0) {
+        return vec2<f32>(0.0, 0.0);
+    }
+    let r = min(radius, min(w, h) * 0.5);
+    var x0 = 0.0;
+    var x1 = w;
+    if (r > 0.0 && y < r) {
+        let chord = sqrt(max(r * r - (r - y) * (r - y), 0.0));
+        x0 = r - chord;
+        x1 = w - r + chord;
+    } else if (r > 0.0 && y > h - r) {
+        let chord = sqrt(max(r * r - (y - (h - r)) * (y - (h - r)), 0.0));
+        x0 = r - chord;
+        x1 = w - r + chord;
+    }
+    return vec2<f32>(x0, x1);
+}
+
+/// One subrow's coverage of `measure` local units inside the pixel window,
+/// quantized the way the software scanline quantizes: the pixel's x-range
+/// divides into four subcolumns and a subrow owns `floor(span * 4)` of
+/// them. The frame's total is the sum over four subrows, out of 16.
+fn subrow_hits(measure: f32) -> f32 {
+    return floor(measure * 4.0);
 }
 
 @fragment
 fn fs_main(in: VOut) -> @location(0) vec4<f32> {
+    // The clip's pixel-center rule (see the module header): the fragment
+    // position IS the pixel center, and the software path's non-AA rect
+    // mask covers exactly the pixels whose centers fall inside.
+    let pixel = in.pos.xy;
+    if (pixel.x < in.clip.x || pixel.y < in.clip.y
+        || pixel.x >= in.clip.x + in.clip.z || pixel.y >= in.clip.y + in.clip.w) {
+        discard;
+    }
     let kind = in.geom.z;
     if (kind > 1.5) {
         // Image: the atlas row is premultiplied RGBA — sample and ship.
         // Nearest rides geom.w; `textureSampleLevel` because instance-driven
-        // branching is not uniform control flow.
+        // branching is not uniform control flow. The rasterization is the
+        // rasterizer's own binary pixel-center rule — the software path's
+        // transformed blit fills non-AA, the same rule (verified against
+        // tiny-skia's `draw_pixmap`, which sets `anti_alias: false`).
         if (in.geom.w > 0.5) {
             return textureSampleLevel(t, s_near, in.uv.xy, 0.0);
         }
@@ -93,24 +163,61 @@ fn fs_main(in: VOut) -> @location(0) vec4<f32> {
     }
     if (kind > 0.5) {
         // Glyph: bilinear sample of the coverage atlas (the window mixed
-        // per corner in the vertex stage).
-        let coverage = textureSample(t, s, in.uv.xy).r;
-        return vec4<f32>(in.color.rgb * coverage, in.color.a * coverage);
+        // per corner in the vertex stage). Premultiplied output: the ink
+        // scales by its own alpha AND the coverage, the blend state's
+        // `One / OneMinusSrcAlpha` expecting exactly that — a rgb scaled
+        // by the coverage alone draws every semi-transparent ink too
+        // bright (the cross-backend fuzz caught it).
+        let a = in.color.a * textureSample(t, s, in.uv.xy).r;
+        return vec4<f32>(in.color.rgb * a, a);
     }
-    // Quad: SDF fill + border ring.
-    let half_size = in.uv.xy * 0.5;
-    let d = rect_sdf(in.local - half_size, half_size, in.geom.x);
-    let fill = smoothstep(0.5, -0.5, d);
-    let ring = smoothstep(0.5, -0.5, abs(d) - in.geom.y * 0.5) * step(0.01, in.geom.y);
-    let alpha = max(fill * (1.0 - ring), ring);
-    return vec4<f32>(in.color.rgb * alpha, in.color.a * alpha);
+    // Quad: the software path anti-aliases its rounded-rect fill over a
+    // 4x4 supersample grid (tiny-skia's `SUPERSAMPLE_SHIFT = 2`) and
+    // strokes the border over it — two draws with two inks. The shader
+    // replicates both exactly: each of the four subrows takes the path's
+    // analytic x-interval at that row (corner arcs included), intersects
+    // it with the pixel window, and quantizes the span into the four
+    // subcolumns the scanline owns; the border is the same walk over the
+    // stroked band (the outer rounded rect minus the eroded one). The
+    // composite is fill-over-background then ring-over-fill — the two
+    // software passes. The inflated quad reaches the partially covered
+    // edge pixels the binary rasterizer would skip.
+    let w = in.uv.xy.x;
+    let h = in.uv.xy.y;
+    let radius = in.geom.x;
+    let band = in.geom.y * 0.5;
+    let px0 = in.local.x - 0.5;
+    let px1 = in.local.x + 0.5;
+    var fill_hits = 0.0;
+    var ring_hits = 0.0;
+    for (var j = 0; j < 4; j++) {
+        let yj = in.local.y - 0.5 + (f32(j) + 0.5) * 0.25;
+        let iv = rr_x_interval(yj, w, h, radius);
+        let span = max(min(iv.y, px1) - max(iv.x, px0), 0.0);
+        fill_hits += subrow_hits(span);
+        if (in.geom.y > 0.0 && in.border.a > 0.0) {
+            let outer = rr_x_interval(yj, w + in.geom.y, h + in.geom.y, radius + band);
+            let inner = rr_x_interval(yj, w - in.geom.y, h - in.geom.y, max(radius - band, 0.0));
+            let span_out = max(min(outer.y, px1) - max(outer.x, px0), 0.0);
+            let span_in = max(min(inner.y, px1) - max(inner.x, px0), 0.0);
+            ring_hits += subrow_hits(max(span_out - span_in, 0.0));
+        }
+    }
+    let ring_on = select(0.0, 1.0, in.geom.y > 0.0 && in.border.a > 0.0);
+    let fc = fill_hits * 0.0625;
+    let rc = ring_hits * 0.0625 * ring_on;
+    let fill_rgba = vec4<f32>(in.color.rgb * in.color.a, in.color.a);
+    var c = fill_rgba * fc + (vec4<f32>(1.0) - vec4<f32>(fill_rgba.a * fc)) * uniforms.bg;
+    let ring_rgba = vec4<f32>(in.border.rgb * in.border.a, in.border.a);
+    c = ring_rgba * rc + (vec4<f32>(1.0) - vec4<f32>(ring_rgba.a * rc)) * c;
+    return c;
 }
 ";
 
 /// Instance data, 64 bytes: one quad or one glyph.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-struct Instance {
+pub(crate) struct Instance {
     rect: [f32; 4],
     geom: [f32; 4],
     color: [f32; 4],
@@ -129,6 +236,11 @@ pub enum BackendError {
     NoDevice(wgpu::RequestDeviceError),
     /// Surface acquisition or other wgpu operation failed.
     Surface(wgpu::Error),
+    /// Headless readback failed (§9.3 Q8): the copy to the staging buffer,
+    /// the map, or the poll did not deliver the frame's bytes. The failing
+    /// stage rides the message — wgpu's poll/map failures are their own
+    /// types, not `wgpu::Error`s.
+    Readback(String),
 }
 
 impl std::fmt::Display for BackendError {
@@ -141,6 +253,7 @@ impl std::fmt::Display for BackendError {
             Self::SurfaceCreation(e) => write!(f, "surface creation failed: {e}"),
             Self::NoDevice(e) => write!(f, "wgpu device creation failed: {e}"),
             Self::Surface(e) => write!(f, "wgpu surface error: {e}"),
+            Self::Readback(stage) => write!(f, "headless readback failed: {stage}"),
         }
     }
 }
@@ -150,7 +263,7 @@ impl std::error::Error for BackendError {
         // The wgpu failures keep their chain; `NoAdapter` is the platform's
         // own fact — the one honest leaf.
         match self {
-            Self::NoAdapter => None,
+            Self::NoAdapter | Self::Readback(_) => None,
             Self::SurfaceCreation(e) => Some(e),
             Self::NoDevice(e) => Some(e),
             Self::Surface(e) => Some(e),
@@ -166,8 +279,8 @@ impl std::error::Error for BackendError {
 /// shelf itself exhausts, the survivors compact from the origin — the
 /// retained coverage re-uploads, the freed glyphs stay gone — and the
 /// scene's pack re-runs (the UVs handed out before a compaction are stale).
-struct Atlas {
-    texture: wgpu::Texture,
+pub(crate) struct Atlas {
+    pub(crate) texture: wgpu::Texture,
     width: u32,
     height: u32,
     cursor_x: u32,
@@ -182,7 +295,7 @@ struct Atlas {
     used_area: u64,
     /// Whether the last [`Atlas::place`] compacted the shelf: the pack
     /// re-runs once when it did (bounded — see `PACK_ATTEMPTS`).
-    rebuilt: bool,
+    pub(crate) rebuilt: bool,
 }
 
 /// One placed glyph: the atlas UV rect plus the coverage the placement
@@ -195,7 +308,7 @@ struct GlyphSlot {
 }
 
 impl Atlas {
-    fn new(device: &wgpu::Device, width: u32, height: u32) -> Self {
+    pub(crate) fn new(device: &wgpu::Device, width: u32, height: u32) -> Self {
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("alacer glyph atlas"),
             size: wgpu::Extent3d {
@@ -356,9 +469,15 @@ impl Atlas {
 /// policy; §9.4's LRU re-open rides the glyph atlas, never a shipped
 /// promise here either). One placement per raster: the bytes ride by `Arc`
 /// and every hit re-validates the identity, so a freed-and-reused pointer
-/// never serves another image's pixels.
-struct ImageAtlas {
-    texture: wgpu::Texture,
+/// never serves another image's pixels. Every placement is padded with a
+/// one-texel gutter of edge-replicated border: the image path's bilinear
+/// window samples half a texel past its bitmap at scaled destinations, and
+/// without the gutter that tap lands in the *neighbor's* ink — the
+/// cross-backend fuzz caught exactly that. The replicated edge is what a
+/// clamped sampler would have served, so the GPU matches the software
+/// path's edge texels exactly.
+pub(crate) struct ImageAtlas {
+    pub(crate) texture: wgpu::Texture,
     width: u32,
     height: u32,
     cursor_x: u32,
@@ -377,7 +496,7 @@ struct ImageSlot {
 }
 
 impl ImageAtlas {
-    fn new(device: &wgpu::Device, width: u32, height: u32) -> Self {
+    pub(crate) fn new(device: &wgpu::Device, width: u32, height: u32) -> Self {
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("alacer image atlas"),
             size: wgpu::Extent3d {
@@ -418,16 +537,19 @@ impl ImageAtlas {
         {
             return Some(slot.uv);
         }
-        if width == 0 || height == 0 || width > self.width || height > self.height {
+        // The shelf footprint carries the one-texel gutter on every side
+        // (see the type's doc): the inner window is the bitmap itself.
+        let (padded, padded_w, padded_h) = padded_raster(bytes, width, height)?;
+        if padded_w > self.width || padded_h > self.height {
             return None;
         }
-        let stride = u32::checked_mul(width, 4)?;
-        if self.cursor_x + width > self.width {
+        let stride = u32::checked_mul(padded_w, 4)?;
+        if self.cursor_x + padded_w > self.width {
             self.cursor_x = 0;
             self.cursor_y += self.row_height;
             self.row_height = 0;
         }
-        if self.cursor_y + height > self.height {
+        if self.cursor_y + padded_h > self.height {
             // Full clear on overflow — the glyph atlas's own policy.
             self.cursor_x = 0;
             self.cursor_y = 0;
@@ -446,27 +568,27 @@ impl ImageAtlas {
                 },
                 aspect: wgpu::TextureAspect::All,
             },
-            bytes.as_ref(),
+            &padded,
             wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(stride),
                 rows_per_image: None,
             },
             wgpu::Extent3d {
-                width,
-                height,
+                width: padded_w,
+                height: padded_h,
                 depth_or_array_layers: 1,
             },
         );
 
         let uv = [
-            alacer_core::num::i32_to_f32(u32_to_i32(self.cursor_x))
+            alacer_core::num::i32_to_f32(u32_to_i32(self.cursor_x + 1))
                 / alacer_core::num::i32_to_f32(u32_to_i32(self.width)),
-            alacer_core::num::i32_to_f32(u32_to_i32(self.cursor_y))
+            alacer_core::num::i32_to_f32(u32_to_i32(self.cursor_y + 1))
                 / alacer_core::num::i32_to_f32(u32_to_i32(self.height)),
-            alacer_core::num::i32_to_f32(u32_to_i32(self.cursor_x + width))
+            alacer_core::num::i32_to_f32(u32_to_i32(self.cursor_x + 1 + width))
                 / alacer_core::num::i32_to_f32(u32_to_i32(self.width)),
-            alacer_core::num::i32_to_f32(u32_to_i32(self.cursor_y + height))
+            alacer_core::num::i32_to_f32(u32_to_i32(self.cursor_y + 1 + height))
                 / alacer_core::num::i32_to_f32(u32_to_i32(self.height)),
         ];
         self.entries.insert(
@@ -478,10 +600,49 @@ impl ImageAtlas {
                 bytes: std::sync::Arc::clone(bytes),
             },
         );
-        self.cursor_x += width;
-        self.row_height = self.row_height.max(height);
+        self.cursor_x += padded_w;
+        self.row_height = self.row_height.max(padded_h);
         Some(uv)
     }
+}
+
+/// The one-texel-gutter form of a premultiplied RGBA8 raster: `(w+2)×(h+2)`
+/// bytes whose border replicates the bitmap's own edge pixels, the inner
+/// window the bitmap verbatim — the clamped sampling a bilinear tap half a
+/// texel past the edge must serve.
+fn padded_raster(
+    bytes: &std::sync::Arc<[u8]>,
+    width: u32,
+    height: u32,
+) -> Option<(Vec<u8>, u32, u32)> {
+    if width == 0 || height == 0 {
+        return None;
+    }
+    let w = usize::try_from(width).ok()?;
+    let h = usize::try_from(height).ok()?;
+    let stride = w.checked_mul(4)?;
+    let expected = stride.checked_mul(h)?;
+    if bytes.len() < expected {
+        return None;
+    }
+    let row = |y: usize| &bytes[y * stride..(y + 1) * stride];
+    let pixel = |x: usize, y: usize| &bytes[y * stride + x * 4..y * stride + x * 4 + 4];
+    let mut padded = Vec::with_capacity((w + 2) * (h + 2) * 4);
+    let edge_row = |out: &mut Vec<u8>, y: usize| {
+        out.extend_from_slice(pixel(0, y));
+        out.extend_from_slice(row(y));
+        out.extend_from_slice(pixel(w - 1, y));
+    };
+    edge_row(&mut padded, 0);
+    for y in 0..h {
+        padded.extend_from_slice(pixel(0, y));
+        padded.extend_from_slice(row(y));
+        padded.extend_from_slice(pixel(w - 1, y));
+    }
+    edge_row(&mut padded, h - 1);
+    let padded_w = u32::try_from(w + 2).ok()?;
+    let padded_h = u32::try_from(h + 2).ok()?;
+    Some((padded, padded_w, padded_h))
 }
 
 /// The pack retry bound: each shelf compaction strictly grows the
@@ -490,12 +651,12 @@ impl ImageAtlas {
 /// itself cannot converge and is served lossy — the degenerate class the
 /// full-clear discipline the LRU replaced also served lossy (its cleared
 /// glyphs' packed instances sampled whatever replaced them).
-const PACK_ATTEMPTS: usize = 4;
+pub(crate) const PACK_ATTEMPTS: usize = 4;
 
 /// Which atlas bind group a draw segment samples: the glyph coverage atlas
 /// or the raster image atlas.
 #[derive(Debug, Clone, Copy, PartialEq)]
-enum TextureBind {
+pub(crate) enum TextureBind {
     Glyph,
     Image,
 }
@@ -503,18 +664,59 @@ enum TextureBind {
 /// One scene's packed draw: instances in scene order plus the contiguous
 /// segments that share a bind group — a segment switch is a bind group
 /// switch, never a re-order (paint order is the correctness contract).
+/// The clip column rides parallel to the instances (one clip rect per
+/// instance slot, the unclipped sentinel where the primitive carries
+/// none) — the shader's second instance buffer reads it by the same
+/// segment ranges.
 #[derive(Debug, Default)]
-struct PackedScene {
-    instances: Vec<Instance>,
-    segments: Vec<(u32, u32, TextureBind)>,
+pub(crate) struct PackedScene {
+    pub(crate) instances: Vec<Instance>,
+    /// The aux instance column, interleaved 32-byte stride: `[clip, border]`
+    /// per instance slot — the shader's second instance buffer reads the
+    /// clip at offset 0 and the quad kind's border ink at offset 16.
+    pub(crate) aux: Vec<[f32; 4]>,
+    pub(crate) segments: Vec<(u32, u32, TextureBind)>,
+}
+
+/// The clip sentinel of an unclipped primitive: the full plane, so the
+/// shader's discard test can never reject a fragment of it.
+pub(crate) const UNCLIPPED: [f32; 4] = [0.0, 0.0, f32::INFINITY, f32::INFINITY];
+
+/// The border sentinel of an unbordered primitive: fully transparent ink,
+/// so the shader's ring pass draws nothing.
+pub(crate) const NO_BORDER: [f32; 4] = [0.0, 0.0, 0.0, 0.0];
+
+/// The border ink column for one quad: straight-alpha RGBA normalized to
+/// the shader's float space (the software stroke's own paint color).
+pub(crate) fn pack_border(border_color: alacer_core::color::Color) -> [f32; 4] {
+    [
+        f32::from(border_color.r) / 255.0,
+        f32::from(border_color.g) / 255.0,
+        f32::from(border_color.b) / 255.0,
+        f32::from(border_color.a) / 255.0,
+    ]
+}
+
+/// The per-instance clip column for one primitive's own clip, in device
+/// pixels (the same space the instance rects and the software masks use).
+pub(crate) fn clip_instance(clip: Option<alacer_core::geom::Rect>) -> [f32; 4] {
+    match clip {
+        None => UNCLIPPED,
+        Some(rect) => [
+            rect.origin.x,
+            rect.origin.y,
+            rect.size.width,
+            rect.size.height,
+        ],
+    }
 }
 
 impl PackedScene {
-    /// Appends one instance to the segment its kind names: the open segment
-    /// extends when the kind matches, otherwise a new one opens. Quads
-    /// sample nothing and ride whatever segment is open (the glyph bind
-    /// group works for them; a leading quad opens it).
-    fn push(&mut self, instance: Instance, kind: TextureBind) {
+    /// Appends one instance (and its aux pair) to the segment its kind
+    /// names: the open segment extends when the kind matches, otherwise a
+    /// new one opens. Quads sample nothing and ride whatever segment is
+    /// open (the glyph bind group works for them; a leading quad opens it).
+    fn push(&mut self, instance: Instance, clip: [f32; 4], border: [f32; 4], kind: TextureBind) {
         match self.segments.last_mut() {
             Some((_, count, open)) if *open == kind => *count += 1,
             _ => self
@@ -522,6 +724,8 @@ impl PackedScene {
                 .push((u32::try_from(self.instances.len()).unwrap_or(0), 1, kind)),
         }
         self.instances.push(instance);
+        self.aux.push(clip);
+        self.aux.push(border);
     }
 }
 
@@ -544,6 +748,10 @@ pub struct WgpuRenderer {
     image_bind_group: wgpu::BindGroup,
     uniforms: wgpu::Buffer,
     instances: wgpu::Buffer,
+    /// The parallel clip column (one vec4 per instance slot): the shader's
+    /// second instance buffer, the GPU side of the software path's rect
+    /// masks.
+    clips: wgpu::Buffer,
     instance_capacity: u64,
     atlas: Atlas,
     image_atlas: ImageAtlas,
@@ -628,7 +836,7 @@ impl WgpuRenderer {
 
         let uniforms = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("alacer uniforms"),
-            size: 16,
+            size: 32,
             usage: wgpu::BufferUsages::UNIFORM.union(wgpu::BufferUsages::COPY_DST),
             mapped_at_creation: false,
         });
@@ -636,6 +844,12 @@ impl WgpuRenderer {
         let instances = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("alacer instances"),
             size: instance_capacity,
+            usage: wgpu::BufferUsages::VERTEX.union(wgpu::BufferUsages::COPY_DST),
+            mapped_at_creation: false,
+        });
+        let clips = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("alacer clip+border aux"),
+            size: 32 * 32_768,
             usage: wgpu::BufferUsages::VERTEX.union(wgpu::BufferUsages::COPY_DST),
             mapped_at_creation: false,
         });
@@ -649,7 +863,7 @@ impl WgpuRenderer {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: NonZeroU64::new(16),
+                        min_binding_size: NonZeroU64::new(32),
                     },
                     count: None,
                 },
@@ -757,32 +971,50 @@ impl WgpuRenderer {
                 module: &shader,
                 entry_point: Some("vs_main"),
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
-                buffers: &[Some(wgpu::VertexBufferLayout {
-                    array_stride: 64,
-                    step_mode: wgpu::VertexStepMode::Instance,
-                    attributes: &[
-                        wgpu::VertexAttribute {
-                            format: wgpu::VertexFormat::Float32x4,
-                            offset: 0,
-                            shader_location: 0,
-                        },
-                        wgpu::VertexAttribute {
-                            format: wgpu::VertexFormat::Float32x4,
-                            offset: 16,
-                            shader_location: 1,
-                        },
-                        wgpu::VertexAttribute {
-                            format: wgpu::VertexFormat::Float32x4,
-                            offset: 32,
-                            shader_location: 2,
-                        },
-                        wgpu::VertexAttribute {
-                            format: wgpu::VertexFormat::Float32x4,
-                            offset: 48,
-                            shader_location: 3,
-                        },
-                    ],
-                })],
+                buffers: &[
+                    Some(wgpu::VertexBufferLayout {
+                        array_stride: 64,
+                        step_mode: wgpu::VertexStepMode::Instance,
+                        attributes: &[
+                            wgpu::VertexAttribute {
+                                format: wgpu::VertexFormat::Float32x4,
+                                offset: 0,
+                                shader_location: 0,
+                            },
+                            wgpu::VertexAttribute {
+                                format: wgpu::VertexFormat::Float32x4,
+                                offset: 16,
+                                shader_location: 1,
+                            },
+                            wgpu::VertexAttribute {
+                                format: wgpu::VertexFormat::Float32x4,
+                                offset: 32,
+                                shader_location: 2,
+                            },
+                            wgpu::VertexAttribute {
+                                format: wgpu::VertexFormat::Float32x4,
+                                offset: 48,
+                                shader_location: 3,
+                            },
+                        ],
+                    }),
+                    Some(wgpu::VertexBufferLayout {
+                        array_stride: 32,
+                        step_mode: wgpu::VertexStepMode::Instance,
+                        attributes: &[
+                            wgpu::VertexAttribute {
+                                format: wgpu::VertexFormat::Float32x4,
+                                offset: 0,
+                                shader_location: 4,
+                            },
+                            wgpu::VertexAttribute {
+                                format: wgpu::VertexFormat::Float32x4,
+                                offset: 16,
+                                shader_location: 5,
+                            },
+                        ],
+                    }),
+                ],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -811,6 +1043,7 @@ impl WgpuRenderer {
             image_bind_group,
             uniforms,
             instances,
+            clips,
             instance_capacity,
             atlas,
             image_atlas,
@@ -888,7 +1121,7 @@ impl WgpuRenderer {
         };
         // The budget covers 32k primitives; the 10k-node churn workload
         // fits with room to spare. Skipping beats unbounded buffers.
-        if self.upload_instances(&packed.instances) {
+        if self.upload_instances(&packed.instances, &packed.aux) {
             let mut encoder = self
                 .device
                 .create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -931,6 +1164,10 @@ impl WgpuRenderer {
     /// # Errors
     ///
     /// [`BackendError::Surface`] from acquisition or submission.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "the partial path is one ordered repair narrative (region filter, background erase, scissored redraw); splitting it would scatter the damage contract"
+    )]
     pub fn render_partial(
         &mut self,
         scene: &SceneSnapshot,
@@ -971,12 +1208,25 @@ impl WgpuRenderer {
             // the software path's scissor filter — grouped into the segments
             // their bind groups share, in scene order.
             let mut data: Vec<Instance> = Vec::new();
+            let mut aux: Vec<[f32; 4]> = Vec::new();
             let mut segments: Vec<(u32, u32, TextureBind)> = Vec::new();
             let mut open: Option<(usize, TextureBind)> = None;
             for &(start, count, kind) in &all.segments {
                 let start = usize::try_from(start).unwrap_or(0);
                 let end = start.saturating_add(usize::try_from(count).unwrap_or(0));
-                for instance in all.instances.get(start..end).unwrap_or(&[]) {
+                for (instance_index, instance) in
+                    (start..).zip(all.instances.get(start..end).unwrap_or(&[]).iter())
+                {
+                    let clip = all
+                        .aux
+                        .get(instance_index * 2)
+                        .copied()
+                        .unwrap_or(UNCLIPPED);
+                    let border = all
+                        .aux
+                        .get(instance_index * 2 + 1)
+                        .copied()
+                        .unwrap_or(NO_BORDER);
                     let [x, y, w, h] = instance.rect;
                     let reaches = x < region.max_x()
                         && y < region.max_y()
@@ -993,12 +1243,16 @@ impl WgpuRenderer {
                         }
                     }
                     data.push(*instance);
+                    aux.push(clip);
+                    aux.push(border);
                 }
             }
             // The synthetic background quad leads the region's data (the
             // software path's clear_region twin); the first segment's count
             // closes over it. Segment counts derive from the starts.
             data.push(background_instance(&region));
+            aux.push(UNCLIPPED);
+            aux.push(NO_BORDER);
             let total = u32::try_from(data.len()).unwrap_or(0);
             let mut ends: Vec<u32> = segments
                 .iter()
@@ -1009,7 +1263,7 @@ impl WgpuRenderer {
             for ((start, count, _), end) in segments.iter_mut().zip(ends) {
                 *count = end - *start;
             }
-            if !self.upload_instances(&data) {
+            if !self.upload_instances(&data, &aux) {
                 continue;
             }
             let Some(scissor) = scissor_rect(&region, self.width, self.height) else {
@@ -1091,90 +1345,27 @@ impl WgpuRenderer {
         scene: &SceneSnapshot,
         glyphs: &mut dyn GlyphSource,
     ) -> PackedScene {
-        let mut packed = PackedScene {
-            instances: Vec::with_capacity(scene.primitives.len()),
-            segments: Vec::new(),
-        };
-        let mut glyph_slots: Vec<(usize, Glyph, GlyphBitmap)> = Vec::new();
-        for primitive in &scene.primitives {
-            match primitive {
-                Primitive::Quad(quad) => packed.push(pack_quad(quad), TextureBind::Glyph),
-                Primitive::Glyph(glyph) => {
-                    // The placeholder's slot index rides the packing order —
-                    // refused rasters skip their slot, so scene indices do
-                    // not align with instance indices.
-                    let slot = packed.instances.len();
-                    packed.push(
-                        Instance {
-                            rect: [0.0; 4],
-                            geom: [0.0; 4],
-                            color: [0.0; 4],
-                            uv: [0.0; 4],
-                        },
-                        TextureBind::Glyph,
-                    );
-                    if let Some(bitmap) =
-                        glyphs.glyph_bitmap(glyph.font_id, glyph.glyph_id, glyph.size)
-                    {
-                        glyph_slots.push((slot, *glyph, bitmap));
-                    }
-                }
-                Primitive::Image(image) => {
-                    let Some(uv) = self.image_atlas.place(
-                        &self.queue,
-                        &image.bytes,
-                        image.width,
-                        image.height,
-                    ) else {
-                        continue;
-                    };
-                    packed.push(pack_image(image, image_uv(uv, image)), TextureBind::Image);
-                }
-            }
-        }
-        for (slot, glyph, bitmap) in glyph_slots {
-            let key = atlas_key(&glyph);
-            let Some(uv) = self.atlas.place(&self.queue, key, &bitmap) else {
-                continue;
-            };
-            let x = f32_to_i32(glyph.position.x) + bitmap.left;
-            let y = f32_to_i32(glyph.position.y) + bitmap.top;
-            if let Some(slot) = packed.instances.get_mut(slot) {
-                *slot = Instance {
-                    rect: [
-                        alacer_core::num::i32_to_f32(x),
-                        alacer_core::num::i32_to_f32(y),
-                        alacer_core::num::i32_to_f32(u32_to_i32(bitmap.width)),
-                        alacer_core::num::i32_to_f32(u32_to_i32(bitmap.height)),
-                    ],
-                    geom: [
-                        alacer_core::num::i32_to_f32(u32_to_i32(bitmap.width)),
-                        alacer_core::num::i32_to_f32(u32_to_i32(bitmap.height)),
-                        1.0,
-                        0.0,
-                    ],
-                    color: [
-                        f32::from(glyph.color.r) / 255.0,
-                        f32::from(glyph.color.g) / 255.0,
-                        f32::from(glyph.color.b) / 255.0,
-                        f32::from(glyph.color.a) / 255.0,
-                    ],
-                    uv,
-                };
-            }
-        }
-        packed
+        let Self {
+            queue,
+            atlas,
+            image_atlas,
+            ..
+        } = self;
+        pack_scene(scene, glyphs, atlas, image_atlas, queue)
     }
 
-    /// Uploads the instance buffer; `false` when over budget (the frame is
-    /// skipped — the budget beats unbounded buffers).
-    fn upload_instances(&self, data: &[Instance]) -> bool {
+    /// Uploads the instance buffer and its interleaved `[clip, border]`
+    /// aux column; `false` when over budget (the frame is skipped — the
+    /// budget beats unbounded buffers).
+    fn upload_instances(&self, data: &[Instance], aux: &[[f32; 4]]) -> bool {
         let used = u64::try_from(data.len()).unwrap_or(0) * 64;
         if used > self.instance_capacity {
             return false;
         }
         self.queue
             .write_buffer(&self.instances, 0, bytemuck::cast_slice(data));
+        self.queue
+            .write_buffer(&self.clips, 0, bytemuck::cast_slice(aux));
         self.queue.write_buffer(
             &self.uniforms,
             0,
@@ -1183,6 +1374,10 @@ impl WgpuRenderer {
                 alacer_core::num::i32_to_f32(u32_to_i32(self.height)),
                 0.0,
                 0.0,
+                BACKGROUND_RGBA_F32[0],
+                BACKGROUND_RGBA_F32[1],
+                BACKGROUND_RGBA_F32[2],
+                BACKGROUND_RGBA_F32[3],
             ]),
         );
         true
@@ -1194,7 +1389,8 @@ impl WgpuRenderer {
     }
 
     /// Draws the packed segments: one bind group switch per kind change,
-    /// the instance slice per segment — the scene order never re-orders.
+    /// the instance slice (and its parallel clip slice) per segment — the
+    /// scene order never re-orders.
     fn draw_segments(&self, pass: &mut wgpu::RenderPass<'_>, segments: &[(u32, u32, TextureBind)]) {
         for &(start, count, kind) in segments {
             let bind_group = match kind {
@@ -1205,6 +1401,9 @@ impl WgpuRenderer {
             let start_byte = u64::from(start) * 64;
             let used = u64::from(count) * 64;
             pass.set_vertex_buffer(0, self.instances.slice(start_byte..start_byte + used));
+            let aux_start = u64::from(start) * 32;
+            let aux_used = u64::from(count) * 32;
+            pass.set_vertex_buffer(1, self.clips.slice(aux_start..aux_start + aux_used));
             pass.draw(0..6, 0..count);
         }
     }
@@ -1220,10 +1419,14 @@ pub fn atlas_key(glyph: &Glyph) -> GlyphKey {
     }
 }
 
+/// The clear color as the shader's f32 rgba — the same three bytes
+/// [`BACKGROUND_COLOR_U8`] normalizes, computed without a `f64` cast.
+pub(crate) const BACKGROUND_RGBA_F32: [f32; 4] = [245.0 / 255.0, 246.0 / 255.0, 248.0 / 255.0, 1.0];
+
 /// The clear color: `alacer_widgets::theme::SURFACE` as raw wgpu RGB (the
 /// platform crate cannot depend on the widget crate's constants inside WGSL
 /// literals; the two must agree — a const test pins it in `softbuffer.rs`).
-const BACKGROUND: wgpu::Color = wgpu::Color {
+pub(crate) const BACKGROUND: wgpu::Color = wgpu::Color {
     r: 0.96,
     g: 0.96,
     b: 0.97,
@@ -1253,7 +1456,7 @@ fn background_instance(region: &alacer_core::geom::Rect) -> Instance {
 }
 
 /// `SURFACE` (245, 246, 248) as bytes — must equal [`BACKGROUND`].
-const BACKGROUND_COLOR_U8: (u8, u8, u8) = (245, 246, 248);
+pub(crate) const BACKGROUND_COLOR_U8: (u8, u8, u8) = (245, 246, 248);
 
 /// The damage region as an integer scissor rect clamped to the target.
 fn scissor_rect(
@@ -1277,11 +1480,11 @@ fn scissor_rect(
     Some((x, y, w.min(width - x), h.min(height - y)))
 }
 
-fn u32_to_i32(v: u32) -> i32 {
+pub(crate) fn u32_to_i32(v: u32) -> i32 {
     i32::try_from(v).unwrap_or(i32::MAX)
 }
 
-fn pack_quad(quad: &Quad) -> Instance {
+pub(crate) fn pack_quad(quad: &Quad) -> Instance {
     Instance {
         rect: [
             quad.rect.origin.x,
@@ -1305,7 +1508,7 @@ fn pack_quad(quad: &Quad) -> Instance {
 /// and the color slot stays opaque white — the image fragment path reads
 /// the atlas row verbatim, the premultiplied bytes carrying their own
 /// colors.
-fn pack_image(image: &Image, uv: [f32; 4]) -> Instance {
+pub(crate) fn pack_image(image: &Image, uv: [f32; 4]) -> Instance {
     Instance {
         rect: [
             image.dst.origin.x,
@@ -1330,7 +1533,16 @@ fn pack_image(image: &Image, uv: [f32; 4]) -> Instance {
 /// The atlas UV window for an image's source rect: the atlas places the
 /// whole bitmap, so the source window rides a sub-range of its UV rect,
 /// clamped to the bitmap's pixel bounds (the software path's crop rule).
-fn image_uv(full: [f32; 4], image: &Image) -> [f32; 4] {
+///
+/// No phase compensation is needed beyond the atlas's edge-replicated
+/// gutter: the software sampler's taps sit at `coord ± 0.5` around the
+/// source coordinate (verified against tiny-skia's pipeline stages), and
+/// the GPU's texel-center convention evaluates its taps at exactly
+/// `uv·size − 0.5` — the same two texels with the same weights once the
+/// window rides the inner (gutter-bounded) placement. The gutter serves
+/// the clamped-edge taps a scaled destination reaches past the bitmap's
+/// first and last texels.
+pub(crate) fn image_uv(full: [f32; 4], image: &Image) -> [f32; 4] {
     let width = alacer_core::num::u32_to_f32(image.width);
     let height = alacer_core::num::u32_to_f32(image.height);
     if width <= 0.0 || height <= 0.0 {
@@ -1350,7 +1562,7 @@ fn image_uv(full: [f32; 4], image: &Image) -> [f32; 4] {
     ]
 }
 
-fn instance_descriptor() -> wgpu::InstanceDescriptor {
+pub(crate) fn instance_descriptor() -> wgpu::InstanceDescriptor {
     wgpu::InstanceDescriptor {
         backends: wgpu::Backends::all(),
         flags: wgpu::InstanceFlags::default(),
@@ -1358,6 +1570,103 @@ fn instance_descriptor() -> wgpu::InstanceDescriptor {
         backend_options: wgpu::BackendOptions::default(),
         display: None,
     }
+}
+
+/// The once-through scene pack, shared by the surface and headless
+/// renderers — one packing contract, one pixel contract (Q8): quads pack
+/// immediately, glyphs fill after the atlas resolves them, images after
+/// the image atlas places their raster (a refused raster — oversized,
+/// zero-size, or missing bytes — packs nothing, the honest skip the glyph
+/// path's own `None` shares).
+pub(crate) fn pack_scene(
+    scene: &SceneSnapshot,
+    glyphs: &mut dyn GlyphSource,
+    atlas: &mut Atlas,
+    image_atlas: &mut ImageAtlas,
+    queue: &wgpu::Queue,
+) -> PackedScene {
+    let mut packed = PackedScene {
+        instances: Vec::with_capacity(scene.primitives.len()),
+        aux: Vec::with_capacity(scene.primitives.len() * 2),
+        segments: Vec::new(),
+    };
+    let mut glyph_slots: Vec<(usize, Glyph, GlyphBitmap)> = Vec::new();
+    for primitive in &scene.primitives {
+        match primitive {
+            Primitive::Quad(quad) => {
+                let clip = clip_instance(quad.clip);
+                let border = pack_border(quad.border_color);
+                packed.push(pack_quad(quad), clip, border, TextureBind::Glyph);
+            }
+            Primitive::Glyph(glyph) => {
+                // The placeholder's slot index rides the packing order —
+                // refused rasters skip their slot, so scene indices do
+                // not align with instance indices.
+                let slot = packed.instances.len();
+                let clip = clip_instance(glyph.clip);
+                packed.push(
+                    Instance {
+                        rect: [0.0; 4],
+                        geom: [0.0; 4],
+                        color: [0.0; 4],
+                        uv: [0.0; 4],
+                    },
+                    clip,
+                    NO_BORDER,
+                    TextureBind::Glyph,
+                );
+                if let Some(bitmap) = glyphs.glyph_bitmap(glyph.font_id, glyph.glyph_id, glyph.size)
+                {
+                    glyph_slots.push((slot, *glyph, bitmap));
+                }
+            }
+            Primitive::Image(image) => {
+                let Some(uv) = image_atlas.place(queue, &image.bytes, image.width, image.height)
+                else {
+                    continue;
+                };
+                let clip = clip_instance(image.clip);
+                packed.push(
+                    pack_image(image, image_uv(uv, image)),
+                    clip,
+                    NO_BORDER,
+                    TextureBind::Image,
+                );
+            }
+        }
+    }
+    for (slot, glyph, bitmap) in glyph_slots {
+        let key = atlas_key(&glyph);
+        let Some(uv) = atlas.place(queue, key, &bitmap) else {
+            continue;
+        };
+        let x = f32_to_i32(glyph.position.x) + bitmap.left;
+        let y = f32_to_i32(glyph.position.y) + bitmap.top;
+        if let Some(slot) = packed.instances.get_mut(slot) {
+            *slot = Instance {
+                rect: [
+                    alacer_core::num::i32_to_f32(x),
+                    alacer_core::num::i32_to_f32(y),
+                    alacer_core::num::i32_to_f32(u32_to_i32(bitmap.width)),
+                    alacer_core::num::i32_to_f32(u32_to_i32(bitmap.height)),
+                ],
+                geom: [
+                    alacer_core::num::i32_to_f32(u32_to_i32(bitmap.width)),
+                    alacer_core::num::i32_to_f32(u32_to_i32(bitmap.height)),
+                    1.0,
+                    0.0,
+                ],
+                color: [
+                    f32::from(glyph.color.r) / 255.0,
+                    f32::from(glyph.color.g) / 255.0,
+                    f32::from(glyph.color.b) / 255.0,
+                    f32::from(glyph.color.a) / 255.0,
+                ],
+                uv,
+            };
+        }
+    }
+    packed
 }
 
 #[cfg(test)]

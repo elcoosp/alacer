@@ -13,12 +13,21 @@ categories.workspace = true
 [lints]
 workspace = true
 
+# The fast arena (§7.1, ADR-9): Masonry's upstream O(1) hash-map tree,
+# adopted behind this feature flag only after the fuzz equivalence suite
+# (`fast_arena_equivalence`) proves the wrapped storage behaves identically
+# to the safe default. The flag routes `Arena::new()` to the fast storage
+# and unlocks `Arena::with_storage` for the paired fuzz.
+[features]
+fast-arena = ["dep:tree_arena"]
+
 [dependencies]
 reactive_graph.workspace = true
 bitflags.workspace = true
 euclid.workspace = true
 rustc-hash.workspace = true
 tracing.workspace = true
+tree_arena = { workspace = true, optional = true }
 
 [dev-dependencies]
 criterion.workspace = true

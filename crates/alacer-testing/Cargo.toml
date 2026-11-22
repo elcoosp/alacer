@@ -202,3 +202,11 @@ harness = false
 [[bench]]
 name = "language"
 harness = false
+
+[[bench]]
+name = "rsx_todo"
+harness = false
+
+[[bench]]
+name = "hot_patch"
+harness = false

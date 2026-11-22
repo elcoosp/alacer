@@ -41,8 +41,8 @@ use alacer_widgets::{BoxedWidget as _, Column, Image, Label, TextInput};
 /// which rides *outside* the published corpus: the published baseline's
 /// routes price the a11y snapshot machinery (the M95 rule), and the
 /// coordinated rule grows it at the next published cut, never at a
-/// widget bench's. The pin re-agrees at 144.
-const EXPECTED_BENCH_COUNT: usize = 144;
+/// widget bench's. The pin re-agrees at 151.
+const EXPECTED_BENCH_COUNT: usize = 151;
 
 /// The first node in the snapshot whose role and name match.
 fn node(harness: &TestHarness, role: Role, name: &str) -> Option<TreeNode> {
@@ -211,8 +211,8 @@ fn m138_the_corpus_pin_re_agrees_at_the_m138_cut() {
     // The published corpus pin re-agrees: the image tier grows no
     // snapshot route (the word is the picture's own, the shape the named
     // containers rode), and its pricing door is the widgets crate's own
-    // bench — outside the published corpus, the coordinated rule growing
-    // it at the next published cut.
+    // bench — the `image_word` group joining the corpus at this cut,
+    // the coordinated rule the next published cut carried out.
     assert_eq!(
         baselines["bench_count"].as_u64(),
         Some(u64::try_from(EXPECTED_BENCH_COUNT).expect("fits")),
@@ -243,15 +243,15 @@ fn m138_the_living_documents_re_agree() {
     // the image tier's record.
     let readme = read("README.md");
     assert!(
-        readme.contains("M0 through M139"),
+        readme.contains("M0 through M141"),
         "the README status reflects the living cut — the chain cannot drift"
     );
     assert!(
-        readme.contains("a hundred and forty-four decision records"),
+        readme.contains("a hundred and forty-six decision records"),
         "the register grew the M137 and M138 rows"
     );
     assert!(
-        read("docs/architecture.md").contains("a hundred and forty-four decision records"),
+        read("docs/architecture.md").contains("a hundred and forty-six decision records"),
         "the architecture carries the image fact's decision"
     );
 
@@ -271,7 +271,7 @@ fn m138_the_living_documents_re_agree() {
     // pin the corpus, and their pins re-agreed with it).
     let m81 = read("crates/alacer-testing/tests/m81_exit_criteria.rs");
     assert!(
-        m81.contains("M0 through M139"),
+        m81.contains("M0 through M141"),
         "the m81 suite's pins moved with the documents"
     );
 }

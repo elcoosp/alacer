@@ -310,132 +310,132 @@
   ],
   "regressions": [
     {
-      "id": "a11y_action_route_100_actions_1k",
+      "id": "a11y_action/route_100_actions_1k",
       "baseline": "a11y_action/route_100_actions_1k",
       "scope": "same-host"
     },
     {
-      "id": "a11y_action_route_100_presses_1k",
+      "id": "a11y_action/route_100_presses_1k",
       "baseline": "a11y_action/route_100_presses_1k",
       "scope": "same-host"
     },
     {
-      "id": "a11y_action_route_100_horizontal_actions_1k",
+      "id": "a11y_action/route_100_horizontal_actions_1k",
       "baseline": "a11y_action/route_100_horizontal_actions_1k",
       "scope": "same-host"
     },
     {
-      "id": "a11y_action_route_100_setvalue_1k",
+      "id": "a11y_action/route_100_setvalue_1k",
       "baseline": "a11y_action/route_100_setvalue_1k",
       "scope": "same-host"
     },
     {
-      "id": "a11y_full_rebuild_1k",
+      "id": "a11y/full_rebuild_1k",
       "baseline": "a11y/full_rebuild_1k",
       "scope": "same-host"
     },
     {
-      "id": "a11y_incremental_1k_dirty_10pct",
+      "id": "a11y/incremental_1k_dirty_10pct",
       "baseline": "a11y/incremental_1k_dirty_10pct",
       "scope": "same-host"
     },
     {
-      "id": "announce_route_100_announcements_1k",
+      "id": "announce/route_100_announcements_1k",
       "baseline": "announce/route_100_announcements_1k",
       "scope": "same-host"
     },
     {
-      "id": "arena_build_100",
+      "id": "arena_build/100",
       "baseline": "arena_build/100",
       "scope": "same-host"
     },
     {
-      "id": "arena_build_1000",
+      "id": "arena_build/1000",
       "baseline": "arena_build/1000",
       "scope": "same-host"
     },
     {
-      "id": "arena_build_10000",
+      "id": "arena_build/10000",
       "baseline": "arena_build/10000",
       "scope": "same-host"
     },
     {
-      "id": "arena_masks_100",
+      "id": "arena_masks/100",
       "baseline": "arena_masks/100",
       "scope": "same-host"
     },
     {
-      "id": "arena_masks_1000",
+      "id": "arena_masks/1000",
       "baseline": "arena_masks/1000",
       "scope": "same-host"
     },
     {
-      "id": "arena_masks_10000",
+      "id": "arena_masks/10000",
       "baseline": "arena_masks/10000",
       "scope": "same-host"
     },
     {
-      "id": "arena_walk_100",
+      "id": "arena_walk/100",
       "baseline": "arena_walk/100",
       "scope": "same-host"
     },
     {
-      "id": "arena_walk_1000",
+      "id": "arena_walk/1000",
       "baseline": "arena_walk/1000",
       "scope": "same-host"
     },
     {
-      "id": "arena_walk_10000",
+      "id": "arena_walk/10000",
       "baseline": "arena_walk/10000",
       "scope": "same-host"
     },
     {
-      "id": "disabled_route_100_refused_presses_1k",
+      "id": "disabled/route_100_refused_presses_1k",
       "baseline": "disabled/route_100_refused_presses_1k",
       "scope": "same-host"
     },
     {
-      "id": "editing_route_100_caret_clicks_1k",
+      "id": "editing/route_100_caret_clicks_1k",
       "baseline": "editing/route_100_caret_clicks_1k",
       "scope": "same-host"
     },
     {
-      "id": "editing_route_100_clipboard_ops_1k",
+      "id": "editing/route_100_clipboard_ops_1k",
       "baseline": "editing/route_100_clipboard_ops_1k",
       "scope": "same-host"
     },
     {
-      "id": "editing_route_100_key_edits_1k",
+      "id": "editing/route_100_key_edits_1k",
       "baseline": "editing/route_100_key_edits_1k",
       "scope": "same-host"
     },
     {
-      "id": "editing_route_100_undo_redo_1k",
+      "id": "editing/route_100_undo_redo_1k",
       "baseline": "editing/route_100_undo_redo_1k",
       "scope": "same-host"
     },
     {
-      "id": "editing_route_100_word_moves_1k",
+      "id": "editing/route_100_word_moves_1k",
       "baseline": "editing/route_100_word_moves_1k",
       "scope": "same-host"
     },
     {
-      "id": "flux_batch_1",
+      "id": "flux_batch/1",
       "baseline": "flux_batch/1",
       "scope": "same-host"
     },
     {
-      "id": "flux_batch_10",
+      "id": "flux_batch/10",
       "baseline": "flux_batch/10",
       "scope": "same-host"
     },
     {
-      "id": "flux_batch_100",
+      "id": "flux_batch/100",
       "baseline": "flux_batch/100",
       "scope": "same-host"
     },
     {
-      "id": "flux_batch_1000",
+      "id": "flux_batch/1000",
       "baseline": "flux_batch/1000",
       "scope": "same-host"
     },
@@ -445,52 +445,52 @@
       "scope": "same-host"
     },
     {
-      "id": "gestures_route_100_drag_moves_1k",
+      "id": "gestures/route_100_drag_moves_1k",
       "baseline": "gestures/route_100_drag_moves_1k",
       "scope": "same-host"
     },
     {
-      "id": "input_route_100_captured_moves_1k",
+      "id": "input/route_100_captured_moves_1k",
       "baseline": "input/route_100_captured_moves_1k",
       "scope": "same-host"
     },
     {
-      "id": "input_route_100_directional_moves_1k",
+      "id": "input/route_100_directional_moves_1k",
       "baseline": "input/route_100_directional_moves_1k",
       "scope": "same-host"
     },
     {
-      "id": "input_route_100_focus_moves_1k",
+      "id": "input/route_100_focus_moves_1k",
       "baseline": "input/route_100_focus_moves_1k",
       "scope": "same-host"
     },
     {
-      "id": "input_route_100_observed_moves_1k",
+      "id": "input/route_100_observed_moves_1k",
       "baseline": "input/route_100_observed_moves_1k",
       "scope": "same-host"
     },
     {
-      "id": "input_route_100_outcome_moves_1k",
+      "id": "input/route_100_outcome_moves_1k",
       "baseline": "input/route_100_outcome_moves_1k",
       "scope": "same-host"
     },
     {
-      "id": "input_route_100_scoped_moves_1k",
+      "id": "input/route_100_scoped_moves_1k",
       "baseline": "input/route_100_scoped_moves_1k",
       "scope": "same-host"
     },
     {
-      "id": "input_storm_50_moves_direct",
+      "id": "input/storm_50_moves_direct",
       "baseline": "input/storm_50_moves_direct",
       "scope": "same-host"
     },
     {
-      "id": "input_storm_50_moves_queued",
+      "id": "input/storm_50_moves_queued",
       "baseline": "input/storm_50_moves_queued",
       "scope": "same-host"
     },
     {
-      "id": "journal_recommit_100_of_1000",
+      "id": "journal/recommit_100_of_1000",
       "baseline": "journal/recommit_100_of_1000",
       "scope": "same-host"
     },
@@ -510,82 +510,82 @@
       "scope": "same-host"
     },
     {
-      "id": "keymap_dispatch_100_mixed_1k",
+      "id": "keymap/dispatch_100_mixed_1k",
       "baseline": "keymap/dispatch_100_mixed_1k",
       "scope": "same-host"
     },
     {
-      "id": "layout_mini_w1_full_100",
+      "id": "layout_mini_w1/full/100",
       "baseline": "layout_mini_w1/full/100",
       "scope": "same-host"
     },
     {
-      "id": "layout_mini_w1_full_1000",
+      "id": "layout_mini_w1/full/1000",
       "baseline": "layout_mini_w1/full/1000",
       "scope": "same-host"
     },
     {
-      "id": "layout_mini_w1_full_10000",
+      "id": "layout_mini_w1/full/10000",
       "baseline": "layout_mini_w1/full/10000",
       "scope": "same-host"
     },
     {
-      "id": "layout_mini_w1_incremental_100",
+      "id": "layout_mini_w1/incremental/100",
       "baseline": "layout_mini_w1/incremental/100",
       "scope": "same-host"
     },
     {
-      "id": "layout_mini_w1_incremental_1000",
+      "id": "layout_mini_w1/incremental/1000",
       "baseline": "layout_mini_w1/incremental/1000",
       "scope": "same-host"
     },
     {
-      "id": "layout_mini_w1_incremental_10000",
+      "id": "layout_mini_w1/incremental/10000",
       "baseline": "layout_mini_w1/incremental/10000",
       "scope": "same-host"
     },
     {
-      "id": "pass_overhead_1000",
+      "id": "pass_overhead/1000",
       "baseline": "pass_overhead/1000",
       "scope": "same-host"
     },
     {
-      "id": "pass_overhead_10000",
+      "id": "pass_overhead/10000",
       "baseline": "pass_overhead/10000",
       "scope": "same-host"
     },
     {
-      "id": "progress_route_100_value_writes_1k",
+      "id": "progress/route_100_value_writes_1k",
       "baseline": "progress/route_100_value_writes_1k",
       "scope": "same-host"
     },
     {
-      "id": "text_layout_cached_1",
+      "id": "text_layout/cached/1",
       "baseline": "text_layout/cached/1",
       "scope": "same-host"
     },
     {
-      "id": "text_layout_cached_10",
+      "id": "text_layout/cached/10",
       "baseline": "text_layout/cached/10",
       "scope": "same-host"
     },
     {
-      "id": "text_layout_cached_100",
+      "id": "text_layout/cached/100",
       "baseline": "text_layout/cached/100",
       "scope": "same-host"
     },
     {
-      "id": "text_layout_cold_1",
+      "id": "text_layout/cold/1",
       "baseline": "text_layout/cold/1",
       "scope": "same-host"
     },
     {
-      "id": "text_layout_cold_10",
+      "id": "text_layout/cold/10",
       "baseline": "text_layout/cold/10",
       "scope": "same-host"
     },
     {
-      "id": "text_layout_cold_100",
+      "id": "text_layout/cold/100",
       "baseline": "text_layout/cold/100",
       "scope": "same-host"
     },
@@ -595,438 +595,473 @@
       "scope": "same-host"
     },
     {
-      "id": "view_reconcile_100",
+      "id": "view_reconcile/100",
       "baseline": "view_reconcile/100",
       "scope": "same-host"
     },
     {
-      "id": "view_reconcile_1000",
+      "id": "view_reconcile/1000",
       "baseline": "view_reconcile/1000",
       "scope": "same-host"
     },
     {
-      "id": "view_reconcile_10000",
+      "id": "view_reconcile/10000",
       "baseline": "view_reconcile/10000",
       "scope": "same-host"
     },
     {
-      "id": "w1_full_rebuild",
+      "id": "w1/full_rebuild",
       "baseline": "w1/full_rebuild",
       "scope": "same-host"
     },
     {
-      "id": "w1_incremental_churn_10pct",
+      "id": "w1/incremental_churn_10pct",
       "baseline": "w1/incremental_churn_10pct",
       "scope": "same-host"
     },
     {
-      "id": "w2_jitter_full_1k",
+      "id": "w2/jitter_full_1k",
       "baseline": "w2/jitter_full_1k",
       "scope": "same-host"
     },
     {
-      "id": "w2_jitter_incremental_1k",
+      "id": "w2/jitter_incremental_1k",
       "baseline": "w2/jitter_incremental_1k",
       "scope": "same-host"
     },
     {
-      "id": "w3_animation_frame_1k",
+      "id": "w3/animation_frame_1k",
       "baseline": "w3/animation_frame_1k",
       "scope": "same-host"
     },
     {
-      "id": "w5_batch_churn_100_of_10k",
+      "id": "w5/batch_churn_100_of_10k",
       "baseline": "w5/batch_churn_100_of_10k",
       "scope": "same-host"
     },
     {
-      "id": "w5_memo_cold_10_sources",
+      "id": "w5/memo_cold_10_sources",
       "baseline": "w5/memo_cold_10_sources",
       "scope": "same-host"
     },
     {
-      "id": "trail_reader_announce_100_1k",
+      "id": "trail/reader_announce_100_1k",
       "baseline": "trail/reader_announce_100_1k",
       "scope": "same-host"
     },
     {
-      "id": "trail_ring_fill_drain_1024",
+      "id": "trail_ring/fill_drain_1024",
       "baseline": "trail_ring/fill_drain_1024",
       "scope": "same-host"
     },
     {
-      "id": "trail_tee_announce_100_1k",
+      "id": "trail/tee_announce_100_1k",
       "baseline": "trail/tee_announce_100_1k",
       "scope": "same-host"
     },
     {
-      "id": "frame_refusal_note_disabled",
+      "id": "frame_refusal/note_disabled",
       "baseline": "frame_refusal/note_disabled",
       "scope": "same-host"
     },
     {
-      "id": "frame_refusal_note_enabled_bounded",
+      "id": "frame_refusal/note_enabled_bounded",
       "baseline": "frame_refusal/note_enabled_bounded",
       "scope": "same-host"
     },
     {
-      "id": "view_patch_note_disabled",
+      "id": "view_patch/note_disabled",
       "baseline": "view_patch/note_disabled",
       "scope": "same-host"
     },
     {
-      "id": "view_patch_note_enabled_bounded",
+      "id": "view_patch/note_enabled_bounded",
       "baseline": "view_patch/note_enabled_bounded",
       "scope": "same-host"
     },
     {
-      "id": "theme_note_disabled",
+      "id": "theme/note_disabled",
       "baseline": "theme/note_disabled",
       "scope": "same-host"
     },
     {
-      "id": "theme_note_enabled_bounded",
+      "id": "theme/note_enabled_bounded",
       "baseline": "theme/note_enabled_bounded",
       "scope": "same-host"
     },
     {
-      "id": "theme_door_no_op_swap",
+      "id": "theme/door_no_op_swap",
       "baseline": "theme/door_no_op_swap",
       "scope": "same-host"
     },
     {
-      "id": "settings_note_disabled",
+      "id": "settings/note_disabled",
       "baseline": "settings/note_disabled",
       "scope": "same-host"
     },
     {
-      "id": "settings_note_enabled_bounded",
+      "id": "settings/note_enabled_bounded",
       "baseline": "settings/note_enabled_bounded",
       "scope": "same-host"
     },
     {
-      "id": "settings_door_no_op_flip",
+      "id": "settings/door_no_op_flip",
       "baseline": "settings/door_no_op_flip",
       "scope": "same-host"
     },
     {
-      "id": "settings_composer_install_no_op",
+      "id": "settings/composer_install_no_op",
       "baseline": "settings/composer_install_no_op",
       "scope": "same-host"
     },
     {
-      "id": "settings_door_flip_composed",
+      "id": "settings/door_flip_composed",
       "baseline": "settings/door_flip_composed",
       "scope": "same-host"
     },
     {
-      "id": "settings_door_flip_counted",
+      "id": "settings/door_flip_counted",
       "baseline": "settings/door_flip_counted",
       "scope": "same-host"
     },
     {
-      "id": "settings_door_flip_motion",
+      "id": "settings/door_flip_motion",
       "baseline": "settings/door_flip_motion",
       "scope": "same-host"
     },
     {
-      "id": "theme_door_swap_counted",
+      "id": "theme/door_swap_counted",
       "baseline": "theme/door_swap_counted",
       "scope": "same-host"
     },
     {
-      "id": "settings_door_flip_contrast",
+      "id": "settings/door_flip_contrast",
       "baseline": "settings/door_flip_contrast",
       "scope": "same-host"
     },
     {
-      "id": "settings_door_flip_accent",
+      "id": "settings/door_flip_accent",
       "baseline": "settings/door_flip_accent",
       "scope": "same-host"
     },
     {
-      "id": "alloc_warm_frame_zero_alloc",
+      "id": "alloc/warm_frame_zero_alloc",
       "baseline": "alloc/warm_frame_zero_alloc",
       "scope": "same-host"
     },
     {
-      "id": "alloc_warm_frame_observed",
+      "id": "alloc/warm_frame_observed",
       "baseline": "alloc/warm_frame_observed",
       "scope": "same-host"
     },
     {
-      "id": "alloc_ledger_overhead",
+      "id": "alloc/ledger_overhead",
       "baseline": "alloc/ledger_overhead",
       "scope": "same-host"
     },
     {
-      "id": "alloc_snapshot_get",
+      "id": "alloc/snapshot_get",
       "baseline": "alloc/snapshot_get",
       "scope": "same-host"
     },
     {
-      "id": "settings_kiosk_flip_no_op",
+      "id": "settings/kiosk_flip_no_op",
       "baseline": "settings/kiosk_flip_no_op",
       "scope": "same-host"
     },
     {
-      "id": "settings_shaped_flip_pinned_no_op",
+      "id": "settings/shaped_flip_pinned_no_op",
       "baseline": "settings/shaped_flip_pinned_no_op",
       "scope": "same-host"
     },
     {
-      "id": "alloc_input_frame_budget",
+      "id": "alloc/input_frame_budget",
       "baseline": "alloc/input_frame_budget",
       "scope": "same-host"
     },
     {
-      "id": "scroll_route_100_bring_into_view_1k",
+      "id": "scroll/route_100_bring_into_view_1k",
       "baseline": "scroll/route_100_bring_into_view_1k",
       "scope": "same-host"
     },
     {
-      "id": "scroll_route_100_horizontal_bring_into_view_1k",
+      "id": "scroll/route_100_horizontal_bring_into_view_1k",
       "baseline": "scroll/route_100_horizontal_bring_into_view_1k",
       "scope": "same-host"
     },
     {
-      "id": "scroll_route_100_handle_scroll_x_1k",
+      "id": "scroll/route_100_handle_scroll_x_1k",
       "baseline": "scroll/route_100_handle_scroll_x_1k",
       "scope": "same-host"
     },
     {
-      "id": "derive_snapshot_1k_derived",
+      "id": "derive/snapshot_1k_derived",
       "baseline": "derive/snapshot_1k_derived",
       "scope": "same-host"
     },
     {
-      "id": "derive_snapshot_1k_handwritten",
+      "id": "derive/snapshot_1k_handwritten",
       "baseline": "derive/snapshot_1k_handwritten",
       "scope": "same-host"
     },
     {
-      "id": "recording_wrapper_1k_dirty_10pct",
+      "id": "recording/wrapper_1k_dirty_10pct",
       "baseline": "recording/wrapper_1k_dirty_10pct",
       "scope": "same-host"
     },
     {
-      "id": "recording_bare_wrapper_1k_dirty_10pct",
+      "id": "recording/bare_wrapper_1k_dirty_10pct",
       "baseline": "recording/bare_wrapper_1k_dirty_10pct",
       "scope": "same-host"
     },
     {
-      "id": "toggle_snapshot_1k_tri_state",
+      "id": "toggle/snapshot_1k_tri_state",
       "baseline": "toggle/snapshot_1k_tri_state",
       "scope": "same-host"
     },
     {
-      "id": "toggle_snapshot_1k_binary",
+      "id": "toggle/snapshot_1k_binary",
       "baseline": "toggle/snapshot_1k_binary",
       "scope": "same-host"
     },
     {
-      "id": "describe_snapshot_1k_described",
+      "id": "describe/snapshot_1k_described",
       "baseline": "describe/snapshot_1k_described",
       "scope": "same-host"
     },
     {
-      "id": "placeholder_snapshot_1k_placeholdered",
+      "id": "placeholder/snapshot_1k_placeholdered",
       "baseline": "placeholder/snapshot_1k_placeholdered",
       "scope": "same-host"
     },
     {
-      "id": "placeholder_snapshot_1k_bare",
+      "id": "placeholder/snapshot_1k_bare",
       "baseline": "placeholder/snapshot_1k_bare",
       "scope": "same-host"
     },
     {
-      "id": "canvas_paint_100_canvases",
+      "id": "canvas/paint_100_canvases",
       "baseline": "canvas/paint_100_canvases",
       "scope": "same-host"
     },
     {
-      "id": "inspect_tick_with_recorder_attached",
+      "id": "inspect/tick_with_recorder_attached",
       "baseline": "inspect/tick_with_recorder_attached",
       "scope": "same-host"
     },
     {
-      "id": "range_snapshot_1k_ranged",
+      "id": "range/snapshot_1k_ranged",
       "baseline": "range/snapshot_1k_ranged",
       "scope": "same-host"
     },
     {
-      "id": "orientation_snapshot_1k_vertical",
+      "id": "orientation/snapshot_1k_vertical",
       "baseline": "orientation/snapshot_1k_vertical",
       "scope": "same-host"
     },
     {
-      "id": "numeric_snapshot_1k_valued",
+      "id": "numeric/snapshot_1k_valued",
       "baseline": "numeric/snapshot_1k_valued",
       "scope": "same-host"
     },
     {
-      "id": "secure_snapshot_1k_secured",
+      "id": "secure/snapshot_1k_secured",
       "baseline": "secure/snapshot_1k_secured",
       "scope": "same-host"
     },
     {
-      "id": "scroll_position_snapshot_1k_scrolled",
+      "id": "scroll_position/snapshot_1k_scrolled",
       "baseline": "scroll_position/snapshot_1k_scrolled",
       "scope": "same-host"
     },
     {
-      "id": "secure_revealed_snapshot_1k_revealed",
+      "id": "secure_revealed/snapshot_1k_revealed",
       "baseline": "secure_revealed/snapshot_1k_revealed",
       "scope": "same-host"
     },
     {
-      "id": "click_chain_seamed_chain_1k",
+      "id": "click_chain/seamed_chain_1k",
       "baseline": "click_chain/seamed_chain_1k",
       "scope": "same-host"
     },
     {
-      "id": "click_chain_manual_chain_1k",
+      "id": "click_chain/manual_chain_1k",
       "baseline": "click_chain/manual_chain_1k",
       "scope": "same-host"
     },
     {
-      "id": "pass_overhead_timed_idle_10k",
+      "id": "pass_overhead/timed_idle_10k",
       "baseline": "pass_overhead/timed_idle_10k",
       "scope": "same-host"
     },
     {
-      "id": "pass_overhead_seamed_timed_idle_10k",
+      "id": "pass_overhead/seamed_timed_idle_10k",
       "baseline": "pass_overhead/seamed_timed_idle_10k",
       "scope": "same-host"
     },
     {
-      "id": "read_only_snapshot_1k_read_only",
+      "id": "read_only/snapshot_1k_read_only",
       "baseline": "read_only/snapshot_1k_read_only",
       "scope": "same-host"
     },
     {
-      "id": "required_snapshot_1k_required",
+      "id": "required/snapshot_1k_required",
       "baseline": "required/snapshot_1k_required",
       "scope": "same-host"
     },
     {
-      "id": "invalid_snapshot_1k_invalid",
+      "id": "invalid/snapshot_1k_invalid",
       "baseline": "invalid/snapshot_1k_invalid",
       "scope": "same-host"
     },
     {
-      "id": "selected_snapshot_1k_selected",
+      "id": "selected/snapshot_1k_selected",
       "baseline": "selected/snapshot_1k_selected",
       "scope": "same-host"
     },
     {
-      "id": "selected_snapshot_1k_rows_bare",
+      "id": "selected/snapshot_1k_rows_bare",
       "baseline": "selected/snapshot_1k_rows_bare",
       "scope": "same-host"
     },
     {
-      "id": "multiselectable_snapshot_1k_multiselectable",
+      "id": "multiselectable/snapshot_1k_multiselectable",
       "baseline": "multiselectable/snapshot_1k_multiselectable",
       "scope": "same-host"
     },
     {
-      "id": "multiselectable_snapshot_1k_tables_bare",
+      "id": "multiselectable/snapshot_1k_tables_bare",
       "baseline": "multiselectable/snapshot_1k_tables_bare",
       "scope": "same-host"
     },
     {
-      "id": "expanded_snapshot_1k_expanded",
+      "id": "expanded/snapshot_1k_expanded",
       "baseline": "expanded/snapshot_1k_expanded",
       "scope": "same-host"
     },
     {
-      "id": "expanded_snapshot_1k_rows_bare",
+      "id": "expanded/snapshot_1k_rows_bare",
       "baseline": "expanded/snapshot_1k_rows_bare",
       "scope": "same-host"
     },
     {
-      "id": "auto_complete_snapshot_1k_auto_complete",
+      "id": "auto_complete/snapshot_1k_auto_complete",
       "baseline": "auto_complete/snapshot_1k_auto_complete",
       "scope": "same-host"
     },
     {
-      "id": "sort_snapshot_1k_sort",
+      "id": "sort/snapshot_1k_sort",
       "baseline": "sort/snapshot_1k_sort",
       "scope": "same-host"
     },
     {
-      "id": "sort_snapshot_1k_headers_bare",
+      "id": "sort/snapshot_1k_headers_bare",
       "baseline": "sort/snapshot_1k_headers_bare",
       "scope": "same-host"
     },
     {
-      "id": "level_snapshot_1k_level",
+      "id": "level/snapshot_1k_level",
       "baseline": "level/snapshot_1k_level",
       "scope": "same-host"
     },
     {
-      "id": "current_snapshot_1k_currents",
+      "id": "current/snapshot_1k_currents",
       "baseline": "current/snapshot_1k_currents",
       "scope": "same-host"
     },
     {
-      "id": "current_snapshot_1k_buttons_bare",
+      "id": "current/snapshot_1k_buttons_bare",
       "baseline": "current/snapshot_1k_buttons_bare",
       "scope": "same-host"
     },
     {
-      "id": "has_popup_snapshot_1k_has_popups",
+      "id": "has_popup/snapshot_1k_has_popups",
       "baseline": "has_popup/snapshot_1k_has_popups",
       "scope": "same-host"
     },
     {
-      "id": "role_description_snapshot_1k_role_descriptions",
+      "id": "role_description/snapshot_1k_role_descriptions",
       "baseline": "role_description/snapshot_1k_role_descriptions",
       "scope": "same-host"
     },
     {
-      "id": "busy_snapshot_1k_lists_busy",
+      "id": "busy/snapshot_1k_lists_busy",
       "baseline": "busy/snapshot_1k_lists_busy",
       "scope": "same-host"
     },
     {
-      "id": "busy_snapshot_1k_lists_bare",
+      "id": "busy/snapshot_1k_lists_bare",
       "baseline": "busy/snapshot_1k_lists_bare",
       "scope": "same-host"
     },
     {
-      "id": "set_snapshot_1k_rows_set",
+      "id": "set/snapshot_1k_rows_set",
       "baseline": "set/snapshot_1k_rows_set",
       "scope": "same-host"
     },
     {
-      "id": "set_snapshot_1k_rows_bare",
+      "id": "set/snapshot_1k_rows_bare",
       "baseline": "set/snapshot_1k_rows_bare",
       "scope": "same-host"
     },
     {
-      "id": "live_snapshot_1k_lists_live",
+      "id": "live/snapshot_1k_lists_live",
       "baseline": "live/snapshot_1k_lists_live",
       "scope": "same-host"
     },
     {
-      "id": "shortcut_snapshot_1k_buttons_shortcut",
+      "id": "shortcut/snapshot_1k_buttons_shortcut",
       "baseline": "shortcut/snapshot_1k_buttons_shortcut",
       "scope": "same-host"
     },
     {
-      "id": "multiline_snapshot_1k_fields_multiline",
+      "id": "multiline/snapshot_1k_fields_multiline",
       "baseline": "multiline/snapshot_1k_fields_multiline",
       "scope": "same-host"
     },
     {
-      "id": "language_snapshot_1k_labels_bare",
+      "id": "language/snapshot_1k_labels_bare",
       "baseline": "language/snapshot_1k_labels_bare",
       "scope": "same-host"
     },
     {
-      "id": "language_snapshot_1k_labels_language",
+      "id": "language/snapshot_1k_labels_language",
       "baseline": "language/snapshot_1k_labels_language",
+      "scope": "same-host"
+    },
+    {
+      "id": "replay_burst_512x3",
+      "baseline": "replay/burst_512x3",
+      "scope": "same-host"
+    },
+    {
+      "id": "replay_burst_512x3_after_1024",
+      "baseline": "replay/burst_512x3_after_1024",
+      "scope": "same-host"
+    },
+    {
+      "id": "replay_stats_512x3",
+      "baseline": "replay/stats_512x3",
+      "scope": "same-host"
+    },
+    {
+      "id": "image_blit_256",
+      "baseline": "image/image_blit_256",
+      "scope": "same-host"
+    },
+    {
+      "id": "image_idle_write_256",
+      "baseline": "image/idle_write_256",
+      "scope": "same-host"
+    },
+    {
+      "id": "image_word_name_write_256",
+      "baseline": "image_word/name_write_256",
+      "scope": "same-host"
+    },
+    {
+      "id": "image_word_idle_write_256",
+      "baseline": "image_word/idle_write_256",
       "scope": "same-host"
     }
   ],

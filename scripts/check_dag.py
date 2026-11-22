@@ -76,6 +76,13 @@ ALLOWED: dict[str, set[str]] = {
         "alacer-a11y",
         "alacer-widgets",
         "alacer-inspect",
+        # The cross-backend equivalence fuzz (§9.3, Q8) drives the
+        # platform's headless wgpu readback twin — a dev-dependency only
+        # (cargo keeps it out of the runtime graph, the pinned-seam shape
+        # alacer-a11y's canon proof rides): the harness proves BOTH
+        # backends against each other, so the platform edge is its
+        # documented instrument seam.
+        "alacer-platform",
     },
     # Devtools observe the core seam only (ADR-0010): the causal vocabulary,
     # the observer sink, and nothing above the foundation.

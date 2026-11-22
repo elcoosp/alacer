@@ -65,16 +65,21 @@ fn vs_main(
     @location(5) border: vec4<f32>, // the quad kind's border ink (rgba, straight alpha)
 ) -> VOut {
     let corner = CORNERS[vi];
-    // The quad kind's geometry inflates half a pixel on every side: the
-    // software path's quad fills are ANTI-ALIASED (unlike its image blits
-    // — `draw_pixmap` fills non-AA), so an edge pixel a fractional quad
+    // The quad kind's geometry inflates on every side: the software
+    // path's quad fills are ANTI-ALIASED (unlike its image blits —
+    // `draw_pixmap` fills non-AA), so an edge pixel a fractional quad
     // only partially covers still blends, and the binary rasterizer needs
     // the inflated quad to generate its fragment at all. The fragment
     // stage turns the pixel center's signed distance to the TRUE rect
-    // into exactly that area coverage via the linear SDF window.
+    // into exactly that area coverage via the linear SDF window. A
+    // bordered quad inflates by the stroke too: the software stroke's
+    // ring reaches `border_width/2` beyond the rect — fragments must
+    // exist there or the border band never draws (the fuzz caught whole
+    // border rows missing).
     let is_quad = geom.z < 0.5;
-    let span = select(rect.zw, rect.zw + vec2<f32>(1.0, 1.0), is_quad);
-    let origin = select(rect.xy, rect.xy - vec2<f32>(0.5, 0.5), is_quad);
+    let inflate = select(vec2<f32>(0.5, 0.5), vec2<f32>(0.5, 0.5) + vec2<f32>(geom.y, geom.y) * 0.5, is_quad);
+    let span = select(rect.zw, rect.zw + inflate * 2.0, is_quad);
+    let origin = select(rect.xy, rect.xy - inflate, is_quad);
     let p = origin + corner * span;
     var out: VOut;
     out.pos = vec4<f32>(
@@ -119,23 +124,38 @@ fn rr_x_interval(y: f32, w: f32, h: f32, radius: f32) -> vec2<f32> {
     var x0 = 0.0;
     var x1 = w;
     if (r > 0.0 && y < r) {
-        let chord = sqrt(max(r * r - (r - y) * (r - y), 0.0));
-        x0 = r - chord;
-        x1 = w - r + chord;
+        // The arc's rows read the parabola clamped into the arc's row
+        // span: a supersample row that only clips the arc's end crosses
+        // at the exact endpoint vertex the CPU polyline starts from.
+        let u = clamp(y, 0.0, r);
+        let inset = r - 2.0 * sqrt(max(r * u, 0.0)) + u;
+        x0 = inset;
+        x1 = w - inset;
     } else if (r > 0.0 && y > h - r) {
-        let chord = sqrt(max(r * r - (y - (h - r)) * (y - (h - r)), 0.0));
-        x0 = r - chord;
-        x1 = w - r + chord;
+        let u = clamp(h - y, 0.0, r);
+        let inset = r - 2.0 * sqrt(max(r * u, 0.0)) + u;
+        x0 = inset;
+        x1 = w - inset;
     }
     return vec2<f32>(x0, x1);
 }
 
-/// One subrow's coverage of `measure` local units inside the pixel window,
-/// quantized the way the software scanline quantizes: the pixel's x-range
-/// divides into four subcolumns and a subrow owns `floor(span * 4)` of
-/// them. The frame's total is the sum over four subrows, out of 16.
-fn subrow_hits(measure: f32) -> f32 {
-    return floor(measure * 4.0);
+/// The edge builder's own coordinate capture: every path vertex lands on
+/// the 1/256-px grid (`(p · 256) as i32`, truncation toward zero) before
+/// the fixed-point walk reads it — the crossings the shader quantizes are
+/// the truncated ones, never the raw floats.
+fn snap256(x: f32) -> f32 {
+    return select(ceil(x * 256.0), floor(x * 256.0), x >= 0.0) / 256.0;
+}
+
+/// The absolute quarter-grid subunits one span covers inside the pixel
+/// whose left edge is `pixel_left`: the span's endpoints round-half-up to
+/// the supersample grid (`floor(x·4 + ½)` — the walk's own rounding),
+/// then the pixel window clamps both.
+fn span_units(a: f32, b: f32, pixel_left: f32) -> f32 {
+    let a4 = max(floor(a * 4.0 + 0.5), pixel_left * 4.0);
+    let b4 = min(floor(b * 4.0 + 0.5), pixel_left * 4.0 + 4.0);
+    return max(b4 - a4, 0.0);
 }
 
 @fragment
@@ -174,42 +194,111 @@ fn fs_main(in: VOut) -> @location(0) vec4<f32> {
     // Quad: the software path anti-aliases its rounded-rect fill over a
     // 4x4 supersample grid (tiny-skia's `SUPERSAMPLE_SHIFT = 2`) and
     // strokes the border over it — two draws with two inks. The shader
-    // replicates both exactly: each of the four subrows takes the path's
-    // analytic x-interval at that row (corner arcs included), intersects
-    // it with the pixel window, and quantizes the span into the four
-    // subcolumns the scanline owns; the border is the same walk over the
-    // stroked band (the outer rounded rect minus the eroded one). The
-    // composite is fill-over-background then ring-over-fill — the two
-    // software passes. The inflated quad reaches the partially covered
-    // edge pixels the binary rasterizer would skip.
-    let w = in.uv.xy.x;
-    let h = in.uv.xy.y;
+    // replicates both draws' exact coverage arithmetic: the supersample
+    // walk's own quantization rules, reversed out of tiny-skia's
+    // `SuperBlitter`/`AlphaRuns` and pinned by the cross-backend fuzz —
+    //
+    //   * every edge — fill or ring, either axis — rounds half-up to the
+    //     quarter grid (`floor(x·4 + ½)`, the supersample walk's own
+    //     `(fx + half) >> shift` rounding), and a pixel's sub-units are
+    //     the clamped difference of its rounded endpoints (never
+    //     `floor(span·4)`: the length rule drops sub-units the rounded
+    //     crossings keep);
+    //   * a sub-row that is the pixel row's fourth contributes at most
+    //     63/256, not 64/256 (`AlphaRuns`' max-value correction — a half
+    //     row reads 127, not 128; a full row lands exactly on 255);
+    //   * the fill's and the ring's arithmetic stay separate (two
+    //     software draws, two coverage buckets, each capped on its own).
+    //
+    // The local coordinates are exact: `@builtin(position)` IS the pixel
+    // center and the rect origin rides `uv.zw` verbatim, so the
+    // subtraction carries no interpolation error — the quarter grid is
+    // bit-identical to the CPU's fixed-point walk. The composite hands
+    // the fixed-function premultiplied blend a premultiplied product
+    // (fill covered by its coverage, ring composed over it) — never a
+    // background composite: a zero-coverage fragment must leave the
+    // destination untouched (the background composite painted over
+    // already-drawn pixels — the fuzz caught whole columns of a quad
+    // erased by a later quad's empty fragment).
+    let w = snap256(in.uv.x);
+    let h = snap256(in.uv.y);
     let radius = in.geom.x;
     let band = in.geom.y * 0.5;
-    let px0 = in.local.x - 0.5;
-    let px1 = in.local.x + 0.5;
-    var fill_hits = 0.0;
-    var ring_hits = 0.0;
-    for (var j = 0; j < 4; j++) {
-        let yj = in.local.y - 0.5 + (f32(j) + 0.5) * 0.25;
-        let iv = rr_x_interval(yj, w, h, radius);
-        let span = max(min(iv.y, px1) - max(iv.x, px0), 0.0);
-        fill_hits += subrow_hits(span);
-        if (in.geom.y > 0.0 && in.border.a > 0.0) {
-            let outer = rr_x_interval(yj, w + in.geom.y, h + in.geom.y, radius + band);
-            let inner = rr_x_interval(yj, w - in.geom.y, h - in.geom.y, max(radius - band, 0.0));
-            let span_out = max(min(outer.y, px1) - max(outer.x, px0), 0.0);
-            let span_in = max(min(inner.y, px1) - max(inner.x, px0), 0.0);
-            ring_hits += subrow_hits(max(span_out - span_in, 0.0));
+    let origin = vec2<f32>(snap256(in.uv.z), snap256(in.uv.w));
+    let local = in.pos.xy - origin;
+    let ly = local.y;
+    let pixel_left = in.pos.x - 0.5;
+    // The fill's and the ring's covered sub-rows: the fill spans the rect
+    // itself, the ring spans the rect stroked by `border_width` (the
+    // software stroke's own extent). Every edge rounds half-up to the
+    // quarter grid — the sweep-pinned rule (a top edge at y+0.31 rounds
+    // DOWN into the pixel: 3 sub-rows, not 2 — never ceil, never floor) —
+    // on the builder's own 1/256-px coordinates.
+    let y0 = snap256(origin.y);
+    let y1 = snap256(origin.y + h);
+    let y0_ring = snap256(origin.y - band);
+    let y1_ring = snap256(origin.y - band + h + in.geom.y);
+    let s0_fill = clamp(floor((y0 - in.pos.y + 0.5) * 4.0 + 0.5), 0.0, 4.0);
+    let s1_fill = clamp(floor((y1 - in.pos.y + 0.5) * 4.0 + 0.5), 0.0, 4.0);
+    let s0_ring = clamp(floor((y0_ring - in.pos.y + 0.5) * 4.0 + 0.5), 0.0, 4.0);
+    let s1_ring = clamp(floor((y1_ring - in.pos.y + 0.5) * 4.0 + 0.5), 0.0, 4.0);
+    let ring_on = select(0.0, 1.0, in.geom.y > 0.0 && in.border.a > 0.0);
+    var fill_subrows = vec4<f32>(0.0, 0.0, 0.0, 0.0);
+    var ring_subrows = vec4<f32>(0.0, 0.0, 0.0, 0.0);
+    for (var s = 0; s < 4; s++) {
+        let sf = f32(s);
+        // The crossings ride the sub-row's **top**: the CPU's arcs are
+        // quarter-row polylines whose segments start exactly at their row
+        // boundary, so the walk's crossing for every supersample row is
+        // the vertex at the row's top edge — the parabola (clamped into
+        // the arc's row span) snapped to the builder's 1/256 grid, never
+        // a midpoint.
+        let ys = ly - 0.5 + sf * 0.25;
+        if (sf >= s0_fill && sf < s1_fill) {
+            let iv = rr_x_interval(ys, w, h, radius);
+            if (iv.y > iv.x) {
+                fill_subrows[s] = span_units(snap256(iv.x + origin.x), snap256(iv.y + origin.x), pixel_left);
+            }
+        }
+        if (ring_on > 0.0 && sf >= s0_ring && sf < s1_ring) {
+            // The stroked contours live in their own local frames: the
+            // outer rect's origin sits `band` up-left of the fill's, the
+            // inner rect's `band` down-right — each interval converts to
+            // absolute with its OWN frame's origin, never the fill's (the
+            // fuzz caught the ring collapsing to nothing when both rode
+            // the fill's frame), and the top/bottom bands the fill's frame
+            // would call empty draw exactly here.
+            let outer = rr_x_interval(ys + band, w + in.geom.y, h + in.geom.y, radius + band);
+            let inner = rr_x_interval(ys - band, w - in.geom.y, h - in.geom.y, max(radius - band, 0.0));
+            let outer_left = snap256(outer.x + origin.x - band);
+            let outer_right = snap256(outer.y + origin.x - band);
+            let inner_left = snap256(inner.x + origin.x + band);
+            let inner_right = snap256(inner.y + origin.x + band);
+            // The stroked path's cross-section: the outer contour minus
+            // the inner hole — two spans when the hole exists at this
+            // row, the whole outer span when it does not.
+            let hole = w - in.geom.y > 0.0 && h - in.geom.y > 0.0 && inner.x < inner.y;
+            ring_subrows[s] = select(
+                span_units(outer_left, outer_right, pixel_left),
+                span_units(outer_left, inner_left, pixel_left)
+                    + span_units(inner_right, outer_right, pixel_left),
+                hole,
+            );
         }
     }
-    let ring_on = select(0.0, 1.0, in.geom.y > 0.0 && in.border.a > 0.0);
-    let fc = fill_hits * 0.0625;
-    let rc = ring_hits * 0.0625 * ring_on;
+    // Each draw's coverage: 16/256 per sub-unit, the fourth sub-row's
+    // contribution capped at 63 (the AlphaRuns correction) — its own cap,
+    // never shared with the other draw's.
+    let fill_total = fill_subrows.x * 16.0 + fill_subrows.y * 16.0 + fill_subrows.z * 16.0
+        + min(fill_subrows.w * 16.0, 63.0);
+    let ring_total = ring_subrows.x * 16.0 + ring_subrows.y * 16.0 + ring_subrows.z * 16.0
+        + min(ring_subrows.w * 16.0, 63.0);
+    let fc = fill_total * 0.00390625;
+    let rc = ring_total * 0.00390625 * ring_on;
     let fill_rgba = vec4<f32>(in.color.rgb * in.color.a, in.color.a);
-    var c = fill_rgba * fc + (vec4<f32>(1.0) - vec4<f32>(fill_rgba.a * fc)) * uniforms.bg;
+    var c = fill_rgba * fc;
     let ring_rgba = vec4<f32>(in.border.rgb * in.border.a, in.border.a);
-    c = ring_rgba * rc + (vec4<f32>(1.0) - vec4<f32>(ring_rgba.a * rc)) * c;
+    c = ring_rgba * rc + c * (1.0 - ring_rgba.a * rc);
     return c;
 }
 ";
@@ -1204,6 +1293,15 @@ impl WgpuRenderer {
             });
         let mut drew_any = false;
         for region in damage.regions(viewport) {
+            // One pixel-snapped region drives everything — the background
+            // quad, the reaches test, and the scissor draw the same line,
+            // exactly the software path's own discipline (`render_partial`
+            // snaps once and never lets the sub-pixel edges disagree).
+            let Some(snapped) =
+                alacer_core::geom::snap_region_to_pixels(&region, self.width, self.height)
+            else {
+                continue;
+            };
             // Instances whose rect reaches into the region — the GPU twin of
             // the software path's scissor filter — grouped into the segments
             // their bind groups share, in scene order.
@@ -1228,10 +1326,10 @@ impl WgpuRenderer {
                         .copied()
                         .unwrap_or(NO_BORDER);
                     let [x, y, w, h] = instance.rect;
-                    let reaches = x < region.max_x()
-                        && y < region.max_y()
-                        && x + w > region.origin.x
-                        && y + h > region.origin.y;
+                    let reaches = x < snapped.max_x()
+                        && y < snapped.max_y()
+                        && x + w > snapped.origin.x
+                        && y + h > snapped.origin.y;
                     if !reaches {
                         continue;
                     }
@@ -1250,7 +1348,7 @@ impl WgpuRenderer {
             // The synthetic background quad leads the region's data (the
             // software path's clear_region twin); the first segment's count
             // closes over it. Segment counts derive from the starts.
-            data.push(background_instance(&region));
+            data.push(background_instance(&snapped));
             aux.push(UNCLIPPED);
             aux.push(NO_BORDER);
             let total = u32::try_from(data.len()).unwrap_or(0);
@@ -1266,7 +1364,7 @@ impl WgpuRenderer {
             if !self.upload_instances(&data, &aux) {
                 continue;
             }
-            let Some(scissor) = scissor_rect(&region, self.width, self.height) else {
+            let Some(scissor) = scissor_rect(&snapped, self.width, self.height) else {
                 continue;
             };
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -1426,10 +1524,14 @@ pub(crate) const BACKGROUND_RGBA_F32: [f32; 4] = [245.0 / 255.0, 246.0 / 255.0, 
 /// The clear color: `alacer_widgets::theme::SURFACE` as raw wgpu RGB (the
 /// platform crate cannot depend on the widget crate's constants inside WGSL
 /// literals; the two must agree — a const test pins it in `softbuffer.rs`).
+/// The components are exact 1/255 fractions: an `Rgba8Unorm` target stores
+/// `round(component · 255)`, so any other constant clears a color one step
+/// off the theme's own bytes (the cross-backend fuzz compares against the
+/// theme's surface color and caught the drift).
 pub(crate) const BACKGROUND: wgpu::Color = wgpu::Color {
-    r: 0.96,
-    g: 0.96,
-    b: 0.97,
+    r: 245.0 / 255.0,
+    g: 246.0 / 255.0,
+    b: 248.0 / 255.0,
     a: 1.0,
 };
 
@@ -1464,16 +1566,15 @@ fn scissor_rect(
     width: u32,
     height: u32,
 ) -> Option<(u32, u32, u32, u32)> {
-    let bound_w = alacer_core::num::u32_to_f32(width);
-    let bound_h = alacer_core::num::u32_to_f32(height);
-    let x0 = region.origin.x.max(0.0).floor();
-    let y0 = region.origin.y.max(0.0).floor();
-    let x1 = region.max_x().clamp(0.0, bound_w).floor();
-    let y1 = region.max_y().clamp(0.0, bound_h).floor();
-    let x = alacer_core::num::f32_to_u32(x0);
-    let y = alacer_core::num::f32_to_u32(y0);
-    let w = alacer_core::num::f32_to_u32(x1 - x0);
-    let h = alacer_core::num::f32_to_u32(y1 - y0);
+    // The same whole-pixel region the software scissor mask draws —
+    // outward on every edge (`snap_region_to_pixels`): a scissor that
+    // floors the right/bottom edges drops the last pixel row and column
+    // the software path repaints (the Q8 damage-semantics drift).
+    let snapped = alacer_core::geom::snap_region_to_pixels(region, width, height)?;
+    let x = alacer_core::num::f32_to_u32(snapped.origin.x);
+    let y = alacer_core::num::f32_to_u32(snapped.origin.y);
+    let w = alacer_core::num::f32_to_u32(snapped.size.width);
+    let h = alacer_core::num::f32_to_u32(snapped.size.height);
     if w == 0 || h == 0 || x >= width || y >= height {
         return None;
     }
@@ -1499,7 +1600,17 @@ pub(crate) fn pack_quad(quad: &Quad) -> Instance {
             f32::from(quad.color.b) / 255.0,
             f32::from(quad.color.a) / 255.0,
         ],
-        uv: [quad.rect.size.width, quad.rect.size.height, 0.0, 0.0],
+        // (w, h) drive the fragment's SDF; the absolute origin rides
+        // (x, y) so the fragment stage subtracts it from the exact pixel
+        // center — the coverage math's quarter grid is the absolute one
+        // tiny-skia's supersample walk walks, with no interpolation
+        // error anywhere near it.
+        uv: [
+            quad.rect.size.width,
+            quad.rect.size.height,
+            quad.rect.origin.x,
+            quad.rect.origin.y,
+        ],
     }
 }
 

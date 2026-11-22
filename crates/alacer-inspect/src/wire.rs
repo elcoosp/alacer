@@ -25,6 +25,17 @@ pub struct Hello {
     pub version: u32,
     /// The serving app's name (the facade sets it).
     pub app: String,
+    /// The recorder's total fact count at greeting time — every fact the
+    /// observer has streamed since the recorder's first, evictions
+    /// included in the count and clears included too (the count never
+    /// moves backward, the honest total). The cursor source a
+    /// reconnecting client asks its replay with (M140): the number this
+    /// field named at the client's *first* connect is the `after` its
+    /// later replay ask carries, and the burst answers only the facts
+    /// recorded since — the pre-history the client was never connected
+    /// for stays silent. Additive at version 1 (the rider field's rule):
+    /// clients that ignore unknown fields are unaffected.
+    pub facts: u64,
 }
 
 /// The client's control messages (all optional; the server streams
@@ -42,9 +53,39 @@ pub enum ClientMessage {
     /// ask drains nothing, so facts a session saw live may repeat in
     /// the burst — the client folds the duplicates (the additive
     /// control ADR-0010's versioning rule admits at version 1).
-    Replay,
+    ///
+    /// Since M140 the ask grows the optional `after` cursor: only the
+    /// facts recorded *after* that fact number answer the burst — the
+    /// history at or below the cursor stays silent, so a panel that
+    /// already carried the first N facts asks with `{"kind":"replay",
+    /// "after":N}` and the rings answer with the delta, not the whole
+    /// worth. The cursor a client asks with is the `facts` count a
+    /// greeting named (the greeting carries it beside the app). The
+    /// field is optional and defaults to absent — the bare ask
+    /// (`{"kind":"replay"}`) parses exactly as M139 shipped it and
+    /// replays the rings whole; a cursor above every recorded fact
+    /// answers an empty burst (the honest absence), the session keeps
+    /// serving either way.
+    Replay {
+        /// The cursor: only facts recorded after this fact number
+        /// answer the burst; omitted (the M139 shape) replays the
+        /// rings whole.
+        #[serde(default)]
+        after: Option<u64>,
+    },
     /// The client is going away; the server closes the socket.
     Bye,
+    /// Ask the server what its rings hold right now (M141): the fact
+    /// count beside one row per ring — the occupancy, the cap, and the
+    /// evictions the cap caused — so a panel reading a replay burst
+    /// knows what the history *cannot* carry (the rows are the burst's
+    /// own bound, named). Additive at version 1 (ADR-0010's versioning
+    /// rule admits the control beside the `Replay` ask's precedent): a
+    /// server older than the ask closes the session on the unknown
+    /// control, the documented unknown-frame behavior. The look reads
+    /// without disturbing (the replay ask's own rule at the stats
+    /// tier): no ring drains, the broadcast queue is untouched.
+    Stats,
 }
 
 /// One protocol event. The JSON tag vocabulary is `snake_case`; the shape
@@ -746,6 +787,46 @@ pub enum WireEvent {
         /// Dirty nodes dropped from the heatmap.
         dirty_truncated: usize,
     },
+    /// The rings' occupancy answer (M141): the fact count beside one
+    /// row per ring — the stream's own bound first, the trails in the
+    /// event vocabulary's order — each row naming its occupancy, its
+    /// cap, and the evictions the cap caused. The answer to the
+    /// `stats` control; the look reads without disturbing, so the
+    /// rows describe what a replay burst can and cannot carry.
+    Stats {
+        /// The recorder's total fact count at the ask — the same
+        /// monotonic count the greeting carries and the replay ask's
+        /// cursor rides.
+        facts: u64,
+        /// One row per ring, `broadcast` (the stream's own bound)
+        /// first, the trail rings in the event vocabulary's order,
+        /// `frames` last.
+        rings: Vec<RingStat>,
+    },
+}
+
+/// One ring's occupancy row on the wire (M141): the name, the entries
+/// it holds right now, its cap, and the evictions the cap has caused
+/// so far — the burst's own bound, named for the panel that reads a
+/// replay and wants to know what the history cannot carry. The loss
+/// named, never swallowed (the trail reader's own rule at the wire
+/// tier).
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+pub struct RingStat {
+    /// The ring's wire name (`broadcast`, `edges`, `writes`, `inputs`,
+    /// `focus`, `edits`, `announces`, `keys`, `clipboards`, `values`,
+    /// `gestures`, `scrolls`, `text_writes`, `route_drops`,
+    /// `key_edits`, `preedits`, `a11y_echoes`, `actions`,
+    /// `frame_refusals`, `view_patches`, `themes`, `settings`,
+    /// `frames`).
+    pub name: &'static str,
+    /// The entries the ring holds right now.
+    pub held: usize,
+    /// The bound the ring is held to (the protocol document's bounds
+    /// sentence is this row's contract).
+    pub cap: usize,
+    /// The entries the cap has evicted so far — the named loss.
+    pub evicted: u64,
 }
 
 /// One pass ledger entry on the wire.
@@ -1488,12 +1569,24 @@ mod tests {
             kind: "hello",
             version: PROTOCOL_VERSION,
             app: "demo".to_string(),
+            facts: 0,
         };
         let json = serde_json::to_string(&hello).expect("hello json");
         assert_eq!(
-            json, r#"{"kind":"hello","version":1,"app":"demo"}"#,
-            "the documented greeting shape"
+            json, r#"{"kind":"hello","version":1,"app":"demo","facts":0}"#,
+            "the documented greeting shape — the fact count beside the app"
         );
+    }
+
+    #[test]
+    fn the_replay_ask_parses_with_and_without_the_cursor() {
+        // The additive rule at version 1: the bare ask (M139's shape)
+        // parses exactly as before — the cursor is optional.
+        let plain: ClientMessage = serde_json::from_str(r#"{"kind":"replay"}"#).expect("plain");
+        assert_eq!(plain, ClientMessage::Replay { after: None });
+        let cursor: ClientMessage =
+            serde_json::from_str(r#"{"kind":"replay","after":41}"#).expect("cursor");
+        assert_eq!(cursor, ClientMessage::Replay { after: Some(41) });
     }
 
     #[test]
@@ -1502,6 +1595,49 @@ mod tests {
         assert_eq!(clear, ClientMessage::Clear);
         let bye: ClientMessage = serde_json::from_str(r#"{"kind":"bye"}"#).expect("bye");
         assert_eq!(bye, ClientMessage::Bye);
+        let stats: ClientMessage = serde_json::from_str(r#"{"kind":"stats"}"#).expect("stats");
+        assert_eq!(stats, ClientMessage::Stats);
+    }
+
+    #[test]
+    fn the_stats_answer_serializes_the_documented_flat_shape() {
+        // The wire conversion is pinned here (the client codes against
+        // it): the fact count beside one row per ring — the ring's
+        // name, its occupancy, its cap, and the evictions the cap
+        // caused — the documented `stats` shape (M141), a new event
+        // kind at version 1 (the additive rule: clients that ignore
+        // unknown kinds are unaffected).
+        let answer = WireEvent::Stats {
+            facts: 1_280,
+            rings: vec![
+                RingStat {
+                    name: "broadcast",
+                    held: 96,
+                    cap: 4_096,
+                    evicted: 12,
+                },
+                RingStat {
+                    name: "frames",
+                    held: 256,
+                    cap: 256,
+                    evicted: 1_024,
+                },
+            ],
+        };
+        let json = serde_json::to_string(&answer).expect("stats json");
+        for fragment in [
+            r#""kind":"stats""#,
+            r#""facts":1280"#,
+            r#""name":"broadcast""#,
+            r#""held":96"#,
+            r#""cap":4096"#,
+            r#""evicted":12"#,
+            r#""name":"frames""#,
+            r#""held":256"#,
+            r#""evicted":1024"#,
+        ] {
+            assert!(json.contains(fragment), "missing {fragment} in {json}");
+        }
     }
 
     #[test]

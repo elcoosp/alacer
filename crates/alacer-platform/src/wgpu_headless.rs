@@ -569,8 +569,11 @@ mod tests {
 
     #[test]
     fn bytes_per_row_aligns_to_the_gpu_row_stride() {
-        // 160 px × 4 B = 640 B: already a 256 multiple.
-        assert_eq!(aligned_bytes_per_row(160), 640);
+        // 64 px × 4 B = 256 B: exactly one alignment unit, no padding.
+        assert_eq!(aligned_bytes_per_row(64), 256);
+        // 160 px × 4 B = 640 B: 2.5 alignment units — rounds up to the
+        // next 256 boundary.
+        assert_eq!(aligned_bytes_per_row(160), 768);
         // 161 px × 4 B = 644 B: rounds up to the next 256 boundary.
         assert_eq!(aligned_bytes_per_row(161), 768);
         // 1 px: the minimum aligned row.
@@ -591,8 +594,10 @@ mod tests {
         assert_eq!(pixmap.data()[3], 10);
         assert_eq!(pixmap.data()[7], 20);
         assert_eq!(pixmap.data()[11], 30);
-        // Row 1 lives at the padded stride, not the tight one.
-        let row1_alpha = pixmap.data()[2 * 4 + 3];
+        // Row 1 lives at the padded stride, not the tight one: its first
+        // pixel is tight-pixel 3 (row 1, x 0), and the staging bytes the
+        // de-pad copies for it are the row's own zeros.
+        let row1_alpha = pixmap.data()[3 * 4 + 3];
         assert_eq!(row1_alpha, 0, "row 1 was never written");
     }
 }

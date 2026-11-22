@@ -34,11 +34,19 @@ client frames must be (per RFC). The server answers `ping` with `pong`
 ### `hello` — the greeting, exactly once, first
 
 ```json
-{"kind":"hello","version":1,"app":"inspector-demo"}
+{"kind":"hello","version":1,"app":"inspector-demo","facts":41}
 ```
 
 - `version` — the protocol version; clients gate on it.
 - `app` — the recording app's name (the `CausalRecorder::new` label).
+- `facts` — the recorder's total fact count at greeting time (since
+  M140). Every fact the observer has streamed since the recorder's
+  first, evictions included in the count and clears included too: the
+  count never moves backward. The cursor source a reconnecting client
+  asks its replay with — the number this field named at the client's
+  *first* connect is the `after` its later replay ask carries.
+  Additive at version 1: clients that ignore unknown fields are
+  unaffected.
 
 ### `edge` — a reactive edge activation ("why did this render?")
 
@@ -985,6 +993,39 @@ The theme tier's own fact (M73, ADR-0079): the palette the widgets borrow for th
 The event trail for a frame (its `write`/`edge`/`input` events) is streamed
 immediately *before* that frame's `frame` event.
 
+### `stats` — the rings' occupancy answer (M141)
+
+```json
+{"kind":"stats","facts":1280,"rings":[{"name":"broadcast","held":96,"cap":4096,"evicted":12},{"name":"edges","held":1024,"cap":1024,"evicted":0},{"name":"frames","held":256,"cap":256,"evicted":1024}]}
+```
+
+The answer to the `stats` control: the recorder's fact count beside one
+row per ring, the stream's own bound (`broadcast`) first, the trail rings
+in the event vocabulary's order, `frames` last. The rows shown above are
+elided — the real answer carries all twenty-three rows, exactly the rings
+the bounds sentence below names.
+
+- `facts` — the recorder's total fact count at the ask (the same
+  monotonic count the greeting carries and the replay ask's cursor
+  rides).
+- `rings[].name` — the ring's wire name (`broadcast`, `edges`, `writes`,
+  `inputs`, `focus`, `edits`, `announces`, `keys`, `clipboards`,
+  `values`, `gestures`, `scrolls`, `text_writes`, `route_drops`,
+  `key_edits`, `preedits`, `a11y_echoes`, `actions`, `frame_refusals`,
+  `view_patches`, `themes`, `settings`, `frames`).
+- `rings[].held` — the entries the ring holds right now.
+- `rings[].cap` — the bound the ring is held to (the bounds sentence
+  below is this row's contract).
+- `rings[].evicted` — the entries the cap has evicted so far — the named
+  loss. The counter survives `clear` (a reset empties the contents, it
+  does not un-name the loss).
+
+The rows tell a panel reading a replay burst which trails are complete
+(`held` < `cap`, `evicted` 0) and which are capped (`held` == `cap`,
+`evicted` climbing) — the burst's completeness is data, not a guess.
+Additive at version 1: a new event kind, clients that ignore unknown
+kinds are unaffected.
+
 ## Client → server
 
 ```json
@@ -1009,6 +1050,33 @@ than the ask close the session on the unknown control, the documented
 unknown-frame behavior — a client that needs the ask can probe or reconnect.
 
 ```json
+{"kind":"replay","after":41}
+```
+The replay ask with a cursor (M140): only the facts recorded *after*
+fact number 41 answer the burst — the history at or below the cursor
+stays silent, so a panel that already carried the first 41 facts asks
+with the number its first greeting's `facts` field named and the rings
+answer with the delta, not the whole worth. The field is optional and
+defaults to absent — the bare ask replays the rings whole, exactly as
+shipped. A cursor above every recorded fact answers an empty burst (the
+honest absence); the session keeps serving either way. Facts the client
+streamed live above its cursor may still repeat in the burst — the
+folding contract stands, the client owning the dedup (the pre-registered
+rule's own words: priced by that client).
+
+```json
+{"kind":"stats"}
+```
+Asks the server what its rings hold right now (M141): the answer is one
+`stats` event — the fact count beside one row per ring — so a panel
+reading a replay burst knows what the history *cannot* carry. The look
+reads without disturbing (the replay ask's own rule at the stats tier):
+no ring drains, the broadcast queue is untouched, the live stream beside
+the answer continues untouched. Additive at version 1 (the `Replay`
+ask's precedent): a server older than the ask closes the session on the
+unknown control, the documented unknown-frame behavior.
+
+```json
 {"kind":"bye"}
 ```
 Ends the session; the server echoes `close` and the socket closes. Any
@@ -1024,7 +1092,10 @@ malformed text frame is treated as `bye`.
   clipboards 512, values 512, gestures 512, scrolls 512, text_writes 512,
   route_drops 512, key_edits 512, preedits 512, a11y_echoes 512, actions
   512, frame_refusals 512, view_patches 512, themes 512, settings 512);
-  `clear` empties them; `replay` reads them without disturbing.
+  `clear` empties them; `replay` reads them without disturbing; `stats`
+  answers their occupancy, caps, and evictions without disturbing either.
+  The `stats` answer's row list is this sentence's own list — the two
+  cannot drift apart.
 - Recording is opt-in: the pipeline forwards only when an observer is
   installed, and the flux records activations and provenance only when
   `Flux::set_causal_capture(true)`. With both off, the framework's default

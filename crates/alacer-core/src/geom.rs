@@ -53,8 +53,8 @@ pub fn snap_region_to_pixels(region: &Rect, width: u32, height: u32) -> Option<R
 
 #[cfg(test)]
 mod tests {
-    use super::{Point, Rect, Size};
     use super::snap_region_to_pixels;
+    use super::{Point, Rect, Size};
 
     #[test]
     fn rect_helpers_round_trip() {

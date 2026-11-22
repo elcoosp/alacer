@@ -128,6 +128,23 @@ jobs:
         run: cargo test -p alacer --features hot-reload --test hot_reload_subsecond
       - name: The hot-reload demo compiles under the feature
         run: cargo build -p alacer --features hot-reload --examples
+      - name: The binary patch simulation — build the before-binary
+        run: |
+          cargo build -p alacer --example hot_reload --features hot-reload
+          cp target/debug/examples/hot_reload /tmp/hot_reload_before
+      - name: Edit the example's label constant (the source edit the patcher carries)
+        run: |
+          sed -i 's/patched layout — same signal, same count/CI hot-patch: same signal, same count/' crates/alacer/examples/hot_reload.rs
+          grep -q "CI hot-patch: same signal, same count" crates/alacer/examples/hot_reload.rs
+      - name: Recompile — the after-binary is the patch payload
+        run: cargo build -p alacer --example hot_reload --features hot-reload
+      - name: The framework contract on the real payload (patch detected, state preserved)
+        run: cargo test -p alacer --features hot-reload --test hot_patch_ci_simulation
+        env:
+          ALACER_HOT_PATCH_BEFORE_BIN: /tmp/hot_reload_before
+          ALACER_HOT_PATCH_AFTER_BIN: ${{ github.workspace }}/target/debug/examples/hot_reload
+      - name: Restore the example (the simulation edits, it never commits)
+        run: git checkout -- crates/alacer/examples/hot_reload.rs
 
   features:
     name: backend feature matrix (M34, ADR-0040)

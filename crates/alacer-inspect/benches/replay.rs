@@ -7,6 +7,7 @@
 
 use alacer_core::inspect::{InputKind, InputRecord, InspectEvent, InspectObserver as _};
 use alacer_inspect::CausalRecorder;
+use alacer_inspect::WireEvent;
 use alacer_inspect::recorder::{FRAME_RING_CAP, INPUT_RING_CAP, WRITE_RING_CAP};
 use criterion::{Criterion, criterion_group, criterion_main};
 use std::hint::black_box;
@@ -58,12 +59,50 @@ fn replay_burst(c: &mut Criterion) {
     // (the frame ring is the 256-order one), and the burst names it.
     let expected = WRITE_RING_CAP.min(FILL) + INPUT_RING_CAP.min(FILL) + FRAME_RING_CAP.min(FILL);
     assert_eq!(burst.len(), expected, "the whole rings' worth, one burst");
-    c.bench_function("replay/burst_512x3", |b| {
+    // The replay tier's own group (the corpus's group + parameter
+    // naming — the ids the published baseline and the bounds sentence
+    // name).
+    let mut group = c.benchmark_group("replay");
+    group.bench_function("burst_512x3", |b| {
         b.iter(|| {
             let events = recorder.replay();
             black_box(events.len());
         });
     });
+
+    // The cursor ask (M140): the same filled recorder, the replay
+    // filtered to the facts above the cursor — the connect-time price
+    // a returning panel pays when it already carried the first half of
+    // the history. The filter walks every stamped entry either way
+    // (the stamps are the cursor's own currency), so the price sits
+    // beside the whole burst's, never below it.
+    let cursor = u64::try_from(FILL * 2).unwrap_or_default();
+    let filtered = recorder.replay_after(cursor);
+    assert!(
+        !filtered.is_empty() && filtered.len() < burst.len(),
+        "the cursor answers the delta ({} of {expected})",
+        filtered.len()
+    );
+    group.bench_function("burst_512x3_after_1024", |b| {
+        b.iter(|| {
+            let events = recorder.replay_after(cursor);
+            black_box(events.len());
+        });
+    });
+
+    // The stats ask (M141): the occupancy answer's price — one row per
+    // ring beside the fact count, read on the same filled recorder.
+    // Like the burst, the ask is answered once per connect — a
+    // connect-time price, never a per-frame one.
+    group.bench_function("stats_512x3", |b| {
+        b.iter(|| {
+            let WireEvent::Stats { facts, rings } = recorder.stats() else {
+                panic!("the stats answer");
+            };
+            black_box((facts, rings.len()));
+        });
+    });
+    group.finish();
 }
 
 criterion_group!(benches, replay_burst);

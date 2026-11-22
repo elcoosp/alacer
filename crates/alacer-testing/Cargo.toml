@@ -33,10 +33,19 @@ reactive_graph.workspace = true
 # dhat's own.
 dhat.workspace = true
 
+[features]
+# The fast arena's paired fuzz (§7.1, ADR-9): forwards to alacer-core's
+# feature so one build flag drives both the storage swap and the test.
+fast-arena = ["alacer-core/fast-arena"]
+
 [dev-dependencies]
 serde_json.workspace = true
 criterion.workspace = true
 accesskit.workspace = true
+# The cross-backend equivalence fuzz (§9.3, Q8) needs the platform's
+# headless wgpu readback twin; the dev-dep's default features carry
+# backend-wgpu.
+alacer-platform.workspace = true
 
 [[bench]]
 name = "w3_animation"

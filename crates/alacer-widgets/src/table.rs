@@ -227,6 +227,16 @@ impl Table {
         self
     }
 
+    /// Sets the header fill in place (view reconciliation) — `None`
+    /// restores the theme's panel role at paint time (ADR-0079).
+    pub fn set_header_fill(&mut self, color: Option<Color>) -> bool {
+        if self.header_fill == color {
+            return false;
+        }
+        self.header_fill = color;
+        true
+    }
+
     /// Layout styles.
     #[must_use]
     pub fn style(mut self, style: Style) -> Self {
@@ -570,6 +580,16 @@ impl TableCell {
     pub fn strong(mut self, strong: bool) -> Self {
         self.strong = strong;
         self
+    }
+
+    /// Sets the emphasis tier in place (view reconciliation) — the write
+    /// reporting whether the tier moved (the idle-frame property).
+    pub fn set_strong(&mut self, strong: bool) -> bool {
+        if self.strong == strong {
+            return false;
+        }
+        self.strong = strong;
+        true
     }
 
     /// Text color. Without it the cell borrows the theme's text role

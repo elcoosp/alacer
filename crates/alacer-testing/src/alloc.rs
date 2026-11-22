@@ -206,6 +206,74 @@ impl AllocLedger {
     }
 }
 
+/// The armed interaction guard (§A7, M84): the ledger's window worn as an
+/// RAII band around one *interaction* beat — the keystroke, the click, the
+/// drag — the half of the warm-frame contract the idle tick's suites never
+/// touch. The m84 exit suite prices a static UI's warm tick and answers
+/// clean; the interaction path is what a user actually drives, and this
+/// guard is the instrument that prices it: activate after the widget is
+/// mounted and settled, run the beat, read [`Self::delta`] — the heap's
+/// whole movement since activation — or [`Self::measure`] for one beat
+/// inside the window.
+///
+/// The shape is the ledger's own (A2 — steal proven cores; own only the
+/// composition): the guard is [`AllocLedger`] plus the baseline snapshot
+/// the beats bracket, so a suite arms it once after the cold build and
+/// every beat it prices answers against activation, not against the last
+/// beat. One guard at a time (dhat's own rule, unchanged): activate, price
+/// the beats, drop, re-arm.
+///
+/// ```text
+/// let guard = AllocationGuard::activate();
+/// let (_, delta) = guard.measure(|| harness.type_text("a"));
+/// assert!(delta.allocations <= BOUND, "the keystroke churned: {delta:?}");
+/// ```
+pub struct AllocationGuard {
+    ledger: AllocLedger,
+    baseline: AllocStats,
+}
+
+impl AllocationGuard {
+    /// Activates the guard: the ledger arms here and every counter this
+    /// guard reports is measured from this instant.
+    ///
+    /// # Panics
+    ///
+    /// Panics when another ledger (any [`dhat::Profiler`]) is already
+    /// running — one window per process, the ledger's own rule.
+    #[must_use]
+    pub fn activate() -> Self {
+        let ledger = AllocLedger::arm();
+        let baseline = ledger.stats();
+        Self { ledger, baseline }
+    }
+
+    /// The heap's whole movement since activation: every beat the guard
+    /// has watched, priced as one [`AllocDelta`]. A block made and freed
+    /// inside one beat counts on both sides — the churn the budget
+    /// prices, never hidden by beat boundaries.
+    #[must_use]
+    pub fn delta(&self) -> AllocDelta {
+        self.ledger.delta_since(self.baseline)
+    }
+
+    /// The counters now, measured from activation.
+    #[must_use]
+    pub fn stats(&self) -> AllocStats {
+        self.ledger.stats()
+    }
+
+    /// Prices one beat inside the guard's window: snapshots, runs `body`,
+    /// snapshots again, answers the movement beside the body's own answer.
+    ///
+    /// ```text
+    /// let (outcomes, delta) = guard.measure(|| harness.type_text("a"));
+    /// ```
+    pub fn measure<T>(&self, body: impl FnOnce() -> T) -> (T, AllocDelta) {
+        self.ledger.measure(body)
+    }
+}
+
 impl std::fmt::Display for AllocDelta {
     /// The delta's own ledger line: the budget's answer when the beat
     /// moved nothing, the counted movement when it did.

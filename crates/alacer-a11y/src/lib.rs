@@ -186,6 +186,29 @@ pub fn map_role(role: Role) -> AccessKitRole {
         // the alt text riding the description word M95 maps, no
         // patch-tier growth.
         Role::Image => AccessKitRole::Image,
+        // The banner (M143, ADR-0147): the "reads as the page's opening
+        // strip" fact AccessKit's own banner role spells — the page
+        // furniture the AT's landmarks list walks first; the children
+        // keep the roles the members already carry, the M126/M129
+        // container rule at the landmark tier, no patch-tier growth.
+        Role::Banner => AccessKitRole::Banner,
+        // The navigation (M143, ADR-0147): the "reads as the page's way
+        // through" fact AccessKit's own navigation role spells — the
+        // section links the landmarks list walks beside the banner and
+        // the main; the links keep the roles they already carry, no
+        // patch-tier growth.
+        Role::Navigation => AccessKitRole::Navigation,
+        // The main (M143, ADR-0147): the "reads as the page's central
+        // region" fact AccessKit's own main role spells — the landmarks
+        // list's own destination, the content the AT jumps to by name;
+        // the children keep the roles they already carry, no patch-tier
+        // growth.
+        Role::Main => AccessKitRole::Main,
+        // The content info (M143, ADR-0147): the "reads as the page's
+        // closing strip" fact AccessKit's own content-info role spells —
+        // the colophon the landmarks list walks last; the children keep
+        // the roles they already carry, no patch-tier growth.
+        Role::ContentInfo => AccessKitRole::ContentInfo,
     }
 }
 
@@ -1056,6 +1079,14 @@ mod tests {
         // picture — AccessKit's own `Image`, the alt text riding the
         // description word the M95 tier maps.
         assert_eq!(map_role(Role::Image), AkRole::Image);
+        // The M143 landmark tier: the page furniture the AT's landmarks
+        // list walks — AccessKit's own `Banner`, `Navigation`, `Main`
+        // and `ContentInfo`, the named-container shape at the landmark
+        // tier.
+        assert_eq!(map_role(Role::Banner), AkRole::Banner);
+        assert_eq!(map_role(Role::Navigation), AkRole::Navigation);
+        assert_eq!(map_role(Role::Main), AkRole::Main);
+        assert_eq!(map_role(Role::ContentInfo), AkRole::ContentInfo);
     }
 
     #[test]

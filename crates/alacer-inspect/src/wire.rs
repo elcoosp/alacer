@@ -12,6 +12,7 @@ use alacer_core::inspect::{
 };
 use alacer_core::passes::FocusRefusal;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 
 /// The protocol version this server speaks. Clients gate on it.
 pub const PROTOCOL_VERSION: u32 = 1;
@@ -86,6 +87,173 @@ pub enum ClientMessage {
     /// without disturbing (the replay ask's own rule at the stats
     /// tier): no ring drains, the broadcast queue is untouched.
     Stats,
+    /// Ask the server to gate this session's live stream to the named
+    /// tiers (M142): the facts whose ring the ask names answer the
+    /// session's fan-out, the unasked tiers staying silent. The ask is
+    /// the *session's* fan-out, never the recorder's capture — the
+    /// rings keep recording every tier (the replay and stats asks
+    /// answer whole either way), the filter the panel's own silence,
+    /// not a loss the recorder caused (the eviction counters' rule
+    /// names the recorder's losses; a muted tier is not one of them).
+    ///
+    /// The field is optional and defaults to absent — the bare ask
+    /// (`{"kind":"subscribe"}`) restores the whole stream, the shape
+    /// every pre-M142 session rode. A list names the tiers (the stats
+    /// answer's row names — one vocabulary, two doors, the two lists
+    /// unable to drift apart); an empty list subscribes to nothing —
+    /// the stream goes quiet for this session while the rings keep
+    /// recording (the replay burst's reading panel's mute). A name
+    /// outside the vocabulary is a malformed control frame — the
+    /// session's documented report-and-close behavior (the unknown
+    /// control's own rule, at the name tier). Additive at version 1
+    /// (the `Replay` ask's precedent): a server older than the ask
+    /// closes the session on the unknown control.
+    Subscribe {
+        /// The tiers the session's live stream answers with; omitted
+        /// (the bare ask) restores the whole stream.
+        #[serde(default)]
+        tiers: Option<Vec<Tier>>,
+    },
+}
+
+/// One trail tier's wire name — the stats answer's row vocabulary
+/// (M141) become the subscribe ask's own (M142): the names the rings
+/// publish are the names a panel filters by, one list the two doors
+/// read, so the two cannot drift apart. `broadcast` is deliberately
+/// absent — the stream is the medium, never a tier of itself.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Tier {
+    /// The edge-activation ring's name (`edges`).
+    Edges,
+    /// The provenance-write ring's name (`writes`).
+    Writes,
+    /// The routed-input ring's name (`inputs`).
+    Inputs,
+    /// The focus-move ring's name (`focus`).
+    Focus,
+    /// The journal ring's name (`edits`).
+    Edits,
+    /// The announcement ring's name (`announces`).
+    Announces,
+    /// The keymap ring's name (`keys`).
+    Keys,
+    /// The clipboard ring's name (`clipboards`).
+    Clipboards,
+    /// The value-tier ring's name (`values`).
+    Values,
+    /// The gesture ring's name (`gestures`).
+    Gestures,
+    /// The scroll ring's name (`scrolls`).
+    Scrolls,
+    /// The AT-text-write ring's name (`text_writes`).
+    TextWrites,
+    /// The route-drop ring's name (`route_drops`).
+    RouteDrops,
+    /// The typing-door ring's name (`key_edits`).
+    KeyEdits,
+    /// The IME ring's name (`preedits`).
+    Preedits,
+    /// The adapter-echo ring's name (`a11y_echoes`).
+    A11yEchoes,
+    /// The activation ring's name (`actions`).
+    Actions,
+    /// The frame-refusal ring's name (`frame_refusals`).
+    FrameRefusals,
+    /// The view-patch ring's name (`view_patches`).
+    ViewPatches,
+    /// The theme ring's name (`themes`).
+    Themes,
+    /// The setting ring's name (`settings`).
+    Settings,
+    /// The frame ring's name (`frames`).
+    Frames,
+}
+
+impl Tier {
+    /// The ring's wire name — the stats answer's row name the ask
+    /// rides (the vocabulary's own word, `snake_case` through serde's
+    /// rename and this door alike).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Edges => "edges",
+            Self::Writes => "writes",
+            Self::Inputs => "inputs",
+            Self::Focus => "focus",
+            Self::Edits => "edits",
+            Self::Announces => "announces",
+            Self::Keys => "keys",
+            Self::Clipboards => "clipboards",
+            Self::Values => "values",
+            Self::Gestures => "gestures",
+            Self::Scrolls => "scrolls",
+            Self::TextWrites => "text_writes",
+            Self::RouteDrops => "route_drops",
+            Self::KeyEdits => "key_edits",
+            Self::Preedits => "preedits",
+            Self::A11yEchoes => "a11y_echoes",
+            Self::Actions => "actions",
+            Self::FrameRefusals => "frame_refusals",
+            Self::ViewPatches => "view_patches",
+            Self::Themes => "themes",
+            Self::Settings => "settings",
+            Self::Frames => "frames",
+        }
+    }
+}
+
+/// One session's live-stream gate (M142): the tiers the ask named, the
+/// whole stream, or the mute — the session's fan-out consults one
+/// filter, the recorder's capture untouched by any of the three. The
+/// answers (the events no ring captures — the `stats` occupancy
+/// answer among them) always admit: the ask gates the *fact*
+/// vocabulary, never the asks' own answers (the replay and stats
+/// asks' rule — their answers cross the socket whole).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TierFilter {
+    /// The admitted set; `None` is the whole stream (the pre-M142
+    /// default), `Some` the named tiers — an empty set the mute.
+    admitted: Option<HashSet<Tier>>,
+}
+
+impl TierFilter {
+    /// The whole stream — the shape every pre-M142 session rode.
+    #[must_use]
+    pub fn all() -> Self {
+        Self { admitted: None }
+    }
+
+    /// Only the named tiers answer the live stream; an empty list is
+    /// the mute (the stream goes quiet, the rings keep recording).
+    #[must_use]
+    pub fn only(tiers: impl IntoIterator<Item = Tier>) -> Self {
+        Self {
+            admitted: Some(tiers.into_iter().collect()),
+        }
+    }
+
+    /// The ask's own shape: the absent list is the whole stream, a
+    /// list the named tiers (the `ClientMessage::Subscribe` field's
+    /// documented semantics, one door).
+    #[must_use]
+    pub fn from_ask(ask: Option<Vec<Tier>>) -> Self {
+        match ask {
+            None => Self::all(),
+            Some(tiers) => Self::only(tiers),
+        }
+    }
+
+    /// Whether the fact answers this session's fan-out. The events no
+    /// ring captures (the `stats` answer) always admit — the filter
+    /// gates the captured vocabulary, never the asks' own answers.
+    #[must_use]
+    pub fn admits(&self, event: &WireEvent) -> bool {
+        match &self.admitted {
+            None => true,
+            Some(set) => event.tier().is_none_or(|tier| set.contains(&tier)),
+        }
+    }
 }
 
 /// One protocol event. The JSON tag vocabulary is `snake_case`; the shape
@@ -803,6 +971,43 @@ pub enum WireEvent {
         /// `frames` last.
         rings: Vec<RingStat>,
     },
+}
+
+impl WireEvent {
+    /// The trail tier the event belongs to — the ring whose name the
+    /// stats answer publishes (M141) and the subscribe ask filters by
+    /// (M142). The events no ring captures — the `stats` occupancy
+    /// answer, the stream's own bookkeeping — name no tier: they are
+    /// the asks' answers, never captured facts, and the session's
+    /// fan-out admits them whole (`TierFilter::admits`'s own rule).
+    #[must_use]
+    pub fn tier(&self) -> Option<Tier> {
+        match self {
+            Self::Edge { .. } => Some(Tier::Edges),
+            Self::Write { .. } => Some(Tier::Writes),
+            Self::Input { .. } => Some(Tier::Inputs),
+            Self::Focus { .. } => Some(Tier::Focus),
+            Self::Edit { .. } => Some(Tier::Edits),
+            Self::Announce { .. } => Some(Tier::Announces),
+            Self::Key { .. } => Some(Tier::Keys),
+            Self::Clipboard { .. } => Some(Tier::Clipboards),
+            Self::Value { .. } => Some(Tier::Values),
+            Self::Gesture { .. } => Some(Tier::Gestures),
+            Self::Scroll { .. } => Some(Tier::Scrolls),
+            Self::TextWrite { .. } => Some(Tier::TextWrites),
+            Self::RouteDrop { .. } => Some(Tier::RouteDrops),
+            Self::KeyEdit { .. } => Some(Tier::KeyEdits),
+            Self::Preedit { .. } => Some(Tier::Preedits),
+            Self::A11yEcho { .. } => Some(Tier::A11yEchoes),
+            Self::Action { .. } => Some(Tier::Actions),
+            Self::FrameRefusal { .. } => Some(Tier::FrameRefusals),
+            Self::ViewPatch { .. } => Some(Tier::ViewPatches),
+            Self::Theme { .. } => Some(Tier::Themes),
+            Self::Setting { .. } => Some(Tier::Settings),
+            Self::Frame { .. } => Some(Tier::Frames),
+            Self::Stats { .. } => None,
+        }
+    }
 }
 
 /// One ring's occupancy row on the wire (M141): the name, the entries
@@ -3141,6 +3346,245 @@ mod tests {
         };
         assert_eq!(damage, "full");
         assert_eq!(regions, 1, "full damage is the whole viewport");
+    }
+    // ------------------------------------------------------------------
+    // The subscribe ask (M142): the vocabulary, the parse, the filter.
+    // ------------------------------------------------------------------
+
+    /// The subscribe ask parses with and without the tier list (the
+    /// additive field's rule): the bare ask (the whole stream) and the
+    /// asked-list shape both parse at version 1, and the list's names
+    /// are the stats rows' own vocabulary.
+    #[test]
+    fn the_subscribe_ask_parses_with_and_without_the_tier_list() {
+        // The bare ask: the stream as M83 shipped it — every tier.
+        let bare: ClientMessage = serde_json::from_str(r#"{"kind":"subscribe"}"#).expect("bare");
+        assert_eq!(bare, ClientMessage::Subscribe { tiers: None });
+        // The asked shape: only the named tiers answer the live stream.
+        let asked: ClientMessage =
+            serde_json::from_str(r#"{"kind":"subscribe","tiers":["frames","edges"]}"#)
+                .expect("asked");
+        assert_eq!(
+            asked,
+            ClientMessage::Subscribe {
+                tiers: Some(vec![Tier::Frames, Tier::Edges]),
+            }
+        );
+        // The mute: an empty list subscribes to nothing — the stream
+        // goes quiet for this session while the rings keep recording.
+        let mute: ClientMessage =
+            serde_json::from_str(r#"{"kind":"subscribe","tiers":[]}"#).expect("mute");
+        assert_eq!(
+            mute,
+            ClientMessage::Subscribe {
+                tiers: Some(Vec::new()),
+            }
+        );
+    }
+
+    /// An unknown tier name refuses to parse: the vocabulary is closed
+    /// (the stats rows' own names), and a name outside it is a
+    /// malformed control frame — the session's documented behavior for
+    /// those (the server reports and closes; the loop keeps serving).
+    #[test]
+    fn a_subscribe_ask_with_an_unknown_tier_refuses_to_parse() {
+        let parse =
+            serde_json::from_str::<ClientMessage>(r#"{"kind":"subscribe","tiers":["broadcast"]}"#);
+        assert!(
+            parse.is_err(),
+            "`broadcast` is the stream itself, never a tier — the closed vocabulary refuses it"
+        );
+        let parse =
+            serde_json::from_str::<ClientMessage>(r#"{"kind":"subscribe","tiers":["widgets"]}"#);
+        assert!(parse.is_err(), "an unknown name is a malformed control");
+        // And the singular event-tag shape is not the tier vocabulary
+        // either (the tiers are the rings' names — `edges`, not `edge`).
+        let parse =
+            serde_json::from_str::<ClientMessage>(r#"{"kind":"subscribe","tiers":["edge"]}"#);
+        assert!(parse.is_err(), "the tags' singular shape is not the tiers");
+    }
+
+    /// The tier names are the stats answer's row names — one vocabulary,
+    /// two doors (M141's rows name what M142's ask filters by), so the
+    /// two cannot drift apart. `broadcast` is deliberately absent: the
+    /// stream is not one of its own tiers.
+    #[test]
+    fn the_tier_names_are_the_stats_rows_vocabulary() {
+        let names: &[&str] = &[
+            "edges",
+            "writes",
+            "inputs",
+            "focus",
+            "edits",
+            "announces",
+            "keys",
+            "clipboards",
+            "values",
+            "gestures",
+            "scrolls",
+            "text_writes",
+            "route_drops",
+            "key_edits",
+            "preedits",
+            "a11y_echoes",
+            "actions",
+            "frame_refusals",
+            "view_patches",
+            "themes",
+            "settings",
+            "frames",
+        ];
+        assert_eq!(names.len(), 22, "the twenty-two trail rings");
+        for name in names {
+            let json = format!(r#"{{"kind":"subscribe","tiers":["{name}"]}}"#);
+            let ask: ClientMessage = serde_json::from_str(&json)
+                .unwrap_or_else(|error| panic!("the row name {name} parses as a tier: {error}"));
+            let ClientMessage::Subscribe { tiers } = ask else {
+                panic!("the subscribe ask");
+            };
+            let Some(tiers) = tiers else {
+                panic!("the asked list")
+            };
+            assert_eq!(tiers.len(), 1, "one name, one tier");
+            assert_eq!(tiers[0].name(), *name, "the name round-trips");
+        }
+        assert!(
+            !names.contains(&"broadcast"),
+            "the stream is the medium, never a tier of itself"
+        );
+    }
+
+    /// The filter admits exactly the asked tiers: `all` admits every
+    /// fact, `only` admits the named set, the mute admits nothing — and
+    /// the answers (the events no ring captures, `stats` among them)
+    /// always admit, the ask being a live-stream ask, never an
+    /// answer-silencer (the replay and stats asks' own rule: their
+    /// answers cross the socket whole).
+    #[test]
+    fn the_filter_admits_exactly_the_asked_tiers() {
+        let edge = WireEvent::Edge {
+            binding: 1,
+            signal: 2,
+            node: 3,
+            masks: "layout".to_string(),
+        };
+        let input = WireEvent::Input {
+            input: "wheel".to_string(),
+            target: None,
+        };
+        let theme = WireEvent::Theme {
+            palette: "canon".to_string(),
+            repainted: 0,
+        };
+        let stats = WireEvent::Stats {
+            facts: 0,
+            rings: Vec::new(),
+        };
+
+        // The default: the whole stream (the shape every pre-M142
+        // session rode).
+        let all = TierFilter::all();
+        for fact in [&edge, &input, &theme] {
+            assert!(all.admits(fact), "the default admits every fact");
+        }
+        assert!(all.admits(&stats), "an answer is not a fact to gate");
+
+        // The asked set: only the named tiers.
+        let frame = || WireEvent::Frame {
+            number: 1,
+            layout_ran: true,
+            paint_ran: true,
+            a11y_ran: true,
+            focus_changed: false,
+            degradation_step: "none".to_string(),
+            damage: "none".to_string(),
+            regions: 0,
+            a11y_updated: 0,
+            a11y_removed: 0,
+            total_nanos: 0,
+            passes: Vec::new(),
+            dirty: Vec::new(),
+            dirty_truncated: 0,
+        };
+        let only_frames = TierFilter::only([Tier::Frames]);
+        assert!(only_frames.admits(&frame()));
+        assert!(!only_frames.admits(&edge), "an unasked tier stays silent");
+        assert!(!only_frames.admits(&input), "an unasked tier stays silent");
+        assert!(only_frames.admits(&stats), "the answers ride whole");
+
+        // The mute: an empty ask admits no fact at all.
+        let mute = TierFilter::only([]);
+        assert!(!mute.admits(&edge) && !mute.admits(&input) && !mute.admits(&theme));
+        assert!(mute.admits(&stats), "even muted, the answers ride whole");
+
+        // The ask's own shape: absent list = the whole stream, a list =
+        // the named tiers.
+        let from_bare = TierFilter::from_ask(None);
+        assert_eq!(from_bare, TierFilter::all());
+        let from_asked = TierFilter::from_ask(Some(vec![Tier::Edges, Tier::Themes]));
+        assert!(from_asked.admits(&edge) && from_asked.admits(&theme));
+        assert!(!from_asked.admits(&input));
+    }
+
+    /// Every captured event kind names its tier — the mapping the
+    /// session's fan-out consults — and the answer events (`stats`)
+    /// name none (they are not captured facts). A representative
+    /// construction per family pins the branches; the compiler pins
+    /// the rest (the `wire_event_of` conversion is exhaustive).
+    #[test]
+    fn every_captured_event_names_its_tier() {
+        assert_eq!(
+            WireEvent::Edge {
+                binding: 0,
+                signal: 0,
+                node: 0,
+                masks: String::new(),
+            }
+            .tier(),
+            Some(Tier::Edges)
+        );
+        assert_eq!(
+            WireEvent::Input {
+                input: "key".to_string(),
+                target: None,
+            }
+            .tier(),
+            Some(Tier::Inputs)
+        );
+        assert_eq!(
+            WireEvent::Theme {
+                palette: "canon".to_string(),
+                repainted: 0,
+            }
+            .tier(),
+            Some(Tier::Themes)
+        );
+        let frame = WireEvent::Frame {
+            number: 0,
+            layout_ran: false,
+            paint_ran: false,
+            a11y_ran: false,
+            focus_changed: false,
+            degradation_step: "none".to_string(),
+            damage: "none".to_string(),
+            regions: 0,
+            a11y_updated: 0,
+            a11y_removed: 0,
+            total_nanos: 0,
+            passes: Vec::new(),
+            dirty: Vec::new(),
+            dirty_truncated: 0,
+        };
+        assert_eq!(frame.tier(), Some(Tier::Frames));
+        assert_eq!(
+            WireEvent::Stats {
+                facts: 0,
+                rings: Vec::new(),
+            }
+            .tier(),
+            None,
+            "the occupancy answer is not a captured fact"
+        );
     }
 }
 

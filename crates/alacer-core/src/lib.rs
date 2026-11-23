@@ -153,9 +153,10 @@ pub use key_edit::KEY_EDIT_TRAIL_CAP;
 pub use keymap::{Chord, Keymap, KeymapConsult, KeymapSeam};
 pub use mask::Change;
 pub use passes::{
-    A11yDelta, A11ySink, FocusLanding, FocusMoveOutcome, FocusRefusal, FrameReport, ImePurpose,
-    ImeRequest, LayoutEngine, LayoutError, PassKind, PassPipeline, PassRun, SceneJournal,
-    ScrollIntoViewLanding, ScrollIntoViewOutcome, ScrollIntoViewRefusal, TreeNode, TreeSnapshot,
+    A11yDelta, A11ySink, FocusLanding, FocusMoveOutcome, FocusRefusal, FrameReport, HitAnswer,
+    HitMiss, ImePurpose, ImeRequest, LayoutEngine, LayoutError, PassKind, PassPipeline, PassRun,
+    SceneJournal, ScrollIntoViewLanding, ScrollIntoViewOutcome, ScrollIntoViewRefusal, TreeNode,
+    TreeSnapshot,
 };
 pub use preedit::PREEDIT_TRAIL_CAP;
 pub use route_drop::ROUTE_DROP_TRAIL_CAP;

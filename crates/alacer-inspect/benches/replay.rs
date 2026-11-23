@@ -146,17 +146,27 @@ fn replay_burst(c: &mut Criterion) {
     price_state_asks(c);
 }
 
-/// The state asks' price: the dump, the point and the word — each
-/// answered once per connect (a connect-time price beside the burst's,
-/// never a per-frame one: the state rides no broadcast, the observer's
-/// door retains it, and the ask is the only door it crosses the wire
-/// through), each measured on the same 1 000-node resolved tree (the
-/// shape a real panel walks), each landing asserted before the timing
-/// (the bench never pricing a refusal it meant to price an answer).
+/// The state asks' price: the dump, the point, the word, the region
+/// and the path — each answered once per connect (a connect-time price
+/// beside the burst's, never a per-frame one: the state rides no
+/// broadcast, the observer's door retains it, and the ask is the only
+/// door it crosses the wire through), each measured on the same
+/// 1 000-node resolved tree (the shape a real panel walks), each
+/// landing asserted before the timing (the bench never pricing a
+/// refusal it meant to price an answer). One fn per ask — the five
+/// groups the family holds — the shared tree the helper below builds.
 fn price_state_asks(c: &mut Criterion) {
-    // The tree dump (the inspector's ask-and-answer control): the
-    // answer's price — the wire conversion over the retained snapshot
-    // plus the serialization the send path takes.
+    price_dump_ask(c);
+    price_point_ask(c);
+    price_word_ask(c);
+    price_region_ask(c);
+    price_path_ask(c);
+}
+
+/// The tree dump's price (the inspector's ask-and-answer control): the
+/// answer's price — the wire conversion over the retained snapshot plus
+/// the serialization the send path takes.
+fn price_dump_ask(c: &mut Criterion) {
     let recorder = CausalRecorder::new("tree-dump-bench");
     recorder.clone_handle().tree(dump_snapshot(1_000));
     let mut group = c.benchmark_group("tree_dump");
@@ -169,14 +179,16 @@ fn price_state_asks(c: &mut Criterion) {
         });
     });
     group.finish();
+}
 
-    // The point ask (M146, ADR-0150): the answer's price — the geometry
-    // query over the retained snapshot (the pre-order walk, the
-    // containment tests, the ancestry rebuild) plus the wire conversion
-    // and serialization the send path takes. The landing the bench
-    // prices: a point inside the grid's own geometry (the cell at
-    // column 1, row 1 — (20, 30) rides its (20..38, 28..52) span), the
-    // walk descending the root beside that one cell.
+/// The point ask's price (M146, ADR-0150): the geometry query over the
+/// retained snapshot (the pre-order walk, the containment tests, the
+/// ancestry rebuild) plus the wire conversion and serialization the
+/// send path takes. The landing the bench prices: a point inside the
+/// grid's own geometry (the cell at column 1, row 1 — (20, 30) rides
+/// its (20..38, 28..52) span), the walk descending the root beside that
+/// one cell.
+fn price_point_ask(c: &mut Criterion) {
     let recorder = CausalRecorder::new("hit-ask-bench");
     recorder.clone_handle().tree(dump_snapshot(1_000));
     let answer = alacer_inspect::wire::wire_hit(recorder.latest_tree().as_deref(), [20.0, 30.0]);
@@ -204,12 +216,13 @@ fn price_state_asks(c: &mut Criterion) {
         });
     });
     group.finish();
+}
 
-    // The word ask (M147, ADR-0151): the answer's price — the resolved
-    // snapshot's query (the substring funnel, the role narrowing) plus
-    // the wire conversion and serialization the send path takes — the
-    // needle every tool cell's name carries, so the answer is the
-    // matches' whole worth.
+/// The word ask's price (M147, ADR-0151): the resolved snapshot's query
+/// (the substring funnel, the role narrowing) plus the wire conversion
+/// and serialization the send path takes — the needle every tool cell's
+/// name carries, so the answer is the matches' whole worth.
+fn price_word_ask(c: &mut Criterion) {
     let recorder = CausalRecorder::new("find-ask-bench");
     recorder.clone_handle().tree(dump_snapshot(1_000));
     let answer = alacer_inspect::wire::wire_find(
@@ -241,6 +254,74 @@ fn price_state_asks(c: &mut Criterion) {
     group.finish();
 }
 
+/// The region ask's price (M148, ADR-0152): the geometry query over the
+/// retained snapshot (the bounds intersections, tree order) plus the
+/// wire conversion and serialization the send path takes — the rect
+/// covering the grid's whole frame, so the answer is the matches' whole
+/// worth.
+fn price_region_ask(c: &mut Criterion) {
+    let recorder = CausalRecorder::new("region-ask-bench");
+    recorder.clone_handle().tree(dump_snapshot(1_000));
+    let answer = alacer_inspect::wire::wire_region(
+        recorder.latest_tree().as_deref(),
+        [0.0, 0.0, 800.0, 700.0],
+    );
+    let alacer_inspect::WireEvent::Region { matches, .. } = &answer else {
+        panic!("the region ask answers");
+    };
+    assert_eq!(
+        matches.len(),
+        1_000,
+        "the grid's whole frame touches every node — the matches' whole worth"
+    );
+    let mut group = c.benchmark_group("region_ask");
+    group.throughput(criterion::Throughput::Elements(1_000));
+    group.bench_function("answer_1k_nodes", |b| {
+        b.iter(|| {
+            let answer = alacer_inspect::wire::wire_region(
+                recorder.latest_tree().as_deref(),
+                [0.0, 0.0, 800.0, 700.0],
+            );
+            let payload = serde_json::to_string(&answer).expect("the region's payload");
+            black_box(payload.len());
+        });
+    });
+    group.finish();
+}
+
+/// The path ask's price (M149, ADR-0153): the ancestry query over the
+/// retained snapshot (the parentage pass over the resolved nodes, the
+/// chain rebuild) plus the wire conversion and serialization the send
+/// path takes — the last cell of the grid, the chain the walk's own
+/// two-node shape answers.
+fn price_path_ask(c: &mut Criterion) {
+    let recorder = CausalRecorder::new("path-ask-bench");
+    recorder.clone_handle().tree(dump_snapshot(1_000));
+    let answer = alacer_inspect::wire::wire_path(recorder.latest_tree().as_deref(), 999);
+    let alacer_inspect::WireEvent::Path {
+        landed: true,
+        ancestry,
+        ..
+    } = &answer
+    else {
+        panic!("the grid cell's chain answers");
+    };
+    assert_eq!(
+        ancestry.len(),
+        2,
+        "the chain is the root beside the one cell the id names"
+    );
+    let mut group = c.benchmark_group("path_ask");
+    group.throughput(criterion::Throughput::Elements(1_000));
+    group.bench_function("answer_1k_nodes", |b| {
+        b.iter(|| {
+            let answer = alacer_inspect::wire::wire_path(recorder.latest_tree().as_deref(), 999);
+            let payload = serde_json::to_string(&answer).expect("the path's payload");
+            black_box(payload.len());
+        });
+    });
+    group.finish();
+}
 /// Builds a resolved snapshot of `count` nodes: one root over the
 /// members, every field named — the honest explicitness the tree
 /// node's own review demands (no `Default` to mask a missed tier).

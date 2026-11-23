@@ -144,11 +144,9 @@ fn main() {
 /// patch shape the CI hot-patch suite pins), assert the reconciler's
 /// answer — nothing created, nothing removed, the swapped element patched
 /// in place — and assert the reactive state survived it. Every check
-/// exits nonzero on failure; success prints the report and exits 0.
-#[expect(
-    clippy::too_many_lines,
-    reason = "the proof is one run through the whole contract; splitting it would hide the beats"
-)]
+/// exits nonzero on failure; success prints the report and exits 0. The
+/// proof is one run through the whole contract; splitting it would hide
+/// the beats.
 fn headless_proof() {
     let mut pipeline = pipeline_default();
     let count = pipeline.flux().signal(0_i32);

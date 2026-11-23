@@ -28,6 +28,14 @@ pub struct InspectorServer {
     listener: TcpListener,
     recorder: CausalRecorder,
     app: String,
+    /// The live-stream gate the server remembers (M145, ADR-0149): the
+    /// filter the last session's `subscribe` ask left behind, every new
+    /// session starting under it — the gate a panel set persisting
+    /// across reconnects (the greeting names it; the pre-M145 sessions
+    /// each started on the whole stream). The memory is the server
+    /// instance's, one panel's worth: a fresh server greets the whole
+    /// stream, the shape every pre-M142 session rode.
+    gate: std::sync::Arc<std::sync::Mutex<TierFilter>>,
 }
 
 impl InspectorServer {
@@ -46,6 +54,7 @@ impl InspectorServer {
             listener,
             recorder,
             app: app.into(),
+            gate: std::sync::Arc::new(std::sync::Mutex::new(TierFilter::all())),
         })
     }
 
@@ -103,8 +112,9 @@ impl InspectorServer {
             };
             let recorder = self.recorder.clone();
             let app = self.app.clone();
+            let gate = std::sync::Arc::clone(&self.gate);
             std::thread::spawn(move || {
-                if let Err(error) = serve_connection(stream, &recorder, &app) {
+                if let Err(error) = serve_connection(stream, &recorder, &app, &gate) {
                     // A session that dies reports why it died: the accept
                     // loop's old `let _ = …` swallowed every handshake and
                     // socket error silently, and the operator debugging a
@@ -129,7 +139,7 @@ impl InspectorServer {
     /// Propagates [`std::io::Error`] from the accept or the connection.
     pub fn serve_once(&self) -> std::io::Result<()> {
         let (stream, _peer) = self.listener.accept()?;
-        serve_connection(stream, &self.recorder, &self.app)
+        serve_connection(stream, &self.recorder, &self.app, &self.gate)
     }
 }
 
@@ -138,6 +148,7 @@ fn serve_connection(
     stream: TcpStream,
     recorder: &CausalRecorder,
     app: &str,
+    gate: &std::sync::Arc<std::sync::Mutex<TierFilter>>,
 ) -> std::io::Result<()> {
     let mut reader = BufReader::new(stream.try_clone()?);
     let request = read_request_head(&mut reader)?;
@@ -146,7 +157,7 @@ fn serve_connection(
     if let Some(key) = websocket {
         let mut stream = stream;
         accept_websocket(&mut stream, key)?;
-        run_session(&mut stream, &mut reader, recorder, app)
+        run_session(&mut stream, &mut reader, recorder, app, gate)
     } else {
         serve_html(&stream, &request.path)
     }
@@ -231,10 +242,21 @@ fn run_session(
     reader: &mut BufReader<TcpStream>,
     recorder: &CausalRecorder,
     app: &str,
+    gate: &std::sync::Arc<std::sync::Mutex<TierFilter>>,
 ) -> std::io::Result<()> {
-    let serialize = |what: &str, error: serde_json::Error| -> std::io::Error {
+    let serialize_error = |what: &str, error: serde_json::Error| -> std::io::Error {
         std::io::Error::other(format!("the {what} payload refused to serialize: {error}"))
     };
+    // The session's starting gate (M145, ADR-0149): what the server
+    // remembers — the gate a previous session left, or the whole stream
+    // when none did. A poisoned lock recovers its data rather than
+    // wedging every later session: the filter is a plain tier set whose
+    // invariants survive a panic (the recovery the trails' rings made
+    // room for), so the honest behavior is the memory it holds.
+    let mut filter = gate
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone();
     let hello = Hello {
         kind: "hello",
         version: PROTOCOL_VERSION,
@@ -244,16 +266,22 @@ fn run_session(
         // panel's later replay ask carries, and the burst answers only
         // the facts recorded since.
         facts: recorder.facts(),
+        // The gate the session starts under (M145): what the server
+        // remembers, named beside the cursor source — a reconnecting
+        // panel reads its own ask back instead of re-asking blind (the
+        // `facts` field's precedent, at the gate tier).
+        gate: filter.ask(),
     };
-    let hello_json = serde_json::to_string(&hello).map_err(|error| serialize("hello", error))?;
+    let hello_json =
+        serde_json::to_string(&hello).map_err(|error| serialize_error("hello", error))?;
     send_text(stream, &hello_json)?;
 
-    // The session's live-stream gate (M142): the whole stream until a
-    // `subscribe` ask narrows it — the pre-M142 shape every session
-    // rode, and the shape the bare ask restores. The gate is this
-    // session's fan-out only: the recorder's capture, the rings, and
-    // the asks' answers (replay, stats) ride whole regardless.
-    let mut filter = TierFilter::all();
+    // The session's live-stream gate (M142): the remembered gate this
+    // session starts under (M145) — the whole stream until a
+    // `subscribe` ask narrows it, the shape every pre-M142 session rode
+    // and the shape the bare ask restores. The gate is this session's
+    // fan-out only: the recorder's capture, the rings, and the asks'
+    // answers (replay, stats) ride whole regardless.
 
     loop {
         // Push everything recorded since the last drain (oldest first),
@@ -267,69 +295,19 @@ fn run_session(
             .filter(|event| filter.admits(event))
             .collect::<Vec<_>>();
         let mut had_work = !events.is_empty();
-        send_events(stream, events, &serialize)?;
+        send_events(stream, events, &serialize_error)?;
         // Non-blocking read of whatever the client sent (controls, pings).
         match try_read_client_frame(reader)? {
             ClientFrame::None => {}
             ClientFrame::Text(text) => {
                 match serde_json::from_str::<ClientMessage>(&text) {
-                    Ok(ClientMessage::Clear) => recorder.clear(),
-                    Ok(ClientMessage::Replay { after }) => {
-                        // The rings' durable history as one burst (the
-                        // ask's own rule): per trail oldest first, the
-                        // vocabulary's order, nothing drained — the live
-                        // stream beside it continues untouched, and the
-                        // facts the session saw live may repeat (the
-                        // client folds them; ADR-0029's observability
-                        // rule names the burst on the log). Since M140
-                        // the ask may carry the `after` cursor: only the
-                        // facts recorded above it answer, the history
-                        // the client already carried staying silent.
-                        let burst = match after {
-                            Some(cursor) => recorder.replay_after(cursor),
-                            None => recorder.replay(),
-                        };
-                        tracing::debug!(
-                            target: "alacer::inspect",
-                            events = burst.len(),
-                            cursor = ?after,
-                            "inspector client asked for the rings' replay"
-                        );
-                        send_events(stream, burst, &serialize)?;
-                    }
-                    Ok(ClientMessage::Stats) => {
-                        // The rings' occupancy as one event (M141): the
-                        // fact count beside one row per ring, the look
-                        // reading without disturbing — the replay ask's
-                        // own rule at the stats tier (ADR-0029's rule
-                        // names the ask on the log).
-                        let answer = recorder.stats();
-                        tracing::debug!(
-                            target: "alacer::inspect",
-                            "inspector client asked what the rings hold"
-                        );
-                        let payload = serde_json::to_string(&answer)
-                            .map_err(|error| serialize("stats", error))?;
-                        send_text(stream, &payload)?;
-                    }
-                    Ok(ClientMessage::Bye) => break,
-                    Ok(ClientMessage::Subscribe { tiers }) => {
-                        // The live-stream gate, re-set (M142): the bare
-                        // ask restores the whole stream, a list gates
-                        // the fan-out to the named tiers, an empty list
-                        // mutes it — the rings keep recording either
-                        // way (the gate is this session's fan-out, the
-                        // capture and the answers' doors untouched).
-                        // The gate takes hold from this frame's drain
-                        // onward: the facts the session delivered
-                        // before the ask landed crossed while the
-                        // stream was the stream it was.
-                        tracing::debug!(
-                            target: "alacer::inspect",
-                            tiers = ?tiers,
-                            "inspector client asked the stream to gate by tier"
-                        );
-                        filter = TierFilter::from_ask(tiers);
+                    // One control, answered beside the loop (the
+                    // dispatch arm lifted into its own fn — the loop's
+                    // shape unchanged): `false` ends the session.
+                    Ok(message) => {
+                        if !handle_control(stream, recorder, message, &mut filter, gate)? {
+                            break;
+                        }
                     }
                     Err(error) => {
                         // A malformed control frame is not a goodbye: the
@@ -387,6 +365,91 @@ fn run_session(
         );
     }
     Ok(())
+}
+
+/// One client control frame, answered — the dispatch arm the session
+/// loop lifted beside itself (the loop's shape unchanged): the rings'
+/// asks answered whole, the gate re-set and remembered (M145), the
+/// goodbye the `false` the loop breaks on.
+fn handle_control(
+    stream: &mut TcpStream,
+    recorder: &CausalRecorder,
+    message: ClientMessage,
+    filter: &mut TierFilter,
+    gate: &std::sync::Arc<std::sync::Mutex<TierFilter>>,
+) -> std::io::Result<bool> {
+    let serialize_error = |what: &str, error: serde_json::Error| -> std::io::Error {
+        std::io::Error::other(format!("the {what} payload refused to serialize: {error}"))
+    };
+    match message {
+        ClientMessage::Clear => recorder.clear(),
+        ClientMessage::Replay { after } => {
+            // The rings' durable history as one burst (the
+            // ask's own rule): per trail oldest first, the
+            // vocabulary's order, nothing drained — the live
+            // stream beside it continues untouched, and the
+            // facts the session saw live may repeat (the
+            // client folds them; ADR-0029's observability
+            // rule names the burst on the log). Since M140
+            // the ask may carry the `after` cursor: only the
+            // facts recorded above it answer, the history
+            // the client already carried staying silent.
+            let burst = match after {
+                Some(cursor) => recorder.replay_after(cursor),
+                None => recorder.replay(),
+            };
+            tracing::debug!(
+                target: "alacer::inspect",
+                events = burst.len(),
+                cursor = ?after,
+                "inspector client asked for the rings' replay"
+            );
+            send_events(stream, burst, &serialize_error)?;
+        }
+        ClientMessage::Stats => {
+            // The rings' occupancy as one event (M141): the
+            // fact count beside one row per ring, the look
+            // reading without disturbing — the replay ask's
+            // own rule at the stats tier (ADR-0029's rule
+            // names the ask on the log).
+            let answer = recorder.stats();
+            tracing::debug!(
+                target: "alacer::inspect",
+                "inspector client asked what the rings hold"
+            );
+            let payload =
+                serde_json::to_string(&answer).map_err(|error| serialize_error("stats", error))?;
+            send_text(stream, &payload)?;
+        }
+        ClientMessage::Bye => return Ok(false),
+        ClientMessage::Subscribe { tiers } => {
+            // The live-stream gate, re-set (M142): the bare
+            // ask restores the whole stream, a list gates
+            // the fan-out to the named tiers, an empty list
+            // mutes it — the rings keep recording either
+            // way (the gate is this session's fan-out, the
+            // capture and the answers' doors untouched).
+            // The gate takes hold from this frame's drain
+            // onward: the facts the session delivered
+            // before the ask landed crossed while the
+            // stream was the stream it was. Since M145 the
+            // ask's shape is what the server remembers
+            // (ADR-0149): the next session starts under
+            // this gate, the reconnecting panel reading
+            // its own ask back from the greeting instead
+            // of re-asking blind.
+            tracing::debug!(
+                target: "alacer::inspect",
+                tiers = ?tiers,
+                "inspector client asked the stream to gate by tier"
+            );
+            *filter = TierFilter::from_ask(tiers);
+            *gate
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = filter.clone();
+        }
+    }
+    Ok(true)
 }
 
 /// What the client sent, one frame at a time.

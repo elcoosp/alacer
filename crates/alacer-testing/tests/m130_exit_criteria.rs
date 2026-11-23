@@ -25,7 +25,7 @@
 //! keeps the tri-state the select-all parent needs, the button beside it
 //! presses, the switch's doors are the on/off's. No patch-tier growth:
 //! the role rides the `toggled` mapping the sink has carried since M6,
-//! the corpus pin re-agreeing at 151.
+//! the corpus pin re-agreeing at 152.
 //!
 //! Every test runs the real pipeline (A4) through the harness, the way
 //! the m-suite always drives: the a11y tree is the only official query
@@ -48,8 +48,8 @@ use alacer_widgets::{BoxedWidget as _, Button, Checkbox, Column, Switch, TextInp
 /// corpus: the published baseline's routes price the a11y snapshot
 /// machinery (the M95 rule), and the coordinated rule grows it at the
 /// next published cut, never at a widget bench's. The pin re-agrees at
-/// 151.
-const EXPECTED_BENCH_COUNT: usize = 151;
+/// 152.
+const EXPECTED_BENCH_COUNT: usize = 152;
 
 /// The first node in the snapshot whose role and name match.
 fn node(harness: &TestHarness, role: Role, name: &str) -> Option<TreeNode> {

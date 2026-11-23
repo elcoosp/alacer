@@ -1,4 +1,4 @@
-//! M91 exit-criteria integration tests (§11.5, ADR-0095): the AT's
+//! M91 exit-criteria integration tests (§11.1 item 5, ADR-0095): the AT's
 //! horizontal vocabulary — ADR-0093's second re-open rule's words
 //! pre-registered the cut: "a consumer needs the AT's *horizontal*
 //! vocabulary — `ScrollLeft`/`ScrollRight` beside the unit scrolls —

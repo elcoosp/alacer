@@ -445,11 +445,11 @@ fn m40_the_living_documents_re_agree_at_m40() {
     // M43 landing in one cut).
     assert!(
         readme.contains("M0 through M149")
-            && readme.contains("a hundred and fifty-four decision records"),
+            && readme.contains("a hundred and fifty-six decision records"),
         "the README's status block and count re-agree at M40"
     );
     assert!(
-        architecture.contains("a hundred and fifty-four decision records"),
+        architecture.contains("a hundred and fifty-six decision records"),
         "the architecture register re-agrees at 47 decision records"
     );
     // The protocol document carries the value event (the wire's

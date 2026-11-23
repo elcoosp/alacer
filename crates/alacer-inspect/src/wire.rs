@@ -129,6 +129,20 @@ pub enum ClientMessage {
         #[serde(default)]
         tiers: Option<Vec<Tier>>,
     },
+    /// Ask the server for the resolved tree's shape — the a11y pass's
+    /// latest snapshot, retained by the recorder through the observer's
+    /// tree door. The answer is one [`WireEvent::Tree`] event: the
+    /// roles, the resolved names, the bounds, the availability, and the
+    /// parentage a panel walks; the contents the secret-carrying rule
+    /// keeps off the wire have no key in the shape. The ask reads
+    /// without disturbing (the replay ask's own rule): no ring drains,
+    /// the broadcast queue is untouched, and the answer is the *state*
+    /// — a `clear` emptied the rings but not the shape. Before the
+    /// first a11y pass resolves a tree, the answer is the honest empty
+    /// shape (`root: null`, no nodes). Additive at version 1 (the
+    /// `Replay` ask's precedent): a server older than the ask closes
+    /// the session on the unknown control.
+    TreeDump,
 }
 
 /// One trail tier's wire name — the stats answer's row vocabulary
@@ -999,6 +1013,22 @@ pub enum WireEvent {
         /// `frames` last.
         rings: Vec<RingStat>,
     },
+    /// The resolved tree's shape — the `tree_dump` ask's answer. The
+    /// response carries what a panel walks: the roles, the resolved
+    /// names, the bounds, the availability, and the parentage the
+    /// nodes ride; the contents the secret-carrying rule keeps off
+    /// the wire (a field's value, its selection, the placeholder and
+    /// description beside them) have no key in the shape at all. Like
+    /// `Stats`, the event prices no ring — it is the ask's answer,
+    /// never a captured fact, never a streamed one.
+    Tree {
+        /// The root's id, when a tree stands; `null` before the first
+        /// a11y pass resolved one — the honest absence, never an
+        /// invented shape.
+        root: Option<u64>,
+        /// The nodes in pre-order (the tree walk order).
+        nodes: Vec<WireTreeNode>,
+    },
 }
 
 impl WireEvent {
@@ -1033,7 +1063,10 @@ impl WireEvent {
             Self::Theme { .. } => Some(Tier::Themes),
             Self::Setting { .. } => Some(Tier::Settings),
             Self::Frame { .. } => Some(Tier::Frames),
-            Self::Stats { .. } => None,
+            // The two response-only events: the occupancy answer and
+            // the dump ask's answer name no ring tier — they are the
+            // asks' answers, never captured facts.
+            Self::Stats { .. } | Self::Tree { .. } => None,
         }
     }
 }
@@ -1086,6 +1119,32 @@ pub struct WireDirtyNode {
     pub label: String,
     /// The bounds, `[x, y, w, h]`, when laid out.
     pub bounds: Option<[f32; 4]>,
+}
+
+/// One resolved-tree node on the wire — the `tree_dump` ask's shape.
+/// The vocabulary is the frame heatmap's own (`node`, `role`, `label`,
+/// `bounds` as the quadruple) grown the parentage and the availability
+/// the walk needs; the content keys (`value`, `selection`,
+/// `placeholder`, `description`) are absent, not empty — the
+/// secret-carrying rule at the dump tier keeps the field's words off
+/// the wire the way the clipboard and the announce tiers already do.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct WireTreeNode {
+    /// The node id (the id-path hash, identities as plain integers).
+    pub node: u64,
+    /// The semantic role, in the wire's `snake_case` vocabulary.
+    pub role: &'static str,
+    /// The resolved accessible name — the label the heatmap and the
+    /// a11y echo already speak.
+    pub label: String,
+    /// The bounds, `[x, y, w, h]`, when laid out; `null` before the
+    /// layout pass placed the node (the honest absence).
+    pub bounds: Option<[f32; 4]>,
+    /// The availability the AT reads (the `disabled` property's
+    /// inverse) — a walked panel knows which doors refuse.
+    pub enabled: bool,
+    /// The child ids in tree order — the parentage the panel walks.
+    pub children: Vec<u64>,
 }
 
 /// One selection on the wire (M55, ADR-0061): the `(anchor, focus)`
@@ -1198,6 +1257,34 @@ pub fn wire_frame(summary: &FrameSummary) -> WireEvent {
             })
             .collect(),
         dirty_truncated: summary.dirty_truncated,
+    }
+}
+
+/// Converts the dump ask's answer: the resolved tree's shape (the
+/// [`WireTreeNode`] vocabulary) or the honest empty tree before the
+/// first a11y pass resolved one. The answer rides no ring and no
+/// broadcast — the recorder retains the latest snapshot as state, and
+/// the ask is the only door it crosses the wire through.
+#[must_use]
+pub fn wire_tree(tree: Option<&alacer_core::TreeSnapshot>) -> WireEvent {
+    WireEvent::Tree {
+        root: tree.and_then(|snapshot| snapshot.root),
+        nodes: tree.map_or_else(Vec::new, |snapshot| {
+            snapshot
+                .nodes
+                .iter()
+                .map(|node| WireTreeNode {
+                    node: node.id,
+                    role: role_name(node.role),
+                    label: node.label.clone(),
+                    bounds: node
+                        .bounds
+                        .map(|b| [b.origin.x, b.origin.y, b.size.width, b.size.height]),
+                    enabled: node.enabled,
+                    children: node.children.clone(),
+                })
+                .collect()
+        }),
     }
 }
 
@@ -3649,6 +3736,151 @@ mod tests {
             .tier(),
             None,
             "the occupancy answer is not a captured fact"
+        );
+    }
+    // ------------------------------------------------------------------
+    // The tree dump (the inspector's ask-and-answer control): the
+    // response event carries the resolved tree's shape — the dump tier's
+    // own wire vocabulary — and never the contents the secret-carrying
+    // rule keeps off the wire (a field's value, its selection, the
+    // placeholder beside them). The response-only event prices no ring:
+    // `tier` answers `None`, the Stats precedent, exactly.
+    // ------------------------------------------------------------------
+
+    /// Builds one node with the full field list — the honest explicitness
+    /// the tree node's own review demands (no `Default` to mask a missed
+    /// tier: every field named, the absence each carries named too).
+    fn dump_node(id: u64, role: alacer_core::Role, label: &str) -> alacer_core::TreeNode {
+        alacer_core::TreeNode {
+            id,
+            role,
+            label: label.to_string(),
+            bounds: Some(alacer_core::Rect::new(
+                alacer_core::Point::new(10.0, 20.0),
+                alacer_core::Size::new(80.0, 24.0),
+            )),
+            children: Vec::new(),
+            value: None,
+            toggled: None,
+            table_slot: None,
+            selection: None,
+            live: None,
+            enabled: true,
+            description: None,
+            placeholder: None,
+            value_range: None,
+            numeric_value: None,
+            secure_entry: false,
+            scroll_orientation: None,
+            scroll_position: None,
+            secure_revealed: false,
+            read_only: false,
+            required: false,
+            invalid: None,
+            selected: None,
+            multiselectable: false,
+            busy: false,
+            expanded: None,
+            auto_complete: None,
+            sort_direction: None,
+            level: None,
+            current: None,
+            has_popup: None,
+            role_description: None,
+            position_in_set: None,
+            size_of_set: None,
+            keyboard_shortcut: None,
+            multiline: false,
+            language: None,
+            search_field: false,
+        }
+    }
+
+    #[test]
+    fn tree_dump_serializes_the_resolved_shape() {
+        let mut button = dump_node(7, alacer_core::Role::Button, "Save");
+        button.children = vec![8];
+        let mut child = dump_node(8, alacer_core::Role::Label, "Save the doc");
+        child.bounds = None;
+        let snapshot = alacer_core::TreeSnapshot {
+            nodes: vec![button, child],
+            root: Some(7),
+        };
+        let json = serde_json::to_string(&wire_tree(Some(&snapshot))).expect("tree json");
+        assert!(
+            json.starts_with(r#"{"kind":"tree","root":7,"nodes":["#),
+            "the response's own tag and the root it walked: {json}"
+        );
+        assert!(
+            json.contains(r#""node":7"#) && json.contains(r#""node":8"#),
+            "identities as plain integers — the wire's own rule"
+        );
+        assert!(
+            json.contains(r#""role":"button""#) && json.contains(r#""role":"label""#),
+            "the role vocabulary the stats rows and the heatmap already speak"
+        );
+        assert!(
+            json.contains(r#""bounds":[10.0,20.0,80.0,24.0]"#),
+            "the bounds ride the frame heatmap's quadruple: {json}"
+        );
+        assert!(
+            json.contains(r#""children":[8]"#),
+            "the parentage the panel walks"
+        );
+        assert!(
+            json.contains(r#""bounds":null"#),
+            "an unlaid node names the honest absence"
+        );
+    }
+
+    #[test]
+    fn tree_dump_before_any_frame_answers_an_empty_tree() {
+        let json = serde_json::to_string(&wire_tree(None)).expect("empty tree json");
+        assert_eq!(
+            json, r#"{"kind":"tree","root":null,"nodes":[]}"#,
+            "the honest absence — no tree resolved yet, no invented shape"
+        );
+    }
+
+    #[test]
+    fn tree_dump_rides_no_field_contents() {
+        // The secret-carrying rule at the dump tier: a node whose value,
+        // selection, placeholder, and description all carry words the
+        // wire must not speak — the shape (role, label, bounds,
+        // parentage, availability) is the answer, the contents never.
+        let mut secret = dump_node(9, alacer_core::Role::TextInput, "password");
+        secret.value = Some("hunter2".to_string());
+        secret.placeholder = Some("type your password".to_string());
+        secret.description = Some("the login field".to_string());
+        secret.selection = Some(alacer_core::TextSelection {
+            anchor: 0,
+            focus: 7,
+        });
+        let snapshot = alacer_core::TreeSnapshot {
+            nodes: vec![secret],
+            root: Some(9),
+        };
+        let json = serde_json::to_string(&wire_tree(Some(&snapshot))).expect("tree json");
+        assert!(!json.contains("hunter2"), "the value never rides: {json}");
+        assert!(
+            !json.contains("type your password") && !json.contains("the login field"),
+            "the hint and the help never ride: {json}"
+        );
+        assert!(
+            !json.contains("\"value\"")
+                && !json.contains("\"placeholder\"")
+                && !json.contains("\"description\"")
+                && !json.contains("\"selection\""),
+            "the content keys are absent from the shape, not empty: {json}"
+        );
+    }
+
+    #[test]
+    fn tree_event_prices_no_ring_tier() {
+        let answer = wire_tree(None);
+        assert!(
+            answer.tier().is_none(),
+            "the dump's answer is a response, never a streamed tier"
         );
     }
 }

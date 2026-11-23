@@ -11,7 +11,7 @@ use alacer_widgets::{BoxedWidget as _, Column, Label};
 
 /// The derive with the full pair: a semantic role and a fixed name.
 #[derive(Widget)]
-#[widget(role = "container", label = "Toolbar")]
+#[widget(role = "toolbar", label = "Toolbar")]
 struct Toolbar;
 
 /// The derive riding the container aggregation contract (the Column and
@@ -38,7 +38,7 @@ fn the_derived_pair_lands_in_the_a11y_snapshot() {
 
     // Reachable and named through the a11y tree — the derive's pair is
     // the snapshot's role and label, laid out like any other widget.
-    let toolbar = harness.expect_a11y(Role::Container, "Toolbar");
+    let toolbar = harness.expect_a11y(Role::Toolbar, "Toolbar");
     assert!(
         toolbar.bounds.is_some(),
         "the derived container laid out like any other widget"

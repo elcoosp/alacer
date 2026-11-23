@@ -598,6 +598,98 @@ impl TreeSnapshot {
             .collect();
         PathAnswer::Landed { ancestry }
     }
+
+    /// The descendant ask's beneath query (M150, ADR-0154): what stands
+    /// under `node`? The snapshot's query vocabulary ([`Self::find`],
+    /// [`Self::by_id`], [`Self::walk`], [`Self::hit_at`],
+    /// [`Self::ancestry_of`]) names, addresses, walks, locates, and
+    /// answers where a node stands; this door answers what the walk
+    /// would find standing under it — the subtree beneath, tree order
+    /// (pre-order, the paint order's own), the asked node itself the
+    /// anchor the ask already names (never riding its own answer; the
+    /// subtree's root is *beneath*, not *at*).
+    ///
+    /// The landed-or-refused shape is the path ask's own at the address
+    /// tier: a landing names the subtree (a leaf names nothing beneath —
+    /// the honest absence, never a refusal), every refusal a named
+    /// species — [`PathMiss`], the path ask's vocabulary shared, one
+    /// species list two doors (`no_tree` before the first a11y pass
+    /// resolved a tree, `no_node` for an id naming nothing standing),
+    /// never a collapsed `false`.
+    #[must_use]
+    pub fn descendants_of(&self, node: u64) -> DescendantsAnswer<'_> {
+        if self.root.is_none() {
+            return DescendantsAnswer::Missed(PathMiss::NoTree);
+        }
+        let Some(asked) = self.by_id(node) else {
+            return DescendantsAnswer::Missed(PathMiss::NoNode);
+        };
+        // The walk: pre-order over the asked node's children (the
+        // children pushed reversed, the pop order the tree order,
+        // `walk`'s own shape) — the asked node itself stays out (the
+        // anchor the ask names, never its own answer's first row).
+        let mut beneath: Vec<&TreeNode> = Vec::new();
+        let mut stack: Vec<u64> = asked.children.iter().rev().copied().collect();
+        while let Some(id) = stack.pop() {
+            let Some(child) = self.by_id(id) else {
+                continue;
+            };
+            beneath.push(child);
+            for grandchild in child.children.iter().rev() {
+                stack.push(*grandchild);
+            }
+        }
+        DescendantsAnswer::Landed { beneath }
+    }
+
+    /// The sibling ask's beside query (M151, ADR-0155): what stands in
+    /// the parent's row beside `node`? The snapshot's relative
+    /// vocabulary is whole at the tier — [`Self::ancestry_of`] answers
+    /// the walk that reaches the node, [`Self::descendants_of`] the
+    /// subtree beneath it, this door the row beside it: the parent's
+    /// other children, tree order (pre-order, the paint order's own),
+    /// the asked node itself the anchor the ask already names (never
+    /// riding its own answer).
+    ///
+    /// The landed-or-refused shape is the family's own at the address
+    /// tier: a landing names the row (the root stands beside nothing,
+    /// and so does an only child — the honest absence, never a
+    /// refusal), every refusal a named species — [`PathMiss`], the
+    /// family's vocabulary shared, one species list three doors
+    /// (`no_tree` before the first a11y pass resolved a tree,
+    /// `no_node` for an id naming nothing standing), never a collapsed
+    /// `false`.
+    #[must_use]
+    pub fn siblings_of(&self, node: u64) -> SiblingsAnswer<'_> {
+        if self.root.is_none() {
+            return SiblingsAnswer::Missed(PathMiss::NoTree);
+        }
+        let Some(asked) = self.by_id(node) else {
+            return SiblingsAnswer::Missed(PathMiss::NoNode);
+        };
+        // The row: the parentage the resolved tree carries (the walk
+        // `ancestry_of` rebuilds), the asked node's parent's children
+        // beside it — the root's parent no parent at all, the absence
+        // the landing's own.
+        let mut parents: FxHashMap<u64, u64> = FxHashMap::default();
+        for entry in &self.nodes {
+            for child in &entry.children {
+                parents.insert(*child, entry.id);
+            }
+        }
+        let beside = parents
+            .get(&asked.id)
+            .and_then(|parent| self.by_id(*parent))
+            .map_or(Vec::new(), |parent| {
+                parent
+                    .children
+                    .iter()
+                    .filter(|child| **child != asked.id)
+                    .filter_map(|child| self.by_id(*child))
+                    .collect()
+            });
+        SiblingsAnswer::Landed { beside }
+    }
 }
 
 /// The point ask's answer (M146, ADR-0150) — the geometry query's
@@ -689,6 +781,47 @@ impl PathMiss {
             Self::NoNode => "no_node",
         }
     }
+}
+
+/// The descendant ask's answer (M150, ADR-0154) — the beneath query's
+/// landed-or-refused shape (the path ask's own, at the address tier):
+/// the landing names the subtree that stands under the asked node,
+/// every refusal its species, never a collapsed `false`. The refusal
+/// species are the address tier's own — [`PathMiss`], the path ask's
+/// vocabulary shared, one species list two doors.
+#[derive(Debug, Clone, PartialEq)]
+pub enum DescendantsAnswer<'a> {
+    /// The asked node stands: what stands beneath it — the subtree in
+    /// tree order (pre-order), the asked node itself the anchor the
+    /// ask already names (never riding its own answer).
+    Landed {
+        /// The subtree beneath — tree order; a leaf names nothing.
+        beneath: Vec<&'a TreeNode>,
+    },
+    /// The asked node names nothing — the species names why.
+    Missed(PathMiss),
+}
+
+/// The sibling ask's answer (M151, ADR-0155) — the beside query's
+/// landed-or-refused shape (the path ask's own, at the address tier):
+/// the landing names the row the asked node stands in — the parent's
+/// other children, tree order, the asked node itself the anchor the
+/// ask already names — every refusal its species, never a collapsed
+/// `false`. The refusal species are the address tier's own —
+/// [`PathMiss`], the family's vocabulary shared, one species list
+/// three doors.
+#[derive(Debug, Clone, PartialEq)]
+pub enum SiblingsAnswer<'a> {
+    /// The asked node stands: what stands beside it — the parent's
+    /// other children in tree order; the root (and an only child)
+    /// name the honest absence.
+    Landed {
+        /// The row beside — tree order; the root stands beside
+        /// nothing.
+        beside: Vec<&'a TreeNode>,
+    },
+    /// The asked node names nothing — the species names why.
+    Missed(PathMiss),
 }
 
 /// The a11y contract's per-frame product (§11.1, M3): what changed in
@@ -7926,5 +8059,167 @@ mod tests {
         ] {
             assert_eq!(species.name(), word, "the species' wire word");
         }
+    }
+
+    // ------------------------------------------------------------------
+    // M150 (ADR-0154): the descendant ask's door — what stands beneath.
+    // The path ask names the walk that reaches the node; this door
+    // answers what the walk would find standing under it — the subtree
+    // beneath, tree order, the asked node itself the anchor the ask
+    // already names (never riding its own answer), every miss a named
+    // species at the address tier.
+    // ------------------------------------------------------------------
+
+    fn relative_snapshot() -> TreeSnapshot {
+        TreeSnapshot {
+            nodes: vec![
+                hit_node(
+                    1,
+                    Role::Container,
+                    "window",
+                    Some(Rect::new(Point::new(0.0, 0.0), Size::new(800.0, 600.0))),
+                    vec![2],
+                ),
+                hit_node(
+                    2,
+                    Role::Container,
+                    "panel",
+                    Some(Rect::new(Point::new(10.0, 10.0), Size::new(300.0, 200.0))),
+                    vec![3, 4],
+                ),
+                hit_node(
+                    3,
+                    Role::Button,
+                    "Save",
+                    Some(Rect::new(Point::new(20.0, 20.0), Size::new(80.0, 24.0))),
+                    Vec::new(),
+                ),
+                hit_node(
+                    4,
+                    Role::Label,
+                    "Status",
+                    Some(Rect::new(Point::new(20.0, 60.0), Size::new(80.0, 24.0))),
+                    Vec::new(),
+                ),
+            ],
+            root: Some(1),
+        }
+    }
+
+    #[test]
+    fn descendants_of_answers_the_subtree_beneath_in_tree_order() {
+        let snapshot = relative_snapshot();
+        let super::DescendantsAnswer::Landed { beneath } = snapshot.descendants_of(1) else {
+            panic!("the asked node stands — the subtree answered");
+        };
+        let ids: Vec<u64> = beneath.iter().map(|node| node.id).collect();
+        assert_eq!(
+            ids,
+            vec![2, 3, 4],
+            "the whole subtree beneath, pre-order — the paint order's own"
+        );
+        let super::DescendantsAnswer::Landed { beneath } = snapshot.descendants_of(2) else {
+            panic!("the panel stands — the subtree answered");
+        };
+        let ids: Vec<u64> = beneath.iter().map(|node| node.id).collect();
+        assert_eq!(ids, vec![3, 4], "the panel's children, tree order");
+    }
+
+    #[test]
+    fn descendants_of_a_leaf_answers_the_honest_absence() {
+        let snapshot = relative_snapshot();
+        let super::DescendantsAnswer::Landed { beneath } = snapshot.descendants_of(3) else {
+            panic!("the leaf stands — the landing answered");
+        };
+        assert!(
+            beneath.is_empty(),
+            "nothing stands beneath a leaf — the honest absence, never a refusal"
+        );
+    }
+
+    #[test]
+    fn descendants_of_refuses_the_unknown_node_as_no_node() {
+        let snapshot = relative_snapshot();
+        assert_eq!(
+            snapshot.descendants_of(9),
+            super::DescendantsAnswer::Missed(super::PathMiss::NoNode),
+            "the asked id names nothing standing — the species names it, never a collapsed answer"
+        );
+    }
+
+    #[test]
+    fn descendants_of_refuses_the_absent_tree_as_no_tree() {
+        assert_eq!(
+            TreeSnapshot::default().descendants_of(1),
+            super::DescendantsAnswer::Missed(super::PathMiss::NoTree),
+            "no tree resolved yet — the honest absence"
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // M151 (ADR-0155): the sibling ask's door — what stands beside.
+    // The path ask names the walk that reaches the node; the descendant
+    // ask names what stands under it; this door answers what stands in
+    // the parent's row beside it — the parent's other children, tree
+    // order, the asked node the anchor the ask already names. The
+    // root's landing names the honest absence (the root stands beside
+    // nothing), every miss a named species at the address tier.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn siblings_of_answers_the_children_beside_in_tree_order() {
+        let snapshot = relative_snapshot();
+        let super::SiblingsAnswer::Landed { beside } = snapshot.siblings_of(3) else {
+            panic!("the asked node stands — the row answered");
+        };
+        let ids: Vec<u64> = beside.iter().map(|node| node.id).collect();
+        assert_eq!(
+            ids,
+            vec![4],
+            "the parent's other children, tree order — the asked node left out"
+        );
+        let super::SiblingsAnswer::Landed { beside } = snapshot.siblings_of(4) else {
+            panic!("the label stands — the row answered");
+        };
+        let ids: Vec<u64> = beside.iter().map(|node| node.id).collect();
+        assert_eq!(ids, vec![3], "the row answers from either side");
+        let super::SiblingsAnswer::Landed { beside } = snapshot.siblings_of(2) else {
+            panic!("the panel stands — the row answered");
+        };
+        assert!(
+            beside.is_empty(),
+            "the window's only child stands beside nothing — the honest absence"
+        );
+    }
+
+    #[test]
+    fn siblings_of_the_root_answers_the_honest_absence() {
+        let snapshot = relative_snapshot();
+        let super::SiblingsAnswer::Landed { beside } = snapshot.siblings_of(1) else {
+            panic!("the root stands — the landing answered");
+        };
+        assert!(
+            beside.is_empty(),
+            "the root stands beside nothing — the landing names the absence, never a refusal"
+        );
+    }
+
+    #[test]
+    fn siblings_of_refuses_the_unknown_node_as_no_node() {
+        let snapshot = relative_snapshot();
+        assert_eq!(
+            snapshot.siblings_of(9),
+            super::SiblingsAnswer::Missed(super::PathMiss::NoNode),
+            "the asked id names nothing standing — the species names it, never a collapsed answer"
+        );
+    }
+
+    #[test]
+    fn siblings_of_refuses_the_absent_tree_as_no_tree() {
+        assert_eq!(
+            TreeSnapshot::default().siblings_of(1),
+            super::SiblingsAnswer::Missed(super::PathMiss::NoTree),
+            "no tree resolved yet — the honest absence"
+        );
     }
 }

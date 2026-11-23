@@ -45,8 +45,8 @@ use alacer_widgets::{BoxedWidget as _, Column, TextInput, Tree, TreeItem};
 /// which rides *outside* the published corpus: the published baseline's
 /// routes price the a11y snapshot machinery (the M95 rule), and the
 /// coordinated rule grows it at the next published cut, never at a
-/// widget bench's. The pin re-agrees at 151.
-const EXPECTED_BENCH_COUNT: usize = 151;
+/// widget bench's. The pin re-agrees at 152.
+const EXPECTED_BENCH_COUNT: usize = 152;
 
 /// The first node in the snapshot whose role and name match.
 fn node(harness: &TestHarness, role: Role, name: &str) -> Option<TreeNode> {
@@ -286,15 +286,15 @@ fn m135_the_living_documents_re_agree() {
     // the tree tier's record.
     let readme = read("README.md");
     assert!(
-        readme.contains("M0 through M141"),
+        readme.contains("M0 through M143"),
         "the README status reflects the living cut — the chain cannot drift"
     );
     assert!(
-        readme.contains("a hundred and forty-six decision records"),
+        readme.contains("a hundred and forty-eight decision records"),
         "the register grew the M135 row"
     );
     assert!(
-        read("docs/architecture.md").contains("a hundred and forty-six decision records"),
+        read("docs/architecture.md").contains("a hundred and forty-eight decision records"),
         "the architecture carries the tree fact's decision"
     );
 
@@ -314,7 +314,7 @@ fn m135_the_living_documents_re_agree() {
     // pin the corpus, and their pins re-agreed with it).
     let m81 = read("crates/alacer-testing/tests/m81_exit_criteria.rs");
     assert!(
-        m81.contains("M0 through M141"),
+        m81.contains("M0 through M143"),
         "the m81 suite's pins moved with the documents"
     );
 }

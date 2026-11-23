@@ -421,6 +421,27 @@ fn handle_control(
                 serde_json::to_string(&answer).map_err(|error| serialize_error("stats", error))?;
             send_text(stream, &payload)?;
         }
+        ClientMessage::TreeDump => {
+            // The resolved tree's shape as one event (the dump ask):
+            // the state the observer's tree door retained, read without
+            // disturbing (the replay ask's own rule — no ring drains,
+            // the broadcast queue untouched), the contents the
+            // secret-carrying rule keeps off the wire absent from the
+            // shape (the wire_tree conversion's own contract).
+            let answer = crate::wire::wire_tree(recorder.latest_tree().as_deref());
+            let node_count = match &answer {
+                crate::wire::WireEvent::Tree { nodes, .. } => nodes.len(),
+                _ => 0,
+            };
+            tracing::debug!(
+                target: "alacer::inspect",
+                nodes = node_count,
+                "inspector client asked for the resolved tree"
+            );
+            let payload =
+                serde_json::to_string(&answer).map_err(|error| serialize_error("tree", error))?;
+            send_text(stream, &payload)?;
+        }
         ClientMessage::Bye => return Ok(false),
         ClientMessage::Subscribe { tiers } => {
             // The live-stream gate, re-set (M142): the bare

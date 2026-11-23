@@ -281,6 +281,60 @@ pub enum Role {
     /// and answers no activation (the M126/M129 container rule, at the
     /// picture tier).
     Image,
+    /// The named strip the page opens with (the landmark tier, M143,
+    /// ADR-0147): the "reads as the page's banner" fact AccessKit's own
+    /// `Banner` role spells — not a bare panel wearing no container
+    /// word (the region the AT cannot name is a region it cannot offer
+    /// on demand, the ADR-5 rule the named roles carry) and not a
+    /// toolbar wearing the wrong word (a toolbar *offers tools*; a
+    /// banner *names the page's opening strip* — the site title, the
+    /// logo, the masthead the AT's landmarks list walks first). The
+    /// strip is the furniture's layout, never a second channel to it —
+    /// the children ride the arena exactly a pane's do, each keeping
+    /// the role and label it already carries — and the strip holds no
+    /// focus and answers no activation (the M126/M129 container rule,
+    /// at the landmark tier).
+    Banner,
+    /// The named strip the document's way through lives in (the
+    /// landmark tier, M143, ADR-0147): the "reads as the page's
+    /// navigation" fact AccessKit's own `Navigation` role spells — not
+    /// a list wearing no container word (the way through the document
+    /// the AT cannot name is a way it cannot offer on demand) and not a
+    /// toolbar wearing the wrong word (a toolbar *offers tools*; a
+    /// navigation strip *names the way* — the section links the AT's
+    /// landmarks list walks beside the banner and the main). The strip
+    /// is the links' layout, never a second channel to them — the
+    /// children keep the roles and labels they already carry — and the
+    /// strip holds no focus and answers no activation (the M126/M129
+    /// container rule, at the landmark tier).
+    Navigation,
+    /// The named region the page's content lives in (the landmark tier,
+    /// M143, ADR-0147): the "reads as the page's main region" fact
+    /// AccessKit's own `Main` role spells — not a bare panel wearing no
+    /// container word (the content the AT cannot name is content it
+    /// cannot jump to — the landmarks list's own destination) and not a
+    /// tab panel wearing the wrong word (a tab panel names *the
+    /// selected page's content inside a strip*; a main names *the
+    /// document's one central region*, the furniture the rest of the
+    /// page reads beside). The region is the content's layout, never a
+    /// second channel to it — the children keep the roles and labels
+    /// they already carry — and the region holds no focus and answers
+    /// no activation (the M126/M129 container rule, at the landmark
+    /// tier).
+    Main,
+    /// The named strip the page closes with (the landmark tier, M143,
+    /// ADR-0147): the "reads as the page's footer" fact AccessKit's own
+    /// `ContentInfo` role spells — not a bare panel wearing no container
+    /// word (the colophon the AT cannot name is a colophon it cannot
+    /// offer on demand) and not a banner wearing the wrong half (a
+    /// banner *names the page's opening strip*; the content info
+    /// *names the closing one* — the copyright, the contact lines, the
+    /// colophon the AT's landmarks list walks last). The strip is the
+    /// furniture's layout, never a second channel to it — the children
+    /// keep the roles and labels they already carry — and the strip
+    /// holds no focus and answers no activation (the M126/M129
+    /// container rule, at the landmark tier).
+    ContentInfo,
 }
 
 impl Role {
@@ -319,7 +373,13 @@ impl Role {
     /// the named roles carry, at the hover tier. The menu bar, the menu
     /// and the menu item join in M137: an unnamed strip, an unnamed
     /// list and an unnamed entry read as bare boxes and a bare mark —
-    /// the ADR-5 rule the named roles carry, at the menu tier.
+    /// the ADR-5 rule the named roles carry, at the menu tier. The
+    /// image joins in M138: an unnamed picture reads as a bare mark —
+    /// the ADR-5 rule the named roles carry, at the picture tier. The
+    /// landmarks join in M143: an unnamed banner, an unnamed navigation
+    /// strip, an unnamed main region and an unnamed footer read as bare
+    /// boxes — the named-container rule the strip and the tool strip
+    /// carry, at the landmark tier.
     #[must_use]
     pub const fn requires_name(self) -> bool {
         matches!(
@@ -349,6 +409,10 @@ impl Role {
                 | Self::Menu
                 | Self::MenuItem
                 | Self::Image
+                | Self::Banner
+                | Self::Navigation
+                | Self::Main
+                | Self::ContentInfo
         )
     }
 
@@ -392,6 +456,10 @@ impl Role {
             Self::Menu => "menu",
             Self::MenuItem => "menu_item",
             Self::Image => "image",
+            Self::Banner => "banner",
+            Self::Navigation => "navigation",
+            Self::Main => "main",
+            Self::ContentInfo => "content_info",
         }
     }
 }

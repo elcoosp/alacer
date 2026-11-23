@@ -1042,13 +1042,54 @@ The rows tell a panel reading a replay burst which trails are complete
 Additive at version 1: a new event kind, clients that ignore unknown
 kinds are unaffected.
 
+### `tree` — the resolved tree's shape (the dump ask's answer)
+
+```json
+{"kind":"tree","root":1,"nodes":[{"node":1,"role":"container","label":"window","bounds":[0.0,0.0,800.0,600.0],"enabled":true,"children":[2]},{"node":2,"role":"button","label":"Save","bounds":[16.0,20.0,80.0,24.0],"enabled":true,"children":[]}]}
+```
+
+The answer to the `tree_dump` control: the resolved tree's shape as the
+a11y pass last answered it — the snapshot the observer's tree door
+retained, one event, identities as plain integers. Like `stats`, the
+event prices no ring: it is the ask's answer, never a captured fact,
+never a streamed one (the live stream stays exactly as it was; a panel
+that wants the shape asks).
+
+- `root` — the root node's id, when a tree stands; `null` before the
+  first a11y pass resolved one (the honest absence, never an invented
+  shape).
+- `nodes[]` — the nodes in pre-order (the tree walk order), the frame
+  heatmap's own vocabulary grown the parentage and the availability the
+  walk needs: `node` (the id-path hash), `role` (the wire's
+  `snake_case` role word, the same vocabulary the heatmap and the
+  `stats` rows speak), `label` (the resolved accessible name), `bounds`
+  (`[x, y, w, h]` when laid out, `null` before the layout pass placed
+  the node), `enabled` (the availability the AT reads — the `disabled`
+  property's inverse), and `children` (the child ids in tree order).
+- The content keys are absent, not empty: a field's `value`, its
+  `selection`, the `placeholder` and the `description` beside them have
+  no key in the shape — the secret-carrying rule at the dump tier, the
+  rule the `clipboard`, `announce`, and `text_write` tiers already
+  speak (payloads and contents never ride the wire; the labels are the
+  pipeline's own resolved names, the same words the `frame` event's
+  heatmap carries).
+
+The shape is *state*, not history: `clear` empties the rings and leaves
+the tree standing (a panel that asks again reads the shape the last
+frame resolved), and a `replay` burst never carries a `tree` event. The
+look reads without disturbing (the replay ask's own rule): no ring
+drains, the broadcast queue is untouched. Additive at version 1 (the
+`Replay` ask's precedent): a server older than the ask closes the
+session on the unknown control, the documented unknown-frame behavior.
+
 ## Client → server
 
 ```json
 {"kind":"clear"}
 ```
-Clears the server-side history (rings and latest frame). The client keeps
-its own buffer.
+Clears the server-side history — the rings (the latest frame and the
+resolved tree stand: state, not history). The client keeps its own
+buffer.
 
 ```json
 {"kind":"replay"}
@@ -1137,6 +1178,22 @@ asks named them. Additive at
 version 1 (the `Replay` ask's precedent): a server older than the ask
 closes the session on the unknown control, the documented
 unknown-frame behavior.
+
+```json
+{"kind":"tree_dump"}
+```
+Asks the server for the resolved tree's shape — the a11y pass's latest
+snapshot, retained by the recorder through the observer's tree door.
+The answer is one `tree` event: the roles, the resolved names, the
+bounds, the availability, and the parentage a panel walks; the contents
+the secret-carrying rule keeps off the wire have no key in the shape.
+The ask reads without disturbing (the replay ask's own rule): no ring
+drains, the broadcast queue is untouched, and the answer is the *state*
+— a `clear` emptied the rings but not the shape, and before the first
+a11y pass resolves a tree the answer is the honest empty shape
+(`root` null, no nodes). Additive at version 1 (the `Replay` ask's
+precedent): a server older than the ask closes the session on the
+unknown control, the documented unknown-frame behavior.
 
 ```json
 {"kind":"bye"}

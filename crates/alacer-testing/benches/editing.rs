@@ -29,7 +29,7 @@ const EVENTS: usize = 100;
 const FILLER: usize = 1000;
 const PANEL_HEIGHT: f32 = 0.4;
 
-/// The input's bounds, read through the a11y tree (§11.5 — the same query
+/// The input's bounds, read through the a11y tree (§11.1 item 5 — the same query
 /// a headless test targets through), then the click x positions spread
 /// across the field's inner width so every placement moves the caret.
 fn click_xs(harness: &TestHarness) -> (Vec<f32>, f32) {

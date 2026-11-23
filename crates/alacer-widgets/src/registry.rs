@@ -20,7 +20,8 @@ use alacer_view::{ElementProps, WidgetRegistry};
 /// `tree_item`) plus the M136 tooltip tier (`tooltip`) plus the M137 menu
 /// tier (`menu_bar`, `menu`, `menu_item`) plus the M138 image tier
 /// (`image`) plus the M143 landmark tier (`banner`, `navigation`,
-/// `main`, `content_info`).
+/// `main`, `content_info`) and its M144 growth (`complementary`,
+/// `form`, `region`, `search`).
 #[must_use]
 pub fn default_registry() -> WidgetRegistry {
     let mut registry = WidgetRegistry::new();
@@ -63,6 +64,13 @@ pub fn default_registry() -> WidgetRegistry {
     registry.register("navigation", navigation_create, landmark_patch);
     registry.register("main", main_create, landmark_patch);
     registry.register("content_info", content_info_create, landmark_patch);
+    // The landmark tier's remaining words (M144, ADR-0148): the growth
+    // the constructor words ride — four doors beside the four, the one
+    // shared patch door unchanged.
+    registry.register("complementary", complementary_create, landmark_patch);
+    registry.register("form", form_create, landmark_patch);
+    registry.register("region", region_create, landmark_patch);
+    registry.register("search", search_create, landmark_patch);
     registry
 }
 
@@ -1367,6 +1375,35 @@ fn main_create(props: &ElementProps<'_>) -> crate::Landmark {
 
 fn content_info_create(props: &ElementProps<'_>) -> crate::Landmark {
     let mut region = crate::Landmark::content_info(props.text("name").unwrap_or_default());
+    style_apply(region.style_mut(), props);
+    region
+}
+
+/// The landmark tier's remaining element doors (M144, ADR-0148): the
+/// ARIA facts ADR-0147 pre-registered — `complementary { name: … }`,
+/// `form { name: … }`, `region { name: … }`, `search { name: … }` —
+/// one shape beside the four, the word the constructor's own
+/// declaration.
+fn complementary_create(props: &ElementProps<'_>) -> crate::Landmark {
+    let mut region = crate::Landmark::complementary(props.text("name").unwrap_or_default());
+    style_apply(region.style_mut(), props);
+    region
+}
+
+fn form_create(props: &ElementProps<'_>) -> crate::Landmark {
+    let mut region = crate::Landmark::form(props.text("name").unwrap_or_default());
+    style_apply(region.style_mut(), props);
+    region
+}
+
+fn region_create(props: &ElementProps<'_>) -> crate::Landmark {
+    let mut region = crate::Landmark::region(props.text("name").unwrap_or_default());
+    style_apply(region.style_mut(), props);
+    region
+}
+
+fn search_create(props: &ElementProps<'_>) -> crate::Landmark {
+    let mut region = crate::Landmark::search(props.text("name").unwrap_or_default());
     style_apply(region.style_mut(), props);
     region
 }

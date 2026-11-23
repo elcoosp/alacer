@@ -34,7 +34,7 @@ client frames must be (per RFC). The server answers `ping` with `pong`
 ### `hello` — the greeting, exactly once, first
 
 ```json
-{"kind":"hello","version":1,"app":"inspector-demo","facts":41}
+{"kind":"hello","version":1,"app":"inspector-demo","facts":41,"gate":null}
 ```
 
 - `version` — the protocol version; clients gate on it.
@@ -47,6 +47,22 @@ client frames must be (per RFC). The server answers `ping` with `pong`
   *first* connect is the `after` its later replay ask carries.
   Additive at version 1: clients that ignore unknown fields are
   unaffected.
+- `gate` — the live-stream gate this session starts under (since
+  M145). The gate a previous session's `subscribe` ask left behind,
+  persisted across reconnects: `null` is the whole stream (the shape
+  every pre-M142 session rode — a fresh server greets it, and so does
+  the session after a bare restore ask), a list gates the session's
+  fan-out to the named tiers, an empty list is the mute (the stream
+  goes quiet while the rings keep recording). The names are the
+  `subscribe` ask's own vocabulary — the stats rows' tier names — in
+  the event vocabulary's order, so the greeting's gate and a panel's
+  later ask cannot drift apart. A reconnecting panel reads its own ask
+  back instead of re-asking blind; re-asking is still welcome, and the
+  ask's shape is what the next session greets with. The gate is the
+  *session's* fan-out, never the recorder's capture: the rings keep
+  recording every tier, and the asks' answers (replay, stats) ride
+  whole regardless. Additive at version 1: clients that ignore unknown
+  fields are unaffected.
 
 ### `edge` — a reactive edge activation ("why did this render?")
 
@@ -1112,7 +1128,12 @@ recording — the replay burst's reading panel's ask (the facts recorded
 during the silence answer through the replay ask, the stats rows naming
 them as they climb). The asks' own answers are never gated: the events
 no ring captures (the `stats` occupancy answer among them) ride whole —
-the ask is a live-stream ask, never an answer-silencer. Additive at
+the ask is a live-stream ask, never an answer-silencer. Since M145 the
+ask's shape is what the server remembers (ADR-0149): the gate persists
+across reconnects, every later session starting under it and reading it
+back from the greeting's `gate` field — a fresh server greets the whole
+stream, the bare ask's restore and the mute persisting exactly as the
+asks named them. Additive at
 version 1 (the `Replay` ask's precedent): a server older than the ask
 closes the session on the unknown control, the documented
 unknown-frame behavior.
@@ -1130,7 +1151,10 @@ malformed text frame is treated as `bye`.
   oldest (a slow client never back-pressures the app). A `subscribe` ask
   gates the session's fan-out to the named tiers (M142) — the gate
   applying to the facts the session delivers from the ask's drain
-  onward, the capture and the asks' answers untouched.
+  onward, the capture and the asks' answers untouched. Since M145 the
+  gate is the server's memory (ADR-0149): the last session's ask is the
+  shape every later session starts under, one panel's worth — a fresh
+  server has none.
 - The recorder's rings are bounded (frames 256, edges 1 024, writes 1 024,
   inputs 512, focus 512, edits 512, announces 512, keys 512,
   clipboards 512, values 512, gestures 512, scrolls 512, text_writes 512,

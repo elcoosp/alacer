@@ -1,4 +1,4 @@
-//! M10 exit-criteria integration tests (§11.5, ADR-0016): the a11y action
+//! M10 exit-criteria integration tests (§11.1 item 5, ADR-0016): the a11y action
 //! tier joins the dispatch contract — the platform maps `ActionRequest`s
 //! faithfully instead of munging every request into a press, a scroll area
 //! answers the AT scroll/step vocabulary through pass 10, a focused button

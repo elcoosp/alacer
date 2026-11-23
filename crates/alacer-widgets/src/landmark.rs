@@ -1,6 +1,8 @@
-//! The landmark tier (M143, ADR-0147): the page-structure words the AT
-//! walks a document by — the banner, the navigation strip, the main
-//! region, the footer.
+//! The landmark tier (M143, ADR-0147; the growth, M144, ADR-0148): the
+//! page-structure words the AT walks a document by — the banner, the
+//! navigation strip, the main region, the footer, and (M144) the
+//! complementary aside, the form, the generic named region and the
+//! search strip.
 //!
 //! "This is the page's furniture" was a vocabulary hole: an app wiring
 //! a header, a nav strip, a content region and a footer reached for
@@ -30,12 +32,15 @@ use alacer_core::style::Style;
 use alacer_core::widget::{EventResponse, LabelSource, Role, Widget};
 
 /// The named page furniture the AT's landmarks list walks (the
-/// landmark tier, M143, ADR-0147): the banner, navigation, main or
-/// content-info word the AT announces for the region — an unnamed
+/// landmark tier, M143, ADR-0147; the growth, M144, ADR-0148): the
+/// banner, navigation, main, content-info, complementary, form,
+/// region or search word the AT announces for the region — an unnamed
 /// region reads as a bare box, the structure the AT cannot name is a
 /// structure it cannot offer on demand (ADR-5). Which word is the
 /// constructor's own: [`Landmark::banner`], [`Landmark::navigation`],
-/// [`Landmark::main`], [`Landmark::content_info`].
+/// [`Landmark::main`], [`Landmark::content_info`],
+/// [`Landmark::complementary`], [`Landmark::form`], [`Landmark::region`],
+/// [`Landmark::search`].
 pub struct Landmark {
     role: Role,
     name: String,
@@ -72,7 +77,40 @@ impl Landmark {
         Self::with_role(Role::ContentInfo, name)
     }
 
-    /// The constructor the four words ride — one shape, four facts.
+    /// A complementary region labeled `name` — the content the main
+    /// reads beside, the aside the landmarks list walks beside the
+    /// central region (the landmark tier's growth, M144, ADR-0148).
+    #[must_use]
+    pub fn complementary(name: impl Into<String>) -> Self {
+        Self::with_role(Role::Complementary, name)
+    }
+
+    /// A form region labeled `name` — the region whose controls submit
+    /// together, the checkout the landmarks list walks as one unit (the
+    /// landmark tier's growth, M144, ADR-0148).
+    #[must_use]
+    pub fn form(name: impl Into<String>) -> Self {
+        Self::with_role(Role::Form, name)
+    }
+
+    /// A generic named region labeled `name` — the word beside the
+    /// specific ones, for the section whose fact none of them spells
+    /// and whose name the app still declares (the landmark tier's
+    /// growth, M144, ADR-0148).
+    #[must_use]
+    pub fn region(name: impl Into<String>) -> Self {
+        Self::with_role(Role::Region, name)
+    }
+
+    /// A search region labeled `name` — the region whose controls find
+    /// things, the query strip the landmarks list walks as one unit
+    /// (the landmark tier's growth, M144, ADR-0148).
+    #[must_use]
+    pub fn search(name: impl Into<String>) -> Self {
+        Self::with_role(Role::Search, name)
+    }
+
+    /// The constructor the words ride — one shape, eight facts.
     fn with_role(role: Role, name: impl Into<String>) -> Self {
         Self {
             role,
@@ -164,7 +202,7 @@ mod tests {
     use alacer_core::widget::{Role, Widget};
 
     #[test]
-    fn the_four_words_carry_their_roles() {
+    fn the_words_carry_their_roles() {
         let banner = Landmark::banner("Catalog");
         assert_eq!(banner.role(), Role::Banner);
         assert_eq!(banner.role().name(), "banner");
@@ -177,6 +215,20 @@ mod tests {
         let footer = Landmark::content_info("Catalog colophon");
         assert_eq!(footer.role(), Role::ContentInfo);
         assert_eq!(footer.role().name(), "content_info");
+        // The growth (M144, ADR-0148): the remaining ARIA facts join as
+        // constructor words beside the four — one shape, eight facts.
+        let aside = Landmark::complementary("Related reading");
+        assert_eq!(aside.role(), Role::Complementary);
+        assert_eq!(aside.role().name(), "complementary");
+        let form = Landmark::form("Checkout details");
+        assert_eq!(form.role(), Role::Form);
+        assert_eq!(form.role().name(), "form");
+        let region = Landmark::region("Featured panel");
+        assert_eq!(region.role(), Role::Region);
+        assert_eq!(region.role().name(), "region");
+        let search = Landmark::search("Catalog search");
+        assert_eq!(search.role(), Role::Search);
+        assert_eq!(search.role().name(), "search");
     }
 
     #[test]

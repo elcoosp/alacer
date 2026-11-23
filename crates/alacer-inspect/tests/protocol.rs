@@ -1690,3 +1690,260 @@ fn a_find_ask_with_an_unknown_role_word_closes_the_session() {
     reader.read_exact(&mut header).expect("the close echo");
     assert_eq!(header[0] & 0x0F, 0x8, "the close opcode");
 }
+
+// ---------------------------------------------------------------------
+// M148 (ADR-0152): the region ask — the `region_ask` control answers
+// the nodes whose bounds the rect touches. The word ask's own rule at
+// the geometry tier: the retained snapshot's state answers over the
+// real socket, the matches in the tree event's node vocabulary (tree
+// order — the paint order's own), the ask echoed beside the answer,
+// the ask reading without disturbing, the session living past the
+// answer. The dump snapshot's two nodes share one bounds rect
+// (0, 0, 40 x 20).
+// ---------------------------------------------------------------------
+
+#[test]
+fn a_region_ask_answers_the_nodes_the_rect_touches_over_the_real_socket() {
+    let recorder = CausalRecorder::new("region-ask");
+    recorder.clone_handle().tree(dump_snapshot());
+    let server =
+        InspectorServer::bind("127.0.0.1:0", recorder.clone(), "region-ask").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let hello = read_text_frame(&mut reader);
+    assert!(hello.contains(r#""kind":"hello""#), "{hello}");
+    let socket = reader.get_ref().try_clone().expect("clone");
+
+    // The occupancy the ask must not disturb: the stats answer before
+    // the ask, the same answer after (the dump ask's own rule, at the
+    // region tier).
+    send_client_text(&socket, br#"{"kind":"stats"}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let stats_before = read_text_frame(&mut reader);
+
+    send_client_text(
+        &socket,
+        br#"{"kind":"region_ask","rect":[0.0,0.0,40.0,20.0]}"#,
+    );
+    std::thread::sleep(Duration::from_millis(80));
+    let region = read_text_frame(&mut reader);
+    for fragment in [
+        r#""kind":"region""#,
+        r#""asked":[0.0,0.0,40.0,20.0]"#,
+        r#""node":1"#,
+        r#""role":"container""#,
+        r#""node":2"#,
+        r#""role":"button""#,
+        r#""label":"Save""#,
+    ] {
+        assert!(region.contains(fragment), "missing {fragment} in {region}");
+    }
+    // The matches ride tree order — the paint order's own (the window
+    // first, the button beside it).
+    let window = region.find(r#""node":1"#).expect("the window's match");
+    let button = region.find(r#""node":2"#).expect("the button's match");
+    assert!(window < button, "the matches ride tree order: {region}");
+
+    send_client_text(&socket, br#"{"kind":"stats"}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let stats_after = read_text_frame(&mut reader);
+    assert_eq!(
+        stats_before, stats_after,
+        "the region ask drained no ring, broadcasted nothing — the occupancy stands"
+    );
+
+    // The session lives past the ask: the next fact streams on.
+    recorder
+        .clone_handle()
+        .observe(InspectEvent::Input(InputRecord {
+            kind: InputKind::Wheel,
+            target: None,
+        }));
+    let next = read_text_frame(&mut reader);
+    assert!(
+        next.contains(r#""kind":"input""#),
+        "the ask answered once and the stream continued: {next}"
+    );
+    send_client_text(&socket, br#"{"kind":"bye"}"#);
+}
+
+#[test]
+fn a_region_ask_over_empty_space_answers_the_honest_absence() {
+    let recorder = CausalRecorder::new("region-ask-outside");
+    recorder.clone_handle().tree(dump_snapshot());
+    let server = InspectorServer::bind("127.0.0.1:0", recorder.clone(), "outside").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let _hello = read_text_frame(&mut reader);
+    let socket = reader.get_ref().try_clone().expect("clone");
+    send_client_text(
+        &socket,
+        br#"{"kind":"region_ask","rect":[500.0,500.0,10.0,10.0]}"#,
+    );
+    std::thread::sleep(Duration::from_millis(80));
+    let region = read_text_frame(&mut reader);
+    assert_eq!(
+        region, r#"{"kind":"region","asked":[500.0,500.0,10.0,10.0],"matches":[]}"#,
+        "the rect touches nothing standing — the honest absence, never a refusal"
+    );
+    send_client_text(&socket, br#"{"kind":"bye"}"#);
+}
+
+#[test]
+fn the_region_ask_before_any_frame_answers_the_honest_absence() {
+    let recorder = CausalRecorder::new("region-ask-empty");
+    let server = InspectorServer::bind("127.0.0.1:0", recorder.clone(), "empty").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let _hello = read_text_frame(&mut reader);
+    let socket = reader.get_ref().try_clone().expect("clone");
+    send_client_text(
+        &socket,
+        br#"{"kind":"region_ask","rect":[0.0,0.0,40.0,20.0]}"#,
+    );
+    std::thread::sleep(Duration::from_millis(80));
+    let region = read_text_frame(&mut reader);
+    assert_eq!(
+        region, r#"{"kind":"region","asked":[0.0,0.0,40.0,20.0],"matches":[]}"#,
+        "no tree resolved yet — the honest absence, never an invented walk"
+    );
+    send_client_text(&socket, br#"{"kind":"bye"}"#);
+}
+
+#[test]
+fn a_region_ask_with_a_non_finite_rect_closes_the_session() {
+    // JSON cannot carry NaN or infinity: a non-finite ask serializes
+    // the extents as `null`, and `null` refuses the rect array's parse
+    // — the malformed-frame behavior the session's documented close
+    // names (the point ask's own rule, at the region tier).
+    let recorder = CausalRecorder::new("region-ask-nan");
+    let server = InspectorServer::bind("127.0.0.1:0", recorder.clone(), "nan").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let _hello = read_text_frame(&mut reader);
+    std::thread::sleep(Duration::from_millis(30));
+    let socket = reader.get_ref().try_clone().expect("clone");
+    send_client_text(&socket, br#"{"kind":"region_ask","rect":null}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let mut header = [0_u8; 2];
+    reader.read_exact(&mut header).expect("the close echo");
+    assert_eq!(header[0] & 0x0F, 0x8, "the close opcode");
+}
+
+// ---------------------------------------------------------------------
+// M149 (ADR-0153): the path ask — the `path_ask` control answers the
+// ancestry the asked node stands in. The point ask's own rule at the
+// address tier: the retained snapshot's state answers over the real
+// socket, the ancestry in the tree event's node vocabulary (root-first,
+// the asked node last), the ask echoed beside the answer, the ask
+// reading without disturbing, the session living past the answer. The
+// dump snapshot's root is node 1; node 2 is its child.
+// ---------------------------------------------------------------------
+
+#[test]
+fn a_path_ask_answers_the_ancestry_over_the_real_socket() {
+    let recorder = CausalRecorder::new("path-ask");
+    recorder.clone_handle().tree(dump_snapshot());
+    let server = InspectorServer::bind("127.0.0.1:0", recorder.clone(), "path-ask").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let hello = read_text_frame(&mut reader);
+    assert!(hello.contains(r#""kind":"hello""#), "{hello}");
+    let socket = reader.get_ref().try_clone().expect("clone");
+
+    // The occupancy the ask must not disturb: the stats answer before
+    // the ask, the same answer after (the dump ask's own rule, at the
+    // address tier).
+    send_client_text(&socket, br#"{"kind":"stats"}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let stats_before = read_text_frame(&mut reader);
+
+    send_client_text(&socket, br#"{"kind":"path_ask","node":2}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let path = read_text_frame(&mut reader);
+    for fragment in [
+        r#""kind":"path""#,
+        r#""asked":2"#,
+        r#""landed":true"#,
+        r#""miss":null"#,
+        r#""node":1"#,
+        r#""role":"container""#,
+        r#""node":2"#,
+        r#""role":"button""#,
+        r#""label":"Save""#,
+    ] {
+        assert!(path.contains(fragment), "missing {fragment} in {path}");
+    }
+    // The ancestry's shape: root-first, the asked node last.
+    let ancestry_position = path.find(r#""ancestry":["#).expect("the ancestry");
+    assert!(
+        path[ancestry_position..].starts_with(r#""ancestry":[{"node":1"#),
+        "the ancestry descends root-first: {path}"
+    );
+
+    send_client_text(&socket, br#"{"kind":"stats"}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let stats_after = read_text_frame(&mut reader);
+    assert_eq!(
+        stats_before, stats_after,
+        "the path ask drained no ring, broadcasted nothing — the occupancy stands"
+    );
+
+    // The session lives past the ask: the next fact streams on.
+    recorder
+        .clone_handle()
+        .observe(InspectEvent::Input(InputRecord {
+            kind: InputKind::Wheel,
+            target: None,
+        }));
+    let next = read_text_frame(&mut reader);
+    assert!(
+        next.contains(r#""kind":"input""#),
+        "the ask answered once and the stream continued: {next}"
+    );
+    send_client_text(&socket, br#"{"kind":"bye"}"#);
+}
+
+#[test]
+fn a_path_ask_for_an_unknown_node_answers_the_no_node_miss() {
+    let recorder = CausalRecorder::new("path-ask-unknown");
+    recorder.clone_handle().tree(dump_snapshot());
+    let server = InspectorServer::bind("127.0.0.1:0", recorder.clone(), "unknown").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let _hello = read_text_frame(&mut reader);
+    let socket = reader.get_ref().try_clone().expect("clone");
+    send_client_text(&socket, br#"{"kind":"path_ask","node":9}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let path = read_text_frame(&mut reader);
+    assert_eq!(
+        path, r#"{"kind":"path","asked":9,"landed":false,"miss":"no_node","ancestry":[]}"#,
+        "the asked id names nothing standing — the species names it, never a collapsed false"
+    );
+    send_client_text(&socket, br#"{"kind":"bye"}"#);
+}
+
+#[test]
+fn the_path_ask_before_any_frame_answers_the_no_tree_miss() {
+    let recorder = CausalRecorder::new("path-ask-empty");
+    let server = InspectorServer::bind("127.0.0.1:0", recorder.clone(), "empty").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let _hello = read_text_frame(&mut reader);
+    let socket = reader.get_ref().try_clone().expect("clone");
+    send_client_text(&socket, br#"{"kind":"path_ask","node":1}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let path = read_text_frame(&mut reader);
+    assert_eq!(
+        path, r#"{"kind":"path","asked":1,"landed":false,"miss":"no_tree","ancestry":[]}"#,
+        "no tree resolved yet — the honest absence, never an invented walk"
+    );
+    send_client_text(&socket, br#"{"kind":"bye"}"#);
+}

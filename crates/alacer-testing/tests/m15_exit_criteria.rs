@@ -55,7 +55,7 @@ fn mount_input(harness: &mut TestHarness, content: &str) {
     }
 }
 
-/// The input's committed value, read through the a11y tree (§11.5).
+/// The input's committed value, read through the a11y tree (§11.1 item 5).
 fn input_value(harness: &TestHarness) -> String {
     harness
         .query(Role::TextInput)

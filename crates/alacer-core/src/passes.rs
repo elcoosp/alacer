@@ -1136,6 +1136,14 @@ pub struct PassPipeline {
     /// The IME request derived from the focused widget (§10.3; `None` when no
     /// editable holds focus). The platform layer compares frame over frame.
     ime_request: Option<ImeRequest>,
+    /// The IME derivation's cache key (A7, M84, ADR-0088): the request is a
+    /// pure function of the focused node and its resolved caret anchor
+    /// between structure and mutation frames, so a warm focused tick whose
+    /// key is unchanged re-derives nothing — the id path's chain vector
+    /// (3 blocks / 96 bytes per idle frame, priced by the
+    /// `zero_alloc_warm_frame` suite) no longer dies with every tick. Any
+    /// key's move, any structure or mutation frame, re-derives honestly.
+    ime_cache: Option<(Option<NodeId>, Option<Rect>)>,
     /// The id-path hashes pass 9 emitted last time — the removals source for
     /// the a11y delta (dead widgets leave the set; their ids surface once).
     last_a11y_ids: Option<FxHashSet<u64>>,
@@ -1211,6 +1219,7 @@ impl PassPipeline {
             focused: None,
             pending_focus: None,
             ime_request: None,
+            ime_cache: None,
             last_a11y_ids: None,
             observer: None,
             theme: None,
@@ -3647,17 +3656,33 @@ impl PassPipeline {
         // The IME request (§10.3): derived from the focused widget after
         // layout — the caret anchor is the widget's resolved bounds. `None`
         // when no editable widget holds focus (platform detaches the IME).
-        self.ime_request = self.focused.and_then(|focused| {
-            let purpose = self.arena.widget(focused).ime_purpose();
-            if !purpose.enabled() {
-                return None;
-            }
-            Some(ImeRequest {
-                node: self.id_hash(focused),
-                purpose,
-                caret: self.arena.bounds(focused),
-            })
-        });
+        //
+        // The derivation is a pure function of the focused node and its
+        // caret anchor between structure and mutation frames (A7, M84,
+        // ADR-0088 — the instrument's find-and-fix shape): a warm focused
+        // tick re-derives nothing, the `id_hash` walk's chain vector no
+        // longer allocated-and-freed by every idle frame. The key names
+        // every input the request reads — the focused node (the walk's
+        // root and the purpose's owner), the caret anchor (the bounds),
+        // and the frame's structure/mutation flags (a reparent or a
+        // widget mutation can move the path or the purpose without moving
+        // the anchor) — so any change re-derives exactly once.
+        let focused_caret = self.focused.and_then(|focused| self.arena.bounds(focused));
+        let ime_key = (self.focused, focused_caret);
+        if structure_changed || !mutated.is_empty() || self.ime_cache != Some(ime_key) {
+            self.ime_request = self.focused.and_then(|focused| {
+                let purpose = self.arena.widget(focused).ime_purpose();
+                if !purpose.enabled() {
+                    return None;
+                }
+                Some(ImeRequest {
+                    node: self.id_hash(focused),
+                    purpose,
+                    caret: self.arena.bounds(focused),
+                })
+            });
+            self.ime_cache = Some(ime_key);
+        }
 
         // Pass 7 — compose: translation-only scroll updates. Runs whenever a
         // repaint will: a wheel event moves a scroll offset without touching

@@ -4,7 +4,7 @@
 //! rasterizer** — no mock event loop, no mock renderer. GPU-less CI is the
 //! default, not a downgrade. The harness also provides:
 //!
-//! - the a11y-driven query API — the *only* official query API (§11.5);
+//! - the a11y-driven query API — the *only* official query API (§11.1 item 5);
 //! - the debug CI walker that fails on unnamed input widgets (§11.1);
 //! - snapshot testing with `ALACER_BLESS=1` re-blessing (§13.4);
 //! - record/replay: user interactions saved as `.alc` files and replayed
@@ -414,7 +414,7 @@ impl TestHarness {
     }
 
     /// The a11y query: first node with `role` whose name contains `name`
-    /// (§11.5: tests drive the a11y tree, never the widget tree).
+    /// (§11.1 item 5: tests drive the a11y tree, never the widget tree).
     ///
     /// # Panics
     ///
@@ -429,7 +429,7 @@ impl TestHarness {
             })
     }
 
-    /// The a11y query builder (§11.5) — the ergonomic plural form:
+    /// The a11y query builder (§11.1 item 5) — the ergonomic plural form:
     /// `harness.query(Role::Label).named("Item").count()`.
     #[must_use]
     pub fn query(&self, role: Role) -> A11yQuery<'_> {
@@ -442,7 +442,7 @@ impl TestHarness {
 
     /// Dispatches the default accessibility action ("press") to the first
     /// node with `role` named `name`, then settles — the actionable half of
-    /// §11.5's contract (reachable, named, **actionable**).
+    /// §11.1 item 5's contract (reachable, named, **actionable**).
     ///
     /// # Panics
     ///
@@ -492,16 +492,6 @@ impl TestHarness {
             .and_then(|tree| tree.find(role, name))
             .and_then(|node| node.selection)
             .map(|selection| selection.normalized())
-    }
-
-    /// Renders the current frame's pixels — same as [`Self::pixels`].
-    ///
-    /// # Panics
-    ///
-    /// Same as [`Self::pixels`].
-    #[must_use]
-    pub fn frame_pixels(&mut self) -> Pixmap {
-        self.pixels()
     }
 
     /// Compares the current frame against the blessed snapshot `name`.
@@ -631,7 +621,7 @@ pub fn pixel_diff_ratio(a: &Pixmap, b: &Pixmap) -> f32 {
     alacer_core::num::usize_to_f32(differing) / alacer_core::num::usize_to_f32(total)
 }
 
-/// The a11y query builder (§11.5): the official query API, in plural form.
+/// The a11y query builder (§11.1 item 5): the official query API, in plural form.
 /// `harness.query(Role::Label).named("Item").count()` — every read routes
 /// through the AccessKit tree, never the widget tree.
 pub struct A11yQuery<'h> {

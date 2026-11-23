@@ -396,7 +396,7 @@ fn m12_the_corpus_grows_to_50_by_the_coordinated_rule() {
     ] {
         let source = read_workspace_file(suite);
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 157;"),
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 159;"),
             "{suite} must pin the corpus count the cut re-agreed"
         );
     }

@@ -1408,3 +1408,285 @@ fn the_tree_dump_rides_no_field_contents() {
     );
     send_client_text(&socket, br#"{"kind":"bye"}"#);
 }
+
+// ---------------------------------------------------------------------
+// M146 (ADR-0150): the point ask — the `hit_ask` control answers which
+// node the asked point touches. The dump ask's own rule at the geometry
+// tier: the retained snapshot's state answers over the real socket, the
+// walk's landed-or-refused shape, the ask reading without disturbing
+// (no ring drains, the broadcast queue untouched), the session living
+// past the answer. The dump snapshot's two nodes share the (0, 0,
+// 40 x 20) rectangle, so the (5, 5) point rides inside both — the
+// ancestry is the walk that descended onto the button.
+// ---------------------------------------------------------------------
+
+#[test]
+fn a_hit_ask_lands_the_innermost_node_over_the_real_socket() {
+    let recorder = CausalRecorder::new("hit-ask");
+    recorder.clone_handle().tree(dump_snapshot());
+    let server = InspectorServer::bind("127.0.0.1:0", recorder.clone(), "hit-ask").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let hello = read_text_frame(&mut reader);
+    assert!(hello.contains(r#""kind":"hello""#), "{hello}");
+    let socket = reader.get_ref().try_clone().expect("clone");
+
+    // The occupancy the ask must not disturb: the stats answer before
+    // the ask, the same answer after — the look reading without
+    // touching (the dump ask's own rule, at the point tier).
+    send_client_text(&socket, br#"{"kind":"stats"}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let stats_before = read_text_frame(&mut reader);
+
+    send_client_text(&socket, br#"{"kind":"hit_ask","point":[5.0,5.0]}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let hit = read_text_frame(&mut reader);
+    for fragment in [
+        r#""kind":"hit""#,
+        r#""asked":[5.0,5.0]"#,
+        r#""landed":true"#,
+        r#""miss":null"#,
+        r#""node":1"#,
+        r#""role":"container""#,
+        r#""node":2"#,
+        r#""role":"button""#,
+        r#""label":"Save""#,
+    ] {
+        assert!(hit.contains(fragment), "missing {fragment} in {hit}");
+    }
+    // The walk's shape: the ancestry root-first, the hit node last.
+    let ancestry_position = hit.find(r#""ancestry":["#).expect("the ancestry");
+    assert!(
+        hit[ancestry_position..]
+            .find(r#""node":1"#)
+            .is_some_and(|window| hit[ancestry_position..][..window].contains(r#""node""#))
+            || hit[ancestry_position..].starts_with(r#""ancestry":[{"node":1"#),
+        "the ancestry descends root-first: {hit}"
+    );
+
+    send_client_text(&socket, br#"{"kind":"stats"}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let stats_after = read_text_frame(&mut reader);
+    assert_eq!(
+        stats_before, stats_after,
+        "the point ask drained no ring, broadcasted nothing — the occupancy stands"
+    );
+
+    // The session lives past the ask: the next fact streams on.
+    recorder
+        .clone_handle()
+        .observe(InspectEvent::Input(InputRecord {
+            kind: InputKind::Wheel,
+            target: None,
+        }));
+    let next = read_text_frame(&mut reader);
+    assert!(
+        next.contains(r#""kind":"input""#),
+        "the ask answered once and the stream continued: {next}"
+    );
+    send_client_text(&socket, br#"{"kind":"bye"}"#);
+}
+
+#[test]
+fn a_hit_ask_over_empty_space_answers_the_outside_miss() {
+    let recorder = CausalRecorder::new("hit-ask-outside");
+    recorder.clone_handle().tree(dump_snapshot());
+    let server = InspectorServer::bind("127.0.0.1:0", recorder.clone(), "outside").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let _hello = read_text_frame(&mut reader);
+    let socket = reader.get_ref().try_clone().expect("clone");
+    send_client_text(&socket, br#"{"kind":"hit_ask","point":[500.0,500.0]}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let hit = read_text_frame(&mut reader);
+    assert_eq!(
+        hit,
+        r#"{"kind":"hit","asked":[500.0,500.0],"landed":false,"miss":"outside","ancestry":[]}"#,
+        "the point touches nothing — the species names it, never a collapsed false"
+    );
+    send_client_text(&socket, br#"{"kind":"bye"}"#);
+}
+
+#[test]
+fn the_hit_ask_before_any_frame_answers_the_no_tree_miss() {
+    let recorder = CausalRecorder::new("hit-ask-empty");
+    let server = InspectorServer::bind("127.0.0.1:0", recorder.clone(), "empty").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let _hello = read_text_frame(&mut reader);
+    let socket = reader.get_ref().try_clone().expect("clone");
+    send_client_text(&socket, br#"{"kind":"hit_ask","point":[1.0,1.0]}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let hit = read_text_frame(&mut reader);
+    assert_eq!(
+        hit, r#"{"kind":"hit","asked":[1.0,1.0],"landed":false,"miss":"no_tree","ancestry":[]}"#,
+        "no tree resolved yet — the honest absence, never an invented walk"
+    );
+    send_client_text(&socket, br#"{"kind":"bye"}"#);
+}
+
+#[test]
+fn a_hit_ask_with_a_non_finite_point_closes_the_session() {
+    // JSON cannot carry NaN or infinity: a non-finite ask serializes
+    // the coordinates as `null`, and `null` refuses the point array's
+    // parse — the malformed-frame behavior the session's documented
+    // close names (the unknown control's rule, at the field tier).
+    let recorder = CausalRecorder::new("hit-ask-nan");
+    let server = InspectorServer::bind("127.0.0.1:0", recorder.clone(), "nan").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let _hello = read_text_frame(&mut reader);
+    std::thread::sleep(Duration::from_millis(30));
+    let socket = reader.get_ref().try_clone().expect("clone");
+    send_client_text(&socket, br#"{"kind":"hit_ask","point":null}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let mut header = [0_u8; 2];
+    reader.read_exact(&mut header).expect("the close echo");
+    assert_eq!(header[0] & 0x0F, 0x8, "the close opcode");
+}
+
+// ---------------------------------------------------------------------
+// M147 (ADR-0151): the word ask — the `find_ask` control answers the
+// nodes whose resolved names carry the query. The dump ask's own rule
+// at the name tier: the retained snapshot's state answers over the real
+// socket, the matches in the tree event's node vocabulary (tree order),
+// the ask echoed beside the answer, the ask reading without disturbing,
+// the session living past the answer. The dump snapshot's two nodes
+// name "window" and "Save".
+// ---------------------------------------------------------------------
+
+#[test]
+fn a_find_ask_answers_the_matches_over_the_real_socket() {
+    let recorder = CausalRecorder::new("find-ask");
+    recorder.clone_handle().tree(dump_snapshot());
+    let server = InspectorServer::bind("127.0.0.1:0", recorder.clone(), "find-ask").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let hello = read_text_frame(&mut reader);
+    assert!(hello.contains(r#""kind":"hello""#), "{hello}");
+    let socket = reader.get_ref().try_clone().expect("clone");
+
+    // The occupancy the ask must not disturb: the stats answer before
+    // the ask, the same answer after (the dump ask's own rule, at the
+    // name tier).
+    send_client_text(&socket, br#"{"kind":"stats"}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let stats_before = read_text_frame(&mut reader);
+
+    send_client_text(
+        &socket,
+        br#"{"kind":"find_ask","query":"save","role":"button"}"#,
+    );
+    std::thread::sleep(Duration::from_millis(80));
+    let find = read_text_frame(&mut reader);
+    for fragment in [
+        r#""kind":"find""#,
+        r#""query":"save""#,
+        r#""role":"button""#,
+        r#""node":2"#,
+        r#""role":"button""#,
+        r#""label":"Save""#,
+    ] {
+        assert!(find.contains(fragment), "missing {fragment} in {find}");
+    }
+    assert!(
+        !find.contains(r#""node":1"#),
+        "the container's name carries no save — the role narrowed the walk: {find}"
+    );
+
+    send_client_text(&socket, br#"{"kind":"stats"}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let stats_after = read_text_frame(&mut reader);
+    assert_eq!(
+        stats_before, stats_after,
+        "the word ask drained no ring, broadcasted nothing — the occupancy stands"
+    );
+
+    // The session lives past the ask: the next fact streams on.
+    recorder
+        .clone_handle()
+        .observe(InspectEvent::Input(InputRecord {
+            kind: InputKind::Wheel,
+            target: None,
+        }));
+    let next = read_text_frame(&mut reader);
+    assert!(
+        next.contains(r#""kind":"input""#),
+        "the ask answered once and the stream continued: {next}"
+    );
+    send_client_text(&socket, br#"{"kind":"bye"}"#);
+}
+
+#[test]
+fn a_find_ask_without_a_role_answers_the_whole_vocabulary() {
+    let recorder = CausalRecorder::new("find-ask-bare");
+    recorder.clone_handle().tree(dump_snapshot());
+    let server = InspectorServer::bind("127.0.0.1:0", recorder.clone(), "bare").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let _hello = read_text_frame(&mut reader);
+    let socket = reader.get_ref().try_clone().expect("clone");
+    send_client_text(&socket, br#"{"kind":"find_ask","query":""}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let find = read_text_frame(&mut reader);
+    // The empty needle names every resolved name, tree order — the
+    // ask's honest every-node answer, never a refusal.
+    let window = find.find(r#""node":1"#).expect("the window's match");
+    let button = find.find(r#""node":2"#).expect("the button's match");
+    assert!(window < button, "the matches ride tree order: {find}");
+    assert!(
+        find.contains(r#""role":null"#),
+        "the bare ask's echo names the whole vocabulary: {find}"
+    );
+    send_client_text(&socket, br#"{"kind":"bye"}"#);
+}
+
+#[test]
+fn the_find_ask_before_any_frame_answers_an_empty_list() {
+    let recorder = CausalRecorder::new("find-ask-empty");
+    let server = InspectorServer::bind("127.0.0.1:0", recorder.clone(), "empty").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let _hello = read_text_frame(&mut reader);
+    let socket = reader.get_ref().try_clone().expect("clone");
+    send_client_text(&socket, br#"{"kind":"find_ask","query":"save"}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let find = read_text_frame(&mut reader);
+    assert_eq!(
+        find, r#"{"kind":"find","query":"save","role":null,"matches":[]}"#,
+        "no tree resolved yet — the honest absence, never an invented match"
+    );
+    send_client_text(&socket, br#"{"kind":"bye"}"#);
+}
+
+#[test]
+fn a_find_ask_with_an_unknown_role_word_closes_the_session() {
+    // The role vocabulary is closed: a word outside the roles' list is
+    // a malformed control frame — the session's documented behavior is
+    // the report-and-close (the loop keeps serving; the client's own
+    // socket ends with the close echo).
+    let recorder = CausalRecorder::new("find-ask-unknown");
+    let server =
+        InspectorServer::bind("127.0.0.1:0", recorder.clone(), "unknown-role").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let _hello = read_text_frame(&mut reader);
+    std::thread::sleep(Duration::from_millis(30));
+    let socket = reader.get_ref().try_clone().expect("clone");
+    send_client_text(
+        &socket,
+        br#"{"kind":"find_ask","query":"save","role":"gizmo"}"#,
+    );
+    std::thread::sleep(Duration::from_millis(80));
+    let mut header = [0_u8; 2];
+    reader.read_exact(&mut header).expect("the close echo");
+    assert_eq!(header[0] & 0x0F, 0x8, "the close opcode");
+}

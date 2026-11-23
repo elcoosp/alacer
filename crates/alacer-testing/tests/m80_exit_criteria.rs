@@ -439,7 +439,7 @@ fn m80_the_living_documents_re_agree() {
         "the README status reflects the living cut — the chain cannot drift"
     );
     assert!(
-        readme.contains("All 157 criterion cases"),
+        readme.contains("All 159 criterion cases"),
         "the README quotes the baselines.json bench_count the composition's pricing rides"
     );
     let architecture = read_workspace_file("docs/architecture.md");
@@ -452,7 +452,7 @@ fn m80_the_living_documents_re_agree() {
         "the architecture carries the fact-following composition's decision"
     );
     assert!(
-        architecture.contains("a hundred and fifty-four decision records"),
+        architecture.contains("a hundred and fifty-six decision records"),
         "the register grew the M80 row"
     );
     let baselines = serde_json::from_str::<serde_json::Value>(&read_workspace_file(
@@ -460,7 +460,7 @@ fn m80_the_living_documents_re_agree() {
     ))
     .expect("the baselines parse");
     assert_eq!(
-        baselines["bench_count"], 157,
+        baselines["bench_count"], 159,
         "the published corpus carries the composition's pricing — the route is not new"
     );
     let protocol = read_workspace_file("docs/inspector-protocol.md");

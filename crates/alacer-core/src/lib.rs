@@ -155,8 +155,8 @@ pub use mask::Change;
 pub use passes::{
     A11yDelta, A11ySink, FocusLanding, FocusMoveOutcome, FocusRefusal, FrameReport, HitAnswer,
     HitMiss, ImePurpose, ImeRequest, LayoutEngine, LayoutError, PassKind, PassPipeline, PassRun,
-    SceneJournal, ScrollIntoViewLanding, ScrollIntoViewOutcome, ScrollIntoViewRefusal, TreeNode,
-    TreeSnapshot,
+    PathAnswer, PathMiss, SceneJournal, ScrollIntoViewLanding, ScrollIntoViewOutcome,
+    ScrollIntoViewRefusal, TreeNode, TreeSnapshot,
 };
 pub use preedit::PREEDIT_TRAIL_CAP;
 pub use route_drop::ROUTE_DROP_TRAIL_CAP;

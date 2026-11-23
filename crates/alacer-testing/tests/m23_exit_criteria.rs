@@ -256,7 +256,7 @@ fn m23_the_living_documents_re_agree() {
     for fragment in [
         "version-0.17.0",
         "M0 through M149",
-        "a hundred and fifty-four decision records",
+        "a hundred and fifty-six decision records",
         "Since M23 the frame carries a public ledger",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
@@ -278,7 +278,7 @@ fn m23_the_living_documents_re_agree() {
     let architecture = read_workspace_file("docs/architecture.md");
     for fragment in [
         "ADR-0029",
-        "a hundred and fifty-four decision records",
+        "a hundred and fifty-six decision records",
         "the scene journal becomes legible to its consumers",
     ] {
         assert!(
@@ -318,11 +318,11 @@ fn m23_the_living_documents_re_agree() {
     for (suite, source) in [("m20", &m20), ("m21", &m21), ("m22", &m22)] {
         assert!(
             source.contains("M0 through M149")
-                && source.contains("a hundred and fifty-four decision records"),
+                && source.contains("a hundred and fifty-six decision records"),
             "the {suite} suite's README pins moved with the documents"
         );
         assert!(
-            source.contains("a hundred and fifty-four decision records"),
+            source.contains("a hundred and fifty-six decision records"),
             "the {suite} suite's architecture pin moved with the register"
         );
     }

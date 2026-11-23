@@ -1,4 +1,4 @@
-//! M20 exit-criteria integration tests (§11.5, ADR-0026): the value tier
+//! M20 exit-criteria integration tests (§11.1 item 5, ADR-0026): the value tier
 //! becomes a widget. The slider joins the shipped vocabulary — a bounded
 //! scalar whose four doors (drag, arrows, Home/End, the AT's
 //! `SetValue`/`Increment`/`Decrement`) ride one funnel that clamps to the

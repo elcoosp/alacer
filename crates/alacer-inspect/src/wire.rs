@@ -189,6 +189,48 @@ pub enum ClientMessage {
         #[serde(default)]
         role: Option<String>,
     },
+    /// Ask the server which nodes the named rect touches (M148,
+    /// ADR-0152) — the region ask riding the same retained snapshot the
+    /// dump ask answers from, the point ask's plural sibling, the
+    /// answer one [`WireEvent::Region`] event: the nodes whose bounds
+    /// the rect touches, in tree order (the paint order's own), the ask
+    /// echoed beside the answer. The rect is `[x, y, width, height]` in
+    /// the tree's logical pixels (the bounds quadruple's frame); a rect
+    /// naming no positive area — inverted or empty extents — touches
+    /// nothing: the empty answer the honest absence, never a refusal.
+    /// A rect whose coordinates are not finite cannot ride JSON —
+    /// serde renders NaN and infinity as `null`, the array parse
+    /// refuses — so a non-finite ask is a malformed frame, the
+    /// documented report-and-close behavior (the point ask's own rule,
+    /// at the region tier). The ask reads without disturbing (the dump
+    /// ask's own rule): no ring drains, the broadcast queue is
+    /// untouched. Additive at version 1 (the `Replay` ask's precedent):
+    /// a server older than the ask closes the session on the unknown
+    /// control.
+    RegionAsk {
+        /// The asked rect, `[x, y, width, height]` in the tree's
+        /// logical pixels — the coordinates the answer echoes back.
+        rect: [f32; 4],
+    },
+    /// Ask the server where the named node stands (M149, ADR-0153) —
+    /// the path ask riding the same retained snapshot the dump ask
+    /// answers from, the point ask's shape at the address tier, the
+    /// answer one [`WireEvent::Path`] event: the ancestry the asked
+    /// node stands in (root-first, the asked node last), the ask
+    /// echoed beside the answer. The id is the one the dump, the find
+    /// and the hit answers already name — the ask family composing.
+    /// Every miss a named species: a tree that has not resolved yet
+    /// answers `no_tree`, an id naming nothing standing answers
+    /// `no_node` — never a collapsed `false`. The ask reads without
+    /// disturbing (the dump ask's own rule): no ring drains, the
+    /// broadcast queue is untouched. Additive at version 1 (the
+    /// `Replay` ask's precedent): a server older than the ask closes
+    /// the session on the unknown control.
+    PathAsk {
+        /// The asked node id — the id the dump, the find and the hit
+        /// answers name, the answer echoing it back.
+        node: u64,
+    },
 }
 
 /// One trail tier's wire name — the stats answer's row vocabulary
@@ -1116,6 +1158,48 @@ pub enum WireEvent {
         /// carried the query.
         matches: Vec<WireTreeNode>,
     },
+    /// The region ask's answer — the nodes whose bounds the asked rect
+    /// touches (M148, ADR-0152). The point ask's plural sibling riding
+    /// the word ask's shape: the matches in tree order (the paint
+    /// order's own), the ask echoed beside the answer, an empty list
+    /// the honest absence — no tree resolved yet, no bounds written, or
+    /// the rect touching nothing standing (a rect naming no positive
+    /// area among them), never a refusal. Like `Stats`, `Tree`, `Hit`
+    /// and `Find`, the event prices no ring — the ask's answer, never a
+    /// captured fact, never a streamed one.
+    Region {
+        /// The rect the ask carried, `[x, y, width, height]` — the
+        /// answer echoes the ask (the cursor's own rule: the ask the
+        /// panel reads the answer against).
+        asked: [f32; 4],
+        /// The touched nodes in tree order — the nodes whose bounds
+        /// intersect the rect.
+        matches: Vec<WireTreeNode>,
+    },
+    /// The path ask's answer — the ancestry the asked node stands in
+    /// (M149, ADR-0153). The point ask's landed-or-refused shape at the
+    /// address tier: a landing names the chain root-first, the asked
+    /// node last (each node the [`WireTreeNode`] vocabulary the tree
+    /// event speaks — one shape, every ask's door); a refusal names its
+    /// species (`no_tree`, `no_node`), never a collapsed `false`. Like
+    /// `Stats`, `Tree`, `Hit`, `Find` and `Region`, the event prices no
+    /// ring — the ask's answer, never a captured fact, never a streamed
+    /// one.
+    Path {
+        /// The node id the ask carried — the answer echoes the ask (the
+        /// cursor's own rule: the ask the panel reads the answer
+        /// against).
+        asked: u64,
+        /// Whether the chain answered (`true`) or the ask was refused
+        /// (`false`).
+        landed: bool,
+        /// The refusal species (`no_tree`, `no_node`), `null` on a
+        /// landing.
+        miss: Option<String>,
+        /// The asked node's chain — root-first, the asked node last;
+        /// empty on a miss.
+        ancestry: Vec<WireTreeNode>,
+    },
 }
 
 impl WireEvent {
@@ -1153,7 +1237,12 @@ impl WireEvent {
             // The two response-only events: the occupancy answer and
             // the dump ask's answer name no ring tier — they are the
             // asks' answers, never captured facts.
-            Self::Stats { .. } | Self::Tree { .. } | Self::Hit { .. } | Self::Find { .. } => None,
+            Self::Stats { .. }
+            | Self::Tree { .. }
+            | Self::Hit { .. }
+            | Self::Find { .. }
+            | Self::Region { .. }
+            | Self::Path { .. } => None,
         }
     }
 }
@@ -1439,6 +1528,63 @@ pub fn wire_find(
         query: query.to_string(),
         role: role.map(alacer_core::Role::name).map(str::to_string),
         matches,
+    }
+}
+
+/// Converts the region ask's answer (M148, ADR-0152): the geometry
+/// query's matches — [`TreeSnapshot::hit_region`]'s own, over the
+/// retained snapshot — mapped onto the wire. The touched nodes ride the
+/// tree event's node vocabulary ([`wire_tree_node`], one shape every
+/// ask's door) in tree order (the paint order's own), the ask echoed
+/// beside the answer (the cursor's own rule: the ask the panel reads
+/// the answer against). The answer rides no ring and no broadcast — the
+/// dump ask's rule at the region tier; an empty matches list is the
+/// honest absence (no tree resolved yet, no bounds written, or a rect
+/// naming no positive area).
+#[must_use]
+pub fn wire_region(tree: Option<&alacer_core::TreeSnapshot>, asked: [f32; 4]) -> WireEvent {
+    let rect = alacer_core::Rect::new(
+        alacer_core::Point::new(asked[0], asked[1]),
+        alacer_core::Size::new(asked[2], asked[3]),
+    );
+    let matches = tree.map_or_else(Vec::new, |snapshot| {
+        snapshot
+            .hit_region(rect)
+            .iter()
+            .map(|node| wire_tree_node(node))
+            .collect()
+    });
+    WireEvent::Region { asked, matches }
+}
+
+/// Converts the path ask's answer (M149, ADR-0153): the ancestry
+/// query's verdict — [`TreeSnapshot::ancestry_of`]'s own, over the
+/// retained snapshot — mapped onto the wire. The landed chain rides the
+/// tree event's node vocabulary ([`wire_tree_node`], one shape every
+/// ask's door) root-first, the asked node last; the refusal its species
+/// word; the ask echoed beside the answer (the cursor's own rule: the
+/// ask the panel reads the answer against). The answer rides no ring
+/// and no broadcast — the dump ask's rule at the address tier.
+#[must_use]
+pub fn wire_path(tree: Option<&alacer_core::TreeSnapshot>, asked: u64) -> WireEvent {
+    let mut ancestry = Vec::new();
+    let mut miss = None;
+    match tree {
+        Some(snapshot) => match snapshot.ancestry_of(asked) {
+            alacer_core::PathAnswer::Landed { ancestry: chain } => {
+                ancestry = chain.iter().map(|node| wire_tree_node(node)).collect();
+            }
+            alacer_core::PathAnswer::Missed(species) => {
+                miss = Some(species.name().to_string());
+            }
+        },
+        None => miss = Some(alacer_core::PathMiss::NoTree.name().to_string()),
+    }
+    WireEvent::Path {
+        asked,
+        landed: miss.is_none(),
+        miss,
+        ancestry,
     }
 }
 
@@ -4330,6 +4476,310 @@ mod tests {
         assert!(
             answer.tier().is_none(),
             "the word ask's answer is a response, never a streamed tier"
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // M148 (ADR-0152): the region ask — the `region_ask` control and the
+    // `region` answer. The word ask's own rule at the geometry tier: the
+    // retained snapshot's state answers, the matches in the tree event's
+    // node vocabulary (tree order — the paint order's own), the ask
+    // echoed beside the answer, the secret-carrying rule keeping the
+    // contents off the wire. A rect naming no positive area touches
+    // nothing — the empty answer the honest absence, never a refusal;
+    // a non-finite rect cannot ride JSON at all (the point ask's rule).
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn region_ask_parses_the_documented_shape() {
+        let ask: ClientMessage =
+            serde_json::from_str(r#"{"kind":"region_ask","rect":[0.0,0.0,80.0,60.0]}"#)
+                .expect("region ask");
+        assert_eq!(
+            ask,
+            ClientMessage::RegionAsk {
+                rect: [0.0, 0.0, 80.0, 60.0],
+            },
+            "the ask carries the rect — origin beside extents, the bounds quadruple's frame"
+        );
+    }
+
+    #[test]
+    fn region_ask_without_a_rect_is_a_malformed_frame() {
+        // The rect is the ask's whole payload: an ask without one does
+        // not parse — the malformed-frame behavior the session's
+        // documented close names (the unknown control's rule, at the
+        // field tier).
+        let ask = serde_json::from_str::<ClientMessage>(r#"{"kind":"region_ask"}"#);
+        assert!(ask.is_err(), "a rect-less ask does not parse");
+    }
+
+    #[test]
+    fn region_answer_serializes_the_matches_and_the_echo() {
+        let mut button = dump_node(2, alacer_core::Role::Button, "Save");
+        button.children = Vec::new();
+        let mut window = dump_node(1, alacer_core::Role::Container, "window");
+        window.children = vec![2];
+        let snapshot = alacer_core::TreeSnapshot {
+            nodes: vec![window, button],
+            root: Some(1),
+        };
+        // Both nodes' bounds sit at (10, 20, 80 x 24): the rect covering
+        // them touches both, tree order — the window first, the button
+        // beside it (the paint order's own).
+        let json = serde_json::to_string(&wire_region(Some(&snapshot), [10.0, 20.0, 80.0, 24.0]))
+            .expect("region json");
+        assert!(
+            json.starts_with(r#"{"kind":"region","asked":[10.0,20.0,80.0,24.0],"matches":["#,),
+            "the answer's tag, the echoed ask, the matches: {json}"
+        );
+        let window = json.find(r#""node":1"#).expect("the window's match");
+        let button = json.find(r#""node":2"#).expect("the button's match");
+        assert!(
+            window < button,
+            "the matches ride tree order — the paint order's own: {json}"
+        );
+    }
+
+    #[test]
+    fn region_answer_narrows_to_the_nodes_the_rect_touches() {
+        let mut button = dump_node(2, alacer_core::Role::Button, "Save");
+        button.children = Vec::new();
+        let mut window = dump_node(1, alacer_core::Role::Container, "window");
+        window.children = vec![2];
+        let snapshot = alacer_core::TreeSnapshot {
+            nodes: vec![window, button],
+            root: Some(1),
+        };
+        // The rect past both nodes' right edge touches nothing standing:
+        // the empty list the honest absence, never a refusal (the word
+        // ask's empty answer, at the region tier).
+        let json = serde_json::to_string(&wire_region(Some(&snapshot), [500.0, 500.0, 10.0, 10.0]))
+            .expect("region json");
+        assert_eq!(
+            json, r#"{"kind":"region","asked":[500.0,500.0,10.0,10.0],"matches":[]}"#,
+            "the empty region answers the honest absence"
+        );
+    }
+
+    #[test]
+    fn region_answer_before_any_frame_answers_the_honest_absence() {
+        let json =
+            serde_json::to_string(&wire_region(None, [0.0, 0.0, 80.0, 60.0])).expect("region json");
+        assert_eq!(
+            json, r#"{"kind":"region","asked":[0.0,0.0,80.0,60.0],"matches":[]}"#,
+            "no tree resolved yet — the honest absence, never an invented walk"
+        );
+    }
+
+    #[test]
+    fn region_answer_inverted_extents_answer_the_honest_absence() {
+        // A rect whose extents name no positive area touches nothing —
+        // the geometry's own convention (euclid's intersection is empty
+        // for an inverted rect), the ask's honest empty answer, never a
+        // guessed normalization.
+        let snapshot = alacer_core::TreeSnapshot {
+            nodes: vec![dump_node(1, alacer_core::Role::Container, "window")],
+            root: Some(1),
+        };
+        let json = serde_json::to_string(&wire_region(Some(&snapshot), [10.0, 20.0, -5.0, 24.0]))
+            .expect("region json");
+        assert_eq!(
+            json, r#"{"kind":"region","asked":[10.0,20.0,-5.0,24.0],"matches":[]}"#,
+            "an inverted rect names no area — the honest absence"
+        );
+    }
+
+    #[test]
+    fn region_answer_rides_no_field_contents() {
+        // The secret-carrying rule at the region tier: a field the rect
+        // touches answers the shape, the value, the hint, the help and
+        // the selection never crossing the wire (the tree event's own
+        // rule, the point ask's precedent).
+        let mut secret = dump_node(4, alacer_core::Role::TextInput, "password");
+        secret.value = Some("hunter2".to_string());
+        secret.placeholder = Some("type your password".to_string());
+        secret.description = Some("the login field".to_string());
+        secret.selection = Some(alacer_core::TextSelection {
+            anchor: 0,
+            focus: 7,
+        });
+        let snapshot = alacer_core::TreeSnapshot {
+            nodes: vec![secret],
+            root: Some(4),
+        };
+        let json = serde_json::to_string(&wire_region(Some(&snapshot), [10.0, 20.0, 80.0, 24.0]))
+            .expect("region json");
+        assert!(
+            json.contains(r#""label":"password""#),
+            "the touched field's name rides the shape: {json}"
+        );
+        assert!(
+            !json.contains("hunter2")
+                && !json.contains("type your password")
+                && !json.contains("the login field"),
+            "the contents never ride: {json}"
+        );
+        assert!(
+            !json.contains("\"value\"")
+                && !json.contains("\"placeholder\"")
+                && !json.contains("\"description\"")
+                && !json.contains("\"selection\""),
+            "the content keys are absent from the shape, not empty: {json}"
+        );
+    }
+
+    #[test]
+    fn region_event_prices_no_ring_tier() {
+        let answer = wire_region(None, [0.0, 0.0, 80.0, 60.0]);
+        assert!(
+            answer.tier().is_none(),
+            "the region ask's answer is a response, never a streamed tier"
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // M149 (ADR-0153): the path ask — the `path_ask` control and the
+    // `path` answer. The point ask's own shape at the address tier: the
+    // retained snapshot's state answers, the ancestry the asked node
+    // stands in riding the tree event's node vocabulary (root-first,
+    // the asked node last), the ask echoed beside the answer, the
+    // secret-carrying rule keeping the contents off the wire. Every
+    // miss a named species (`no_tree`, `no_node`) — never a collapsed
+    // `false`.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn path_ask_parses_the_documented_shape() {
+        let ask: ClientMessage =
+            serde_json::from_str(r#"{"kind":"path_ask","node":2}"#).expect("path ask");
+        assert_eq!(
+            ask,
+            ClientMessage::PathAsk { node: 2 },
+            "the ask carries the node id the panel already holds"
+        );
+    }
+
+    #[test]
+    fn path_ask_without_a_node_is_a_malformed_frame() {
+        // The id is the ask's whole payload: an ask without one does
+        // not parse — the malformed-frame behavior the session's
+        // documented close names (the unknown control's rule, at the
+        // field tier).
+        let ask = serde_json::from_str::<ClientMessage>(r#"{"kind":"path_ask"}"#);
+        assert!(ask.is_err(), "an id-less ask does not parse");
+    }
+
+    #[test]
+    fn path_answer_serializes_the_ancestry_and_the_echo() {
+        let mut button = dump_node(2, alacer_core::Role::Button, "Save");
+        button.children = Vec::new();
+        let mut window = dump_node(1, alacer_core::Role::Container, "window");
+        window.children = vec![2];
+        let snapshot = alacer_core::TreeSnapshot {
+            nodes: vec![window, button],
+            root: Some(1),
+        };
+        let json = serde_json::to_string(&wire_path(Some(&snapshot), 2)).expect("path json");
+        assert!(
+            json.starts_with(r#"{"kind":"path","asked":2,"landed":true,"miss":null,"ancestry":["#,),
+            "the answer's tag, the echoed ask, the landing: {json}"
+        );
+        let window = json.find(r#""node":1"#).expect("the root's entry");
+        let button = json.find(r#""node":2"#).expect("the asked node's entry");
+        assert!(
+            window < button,
+            "the ancestry rides root-first, the asked node last: {json}"
+        );
+        assert!(
+            json.contains(r#""label":"Save""#),
+            "the resolved name rides the shape"
+        );
+    }
+
+    #[test]
+    fn path_answer_names_the_unknown_node_miss() {
+        let snapshot = alacer_core::TreeSnapshot {
+            nodes: vec![dump_node(1, alacer_core::Role::Container, "window")],
+            root: Some(1),
+        };
+        let json = serde_json::to_string(&wire_path(Some(&snapshot), 9)).expect("path json");
+        assert_eq!(
+            json, r#"{"kind":"path","asked":9,"landed":false,"miss":"no_node","ancestry":[]}"#,
+            "the asked id names nothing standing — the species names it, never a collapsed answer"
+        );
+    }
+
+    #[test]
+    fn path_answer_before_any_tree_answers_the_no_tree_miss() {
+        let json = serde_json::to_string(&wire_path(None, 1)).expect("path json");
+        assert_eq!(
+            json, r#"{"kind":"path","asked":1,"landed":false,"miss":"no_tree","ancestry":[]}"#,
+            "no tree resolved yet — the honest absence, never an invented walk"
+        );
+    }
+
+    #[test]
+    fn path_answer_for_the_root_names_the_root_alone() {
+        let snapshot = alacer_core::TreeSnapshot {
+            nodes: vec![dump_node(1, alacer_core::Role::Container, "window")],
+            root: Some(1),
+        };
+        let json = serde_json::to_string(&wire_path(Some(&snapshot), 1)).expect("path json");
+        assert!(
+            json.starts_with(r#"{"kind":"path","asked":1,"landed":true,"miss":null,"ancestry":["#),
+            "the root's ancestry is the root alone: {json}"
+        );
+        assert!(
+            !json.contains(r#""node":2"#),
+            "no invented entries beside the root's own chain: {json}"
+        );
+    }
+
+    #[test]
+    fn path_answer_rides_no_field_contents() {
+        // The secret-carrying rule at the address tier: a field whose
+        // ancestry is asked answers the shape, the value, the hint, the
+        // help and the selection never crossing the wire (the tree
+        // event's own rule, the point ask's precedent).
+        let mut secret = dump_node(4, alacer_core::Role::TextInput, "password");
+        secret.value = Some("hunter2".to_string());
+        secret.placeholder = Some("type your password".to_string());
+        secret.description = Some("the login field".to_string());
+        secret.selection = Some(alacer_core::TextSelection {
+            anchor: 0,
+            focus: 7,
+        });
+        let snapshot = alacer_core::TreeSnapshot {
+            nodes: vec![secret],
+            root: Some(4),
+        };
+        let json = serde_json::to_string(&wire_path(Some(&snapshot), 4)).expect("path json");
+        assert!(
+            json.contains(r#""label":"password""#),
+            "the asked field's name rides the shape: {json}"
+        );
+        assert!(
+            !json.contains("hunter2")
+                && !json.contains("type your password")
+                && !json.contains("the login field"),
+            "the contents never ride: {json}"
+        );
+        assert!(
+            !json.contains("\"value\"")
+                && !json.contains("\"placeholder\"")
+                && !json.contains("\"description\"")
+                && !json.contains("\"selection\""),
+            "the content keys are absent from the shape, not empty: {json}"
+        );
+    }
+
+    #[test]
+    fn path_event_prices_no_ring_tier() {
+        let answer = wire_path(None, 1);
+        assert!(
+            answer.tier().is_none(),
+            "the path ask's answer is a response, never a streamed tier"
         );
     }
 }

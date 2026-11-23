@@ -6,8 +6,12 @@
 //! experience, not the idle window's A7 contract. Since M142 the file
 //! also prices the subscribe gate: the fan-out filter a gated session
 //! walks over each drained broadcast batch (the ask's own addition to
-//! the drain the sessions have always taken).
+//! the drain the sessions have always taken). Since M146 it prices the
+//! point ask beside the dump's: the geometry query and the wire
+//! conversion the `hit_ask` control's answer takes, the same
+//! connect-time rule.
 
+use alacer_core::Role;
 use alacer_core::inspect::{InputKind, InputRecord, InspectEvent, InspectObserver as _};
 use alacer_inspect::CausalRecorder;
 use alacer_inspect::WireEvent;
@@ -135,14 +139,24 @@ fn replay_burst(c: &mut Criterion) {
     });
     group.finish();
 
+    // The state asks — the dump, the point and the word (the ask
+    // family whose answer is the retained snapshot, not history):
+    // priced in one helper beside the fn, the burst's and the gate's
+    // groups above this one fn's shape.
+    price_state_asks(c);
+}
+
+/// The state asks' price: the dump, the point and the word — each
+/// answered once per connect (a connect-time price beside the burst's,
+/// never a per-frame one: the state rides no broadcast, the observer's
+/// door retains it, and the ask is the only door it crosses the wire
+/// through), each measured on the same 1 000-node resolved tree (the
+/// shape a real panel walks), each landing asserted before the timing
+/// (the bench never pricing a refusal it meant to price an answer).
+fn price_state_asks(c: &mut Criterion) {
     // The tree dump (the inspector's ask-and-answer control): the
     // answer's price — the wire conversion over the retained snapshot
-    // plus the serialization the send path takes, measured on a
-    // 1 000-node resolved tree (the shape a real panel walks). The ask
-    // is answered once per connect — a connect-time price beside the
-    // burst's, never a per-frame one: the tree rides no broadcast, the
-    // observer's door retains it as state, and the ask is the only
-    // door it crosses the wire through.
+    // plus the serialization the send path takes.
     let recorder = CausalRecorder::new("tree-dump-bench");
     recorder.clone_handle().tree(dump_snapshot(1_000));
     let mut group = c.benchmark_group("tree_dump");
@@ -151,6 +165,76 @@ fn replay_burst(c: &mut Criterion) {
         b.iter(|| {
             let answer = alacer_inspect::wire::wire_tree(recorder.latest_tree().as_deref());
             let payload = serde_json::to_string(&answer).expect("the dump's payload");
+            black_box(payload.len());
+        });
+    });
+    group.finish();
+
+    // The point ask (M146, ADR-0150): the answer's price — the geometry
+    // query over the retained snapshot (the pre-order walk, the
+    // containment tests, the ancestry rebuild) plus the wire conversion
+    // and serialization the send path takes. The landing the bench
+    // prices: a point inside the grid's own geometry (the cell at
+    // column 1, row 1 — (20, 30) rides its (20..38, 28..52) span), the
+    // walk descending the root beside that one cell.
+    let recorder = CausalRecorder::new("hit-ask-bench");
+    recorder.clone_handle().tree(dump_snapshot(1_000));
+    let answer = alacer_inspect::wire::wire_hit(recorder.latest_tree().as_deref(), [20.0, 30.0]);
+    let alacer_inspect::WireEvent::Hit {
+        landed: true,
+        ancestry,
+        ..
+    } = &answer
+    else {
+        panic!("the grid's own point lands");
+    };
+    assert_eq!(
+        ancestry.len(),
+        2,
+        "the ancestry is the root beside the one cell the point rides"
+    );
+    let mut group = c.benchmark_group("hit_ask");
+    group.throughput(criterion::Throughput::Elements(1_000));
+    group.bench_function("answer_1k_nodes", |b| {
+        b.iter(|| {
+            let answer =
+                alacer_inspect::wire::wire_hit(recorder.latest_tree().as_deref(), [20.0, 30.0]);
+            let payload = serde_json::to_string(&answer).expect("the hit's payload");
+            black_box(payload.len());
+        });
+    });
+    group.finish();
+
+    // The word ask (M147, ADR-0151): the answer's price — the resolved
+    // snapshot's query (the substring funnel, the role narrowing) plus
+    // the wire conversion and serialization the send path takes — the
+    // needle every tool cell's name carries, so the answer is the
+    // matches' whole worth.
+    let recorder = CausalRecorder::new("find-ask-bench");
+    recorder.clone_handle().tree(dump_snapshot(1_000));
+    let answer = alacer_inspect::wire::wire_find(
+        recorder.latest_tree().as_deref(),
+        "tool",
+        Some(Role::Button),
+    );
+    let alacer_inspect::WireEvent::Find { matches, .. } = &answer else {
+        panic!("the word ask answers");
+    };
+    assert_eq!(
+        matches.len(),
+        999,
+        "every tool cell's name carries the needle — the matches' whole worth"
+    );
+    let mut group = c.benchmark_group("find_ask");
+    group.throughput(criterion::Throughput::Elements(1_000));
+    group.bench_function("answer_1k_nodes", |b| {
+        b.iter(|| {
+            let answer = alacer_inspect::wire::wire_find(
+                recorder.latest_tree().as_deref(),
+                "tool",
+                Some(Role::Button),
+            );
+            let payload = serde_json::to_string(&answer).expect("the find's payload");
             black_box(payload.len());
         });
     });

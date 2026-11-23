@@ -49,9 +49,9 @@ use alacer_widgets::{BoxedWidget as _, Button, Checkbox, Column, Radio, RadioGro
 /// the published baseline's routes price the a11y snapshot machinery
 /// (the M95 rule), and the radio tier grows no snapshot route — the
 /// words it says are the set tier's, published since M119. The pin
-/// re-agrees at 152, and the coordinated rule grows it at the next
+/// re-agrees at 155, and the coordinated rule grows it at the next
 /// published cut, never at a widget bench's.
-const EXPECTED_BENCH_COUNT: usize = 152;
+const EXPECTED_BENCH_COUNT: usize = 155;
 
 /// The first node in the snapshot whose role and name match.
 fn node(harness: &TestHarness, role: Role, name: &str) -> Option<TreeNode> {

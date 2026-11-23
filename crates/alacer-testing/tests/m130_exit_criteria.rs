@@ -48,8 +48,8 @@ use alacer_widgets::{BoxedWidget as _, Button, Checkbox, Column, Switch, TextInp
 /// corpus: the published baseline's routes price the a11y snapshot
 /// machinery (the M95 rule), and the coordinated rule grows it at the
 /// next published cut, never at a widget bench's. The pin re-agrees at
-/// 152.
-const EXPECTED_BENCH_COUNT: usize = 152;
+/// 155.
+const EXPECTED_BENCH_COUNT: usize = 155;
 
 /// The first node in the snapshot whose role and name match.
 fn node(harness: &TestHarness, role: Role, name: &str) -> Option<TreeNode> {

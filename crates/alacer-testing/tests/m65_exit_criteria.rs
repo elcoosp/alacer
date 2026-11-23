@@ -264,7 +264,7 @@ fn m65_the_living_documents_re_agree() {
     let readme = read_workspace_file("README.md");
     for fragment in [
         "M0 through M149",
-        "a hundred and fifty-four decision records",
+        "a hundred and fifty-six decision records",
         "Since M65 the drops name the route that dropped them",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
@@ -275,7 +275,7 @@ fn m65_the_living_documents_re_agree() {
     let architecture = read_workspace_file("docs/architecture.md");
     for fragment in [
         "ADR-0071",
-        "a hundred and fifty-four decision records",
+        "a hundred and fifty-six decision records",
         "the route drop names its rider and splits its silence",
     ] {
         assert!(

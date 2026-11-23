@@ -14,7 +14,7 @@
 //! thread drains it over the socket.
 
 use crate::recorder::{BROADCAST_RING_CAP, CausalRecorder};
-use crate::wire::{self, ClientMessage, Hello, PROTOCOL_VERSION, WireEvent};
+use crate::wire::{self, ClientMessage, Hello, PROTOCOL_VERSION, TierFilter, WireEvent};
 use base64::Engine as _;
 use sha1::{Digest, Sha1};
 use std::io::{BufRead, BufReader, Read, Write};
@@ -248,15 +248,26 @@ fn run_session(
     let hello_json = serde_json::to_string(&hello).map_err(|error| serialize("hello", error))?;
     send_text(stream, &hello_json)?;
 
+    // The session's live-stream gate (M142): the whole stream until a
+    // `subscribe` ask narrows it — the pre-M142 shape every session
+    // rode, and the shape the bare ask restores. The gate is this
+    // session's fan-out only: the recorder's capture, the rings, and
+    // the asks' answers (replay, stats) ride whole regardless.
+    let mut filter = TierFilter::all();
+
     loop {
-        // Push everything recorded since the last drain (oldest first).
-        let events = recorder.take_broadcast();
+        // Push everything recorded since the last drain (oldest first),
+        // the session's gate applied: a fact whose tier the panel
+        // muted crosses nothing — the panel's own silence, never a
+        // loss the recorder caused (the eviction counters name those;
+        // the gate drops nothing the rings hold).
+        let events = recorder
+            .take_broadcast()
+            .into_iter()
+            .filter(|event| filter.admits(event))
+            .collect::<Vec<_>>();
         let mut had_work = !events.is_empty();
-        for event in events {
-            let payload =
-                serde_json::to_string(&event).map_err(|error| serialize("wire event", error))?;
-            send_text(stream, &payload)?;
-        }
+        send_events(stream, events, &serialize)?;
         // Non-blocking read of whatever the client sent (controls, pings).
         match try_read_client_frame(reader)? {
             ClientFrame::None => {}
@@ -284,11 +295,7 @@ fn run_session(
                             cursor = ?after,
                             "inspector client asked for the rings' replay"
                         );
-                        for event in burst {
-                            let payload = serde_json::to_string(&event)
-                                .map_err(|error| serialize("wire event", error))?;
-                            send_text(stream, &payload)?;
-                        }
+                        send_events(stream, burst, &serialize)?;
                     }
                     Ok(ClientMessage::Stats) => {
                         // The rings' occupancy as one event (M141): the
@@ -306,6 +313,24 @@ fn run_session(
                         send_text(stream, &payload)?;
                     }
                     Ok(ClientMessage::Bye) => break,
+                    Ok(ClientMessage::Subscribe { tiers }) => {
+                        // The live-stream gate, re-set (M142): the bare
+                        // ask restores the whole stream, a list gates
+                        // the fan-out to the named tiers, an empty list
+                        // mutes it — the rings keep recording either
+                        // way (the gate is this session's fan-out, the
+                        // capture and the answers' doors untouched).
+                        // The gate takes hold from this frame's drain
+                        // onward: the facts the session delivered
+                        // before the ask landed crossed while the
+                        // stream was the stream it was.
+                        tracing::debug!(
+                            target: "alacer::inspect",
+                            tiers = ?tiers,
+                            "inspector client asked the stream to gate by tier"
+                        );
+                        filter = TierFilter::from_ask(tiers);
+                    }
                     Err(error) => {
                         // A malformed control frame is not a goodbye: the
                         // session's own discipline reports what it cannot
@@ -465,6 +490,23 @@ fn send_frame(stream: &mut TcpStream, opcode: u8, payload: &[u8]) -> std::io::Re
 /// Sends one text frame.
 fn send_text(stream: &mut TcpStream, text: &str) -> std::io::Result<()> {
     send_frame(stream, 0x1, text.as_bytes())
+}
+
+/// Serializes and sends the session's events in order — the live
+/// drain's push and the replay burst's stream are one shape (the wire's
+/// own words, the session's two doors), so the loops are one helper
+/// beside the call sites.
+fn send_events(
+    stream: &mut TcpStream,
+    events: Vec<WireEvent>,
+    serialize: &impl Fn(&str, serde_json::Error) -> std::io::Error,
+) -> std::io::Result<()> {
+    for event in events {
+        let payload =
+            serde_json::to_string(&event).map_err(|error| serialize("wire event", error))?;
+        send_text(stream, &payload)?;
+    }
+    Ok(())
 }
 
 /// The embedded client: the standalone inspector app (§13.3 "the inspector

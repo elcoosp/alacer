@@ -57,13 +57,13 @@ fn mount_input(harness: &mut TestHarness, content: &str) {
     }
 }
 
-/// The input's a11y bounds — where the clicks land (§11.5: tests target
+/// The input's a11y bounds — where the clicks land (§11.1 item 5: tests target
 /// through the tree, never widget internals).
 fn input_bounds(harness: &TestHarness) -> alacer_core::geom::Rect {
     harness.query(Role::TextInput).named("Search").bounds()
 }
 
-/// The input's committed value, read through the a11y tree (§11.5).
+/// The input's committed value, read through the a11y tree (§11.1 item 5).
 fn input_value(harness: &TestHarness) -> String {
     harness
         .query(Role::TextInput)

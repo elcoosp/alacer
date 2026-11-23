@@ -39,14 +39,12 @@ dhat.workspace = true
 fast-arena = ["alacer-core/fast-arena"]
 
 [dev-dependencies]
-serde_json.workspace = true
 criterion.workspace = true
 accesskit.workspace = true
 # The cross-backend equivalence fuzz (§9.3, Q8) needs the platform's
 # headless wgpu readback twin; the dev-dep's default features carry
 # backend-wgpu.
 alacer-platform.workspace = true
-
 [[bench]]
 name = "w3_animation"
 harness = false

@@ -376,7 +376,7 @@ fn m22_the_refused_route_joins_the_corpus_by_the_coordinated_rule() {
 
     assert_eq!(
         baselines["bench_count"],
-        serde_json::json!(157),
+        serde_json::json!(159),
         "the corpus grows 56 → 57 at M22's measurement run"
     );
     let benches = baselines["benches"].as_object().expect("benches object");
@@ -393,7 +393,7 @@ fn m22_the_refused_route_joins_the_corpus_by_the_coordinated_rule() {
     // cut (the coordinated rule: bench, gates, baseline, pins together).
     assert_eq!(
         gates.len(),
-        157,
+        159,
         "every case carries exactly one regression gate"
     );
     assert!(
@@ -423,24 +423,24 @@ fn m22_the_refused_route_joins_the_corpus_by_the_coordinated_rule() {
     ] {
         let source = read_workspace_file(&format!("crates/alacer-testing/tests/{suite}"));
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 157;"),
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 159;"),
             "{suite} must pin the 131-case corpus"
         );
     }
     let m19 = read_workspace_file("crates/alacer-testing/tests/m19_exit_criteria.rs");
     assert!(
-        m19.contains("All 157 criterion cases") && m19.contains("serde_json::json!(157)"),
+        m19.contains("All 159 criterion cases") && m19.contains("serde_json::json!(159)"),
         "the m19 suite's pins moved with the corpus"
     );
     let m20 = read_workspace_file("crates/alacer-testing/tests/m20_exit_criteria.rs");
     let m21 = read_workspace_file("crates/alacer-testing/tests/m21_exit_criteria.rs");
     assert!(
-        m20.contains("serde_json::json!(157)")
+        m20.contains("serde_json::json!(159)")
             && m20.contains("every case carries exactly one regression gate"),
         "the m20 suite's own pins moved"
     );
     assert!(
-        m21.contains("serde_json::json!(157)")
+        m21.contains("serde_json::json!(159)")
             && m21.contains("the m20 suite's pins moved with the corpus"),
         "the m21 suite's own pins moved"
     );
@@ -453,10 +453,10 @@ fn m22_the_living_documents_re_agree() {
     // block and the register count move with the corpus.
     let readme = read_workspace_file("README.md");
     for fragment in [
-        "All 157 criterion cases",
+        "All 159 criterion cases",
         "Since M22 the availability tier is widget vocabulary",
         "M0 through M149",
-        "a hundred and fifty-four decision records",
+        "a hundred and fifty-six decision records",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
     }
@@ -484,7 +484,7 @@ fn m22_the_living_documents_re_agree() {
     let architecture = read_workspace_file("docs/architecture.md");
     for fragment in [
         "ADR-0028",
-        "a hundred and fifty-four decision records",
+        "a hundred and fifty-six decision records",
         "the availability tier joins the widget contract",
     ] {
         assert!(

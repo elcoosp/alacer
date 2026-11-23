@@ -3861,6 +3861,13 @@ impl PassPipeline {
                     s.last_a11y_ids = Some(snapshot.nodes.iter().map(|n| n.id).collect());
                 }
                 s.a11y.apply(std::sync::Arc::clone(&snapshot), &delta);
+                // The dump seam's door (ADR-0010): the observer that opted
+                // in receives the same Arc the sink saw — one branch when
+                // none (the A7 idle contract), the tree riding no ring and
+                // no broadcast, the recorder retaining it as state.
+                if let Some(observer) = s.observer.as_mut() {
+                    observer.tree(std::sync::Arc::clone(&snapshot));
+                }
                 a11y_delta = delta;
                 a11y_work = start.map_or(0, |t| s.read_clock_nanos().saturating_sub(t));
                 s.counters.a11y_runs += 1;
@@ -4649,6 +4656,7 @@ mod tests {
     use crate::events::PointerEvent;
     use crate::flux::Flux;
     use crate::geom::{Point, Rect, Size, Vector};
+    use crate::inspect::{InspectEvent, InspectObserver};
     use crate::mask::Change;
     use crate::scene::Quad;
     use crate::style::Style;
@@ -7003,5 +7011,86 @@ mod tests {
         assert!(!frame.is_idle(), "the move's masks cost one frame");
         let after = p.tick(viewport()).expect("the frame lays out");
         assert!(after.is_idle(), "the frame after the move is idle again");
+    }
+
+    // ------------------------------------------------------------------
+    // The inspector's tree dump (ADR-0010's dump seam): the observer
+    // that opted in receives the resolved tree the a11y pass answered —
+    // the same Arc the sink saw, retained by the devtools that need the
+    // whole shape. An absent observer prices nothing: one branch when
+    // none (the A7 idle contract, the fact-forwarding helpers' own
+    // shape), and a skipped a11y pass forwards nothing (the tree door
+    // answers what the pass built, never a guess past it).
+    // ------------------------------------------------------------------
+
+    /// The dump seam's catcher: retains every tree the pipeline hands
+    /// it beside the fact count it observed — the door a devtools
+    /// recorder overrides, the events it keeps counting.
+    struct TreeCatcher {
+        trees: std::rc::Rc<std::cell::RefCell<Vec<std::sync::Arc<TreeSnapshot>>>>,
+        facts: std::rc::Rc<std::cell::Cell<u64>>,
+    }
+
+    impl InspectObserver for TreeCatcher {
+        fn observe(&mut self, _event: InspectEvent) {
+            self.facts.set(self.facts.get() + 1);
+        }
+
+        fn tree(&mut self, snapshot: std::sync::Arc<TreeSnapshot>) {
+            self.trees.borrow_mut().push(snapshot);
+        }
+    }
+
+    #[test]
+    fn the_observers_tree_door_answers_the_resolved_snapshot() {
+        let mut p = pipeline();
+        let root = p.mount_root(Box::new(Fixed {
+            size: Size::new(200.0, 100.0),
+        }));
+        p.add_child(root, Box::new(Switchable::new(Size::new(80.0, 20.0))));
+        let trees = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+        let facts = std::rc::Rc::new(std::cell::Cell::new(0_u64));
+        p.set_observer(Box::new(TreeCatcher {
+            trees: std::rc::Rc::clone(&trees),
+            facts: std::rc::Rc::clone(&facts),
+        }));
+        p.tick(viewport()).expect("the first frame builds the tree");
+        let caught = trees.borrow();
+        assert_eq!(
+            caught.len(),
+            1,
+            "one a11y run, one tree door — the pass's own count"
+        );
+        // The door hands the snapshot the pass answered — the same one
+        // the sink saw, byte-for-byte (one Arc, zero copies, no munge).
+        let sink_tree = recording_of(&mut p).tree.clone().expect("the sink saw it");
+        assert_eq!(
+            &**caught.first().expect("one tree"),
+            &sink_tree,
+            "the door's answer is the sink's answer"
+        );
+        assert!(
+            caught
+                .first()
+                .expect("one tree")
+                .nodes
+                .iter()
+                .any(|node| node.role == Role::Button),
+            "the mounted control rides the dump's shape"
+        );
+        let facts = facts.get();
+        assert!(
+            facts > 0,
+            "the fact stream keeps counting what the events carry"
+        );
+
+        // An idle frame rebuilds nothing: the pass skips, the door
+        // stays silent, the observer's retained tree is the last one.
+        let _ = p.tick(viewport()).expect("the idle frame");
+        assert_eq!(
+            trees.borrow().len(),
+            1,
+            "a skipped a11y pass answers no tree door"
+        );
     }
 }

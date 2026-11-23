@@ -1093,6 +1093,16 @@
       "id": "path_ask_answer_1k_nodes",
       "baseline": "path_ask/answer_1k_nodes",
       "scope": "same-host"
+    },
+    {
+      "id": "descendants_ask_answer_1k_nodes",
+      "baseline": "descendants_ask/answer_1k_nodes",
+      "scope": "same-host"
+    },
+    {
+      "id": "siblings_ask_answer_1k_nodes",
+      "baseline": "siblings_ask/answer_1k_nodes",
+      "scope": "same-host"
     }
   ],
   "test_enforced_gates": [

@@ -55,6 +55,33 @@
 //!   `accessibility` → `action`, each explicit, ordered, and independently
 //!   traceable (§7.2).
 //!
+//! The rest of the crate, module by module — every one individually
+//! documented at its own header; this list is the map, not the contract:
+//!
+//! - The seams the pipeline resolves: [`clipboard`] (the copy/cut/paste
+//!   engine without platform deps, ADR-0020), [`text_seam`] (shape and
+//!   measure text without a text engine, ADR-0004), [`time`] (monotonic
+//!   clocks, `ManualClock` for tests), and [`keymap`]'s consults already
+//!   listed above.
+//! - The vocabularies the passes speak: [`events`] (the input event and
+//!   IME contract types), [`input`] (the frame-batching coalescer,
+//!   ADR-0014), [`style`] (typed layout styles and the `MeasureFn`
+//!   measurement seam), [`geom`] (Euclid-backed logical geometry),
+//!   [`num`] (the workspace's single cast seam), [`color`] (8-bit RGBA),
+//!   [`damage`] (partial-paint regions, ADR-0023), [`scene`] (the paint
+//!   vocabulary: primitives, `PaintSink`, `GlyphSource`), and [`utf16`]
+//!   (the UTF-16 index arithmetic the editing contract rides).
+//! - The editing contract's history: [`history`] (`EditHistory`, the
+//!   undo/redo vocabulary of the journal tier, ADR-0021).
+//! - The devtools observation seam: [`inspect`] (the causal vocabulary
+//!   and the `InspectObserver` sink, ADR-0029) and [`trail`] (the
+//!   provided bounded in-process reader, `TrailLog`), plus the twelve
+//!   per-tier trail records the observers read — [`a11y_echo`],
+//!   [`action`], [`frame_refusal`], [`gesture`], [`preedit`],
+//!   [`key_edit`], [`route_drop`], [`scroll`], [`text_write`],
+//!   [`value`], [`view_patch`], and the announcement trail beside
+//!   [`announce`].
+//!
 //! The layering is a DAG: this crate depends on no other Alacer crate.
 
 pub mod a11y_echo;

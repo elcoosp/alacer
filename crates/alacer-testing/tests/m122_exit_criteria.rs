@@ -39,7 +39,7 @@ use alacer_widgets::{BoxedWidget as _, Column, Label, TextInput};
 /// (M96), the shortcut route's case (M121), the live route's case (M120),
 /// the set route's pair (M119), the busy route's pair (M117) and every
 /// tier's before them on the published corpus.
-const EXPECTED_BENCH_COUNT: usize = 152;
+const EXPECTED_BENCH_COUNT: usize = 155;
 
 /// The suite's own read door into the published corpus: the multiline
 /// route's case — the 1,000-node input arena carrying the constructor's

@@ -231,6 +231,45 @@ pub enum ClientMessage {
         /// answers name, the answer echoing it back.
         node: u64,
     },
+    /// Ask the server what stands beneath the named node (M150,
+    /// ADR-0154) — the descendant ask riding the same retained snapshot
+    /// the dump ask answers from, the path ask's shape at the beneath
+    /// tier, the answer one [`WireEvent::Descendants`] event: the
+    /// subtree the asked node stands over (tree order — the paint
+    /// order's own), the ask echoed beside the answer. The id is the
+    /// one the dump, the find, the hit and the path answers already
+    /// name — the ask family composing. Every miss a named species: a
+    /// tree that has not resolved yet answers `no_tree`, an id naming
+    /// nothing standing answers `no_node` — never a collapsed `false`.
+    /// The ask reads without disturbing (the dump ask's own rule): no
+    /// ring drains, the broadcast queue is untouched. Additive at
+    /// version 1 (the `Replay` ask's precedent): a server older than
+    /// the ask closes the session on the unknown control.
+    DescendantsAsk {
+        /// The asked node id — the id the family's answers name, the
+        /// answer echoing it back.
+        node: u64,
+    },
+    /// Ask the server what stands in the parent's row beside the named
+    /// node (M151, ADR-0155) — the sibling ask riding the same retained
+    /// snapshot the dump ask answers from, the descendant ask's shape
+    /// at the beside tier, the answer one [`WireEvent::Siblings`]
+    /// event: the parent's other children (tree order — the paint
+    /// order's own), the ask echoed beside the answer. The id is the
+    /// one the family's answers already name — the ask family
+    /// composing. Every miss a named species: a tree that has not
+    /// resolved yet answers `no_tree`, an id naming nothing standing
+    /// answers `no_node` — never a collapsed `false`; the root's
+    /// landing names the honest absence (the root stands beside
+    /// nothing). The ask reads without disturbing (the dump ask's own
+    /// rule): no ring drains, the broadcast queue is untouched.
+    /// Additive at version 1 (the `Replay` ask's precedent): a server
+    /// older than the ask closes the session on the unknown control.
+    SiblingsAsk {
+        /// The asked node id — the id the family's answers name, the
+        /// answer echoing it back.
+        node: u64,
+    },
 }
 
 /// One trail tier's wire name — the stats answer's row vocabulary
@@ -1200,6 +1239,55 @@ pub enum WireEvent {
         /// empty on a miss.
         ancestry: Vec<WireTreeNode>,
     },
+    /// The descendant ask's answer — what stands beneath the asked node
+    /// (M150, ADR-0154). The path ask's landed-or-refused shape at the
+    /// beneath tier: a landing names the subtree in tree order (the
+    /// paint order's own — the asked node itself the anchor the ask
+    /// already names, never its own answer's first row), each node the
+    /// [`WireTreeNode`] vocabulary the tree event speaks; a refusal
+    /// names its species (`no_tree`, `no_node`), never a collapsed
+    /// `false`. An empty `beneath` on a landing is the honest absence —
+    /// nothing stands under a leaf. Like `Stats`, `Tree`, `Hit`,
+    /// `Find`, `Region` and `Path`, the event prices no ring — the
+    /// ask's answer, never a captured fact, never a streamed one.
+    Descendants {
+        /// The node id the ask carried — the answer echoes the ask.
+        asked: u64,
+        /// Whether the subtree answered (`true`) or the ask was refused
+        /// (`false`).
+        landed: bool,
+        /// The refusal species (`no_tree`, `no_node`), `null` on a
+        /// landing.
+        miss: Option<String>,
+        /// The subtree beneath, tree order — empty on a miss, or under
+        /// a leaf (the honest absence).
+        beneath: Vec<WireTreeNode>,
+    },
+    /// The sibling ask's answer — what stands in the parent's row
+    /// beside the asked node (M151, ADR-0155). The descendant ask's
+    /// landed-or-refused shape at the beside tier: a landing names the
+    /// row in tree order (the paint order's own — the asked node
+    /// itself the anchor the ask already names, never its own answer's
+    /// row), each node the [`WireTreeNode`] vocabulary the tree event
+    /// speaks; a refusal names its species (`no_tree`, `no_node`),
+    /// never a collapsed `false`. An empty `beside` on a landing is
+    /// the honest absence — the root stands beside nothing, and so
+    /// does an only child. Like `Stats`, `Tree`, `Hit`, `Find`,
+    /// `Region`, `Path` and `Descendants`, the event prices no ring —
+    /// the ask's answer, never a captured fact, never a streamed one.
+    Siblings {
+        /// The node id the ask carried — the answer echoes the ask.
+        asked: u64,
+        /// Whether the row answered (`true`) or the ask was refused
+        /// (`false`).
+        landed: bool,
+        /// The refusal species (`no_tree`, `no_node`), `null` on a
+        /// landing.
+        miss: Option<String>,
+        /// The row beside, tree order — empty on a miss, or beside an
+        /// only child and the root (the honest absence).
+        beside: Vec<WireTreeNode>,
+    },
 }
 
 impl WireEvent {
@@ -1242,7 +1330,9 @@ impl WireEvent {
             | Self::Hit { .. }
             | Self::Find { .. }
             | Self::Region { .. }
-            | Self::Path { .. } => None,
+            | Self::Path { .. }
+            | Self::Descendants { .. }
+            | Self::Siblings { .. } => None,
         }
     }
 }
@@ -1585,6 +1675,75 @@ pub fn wire_path(tree: Option<&alacer_core::TreeSnapshot>, asked: u64) -> WireEv
         landed: miss.is_none(),
         miss,
         ancestry,
+    }
+}
+
+/// Converts the descendant ask's answer (M150, ADR-0154): the beneath
+/// query's verdict — [`TreeSnapshot::descendants_of`]'s own, over the
+/// retained snapshot — mapped onto the wire. The landed subtree rides
+/// the tree event's node vocabulary ([`wire_tree_node`], one shape
+/// every ask's door) in tree order (the paint order's own, the asked
+/// node itself the anchor the ask names — never its own answer's first
+/// row); the refusal its species word (the path ask's vocabulary, one
+/// species list two doors); the ask echoed beside the answer (the
+/// cursor's own rule). The answer rides no ring and no broadcast — the
+/// dump ask's rule at the beneath tier; an empty `beneath` on a landing
+/// is the honest absence (a leaf names nothing beneath).
+#[must_use]
+pub fn wire_descendants(tree: Option<&alacer_core::TreeSnapshot>, asked: u64) -> WireEvent {
+    let mut beneath = Vec::new();
+    let mut miss = None;
+    match tree {
+        Some(snapshot) => match snapshot.descendants_of(asked) {
+            alacer_core::DescendantsAnswer::Landed { beneath: subtree } => {
+                beneath = subtree.iter().map(|node| wire_tree_node(node)).collect();
+            }
+            alacer_core::DescendantsAnswer::Missed(species) => {
+                miss = Some(species.name().to_string());
+            }
+        },
+        None => miss = Some(alacer_core::PathMiss::NoTree.name().to_string()),
+    }
+    WireEvent::Descendants {
+        asked,
+        landed: miss.is_none(),
+        miss,
+        beneath,
+    }
+}
+
+/// Converts the sibling ask's answer (M151, ADR-0155): the beside
+/// query's verdict — [`TreeSnapshot::siblings_of`]'s own, over the
+/// retained snapshot — mapped onto the wire. The landed row rides the
+/// tree event's node vocabulary ([`wire_tree_node`], one shape every
+/// ask's door) in tree order (the paint order's own, the asked node
+/// itself the anchor the ask names — never its own answer's row); the
+/// refusal its species word (the family's vocabulary, one species list
+/// three doors); the ask echoed beside the answer (the cursor's own
+/// rule). The answer rides no ring and no broadcast — the dump ask's
+/// rule at the beside tier; an empty `beside` on a landing is the
+/// honest absence (the root stands beside nothing, and so does an only
+/// child).
+#[must_use]
+pub fn wire_siblings(tree: Option<&alacer_core::TreeSnapshot>, asked: u64) -> WireEvent {
+    let mut beside = Vec::new();
+    let mut miss = None;
+    match tree {
+        Some(snapshot) => match snapshot.siblings_of(asked) {
+            alacer_core::SiblingsAnswer::Landed { beside: row } => {
+                beside = row.iter().map(|node| wire_tree_node(node)).collect();
+            }
+            alacer_core::SiblingsAnswer::Missed(species) => {
+                miss = Some(species.name().to_string());
+            }
+        },
+        None => miss = Some(alacer_core::PathMiss::NoTree.name().to_string()),
+    }
+    WireEvent::Siblings {
+        asked,
+        landed: miss.is_none(),
+        miss,
+        beside,
     }
 }
 
@@ -4780,6 +4939,277 @@ mod tests {
         assert!(
             answer.tier().is_none(),
             "the path ask's answer is a response, never a streamed tier"
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // M150 (ADR-0154): the descendant ask — the `descendants_ask`
+    // control and the `descendants` answer. The path ask's shape at the
+    // beneath tier: the retained snapshot's state answers, the subtree
+    // riding the tree event's node vocabulary in tree order, the ask
+    // echoed beside the answer, the secret-carrying rule keeping the
+    // contents off the wire. Every miss a named species (`no_tree`,
+    // `no_node`) — never a collapsed `false`.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn descendants_ask_parses_the_documented_shape() {
+        let ask: ClientMessage = serde_json::from_str(r#"{"kind":"descendants_ask","node":2}"#)
+            .expect("descendants ask");
+        assert_eq!(
+            ask,
+            ClientMessage::DescendantsAsk { node: 2 },
+            "the ask carries the node id the panel already holds"
+        );
+    }
+
+    #[test]
+    fn descendants_ask_without_a_node_is_a_malformed_frame() {
+        // The id is the ask's whole payload: an ask without one does
+        // not parse — the malformed-frame behavior the session's
+        // documented close names (the unknown control's rule, at the
+        // field tier).
+        let ask = serde_json::from_str::<ClientMessage>(r#"{"kind":"descendants_ask"}"#);
+        assert!(ask.is_err(), "an id-less ask does not parse");
+    }
+
+    #[test]
+    fn descendants_answer_serializes_the_subtree_and_the_echo() {
+        let mut save = dump_node(3, alacer_core::Role::Button, "Save");
+        save.children = Vec::new();
+        let mut status = dump_node(4, alacer_core::Role::Label, "Status");
+        status.children = Vec::new();
+        let mut panel = dump_node(2, alacer_core::Role::Container, "panel");
+        panel.children = vec![3, 4];
+        let mut window = dump_node(1, alacer_core::Role::Container, "window");
+        window.children = vec![2];
+        let snapshot = alacer_core::TreeSnapshot {
+            nodes: vec![window, panel, save, status],
+            root: Some(1),
+        };
+        let json = serde_json::to_string(&wire_descendants(Some(&snapshot), 2)).expect("json");
+        assert!(
+            json.starts_with(
+                r#"{"kind":"descendants","asked":2,"landed":true,"miss":null,"beneath":["#,
+            ),
+            "the answer's tag, the echoed ask, the landing: {json}"
+        );
+        let save = json.find(r#""node":3"#).expect("the first child");
+        let status = json.find(r#""node":4"#).expect("the second child");
+        assert!(
+            save < status,
+            "the subtree rides tree order, the paint order's own: {json}"
+        );
+        assert!(
+            !json.contains(r#""node":2,"#),
+            "the asked node is the anchor the ask names, never its own answer's row: {json}"
+        );
+    }
+
+    #[test]
+    fn descendants_answer_names_the_unknown_node_miss() {
+        let snapshot = alacer_core::TreeSnapshot {
+            nodes: vec![dump_node(1, alacer_core::Role::Container, "window")],
+            root: Some(1),
+        };
+        let json = serde_json::to_string(&wire_descendants(Some(&snapshot), 9)).expect("json");
+        assert_eq!(
+            json,
+            r#"{"kind":"descendants","asked":9,"landed":false,"miss":"no_node","beneath":[]}"#,
+            "the asked id names nothing standing — the species names it, never a collapsed answer"
+        );
+    }
+
+    #[test]
+    fn descendants_answer_before_any_tree_answers_the_no_tree_miss() {
+        let json = serde_json::to_string(&wire_descendants(None, 1)).expect("json");
+        assert_eq!(
+            json,
+            r#"{"kind":"descendants","asked":1,"landed":false,"miss":"no_tree","beneath":[]}"#,
+            "no tree resolved yet — the honest absence, never an invented walk"
+        );
+    }
+
+    #[test]
+    fn descendants_answer_for_a_leaf_answers_the_honest_absence() {
+        let snapshot = alacer_core::TreeSnapshot {
+            nodes: vec![dump_node(1, alacer_core::Role::Container, "window")],
+            root: Some(1),
+        };
+        let json = serde_json::to_string(&wire_descendants(Some(&snapshot), 1)).expect("json");
+        assert_eq!(
+            json, r#"{"kind":"descendants","asked":1,"landed":true,"miss":null,"beneath":[]}"#,
+            "nothing stands beneath a leaf — the landing names the absence, never a refusal"
+        );
+    }
+
+    #[test]
+    fn descendants_answer_rides_no_field_contents() {
+        // The secret-carrying rule at the beneath tier: a field whose
+        // subtree is asked answers the shape, the value, the hint, the
+        // help and the selection never crossing the wire (the path
+        // ask's own rule, one tier lower).
+        let mut secret = dump_node(4, alacer_core::Role::TextInput, "password");
+        secret.value = Some("hunter2".to_string());
+        secret.placeholder = Some("type your password".to_string());
+        secret.description = Some("the login field".to_string());
+        let mut form = dump_node(2, alacer_core::Role::Container, "login");
+        form.children = vec![4];
+        let snapshot = alacer_core::TreeSnapshot {
+            nodes: vec![form, secret],
+            root: Some(2),
+        };
+        let json = serde_json::to_string(&wire_descendants(Some(&snapshot), 2)).expect("json");
+        assert!(
+            json.contains(r#""label":"password""#),
+            "the asked subtree's names ride the shape: {json}"
+        );
+        assert!(
+            !json.contains("hunter2")
+                && !json.contains("type your password")
+                && !json.contains("the login field"),
+            "the contents never ride: {json}"
+        );
+    }
+
+    #[test]
+    fn descendants_event_prices_no_ring_tier() {
+        let answer = wire_descendants(None, 1);
+        assert!(
+            answer.tier().is_none(),
+            "the descendant ask's answer is a response, never a streamed tier"
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // M151 (ADR-0155): the sibling ask — the `siblings_ask` control and
+    // the `siblings` answer. The family's shape at the beside tier: the
+    // retained snapshot's state answers, the row riding the tree
+    // event's node vocabulary in tree order (the asked node the anchor
+    // the ask names — never its own answer's row), the ask echoed
+    // beside the answer, the secret-carrying rule keeping the contents
+    // off the wire. Every miss a named species (`no_tree`, `no_node`)
+    // — never a collapsed `false`; the root's landing the honest
+    // absence.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn siblings_ask_parses_the_documented_shape() {
+        let ask: ClientMessage =
+            serde_json::from_str(r#"{"kind":"siblings_ask","node":3}"#).expect("siblings ask");
+        assert_eq!(
+            ask,
+            ClientMessage::SiblingsAsk { node: 3 },
+            "the ask carries the node id the panel already holds"
+        );
+    }
+
+    #[test]
+    fn siblings_ask_without_a_node_is_a_malformed_frame() {
+        // The id is the ask's whole payload: an ask without one does
+        // not parse — the malformed-frame behavior the session's
+        // documented close names (the unknown control's rule, at the
+        // field tier).
+        let ask = serde_json::from_str::<ClientMessage>(r#"{"kind":"siblings_ask"}"#);
+        assert!(ask.is_err(), "an id-less ask does not parse");
+    }
+
+    #[test]
+    fn siblings_answer_serializes_the_row_and_the_echo() {
+        let mut save = dump_node(3, alacer_core::Role::Button, "Save");
+        save.children = Vec::new();
+        let mut status = dump_node(4, alacer_core::Role::Label, "Status");
+        status.children = Vec::new();
+        let mut panel = dump_node(2, alacer_core::Role::Container, "panel");
+        panel.children = vec![3, 4];
+        let mut window = dump_node(1, alacer_core::Role::Container, "window");
+        window.children = vec![2];
+        let snapshot = alacer_core::TreeSnapshot {
+            nodes: vec![window, panel, save, status],
+            root: Some(1),
+        };
+        let json = serde_json::to_string(&wire_siblings(Some(&snapshot), 3)).expect("json");
+        assert!(
+            json.starts_with(
+                r#"{"kind":"siblings","asked":3,"landed":true,"miss":null,"beside":["#,
+            ),
+            "the answer's tag, the echoed ask, the landing: {json}"
+        );
+        assert!(
+            json.contains(r#""node":4"#) && !json.contains(r#""node":3"#),
+            "the row is the parent's other children, the asked node left out: {json}"
+        );
+    }
+
+    #[test]
+    fn siblings_answer_names_the_unknown_node_miss() {
+        let snapshot = alacer_core::TreeSnapshot {
+            nodes: vec![dump_node(1, alacer_core::Role::Container, "window")],
+            root: Some(1),
+        };
+        let json = serde_json::to_string(&wire_siblings(Some(&snapshot), 9)).expect("json");
+        assert_eq!(
+            json, r#"{"kind":"siblings","asked":9,"landed":false,"miss":"no_node","beside":[]}"#,
+            "the asked id names nothing standing — the species names it, never a collapsed answer"
+        );
+    }
+
+    #[test]
+    fn siblings_answer_before_any_tree_answers_the_no_tree_miss() {
+        let json = serde_json::to_string(&wire_siblings(None, 1)).expect("json");
+        assert_eq!(
+            json, r#"{"kind":"siblings","asked":1,"landed":false,"miss":"no_tree","beside":[]}"#,
+            "no tree resolved yet — the honest absence, never an invented row"
+        );
+    }
+
+    #[test]
+    fn siblings_answer_for_the_root_answers_the_honest_absence() {
+        let snapshot = alacer_core::TreeSnapshot {
+            nodes: vec![dump_node(1, alacer_core::Role::Container, "window")],
+            root: Some(1),
+        };
+        let json = serde_json::to_string(&wire_siblings(Some(&snapshot), 1)).expect("json");
+        assert_eq!(
+            json, r#"{"kind":"siblings","asked":1,"landed":true,"miss":null,"beside":[]}"#,
+            "the root stands beside nothing — the landing names the absence, never a refusal"
+        );
+    }
+
+    #[test]
+    fn siblings_answer_rides_no_field_contents() {
+        // The secret-carrying rule at the beside tier: a field whose
+        // row is asked answers the shape, the value, the hint, the
+        // help and the selection never crossing the wire (the path
+        // ask's own rule, one tier over).
+        let mut secret = dump_node(4, alacer_core::Role::TextInput, "password");
+        secret.value = Some("hunter2".to_string());
+        secret.placeholder = Some("type your password".to_string());
+        let mut sibling = dump_node(5, alacer_core::Role::TextInput, "username");
+        sibling.children = Vec::new();
+        let mut form = dump_node(2, alacer_core::Role::Container, "login");
+        form.children = vec![4, 5];
+        let snapshot = alacer_core::TreeSnapshot {
+            nodes: vec![form, secret, sibling],
+            root: Some(2),
+        };
+        let json = serde_json::to_string(&wire_siblings(Some(&snapshot), 4)).expect("json");
+        assert!(
+            json.contains(r#""label":"username""#),
+            "the row's names ride the shape: {json}"
+        );
+        assert!(
+            !json.contains("hunter2") && !json.contains("type your password"),
+            "the contents never ride: {json}"
+        );
+    }
+
+    #[test]
+    fn siblings_event_prices_no_ring_tier() {
+        let answer = wire_siblings(None, 1);
+        assert!(
+            answer.tier().is_none(),
+            "the sibling ask's answer is a response, never a streamed tier"
         );
     }
 }

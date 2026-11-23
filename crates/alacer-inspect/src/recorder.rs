@@ -229,6 +229,11 @@ struct Recording {
     settings: Ring<alacer_core::inspect::SettingRecord>,
     /// The most recent frame, for "what does the inspector see right now".
     latest: Option<alacer_core::inspect::FrameSummary>,
+    /// The most recent resolved tree, for the dump ask (the observer's
+    /// tree door retains it — state, never history: `clear` empties the
+    /// rings and leaves the shape standing). The reader door is
+    /// [`CausalRecorder::latest_tree`].
+    latest_tree: Option<std::sync::Arc<alacer_core::TreeSnapshot>>,
     /// The wire-shaped events awaiting the server's session drain (push, not
     /// poll: the observer thread serializes as it records).
     broadcast: VecDeque<WireEvent>,
@@ -268,6 +273,7 @@ impl Recording {
             themes: Ring::new(THEME_RING_CAP),
             settings: Ring::new(SETTING_RING_CAP),
             latest: None,
+            latest_tree: None,
             broadcast: VecDeque::new(),
             broadcast_evicted: 0,
         }
@@ -715,6 +721,17 @@ impl CausalRecorder {
             .and_then(|recording| recording.latest.clone())
     }
 
+    /// The most recent resolved tree — the dump ask's answer (the
+    /// observer's tree door retained it). State, never history: a
+    /// `clear` empties the rings and leaves the shape standing, and a
+    /// poisoned mutex answers the honest absence the other readers
+    /// answer (a shape that cannot be read names no shape).
+    #[must_use]
+    pub fn latest_tree(&self) -> Option<std::sync::Arc<alacer_core::TreeSnapshot>> {
+        self.try_lock()
+            .and_then(|recording| recording.latest_tree.clone())
+    }
+
     /// Total frames observed (never evicted — the honest count).
     #[must_use]
     pub fn frames_seen(&self) -> u64 {
@@ -1063,6 +1080,17 @@ impl InspectObserver for RecorderHandle {
                     .frames
                     .push(fact_number, RecordedFrame { summary });
             }
+        }
+    }
+
+    fn tree(&mut self, snapshot: std::sync::Arc<alacer_core::TreeSnapshot>) {
+        // The dump seam's read side: the latest shape retained as state
+        // — no fact number, no ring, no broadcast (the events are the
+        // history; the tree is the answer to "what stands right now").
+        // A poisoned mutex is the named loss the observe path prices on
+        // the dropped counter; the door answers nothing to read.
+        if let Ok(mut recording) = self.recording.lock() {
+            recording.latest_tree = Some(snapshot);
         }
     }
 }
@@ -1645,5 +1673,113 @@ mod tests {
             dirty: Vec::new(),
             dirty_truncated: 0,
         }
+    }
+
+    // ------------------------------------------------------------------
+    // The tree dump's read side: the observer's tree door retains the
+    // latest resolved snapshot — the whole shape the dump ask answers —
+    // the `latest_frame` precedent grown a second retained answer. The
+    // tree is *state*, never history: a `clear` empties the rings and
+    // leaves the tree standing (the panel asking again reads the shape
+    // the last frame resolved), and a poisoned lock answers the honest
+    // absence the other readers answer.
+    // ------------------------------------------------------------------
+
+    /// Builds a minimal snapshot: one root, the named child count.
+    fn dump_snapshot(root_id: u64) -> std::sync::Arc<alacer_core::TreeSnapshot> {
+        std::sync::Arc::new(alacer_core::TreeSnapshot {
+            nodes: vec![alacer_core::TreeNode {
+                id: root_id,
+                role: alacer_core::Role::Container,
+                label: "root".to_string(),
+                bounds: None,
+                children: Vec::new(),
+                value: None,
+                toggled: None,
+                table_slot: None,
+                selection: None,
+                live: None,
+                enabled: true,
+                description: None,
+                placeholder: None,
+                value_range: None,
+                numeric_value: None,
+                secure_entry: false,
+                scroll_orientation: None,
+                scroll_position: None,
+                secure_revealed: false,
+                read_only: false,
+                required: false,
+                invalid: None,
+                selected: None,
+                multiselectable: false,
+                busy: false,
+                expanded: None,
+                auto_complete: None,
+                sort_direction: None,
+                level: None,
+                current: None,
+                has_popup: None,
+                role_description: None,
+                position_in_set: None,
+                size_of_set: None,
+                keyboard_shortcut: None,
+                multiline: false,
+                language: None,
+                search_field: false,
+            }],
+            root: Some(root_id),
+        })
+    }
+
+    #[test]
+    fn the_latest_tree_answers_the_dump_reader() {
+        let recorder = CausalRecorder::new("dump");
+        let mut handle = recorder.clone_handle();
+        assert!(
+            recorder.latest_tree().is_none(),
+            "no tree door yet — the honest absence"
+        );
+        handle.tree(dump_snapshot(1));
+        let first = recorder.latest_tree().expect("the first tree");
+        assert_eq!(first.root, Some(1), "the retained shape is the shape given");
+        handle.tree(dump_snapshot(2));
+        let second = recorder.latest_tree().expect("the latest tree");
+        assert_eq!(
+            second.root,
+            Some(2),
+            "the dump answers the latest resolution, never the first"
+        );
+    }
+
+    #[test]
+    fn the_tree_survives_clear() {
+        let recorder = CausalRecorder::new("dump-clear");
+        let mut handle = recorder.clone_handle();
+        handle.tree(dump_snapshot(5));
+        recorder.clear();
+        let tree = recorder.latest_tree().expect("the tree stands");
+        assert_eq!(
+            tree.root,
+            Some(5),
+            "the rings are history, the tree is state — clear empties one, not the other"
+        );
+    }
+
+    #[test]
+    fn the_poisoned_lock_answers_no_tree() {
+        let recorder = CausalRecorder::new("dump-poison");
+        let mut handle = recorder.clone_handle();
+        handle.tree(dump_snapshot(3));
+        let recording = std::sync::Arc::clone(&handle.recording);
+        let joiner = std::thread::spawn(move || {
+            let _guard = recording.lock().expect("the first hold");
+            panic!("the observer that died mid-callback");
+        });
+        let _ = joiner.join();
+        assert!(
+            recorder.latest_tree().is_none(),
+            "the poisoned mutex names the absence, never a stale shape"
+        );
     }
 }

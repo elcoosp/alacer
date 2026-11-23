@@ -207,7 +207,7 @@ fn m32_the_living_documents_re_agree() {
     let readme = read_workspace_file("README.md");
     for fragment in [
         "M0 through M149",
-        "a hundred and fifty-four decision records",
+        "a hundred and fifty-six decision records",
         "`progress` are `rsx!` elements",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");

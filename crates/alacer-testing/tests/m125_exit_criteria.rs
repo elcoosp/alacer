@@ -41,8 +41,8 @@ use alacer_widgets::{BoxedWidget as _, Button, Column, Link, Radio};
 /// open route priced beside the M124 radio routes), which rides
 /// *outside* the published corpus: the published baseline's routes
 /// price the a11y snapshot machinery (the M95 rule), and the link tier
-/// grows no snapshot route. The pin re-agrees at 152.
-const EXPECTED_BENCH_COUNT: usize = 152;
+/// grows no snapshot route. The pin re-agrees at 155.
+const EXPECTED_BENCH_COUNT: usize = 155;
 
 /// The first node in the snapshot whose role and name match.
 fn node(harness: &TestHarness, role: Role, name: &str) -> Option<TreeNode> {

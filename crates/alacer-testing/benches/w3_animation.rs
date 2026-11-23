@@ -256,10 +256,10 @@ fn advance_and_churn(rig: &mut Rig, frame: usize) {
 }
 
 /// One animation frame: churn, then tick the real pipeline and rasterize
-/// (`frame_pixels` runs the tick itself — the animation frame's whole cost).
+/// (`pixels` runs the tick itself — the animation frame's whole cost).
 fn animation_frame(rig: &mut Rig, frame: usize) {
     advance_and_churn(rig, frame);
-    let _ = rig.harness.frame_pixels();
+    let _ = rig.harness.pixels();
 }
 
 /// The compose state a leaf's fade names: the base color's own alpha

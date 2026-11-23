@@ -401,7 +401,13 @@ impl Arena {
             // the mask index only hold live nodes).
             Storage::Safe(store) => {
                 for id in &to_remove {
-                    let idx = store.index.remove(id).expect("indexed slot");
+                    // The panic names the id the index lost — the same
+                    // context the `{node} is not live` panics carry, so
+                    // the impossible invariant at least says which node
+                    // broke it.
+                    let idx = store.index.remove(id).unwrap_or_else(|| {
+                        panic!("{id} is not live in the slot index while removing {node}")
+                    });
                     store.slots[idx].mask = Change::empty();
                     store.slots[idx].children.clear();
                     store.slots[idx].parent = None;
@@ -419,10 +425,9 @@ impl Arena {
                     .tree
                     .find_mut(parent.raw())
                     .unwrap_or_else(|| panic!("{parent} is not live"));
-                let removed = arena_mut
-                    .children
-                    .remove(node.raw())
-                    .expect("the removed node is a live child");
+                let removed = arena_mut.children.remove(node.raw()).unwrap_or_else(|| {
+                    panic!("{node} is not a live child of {parent} while removing")
+                });
                 arena_mut.item.children.retain(|c| *c != node);
                 arena_mut.item.mask |= Change::STRUCTURE.propagated_to_ancestors();
                 let _ = removed;

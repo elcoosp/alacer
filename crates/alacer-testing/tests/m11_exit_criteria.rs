@@ -1,4 +1,4 @@
-//! M11 exit-criteria integration tests (§11.5, ADR-0017): the UTF-16
+//! M11 exit-criteria integration tests (§11.1 item 5, ADR-0017): the UTF-16
 //! selection model joins the editing and a11y contracts. A focused text
 //! input selects with Shift+arrows/Home/End and Ctrl+A, every edit consumes
 //! the selection (typing replaces it, Backspace/Delete clear it), the AT
@@ -51,7 +51,7 @@ fn mount_focused_input(harness: &mut TestHarness, content: &str) {
     }
 }
 
-/// The focused input's committed value, read through the a11y tree (§11.5:
+/// The focused input's committed value, read through the a11y tree (§11.1 item 5:
 /// tests query the tree, never widget internals).
 fn input_value(harness: &TestHarness) -> String {
     harness

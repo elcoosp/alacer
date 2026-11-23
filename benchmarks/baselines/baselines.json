@@ -14,7 +14,7 @@
     "cpu_count": "2",
     "fingerprint": "ee37c3efc5995352"
   },
-  "bench_count": 155,
+  "bench_count": 157,
   "benches": {
     "a11y/full_rebuild_1k": {
       "median_ns": 98232.71415816326,
@@ -944,6 +944,18 @@
       "median_ns": 378522.77840909094,
       "mean_ns": 379603.34846361785,
       "median_abs_dev_ns": 1435.3987225304882,
+      "samples": 100
+    },
+    "region_ask/answer_1k_nodes": {
+      "median_ns": 379680.9643173759,
+      "mean_ns": 379914.6365749144,
+      "median_abs_dev_ns": 529.6459109457477,
+      "samples": 100
+    },
+    "path_ask/answer_1k_nodes": {
+      "median_ns": 32215.30318780319,
+      "mean_ns": 32237.716243990464,
+      "median_abs_dev_ns": 49.34303357254916,
       "samples": 100
     }
   }

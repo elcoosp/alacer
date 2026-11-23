@@ -1237,7 +1237,7 @@ fn m1_a11y_queries_pass() {
         "leaves walk to themselves"
     );
 
-    // Press through the a11y tree (the actionable half of §11.5).
+    // Press through the a11y tree (the actionable half of §11.1 item 5).
     harness.press(Role::Button, "Increment");
     let next = counter_view(signal);
     let _report = root.update(&next, harness.pipeline_mut());

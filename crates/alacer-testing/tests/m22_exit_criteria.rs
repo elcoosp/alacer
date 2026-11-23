@@ -1,4 +1,4 @@
-//! M22 exit-criteria integration tests (§11.5, ADR-0028): the availability
+//! M22 exit-criteria integration tests (§11.1 item 5, ADR-0028): the availability
 //! tier joins the widget contract. Every actionable control can now report
 //! that it must refuse — one `enabled` source of truth on the `Widget`
 //! trait, riding the same snapshot and sink plumbing every other property

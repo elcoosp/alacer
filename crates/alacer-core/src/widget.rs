@@ -527,6 +527,66 @@ impl Role {
             Self::Search => "search",
         }
     }
+
+    /// The name door's inverse (M147, ADR-0151): the vocabulary's
+    /// `snake_case` word parsed back to the role it names — the wire's
+    /// word ask rides it, and any consumer that speaks the same words
+    /// (the diagnostics, the tests, the tooling) parses with the same
+    /// door. One vocabulary, two doors, the round-trip pin in
+    /// `passes`' suite keeping the two unable to drift apart. A word
+    /// outside the vocabulary answers `None` — the honest refusal the
+    /// caller names (the wire's malformed-frame behavior, at the name
+    /// tier).
+    #[must_use]
+    pub fn from_name(word: &str) -> Option<Self> {
+        match word {
+            "decoration" => Some(Self::Decoration),
+            "container" => Some(Self::Container),
+            "label" => Some(Self::Label),
+            "button" => Some(Self::Button),
+            "text_input" => Some(Self::TextInput),
+            "scroll_area" => Some(Self::ScrollArea),
+            "list_item" => Some(Self::ListItem),
+            "list" => Some(Self::List),
+            "checkbox" => Some(Self::CheckBox),
+            "slider" => Some(Self::Slider),
+            "progress_indicator" => Some(Self::ProgressIndicator),
+            "table" => Some(Self::Table),
+            "table_row" => Some(Self::TableRow),
+            "table_cell" => Some(Self::TableCell),
+            "column_header" => Some(Self::ColumnHeader),
+            "canvas" => Some(Self::Canvas),
+            "live_region" => Some(Self::LiveRegion),
+            "radio" => Some(Self::Radio),
+            "radio_group" => Some(Self::RadioGroup),
+            "link" => Some(Self::Link),
+            "heading" => Some(Self::Heading),
+            "tab" => Some(Self::Tab),
+            "tab_list" => Some(Self::TabList),
+            "spin_button" => Some(Self::SpinButton),
+            "toolbar" => Some(Self::Toolbar),
+            "switch" => Some(Self::Switch),
+            "tab_panel" => Some(Self::TabPanel),
+            "meter" => Some(Self::Meter),
+            "dialog" => Some(Self::Dialog),
+            "tree" => Some(Self::Tree),
+            "tree_item" => Some(Self::TreeItem),
+            "tooltip" => Some(Self::Tooltip),
+            "menu_bar" => Some(Self::MenuBar),
+            "menu" => Some(Self::Menu),
+            "menu_item" => Some(Self::MenuItem),
+            "image" => Some(Self::Image),
+            "banner" => Some(Self::Banner),
+            "navigation" => Some(Self::Navigation),
+            "main" => Some(Self::Main),
+            "content_info" => Some(Self::ContentInfo),
+            "complementary" => Some(Self::Complementary),
+            "form" => Some(Self::Form),
+            "region" => Some(Self::Region),
+            "search" => Some(Self::Search),
+            _ => None,
+        }
+    }
 }
 
 impl fmt::Display for Role {

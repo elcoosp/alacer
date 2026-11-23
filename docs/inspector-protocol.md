@@ -1082,6 +1082,81 @@ drains, the broadcast queue is untouched. Additive at version 1 (the
 `Replay` ask's precedent): a server older than the ask closes the
 session on the unknown control, the documented unknown-frame behavior.
 
+### `hit` — the point ask's answer (M146)
+
+```json
+{"kind":"hit","asked":[30.0,30.0],"landed":true,"miss":null,"ancestry":[{"node":1,"role":"container","label":"window","bounds":[0.0,0.0,800.0,600.0],"enabled":true,"children":[2]},{"node":2,"role":"button","label":"Save","bounds":[16.0,20.0,80.0,24.0],"enabled":true,"children":[]}]}
+```
+
+The answer to the `hit_ask` control: which node the asked point
+touches — the geometry query over the same resolved snapshot the
+`tree_dump` ask answers from, one event. The walk's landed-or-refused
+shape (the `focus` event's own):
+
+- `asked` — the point the ask carried, `[x, y]` in the tree's logical
+  pixels — the answer echoes the ask (the replay cursor's own rule:
+  the ask the panel reads the answer against).
+- `landed` — whether the walk landed (`true`) or refused (`false`).
+- `miss` — the refusal species, `null` on a landing: `no_tree` (before
+  the first a11y pass resolved a tree), `no_geometry` (nodes stand,
+  none carry bounds — the layout pass never wrote the geometry),
+  `outside` (geometry stands, the point touches no node),
+  `malformed` (the asked point is not a finite coordinate — the core
+  door's own refusal; on the wire a non-finite ask is already the
+  malformed frame's close, JSON cannot carry NaN or infinity).
+- `ancestry` — the walk's path, root-first, the hit node last; each
+  node the `tree` event's own node vocabulary (one shape, the two
+  asks' doors, the two unable to drift apart), empty on a miss. The
+  land rule is the paint order's own: among the nodes containing the
+  point, the last in pre-order wins — the tree walk order is the paint
+  order, later siblings composite on top, and the answer names what
+  the pixels would answer. Containment is the geometry's own
+  half-open convention (the min edges in, the max edges out — the
+  convention the damage tests and the scroll clamps speak).
+- The content keys are absent, not empty: the `tree` ask's
+  secret-carrying rule at the point tier — the shape answers, the
+  contents (a field's value, its selection, the placeholder and
+  description beside them) never.
+- Like `stats` and `tree`, the event prices no ring: the ask's
+  answer, never a captured fact, never a streamed one. The ask reads
+  without disturbing (the dump ask's rule): no ring drains, the
+  broadcast queue is untouched, and the answer is the *state*. A
+  `clear` emptied the rings but not the shape the ask answers from.
+  Additive at version 1 (the `Replay` ask's precedent): a server
+  older than the ask closes the session on the unknown control, the
+  documented unknown-frame behavior.
+
+### `find` — the word ask's answer (M147)
+
+```json
+{"kind":"find","query":"save","role":"button","matches":[{"node":2,"role":"button","label":"Save","bounds":[16.0,20.0,80.0,24.0],"enabled":true,"children":[]}]}
+```
+
+The answer to the `find_ask` control: the nodes whose resolved names
+carry the query — the resolved snapshot's query over the same state
+the `tree_dump` ask answers from, one event:
+
+- `query` — the query the ask carried — the echo the panel reads the
+  matches against (the `hit` answer's own rule).
+- `role` — the role word the ask named, `null` the whole vocabulary.
+- `matches` — the nodes whose resolved names carry the query,
+  case-insensitive substring (the a11y query API's own rule), in tree
+  order, each node the `tree` event's own node vocabulary. An empty
+  list is the honest absence — no name carried the needle, never a
+  refusal (the replay burst's empty answer, at the name tier). The
+  empty needle names every resolved name — the ask's every-node
+  answer.
+- The query reads the resolved names — never the values, the
+  selections, the hints: the secret-carrying rule at the name tier,
+  the content keys absent from the shape, not empty.
+- Like `stats`, `tree` and `hit`, the event prices no ring: the ask's
+  answer, never a captured fact, never a streamed one. The ask reads
+  without disturbing (the dump ask's rule): no ring drains, the
+  broadcast queue is untouched, the answer is the *state*. Additive at
+  version 1 (the `Replay` ask's precedent): a server older than the
+  ask closes the session on the unknown control, the documented
+  unknown-frame behavior.
+
 ## Client → server
 
 ```json
@@ -1192,6 +1267,45 @@ drains, the broadcast queue is untouched, and the answer is the *state*
 — a `clear` emptied the rings but not the shape, and before the first
 a11y pass resolves a tree the answer is the honest empty shape
 (`root` null, no nodes). Additive at version 1 (the `Replay` ask's
+precedent): a server older than the ask closes the session on the
+unknown control, the documented unknown-frame behavior.
+
+```json
+{"kind":"hit_ask","point":[120.5,84.0]}
+```
+Asks the server which node the named point touches (M146) — the point
+ask riding the same retained snapshot the `tree_dump` ask answers
+from. The answer is one `hit` event: the walk's landed-or-refused
+shape, the ancestry the walk descended through (root-first, the hit
+node last), the refusal a named species. The coordinates are the
+tree's own logical pixels (the bounds quadruple's frame). A point
+whose coordinates are not finite cannot ride JSON — serde renders NaN
+and infinity as `null`, the array parse refuses — so a non-finite ask
+is a malformed control frame, the documented report-and-close
+behavior. The ask reads without disturbing (the dump ask's own rule).
+Additive at version 1 (the `Replay` ask's precedent): a server older
+than the ask closes the session on the unknown control, the documented
+unknown-frame behavior.
+
+```json
+{"kind":"find_ask","query":"save","role":"button"}
+```
+Asks the server for the nodes whose resolved names carry the query
+(M147) — the word ask riding the same retained snapshot the
+`tree_dump` ask answers from. The answer is one `find` event: the
+matches in tree order, the ask echoed beside the answer. The query is
+case-insensitive substring over the resolved names — never the values
+the secret-carrying rule keeps off the wire. The `role` field is
+optional and defaults to absent — the bare ask answers the whole
+vocabulary:
+
+```json
+{"kind":"find_ask","query":"save"}
+```
+A word outside the roles' list (`Role`'s own `snake_case` words, the
+`tree` event's role vocabulary) is a malformed control frame: the
+session's documented report-and-close behavior (the unknown control's
+own rule, at the name tier). Additive at version 1 (the `Replay` ask's
 precedent): a server older than the ask closes the session on the
 unknown control, the documented unknown-frame behavior.
 

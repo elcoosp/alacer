@@ -22,9 +22,12 @@ use alacer_testing::TestHarness;
 use alacer_widgets::Column;
 
 /// The toolbar: the pair in its smallest shape — a semantic role and a
-/// fixed name, two attributes where three trait methods stood.
+/// fixed name, two attributes where three trait methods stood. The word
+/// is the M129 tier's own (`Role::Toolbar`) — the derive speaks the
+/// whole vocabulary the snapshot prints, the tool strip saying its own
+/// word instead of borrowing the container's.
 #[derive(Widget)]
-#[widget(role = "container", label = "Toolbar")]
+#[widget(role = "toolbar", label = "Toolbar")]
 struct Toolbar;
 
 /// The save door: an actionable role. Reachable and named by the pair;
@@ -53,7 +56,7 @@ fn the_pair_lands_in_the_snapshot() {
     let _save = harness.add_child(root, Box::new(SaveButton) as Box<dyn Widget>);
     harness.settle();
 
-    let toolbar = harness.expect_a11y(Role::Container, "Toolbar");
+    let toolbar = harness.expect_a11y(Role::Toolbar, "Toolbar");
     assert!(
         toolbar.bounds.is_some(),
         "the derived container laid out like any other widget"
@@ -65,7 +68,7 @@ fn the_pair_lands_in_the_snapshot() {
     );
     harness.assert_all_named();
     println!(
-        "beat 1: the snapshot reads the pair — container \"Toolbar\", button \"Save\", both laid out, all named"
+        "beat 1: the snapshot reads the pair — toolbar \"Toolbar\", button \"Save\", both laid out, all named"
     );
 }
 
@@ -103,7 +106,7 @@ fn the_defaults_ride_the_trait() {
     let toolbar = Toolbar;
     assert!(
         !toolbar.focusable(),
-        "a derived container is not a focus candidate"
+        "a derived tool strip is not a focus candidate"
     );
     println!(
         "beat 3: the defaults ride the trait — available, valueless, IME-off, focusable by the role's own predicate"

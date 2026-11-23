@@ -45,7 +45,7 @@ use alacer_widgets::{BoxedWidget as _, Column, Label, TextInput, Tooltip};
 /// machinery (the M95 rule), and the coordinated rule grows it at the
 /// next published cut, never at a widget bench's. The pin re-agrees at
 /// 155.
-const EXPECTED_BENCH_COUNT: usize = 157;
+const EXPECTED_BENCH_COUNT: usize = 159;
 
 /// The first node in the snapshot whose role and name match.
 fn node(harness: &TestHarness, role: Role, name: &str) -> Option<TreeNode> {
@@ -232,11 +232,11 @@ fn m136_the_living_documents_re_agree() {
         "the README status reflects the living cut — the chain cannot drift"
     );
     assert!(
-        readme.contains("a hundred and fifty-four decision records"),
+        readme.contains("a hundred and fifty-six decision records"),
         "the register grew the M136 row"
     );
     assert!(
-        read("docs/architecture.md").contains("a hundred and fifty-four decision records"),
+        read("docs/architecture.md").contains("a hundred and fifty-six decision records"),
         "the architecture carries the tooltip fact's decision"
     );
 

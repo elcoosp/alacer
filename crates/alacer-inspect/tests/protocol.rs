@@ -86,8 +86,8 @@ fn a_session_streams_hello_then_recorded_events_in_order() {
     // asks its replay with).
     let hello = read_text_frame(&mut reader);
     assert_eq!(
-        hello, r#"{"kind":"hello","version":1,"app":"protocol","facts":0}"#,
-        "the documented greeting"
+        hello, r#"{"kind":"hello","version":1,"app":"protocol","facts":0,"gate":null}"#,
+        "the documented greeting — the whole stream until a gate persists"
     );
 
     // Events recorded after the connect land on the socket, in order.
@@ -522,7 +522,7 @@ fn the_greeting_names_the_facts_the_recorder_holds() {
     let mut reader = connect_ws(port);
     let hello = read_text_frame(&mut reader);
     assert_eq!(
-        hello, r#"{"kind":"hello","version":1,"app":"facts","facts":1}"#,
+        hello, r#"{"kind":"hello","version":1,"app":"facts","facts":1,"gate":null}"#,
         "the greeting carries the fact count the cursor asks with"
     );
 }

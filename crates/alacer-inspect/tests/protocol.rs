@@ -1947,3 +1947,337 @@ fn the_path_ask_before_any_frame_answers_the_no_tree_miss() {
     );
     send_client_text(&socket, br#"{"kind":"bye"}"#);
 }
+
+// M150 (ADR-0154): the descendant ask — the `descendants_ask` control
+// answers what stands beneath the asked node. The path ask's own rule
+// at the beneath tier: the retained snapshot's state answers over the
+// real socket, the subtree in the tree event's node vocabulary (tree
+// order, the paint order's own — the asked node the anchor the ask
+// names, never its own answer's first row), the ask echoed beside the
+// answer, the ask reading without disturbing, the session living past
+// the answer. The dump snapshot's root is node 1 over its button; the
+// relative snapshot grows the panel the subtree answers from.
+// ---------------------------------------------------------------------
+
+/// The relative snapshot the beneath and beside beats walk: the window
+/// over the panel, the panel over the button and the label — a subtree
+/// two nodes deep, a leaf the honest absence answers.
+fn relative_snapshot() -> std::sync::Arc<alacer_core::TreeSnapshot> {
+    use alacer_core::{Point, Rect, Role, Size, TreeNode, TreeSnapshot};
+    let node = |id: u64, role: Role, label: &str, children: Vec<u64>| TreeNode {
+        id,
+        role,
+        label: label.to_string(),
+        bounds: Some(Rect::new(Point::new(0.0, 0.0), Size::new(40.0, 20.0))),
+        children,
+        value: None,
+        toggled: None,
+        table_slot: None,
+        selection: None,
+        live: None,
+        enabled: true,
+        description: None,
+        placeholder: None,
+        value_range: None,
+        numeric_value: None,
+        secure_entry: false,
+        scroll_orientation: None,
+        scroll_position: None,
+        secure_revealed: false,
+        read_only: false,
+        required: false,
+        invalid: None,
+        selected: None,
+        multiselectable: false,
+        busy: false,
+        expanded: None,
+        auto_complete: None,
+        sort_direction: None,
+        level: None,
+        current: None,
+        has_popup: None,
+        role_description: None,
+        position_in_set: None,
+        size_of_set: None,
+        keyboard_shortcut: None,
+        multiline: false,
+        language: None,
+        search_field: false,
+    };
+    std::sync::Arc::new(TreeSnapshot {
+        nodes: vec![
+            node(1, Role::Container, "window", vec![2]),
+            node(2, Role::Container, "panel", vec![3, 4]),
+            node(3, Role::Button, "Save", Vec::new()),
+            node(4, Role::Label, "Status", Vec::new()),
+        ],
+        root: Some(1),
+    })
+}
+
+#[test]
+fn a_descendants_ask_answers_the_subtree_over_the_real_socket() {
+    let recorder = CausalRecorder::new("descendants-ask");
+    recorder.clone_handle().tree(relative_snapshot());
+    let server =
+        InspectorServer::bind("127.0.0.1:0", recorder.clone(), "descendants").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let hello = read_text_frame(&mut reader);
+    assert!(hello.contains(r#""kind":"hello""#), "{hello}");
+    let socket = reader.get_ref().try_clone().expect("clone");
+
+    // The occupancy the ask must not disturb: the stats answer before
+    // the ask, the same answer after (the dump ask's own rule, at the
+    // beneath tier).
+    send_client_text(&socket, br#"{"kind":"stats"}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let stats_before = read_text_frame(&mut reader);
+
+    send_client_text(&socket, br#"{"kind":"descendants_ask","node":2}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let descendants = read_text_frame(&mut reader);
+    for fragment in [
+        r#""kind":"descendants""#,
+        r#""asked":2"#,
+        r#""landed":true"#,
+        r#""miss":null"#,
+        r#""node":3"#,
+        r#""role":"button""#,
+        r#""node":4"#,
+        r#""role":"label""#,
+        r#""label":"Status""#,
+    ] {
+        assert!(
+            descendants.contains(fragment),
+            "missing {fragment} in {descendants}"
+        );
+    }
+    // The subtree's shape: tree order, the asked node not its own
+    // answer's first row.
+    let beneath_position = descendants.find(r#""beneath":["#).expect("the beneath");
+    assert!(
+        descendants[beneath_position..].starts_with(r#""beneath":[{"node":3"#),
+        "the subtree rides tree order, the asked node left out: {descendants}"
+    );
+
+    send_client_text(&socket, br#"{"kind":"stats"}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let stats_after = read_text_frame(&mut reader);
+    assert_eq!(
+        stats_before, stats_after,
+        "the descendant ask drained no ring, broadcasted nothing — the occupancy stands"
+    );
+
+    // The session lives past the ask: the next fact streams on.
+    recorder
+        .clone_handle()
+        .observe(InspectEvent::Input(InputRecord {
+            kind: InputKind::Wheel,
+            target: None,
+        }));
+    let next = read_text_frame(&mut reader);
+    assert!(
+        next.contains(r#""kind":"input""#),
+        "the ask answered once and the stream continued: {next}"
+    );
+    send_client_text(&socket, br#"{"kind":"bye"}"#);
+}
+
+#[test]
+fn a_descendants_ask_for_a_leaf_answers_the_honest_absence() {
+    let recorder = CausalRecorder::new("descendants-leaf");
+    recorder.clone_handle().tree(relative_snapshot());
+    let server = InspectorServer::bind("127.0.0.1:0", recorder.clone(), "leaf").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let _hello = read_text_frame(&mut reader);
+    let socket = reader.get_ref().try_clone().expect("clone");
+    send_client_text(&socket, br#"{"kind":"descendants_ask","node":3}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let descendants = read_text_frame(&mut reader);
+    assert_eq!(
+        descendants, r#"{"kind":"descendants","asked":3,"landed":true,"miss":null,"beneath":[]}"#,
+        "nothing stands beneath a leaf — the landing names the absence, never a refusal"
+    );
+    send_client_text(&socket, br#"{"kind":"bye"}"#);
+}
+
+#[test]
+fn a_descendants_ask_for_an_unknown_node_answers_the_no_node_miss() {
+    let recorder = CausalRecorder::new("descendants-unknown");
+    recorder.clone_handle().tree(relative_snapshot());
+    let server = InspectorServer::bind("127.0.0.1:0", recorder.clone(), "unknown").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let _hello = read_text_frame(&mut reader);
+    let socket = reader.get_ref().try_clone().expect("clone");
+    send_client_text(&socket, br#"{"kind":"descendants_ask","node":9}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let descendants = read_text_frame(&mut reader);
+    assert_eq!(
+        descendants,
+        r#"{"kind":"descendants","asked":9,"landed":false,"miss":"no_node","beneath":[]}"#,
+        "the asked id names nothing standing — the species names it, never a collapsed false"
+    );
+    send_client_text(&socket, br#"{"kind":"bye"}"#);
+}
+
+#[test]
+fn the_descendants_ask_before_any_frame_answers_the_no_tree_miss() {
+    let recorder = CausalRecorder::new("descendants-empty");
+    let server = InspectorServer::bind("127.0.0.1:0", recorder.clone(), "empty").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let _hello = read_text_frame(&mut reader);
+    let socket = reader.get_ref().try_clone().expect("clone");
+    send_client_text(&socket, br#"{"kind":"descendants_ask","node":1}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let descendants = read_text_frame(&mut reader);
+    assert_eq!(
+        descendants,
+        r#"{"kind":"descendants","asked":1,"landed":false,"miss":"no_tree","beneath":[]}"#,
+        "no tree resolved yet — the honest absence, never an invented walk"
+    );
+    send_client_text(&socket, br#"{"kind":"bye"}"#);
+}
+
+// M151 (ADR-0155): the sibling ask — the `siblings_ask` control answers
+// what stands in the parent's row beside the asked node. The
+// descendant ask's own rule at the beside tier: the retained
+// snapshot's state answers over the real socket, the row in the tree
+// event's node vocabulary (tree order, the asked node the anchor the
+// ask names — never its own answer's row), the ask echoed beside the
+// answer, the ask reading without disturbing, the session living past
+// the answer. The root's landing names the honest absence — the root
+// stands beside nothing.
+// ---------------------------------------------------------------------
+
+#[test]
+fn a_siblings_ask_answers_the_row_beside_over_the_real_socket() {
+    let recorder = CausalRecorder::new("siblings-ask");
+    recorder.clone_handle().tree(relative_snapshot());
+    let server = InspectorServer::bind("127.0.0.1:0", recorder.clone(), "siblings").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let hello = read_text_frame(&mut reader);
+    assert!(hello.contains(r#""kind":"hello""#), "{hello}");
+    let socket = reader.get_ref().try_clone().expect("clone");
+
+    // The occupancy the ask must not disturb: the stats answer before
+    // the ask, the same answer after (the dump ask's own rule, at the
+    // beside tier).
+    send_client_text(&socket, br#"{"kind":"stats"}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let stats_before = read_text_frame(&mut reader);
+
+    send_client_text(&socket, br#"{"kind":"siblings_ask","node":3}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let siblings = read_text_frame(&mut reader);
+    for fragment in [
+        r#""kind":"siblings""#,
+        r#""asked":3"#,
+        r#""landed":true"#,
+        r#""miss":null"#,
+        r#""node":4"#,
+        r#""role":"label""#,
+        r#""label":"Status""#,
+    ] {
+        assert!(
+            siblings.contains(fragment),
+            "missing {fragment} in {siblings}"
+        );
+    }
+    // The row's shape: the asked node left out, the other child riding.
+    let beside_position = siblings.find(r#""beside":["#).expect("the beside");
+    assert!(
+        siblings[beside_position..].starts_with(r#""beside":[{"node":4"#),
+        "the row is the parent's other children, tree order: {siblings}"
+    );
+
+    send_client_text(&socket, br#"{"kind":"stats"}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let stats_after = read_text_frame(&mut reader);
+    assert_eq!(
+        stats_before, stats_after,
+        "the sibling ask drained no ring, broadcasted nothing — the occupancy stands"
+    );
+
+    // The session lives past the ask: the next fact streams on.
+    recorder
+        .clone_handle()
+        .observe(InspectEvent::Input(InputRecord {
+            kind: InputKind::Wheel,
+            target: None,
+        }));
+    let next = read_text_frame(&mut reader);
+    assert!(
+        next.contains(r#""kind":"input""#),
+        "the ask answered once and the stream continued: {next}"
+    );
+    send_client_text(&socket, br#"{"kind":"bye"}"#);
+}
+
+#[test]
+fn a_siblings_ask_for_the_root_answers_the_honest_absence() {
+    let recorder = CausalRecorder::new("siblings-root");
+    recorder.clone_handle().tree(relative_snapshot());
+    let server = InspectorServer::bind("127.0.0.1:0", recorder.clone(), "root").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let _hello = read_text_frame(&mut reader);
+    let socket = reader.get_ref().try_clone().expect("clone");
+    send_client_text(&socket, br#"{"kind":"siblings_ask","node":1}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let siblings = read_text_frame(&mut reader);
+    assert_eq!(
+        siblings, r#"{"kind":"siblings","asked":1,"landed":true,"miss":null,"beside":[]}"#,
+        "the root stands beside nothing — the landing names the absence, never a refusal"
+    );
+    send_client_text(&socket, br#"{"kind":"bye"}"#);
+}
+
+#[test]
+fn a_siblings_ask_for_an_unknown_node_answers_the_no_node_miss() {
+    let recorder = CausalRecorder::new("siblings-unknown");
+    recorder.clone_handle().tree(relative_snapshot());
+    let server = InspectorServer::bind("127.0.0.1:0", recorder.clone(), "unknown").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let _hello = read_text_frame(&mut reader);
+    let socket = reader.get_ref().try_clone().expect("clone");
+    send_client_text(&socket, br#"{"kind":"siblings_ask","node":9}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let siblings = read_text_frame(&mut reader);
+    assert_eq!(
+        siblings, r#"{"kind":"siblings","asked":9,"landed":false,"miss":"no_node","beside":[]}"#,
+        "the asked id names nothing standing — the species names it, never a collapsed false"
+    );
+    send_client_text(&socket, br#"{"kind":"bye"}"#);
+}
+
+#[test]
+fn the_siblings_ask_before_any_frame_answers_the_no_tree_miss() {
+    let recorder = CausalRecorder::new("siblings-empty");
+    let server = InspectorServer::bind("127.0.0.1:0", recorder.clone(), "empty").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let _hello = read_text_frame(&mut reader);
+    let socket = reader.get_ref().try_clone().expect("clone");
+    send_client_text(&socket, br#"{"kind":"siblings_ask","node":1}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let siblings = read_text_frame(&mut reader);
+    assert_eq!(
+        siblings, r#"{"kind":"siblings","asked":1,"landed":false,"miss":"no_tree","beside":[]}"#,
+        "no tree resolved yet — the honest absence, never an invented row"
+    );
+    send_client_text(&socket, br#"{"kind":"bye"}"#);
+}

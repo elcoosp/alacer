@@ -1,4 +1,4 @@
-//! The progress benchmark (§11.5, ADR-0027): the app-driven value-write
+//! The progress benchmark (§11.1 item 5, ADR-0027): the app-driven value-write
 //! route driven through the pipeline on a 1,000-node arena — the bound
 //! bridge's write batch lands `PAINT | A11Y` on the bar's node and the
 //! tick repaints the fill and re-announces exactly that node, on the

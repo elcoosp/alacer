@@ -1239,6 +1239,82 @@ shape at the address tier, over the same resolved snapshot the
   server older than the ask closes the session on the unknown
   control, the documented unknown-frame behavior.
 
+### `descendants` — the descendant ask's answer (M150)
+
+```json
+{"kind":"descendants","asked":2,"landed":true,"miss":null,"beneath":[{"node":3,"role":"button","label":"Save","bounds":[16.0,20.0,80.0,24.0],"enabled":true,"children":[]},{"node":4,"role":"label","label":"Status","bounds":[16.0,60.0,80.0,24.0],"enabled":true,"children":[]}]}
+```
+
+The answer to the `descendants_ask` control: what stands beneath the
+asked node — the subtree, the path ask's landed-or-refused shape at
+the beneath tier, over the same resolved snapshot the `tree_dump` ask
+answers from, one event:
+
+- `asked` — the node id the ask carried — the answer echoes the ask
+  (the `path` answer's own rule). The id is the one the `tree`, the
+  `hit`, the `find`, the `region` and the `path` answers already name:
+  the ask family composing.
+- `landed` — whether the subtree answered (`true`) or the ask was
+  refused (`false`).
+- `miss` — the refusal species, `null` on a landing: `no_tree`
+  (before the first a11y pass resolved a tree), `no_node` (a tree
+  stands; the asked id names nothing in it) — the path ask's species
+  vocabulary shared, one species list two doors.
+- `beneath` — the subtree under the asked node, tree order (pre-order,
+  the paint order's own); each node the `tree` event's own node
+  vocabulary, empty on a miss — and on a leaf's landing, the honest
+  absence (nothing stands beneath, never a refusal). The asked node
+  itself never rides: it is the anchor the ask already names.
+- The content keys are absent, not empty: the `tree` ask's
+  secret-carrying rule at the beneath tier — the shape answers, the
+  contents (a field's value, its selection, the placeholder and
+  description beside them) never.
+- Like `stats`, `tree`, `hit`, `find`, `region` and `path`, the event
+  prices no ring: the ask's answer, never a captured fact, never a
+  streamed one. The ask reads without disturbing (the dump ask's
+  rule): no ring drains, the broadcast queue is untouched, the answer
+  is the *state*. Additive at version 1 (the `Replay` ask's
+  precedent): a server older than the ask closes the session on the
+  unknown control, the documented unknown-frame behavior.
+
+### `siblings` — the sibling ask's answer (M151)
+
+```json
+{"kind":"siblings","asked":3,"landed":true,"miss":null,"beside":[{"node":4,"role":"label","label":"Status","bounds":[16.0,60.0,80.0,24.0],"enabled":true,"children":[]}]}
+```
+
+The answer to the `siblings_ask` control: what stands in the parent's
+row beside the asked node — the parent's other children, the
+descendant ask's landed-or-refused shape at the beside tier, over the
+same resolved snapshot the `tree_dump` ask answers from, one event:
+
+- `asked` — the node id the ask carried — the answer echoes the ask.
+  The id is the one the family's answers already name: the ask family
+  composing.
+- `landed` — whether the row answered (`true`) or the ask was refused
+  (`false`).
+- `miss` — the refusal species, `null` on a landing: `no_tree`
+  (before the first a11y pass resolved a tree), `no_node` (a tree
+  stands; the asked id names nothing in it) — the family's species
+  vocabulary shared, one species list three doors.
+- `beside` — the parent's other children, tree order (pre-order, the
+  paint order's own); each node the `tree` event's own node
+  vocabulary, empty on a miss — and on the root's or an only child's
+  landing, the honest absence (the asked node stands beside nothing,
+  never a refusal). The asked node itself never rides: it is the
+  anchor the ask already names.
+- The content keys are absent, not empty: the `tree` ask's
+  secret-carrying rule at the beside tier — the shape answers, the
+  contents never.
+- Like `stats`, `tree`, `hit`, `find`, `region`, `path` and
+  `descendants`, the event prices no ring: the ask's answer, never a
+  captured fact, never a streamed one. The ask reads without
+  disturbing (the dump ask's rule): no ring drains, the broadcast
+  queue is untouched, the answer is the *state*. Additive at version 1
+  (the `Replay` ask's precedent): a server older than the ask closes
+  the session on the unknown control, the documented unknown-frame
+  behavior.
+
 ## Client → server
 
 ```json
@@ -1425,6 +1501,40 @@ matches feeding the walk). The ask reads without disturbing (the dump
 ask's own rule). Additive at version 1 (the `Replay` ask's precedent):
 a server older than the ask closes the session on the unknown control,
 the documented unknown-frame behavior.
+
+```json
+{"kind":"descendants_ask","node":2}
+```
+Asks the server what stands beneath the named node (M150) — the
+descendant ask riding the same retained snapshot the `tree_dump` ask
+answers from, the path ask's shape at the beneath tier. The answer is
+one `descendants` event: the subtree in tree order (the asked node the
+anchor the ask names, never its own answer's row), the ask echoed
+beside the answer, the refusal a named species (`no_tree` before the
+first tree resolves, `no_node` for an id naming nothing standing), a
+leaf's landing the honest absence. The id is the one the dump, the
+hit, the find, the region and the path answers already name — the ask
+family composing. The ask reads without disturbing (the dump ask's own
+rule). Additive at version 1 (the `Replay` ask's precedent): a server
+older than the ask closes the session on the unknown control, the
+documented unknown-frame behavior.
+
+```json
+{"kind":"siblings_ask","node":3}
+```
+Asks the server what stands in the parent's row beside the named node
+(M151) — the sibling ask riding the same retained snapshot the
+`tree_dump` ask answers from, the descendant ask's shape at the beside
+tier. The answer is one `siblings` event: the parent's other children
+in tree order (the asked node the anchor the ask names, never its own
+answer's row), the ask echoed beside the answer, the refusal a named
+species (`no_tree` before the first tree resolves, `no_node` for an id
+naming nothing standing), the root's landing the honest absence — the
+root stands beside nothing. The id is the one the family's answers
+already name — the ask family composing. The ask reads without
+disturbing (the dump ask's own rule). Additive at version 1 (the
+`Replay` ask's precedent): a server older than the ask closes the
+session on the unknown control, the documented unknown-frame behavior.
 
 ```json
 {"kind":"bye"}

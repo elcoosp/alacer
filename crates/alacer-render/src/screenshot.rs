@@ -1,7 +1,7 @@
 //! The headless screenshot seam: one scene snapshot → one PNG file.
 //!
 //! The launch-asset path the README's pixels ride: a mounted pipeline's
-//! ticked [`SceneSnapshot`](alacer_core::scene::SceneSnapshot) renders
+//! ticked [`SceneSnapshot`] renders
 //! through the software rasterizer (the same stage the softbuffer present
 //! path runs), encodes, and lands on disk — no window, no event loop, no
 //! display server. The refusal vocabulary is the platform's: an

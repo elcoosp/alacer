@@ -1073,6 +1073,16 @@
       "id": "tree_dump_answer_1k_nodes",
       "baseline": "tree_dump/answer_1k_nodes",
       "scope": "same-host"
+    },
+    {
+      "id": "hit_ask_answer_1k_nodes",
+      "baseline": "hit_ask/answer_1k_nodes",
+      "scope": "same-host"
+    },
+    {
+      "id": "find_ask_answer_1k_nodes",
+      "baseline": "find_ask/answer_1k_nodes",
+      "scope": "same-host"
     }
   ],
   "test_enforced_gates": [

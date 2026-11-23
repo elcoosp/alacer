@@ -508,7 +508,15 @@ impl TestHarness {
         let pixmap = self.pixels();
         let path = blessed_dir().join(format!("{name}.png"));
         if std::env::var_os("ALACER_BLESS").is_some_and(|v| v == "1") {
-            let _ = std::fs::create_dir_all(blessed_dir());
+            // The directory failure surfaces here, named — not later as
+            // the write's confusing "must be writable" (the error's own
+            // message the panic carries).
+            if let Err(error) = std::fs::create_dir_all(blessed_dir()) {
+                panic!(
+                    "the blessed snapshot directory {} is not creatable ({error})",
+                    blessed_dir().display()
+                );
+            }
             pixmap
                 .save_png(&path)
                 .expect("the blessed snapshot must be writable");

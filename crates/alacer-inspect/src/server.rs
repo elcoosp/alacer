@@ -445,6 +445,12 @@ fn handle_control(
         ClientMessage::HitAsk { point } => {
             answer_hit_ask(stream, recorder, point)?;
         }
+        ClientMessage::RegionAsk { rect } => {
+            answer_region_ask(stream, recorder, rect)?;
+        }
+        ClientMessage::PathAsk { node } => {
+            answer_path_ask(stream, recorder, node)?;
+        }
         ClientMessage::FindAsk { query, role } => {
             if !answer_find_ask(stream, recorder, &query, role.as_deref())? {
                 return Ok(false);
@@ -508,6 +514,73 @@ fn answer_hit_ask(
         landed,
         ancestry = walked,
         "inspector client asked which node the point touches"
+    );
+    let payload = serde_json::to_string(&answer).map_err(serialize_error)?;
+    send_text(stream, &payload)
+}
+
+/// The region ask's answer (M148, ADR-0152), one dispatch arm lifted
+/// beside the control's own (`handle_control`'s shape unchanged): which
+/// nodes the asked rect touches — the point ask's own rule at the
+/// region tier: the geometry query over the state the observer's tree
+/// door retained, read without disturbing (no ring drains, the
+/// broadcast queue untouched), the contents the secret-carrying rule
+/// keeps off the wire absent from the shape (the `wire_region`
+/// conversion's own contract). A rect naming no positive area —
+/// inverted or empty extents — touches nothing: the empty answer the
+/// honest absence, never a refusal; a non-finite rect never reaches
+/// this arm (the array parse refuses at the frame tier, the
+/// report-and-close the point ask's own note names).
+fn answer_region_ask(
+    stream: &mut TcpStream,
+    recorder: &CausalRecorder,
+    rect: [f32; 4],
+) -> std::io::Result<()> {
+    let serialize_error = |error: serde_json::Error| -> std::io::Error {
+        std::io::Error::other(format!("the region payload refused to serialize: {error}"))
+    };
+    let answer = crate::wire::wire_region(recorder.latest_tree().as_deref(), rect);
+    let touched = match &answer {
+        crate::wire::WireEvent::Region { matches, .. } => matches.len(),
+        _ => 0,
+    };
+    tracing::debug!(
+        target: "alacer::inspect",
+        matches = touched,
+        "inspector client asked which nodes the rect touches"
+    );
+    let payload = serde_json::to_string(&answer).map_err(serialize_error)?;
+    send_text(stream, &payload)
+}
+
+/// The path ask's answer (M149, ADR-0153), one dispatch arm lifted
+/// beside the control's own (`handle_control`'s shape unchanged): where
+/// the asked node stands — the point ask's own rule at the address
+/// tier: the ancestry query over the state the observer's tree door
+/// retained, read without disturbing (no ring drains, the broadcast
+/// queue untouched), the contents the secret-carrying rule keeps off
+/// the wire absent from the shape (the `wire_path` conversion's own
+/// contract).
+fn answer_path_ask(
+    stream: &mut TcpStream,
+    recorder: &CausalRecorder,
+    node: u64,
+) -> std::io::Result<()> {
+    let serialize_error = |error: serde_json::Error| -> std::io::Error {
+        std::io::Error::other(format!("the path payload refused to serialize: {error}"))
+    };
+    let answer = crate::wire::wire_path(recorder.latest_tree().as_deref(), node);
+    let (landed, walked) = match &answer {
+        crate::wire::WireEvent::Path {
+            landed, ancestry, ..
+        } => (*landed, ancestry.len()),
+        _ => (false, 0),
+    };
+    tracing::debug!(
+        target: "alacer::inspect",
+        landed,
+        ancestry = walked,
+        "inspector client asked where the node stands"
     );
     let payload = serde_json::to_string(&answer).map_err(serialize_error)?;
     send_text(stream, &payload)

@@ -22,7 +22,7 @@ use alacer_widgets::{BoxedWidget as _, Checkbox, Column, Label};
 /// The suite's corpus pin: the coordinated rule's count at the M94 cut —
 /// the toggle route's honesty pair joining the derive route's pair (M92)
 /// and the recording route's pair (M93) on the published corpus.
-const EXPECTED_BENCH_COUNT: usize = 152;
+const EXPECTED_BENCH_COUNT: usize = 155;
 
 /// The suite's own read doors into the published corpus: the toggle
 /// route's tri-state honesty cases (the coordinated rule's bench half,
@@ -347,7 +347,7 @@ fn m94_the_corpus_grew_by_the_coordinated_rule() {
     let m5 = std::fs::read_to_string(root.join("crates/alacer-testing/tests/m5_exit_criteria.rs"))
         .expect("the m5 suite is readable");
     assert!(
-        m5.contains("const EXPECTED_BENCH_COUNT: usize = 152;"),
+        m5.contains("const EXPECTED_BENCH_COUNT: usize = 155;"),
         "the m5 corpus pin re-agrees at the M94 cut"
     );
 }

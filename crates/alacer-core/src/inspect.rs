@@ -2298,6 +2298,22 @@ pub enum InspectEvent {
 pub trait InspectObserver {
     /// Receives one observation.
     fn observe(&mut self, event: InspectEvent);
+
+    /// The a11y pass's resolved tree — the dump seam's door (ADR-0010).
+    /// Every a11y pass that builds a snapshot hands the same `Arc` the
+    /// sink saw to this door, one call per run, never on a skipped pass
+    /// — a devtools recorder overrides it to retain the latest shape
+    /// (the [`FrameSummary`] precedent at the `latest` slot), and the
+    /// inspector's dump ask answers with what was retained.
+    ///
+    /// The provided body is the no-op the honest absence is: an
+    /// observer that wants no tree prices nothing, the same
+    /// opt-in-everything-else the event stream rides. Unlike the events,
+    /// a tree rides no ring and no broadcast — it is *state*, the
+    /// current shape, never history.
+    fn tree(&mut self, snapshot: std::sync::Arc<crate::passes::TreeSnapshot>) {
+        let _ = snapshot;
+    }
 }
 
 /// The observer's tee (§13.3, ADR-0070): two observers behind one. The
@@ -2334,6 +2350,14 @@ impl InspectObserver for Tee {
     fn observe(&mut self, event: InspectEvent) {
         self.first.observe(event.clone());
         self.second.observe(event);
+    }
+
+    fn tree(&mut self, snapshot: std::sync::Arc<crate::passes::TreeSnapshot>) {
+        // The tree door tees too: each reader retains its own `Arc`
+        // clone of the one snapshot the pass built — the arrival order
+        // the events ride, first then second.
+        self.first.tree(std::sync::Arc::clone(&snapshot));
+        self.second.tree(snapshot);
     }
 }
 

@@ -1077,6 +1077,47 @@ ask's precedent): a server older than the ask closes the session on the
 unknown control, the documented unknown-frame behavior.
 
 ```json
+{"kind":"subscribe","tiers":["frames","edges"]}
+```
+Asks the server to gate this session's live stream to the named tiers
+(M142): the facts whose ring the ask names answer the session's fan-out
+from this frame's drain onward, the unasked tiers staying silent. The
+ask is the *session's* fan-out, never the recorder's capture — the rings
+keep recording every tier (the replay and stats asks answer whole either
+way), so the gate drops nothing the rings hold: the panel's own silence,
+never a loss (the eviction counters name the losses the caps cause; a
+muted tier is not one of them). The names are the `stats` answer's row
+vocabulary — the twenty-two trail rings (`edges`, `writes`, `inputs`,
+`focus`, `edits`, `announces`, `keys`, `clipboards`, `values`,
+`gestures`, `scrolls`, `text_writes`, `route_drops`, `key_edits`,
+`preedits`, `a11y_echoes`, `actions`, `frame_refusals`, `view_patches`,
+`themes`, `settings`, `frames`), one list the two doors read, the two
+unable to drift apart. `broadcast` is deliberately absent — the stream
+is the medium, never a tier of itself — and a name outside the
+vocabulary is a malformed control frame: the session's documented
+report-and-close behavior (the unknown control's own rule, at the name
+tier). The field is optional and defaults to absent:
+
+```json
+{"kind":"subscribe"}
+```
+The bare ask restores the whole stream — the shape every pre-M142
+session rode. An empty list is the mute:
+
+```json
+{"kind":"subscribe","tiers":[]}
+```
+The live stream goes quiet for this session while the rings keep
+recording — the replay burst's reading panel's ask (the facts recorded
+during the silence answer through the replay ask, the stats rows naming
+them as they climb). The asks' own answers are never gated: the events
+no ring captures (the `stats` occupancy answer among them) ride whole —
+the ask is a live-stream ask, never an answer-silencer. Additive at
+version 1 (the `Replay` ask's precedent): a server older than the ask
+closes the session on the unknown control, the documented
+unknown-frame behavior.
+
+```json
 {"kind":"bye"}
 ```
 Ends the session; the server echoes `close` and the socket closes. Any
@@ -1086,7 +1127,10 @@ malformed text frame is treated as `bye`.
 
 - Events are delivered in record order; the broadcast queue between the
   observer thread and the session is bounded at 4 096 events and drops the
-  oldest (a slow client never back-pressures the app).
+  oldest (a slow client never back-pressures the app). A `subscribe` ask
+  gates the session's fan-out to the named tiers (M142) — the gate
+  applying to the facts the session delivers from the ask's drain
+  onward, the capture and the asks' answers untouched.
 - The recorder's rings are bounded (frames 256, edges 1 024, writes 1 024,
   inputs 512, focus 512, edits 512, announces 512, keys 512,
   clipboards 512, values 512, gestures 512, scrolls 512, text_writes 512,
@@ -1095,7 +1139,8 @@ malformed text frame is treated as `bye`.
   `clear` empties them; `replay` reads them without disturbing; `stats`
   answers their occupancy, caps, and evictions without disturbing either.
   The `stats` answer's row list is this sentence's own list — the two
-  cannot drift apart.
+  cannot drift apart — and the `subscribe` ask's tier vocabulary is the
+  same list (the trail names only; `broadcast` the stream's own bound).
 - Recording is opt-in: the pipeline forwards only when an observer is
   installed, and the flux records activations and provenance only when
   `Flux::set_causal_capture(true)`. With both off, the framework's default

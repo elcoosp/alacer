@@ -83,7 +83,7 @@ fn m0_counter_renders_and_updates_through_masks() {
     let mut harness = TestHarness::new(320.0, 240.0);
     let (button, _binding) = mount_counter(&mut harness);
 
-    // The a11y tree is the query surface: reachable, named (§11.5).
+    // The a11y tree is the query surface: reachable, named (§11.1 item 5).
     let label = harness.expect_a11y(Role::Label, "Clicked 0 times");
     assert_ne!(label.id.to_string(), "", "the a11y id renders");
 

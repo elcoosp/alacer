@@ -335,6 +335,60 @@ pub enum Role {
     /// holds no focus and answers no activation (the M126/M129
     /// container rule, at the landmark tier).
     ContentInfo,
+    /// The named region the content beside the main lives in (the
+    /// landmark tier's growth, M144, ADR-0148): the "reads as a
+    /// complementary aside" fact AccessKit's own `Complementary` role
+    /// spells — not a bare panel wearing no container word (the aside
+    /// the AT cannot name is an aside it cannot offer on demand) and
+    /// not a main wearing the wrong half (a main *names the document's
+    /// one central region*; a complementary *names the content the
+    /// main reads beside* — the reading list, the related links the
+    /// AT's landmarks list walks beside the central region). The
+    /// region is the furniture's layout, never a second channel to it —
+    /// the children keep the roles and labels they already carry — and
+    /// the region holds no focus and answers no activation (the
+    /// M126/M129 container rule, at the landmark tier).
+    Complementary,
+    /// The named region the page's form lives in (the landmark tier's
+    /// growth, M144, ADR-0148): the "reads as a form" fact AccessKit's
+    /// own `Form` role spells — not a bare panel wearing no container
+    /// word (the controls the AT cannot name as one form are controls
+    /// it cannot offer as one) and not a main wearing the wrong word
+    /// (a main *names the document's content*; a form *names the
+    /// region whose controls submit together* — the checkout, the
+    /// sign-in the AT's landmarks list walks as one unit). The region
+    /// is the fields' layout, never a second channel to them — the
+    /// children keep the roles and labels they already carry — and the
+    /// region holds no focus and answers no activation (the M126/M129
+    /// container rule, at the landmark tier).
+    Form,
+    /// A named region of the page (the landmark tier's growth, M144,
+    /// ADR-0148): the "reads as a named region" fact AccessKit's own
+    /// `Region` role spells — the generic word beside the specific
+    /// ones (the banner, the way through, the main, the aside, the
+    /// form, the search), for the section whose fact none of the
+    /// specific roles spells and whose name the app still declares —
+    /// not a bare panel wearing no container word (the region the AT
+    /// cannot name is a region it cannot offer on demand, the ADR-5
+    /// rule the named roles carry). The region is the children's
+    /// layout, never a second channel to them — the children keep the
+    /// roles and labels they already carry — and the region holds no
+    /// focus and answers no activation (the M126/M129 container rule,
+    /// at the landmark tier).
+    Region,
+    /// The named strip the page's search lives in (the landmark tier's
+    /// growth, M144, ADR-0148): the "reads as a search region" fact
+    /// AccessKit's own `Search` role spells — not a bare panel wearing
+    /// no container word (the search the AT cannot name is a search it
+    /// cannot offer on demand) and not a form wearing the wrong word
+    /// (a form *names the region whose controls submit together*; a
+    /// search *names the region whose controls find things* — the
+    /// query field, the submit the AT's landmarks list walks as one
+    /// unit). The strip is the fields' layout, never a second channel
+    /// to them — the children keep the roles and labels they already
+    /// carry — and the strip holds no focus and answers no activation
+    /// (the M126/M129 container rule, at the landmark tier).
+    Search,
 }
 
 impl Role {
@@ -379,7 +433,10 @@ impl Role {
     /// landmarks join in M143: an unnamed banner, an unnamed navigation
     /// strip, an unnamed main region and an unnamed footer read as bare
     /// boxes — the named-container rule the strip and the tool strip
-    /// carry, at the landmark tier.
+    /// carry, at the landmark tier. The landmark tier's remaining words
+    /// join in M144: an unnamed aside, an unnamed form, an unnamed
+    /// region and an unnamed search strip read as bare boxes — the
+    /// same rule, the growth the constructor words ride.
     #[must_use]
     pub const fn requires_name(self) -> bool {
         matches!(
@@ -413,6 +470,10 @@ impl Role {
                 | Self::Navigation
                 | Self::Main
                 | Self::ContentInfo
+                | Self::Complementary
+                | Self::Form
+                | Self::Region
+                | Self::Search
         )
     }
 
@@ -460,6 +521,10 @@ impl Role {
             Self::Navigation => "navigation",
             Self::Main => "main",
             Self::ContentInfo => "content_info",
+            Self::Complementary => "complementary",
+            Self::Form => "form",
+            Self::Region => "region",
+            Self::Search => "search",
         }
     }
 }

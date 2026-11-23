@@ -3,12 +3,16 @@
 //! door the wire's `Replay` control serves). The ask is answered once
 //! per connect — the burst's cost is a connect-time price, never a
 //! per-frame one — so the budget it guards is the reconnection
-//! experience, not the idle window's A7 contract.
+//! experience, not the idle window's A7 contract. Since M142 the file
+//! also prices the subscribe gate: the fan-out filter a gated session
+//! walks over each drained broadcast batch (the ask's own addition to
+//! the drain the sessions have always taken).
 
 use alacer_core::inspect::{InputKind, InputRecord, InspectEvent, InspectObserver as _};
 use alacer_inspect::CausalRecorder;
 use alacer_inspect::WireEvent;
 use alacer_inspect::recorder::{FRAME_RING_CAP, INPUT_RING_CAP, WRITE_RING_CAP};
+use alacer_inspect::wire::{Tier, TierFilter};
 use criterion::{Criterion, criterion_group, criterion_main};
 use std::hint::black_box;
 
@@ -101,6 +105,33 @@ fn replay_burst(c: &mut Criterion) {
             };
             black_box((facts, rings.len()));
         });
+    });
+    group.finish();
+
+    // The subscribe gate (M142): the fan-out filter's price — a gated
+    // session's drained broadcast batch admitted tier by tier, the
+    // frames through, the writes and inputs silent. The gate rides the
+    // drain the sessions have always taken (the batch is the queue's
+    // own contents, the drain never priced twice); what the ask adds
+    // is one tier word per event, priced here on the same filled
+    // session's steady-state batch — a per-drain price bounded by the
+    // queue's own 4 096 cap, never a per-frame tax on the app.
+    let batch = recorder.take_broadcast();
+    // The queue holds every observed fact (the caps bound the rings,
+    // not the broadcast — the 4 096-order queue never spilled here):
+    // one write, one input, one frame per fill iteration.
+    assert_eq!(batch.len(), FILL * 3, "the queue holds the session's worth");
+    let mut group = c.benchmark_group("subscribe");
+    group.bench_function("broadcast_512x3_filtered", |b| {
+        let gate = TierFilter::only([Tier::Frames]);
+        b.iter_batched(
+            || batch.clone(),
+            |events| {
+                let admitted = events.iter().filter(|event| gate.admits(event)).count();
+                black_box(admitted);
+            },
+            criterion::BatchSize::SmallInput,
+        );
     });
     group.finish();
 }

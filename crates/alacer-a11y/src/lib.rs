@@ -209,6 +209,14 @@ pub fn map_role(role: Role) -> AccessKitRole {
         // the colophon the landmarks list walks last; the children keep
         // the roles they already carry, no patch-tier growth.
         Role::ContentInfo => AccessKitRole::ContentInfo,
+        // The landmark tier's remaining words (M144, ADR-0148): the
+        // facts AccessKit's own complementary, form, region and search
+        // roles spell — the growth the constructor words ride, the
+        // named-container shape unchanged, no patch-tier growth.
+        Role::Complementary => AccessKitRole::Complementary,
+        Role::Form => AccessKitRole::Form,
+        Role::Region => AccessKitRole::Region,
+        Role::Search => AccessKitRole::Search,
     }
 }
 
@@ -1087,6 +1095,13 @@ mod tests {
         assert_eq!(map_role(Role::Navigation), AkRole::Navigation);
         assert_eq!(map_role(Role::Main), AkRole::Main);
         assert_eq!(map_role(Role::ContentInfo), AkRole::ContentInfo);
+        // The M144 growth: the landmark tier's remaining words —
+        // AccessKit's own `Complementary`, `Form`, `Region` and
+        // `Search`, the constructor words' facts one branch each.
+        assert_eq!(map_role(Role::Complementary), AkRole::Complementary);
+        assert_eq!(map_role(Role::Form), AkRole::Form);
+        assert_eq!(map_role(Role::Region), AkRole::Region);
+        assert_eq!(map_role(Role::Search), AkRole::Search);
     }
 
     #[test]

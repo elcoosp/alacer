@@ -1,4 +1,4 @@
-//! M21 exit-criteria integration tests (§11.5, ADR-0027): the value tier
+//! M21 exit-criteria integration tests (§11.1 item 5, ADR-0027): the value tier
 //! grows its read half. A progress indicator joins the shipped vocabulary —
 //! a bounded scalar the *app* reports and the AT reads, carried in the same
 //! `PAINT | A11Y` currency every other value rides: the bound bridge queues

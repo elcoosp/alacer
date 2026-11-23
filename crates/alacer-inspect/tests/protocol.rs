@@ -1199,3 +1199,212 @@ fn the_stats_rows_name_every_tier_the_ask_filters_by() {
     );
     send_client_text(&socket, br#"{"kind":"bye"}"#);
 }
+
+// ---------------------------------------------------------------------------
+// The tree dump (the inspector's ask-and-answer control): the resolved
+// tree the observer's door retained answers the `tree_dump` ask — the
+// shape a panel walks (roles, names, bounds, parentage, availability),
+// the contents the secret-carrying rule keeps off the wire. The ask's
+// answer is a response, never a streamed tier: the live stream stays
+// exactly as it was (the Stats precedent, at the dump tier).
+// ---------------------------------------------------------------------------
+
+/// Builds the minimal resolved snapshot: a container root over one
+/// button child — the shape the dump's shape tests walk.
+fn dump_snapshot() -> std::sync::Arc<alacer_core::TreeSnapshot> {
+    use alacer_core::{Point, Rect, Role, Size, TreeNode, TreeSnapshot};
+    let node = |id: u64, role: Role, label: &str, children: Vec<u64>| TreeNode {
+        id,
+        role,
+        label: label.to_string(),
+        bounds: Some(Rect::new(Point::new(0.0, 0.0), Size::new(40.0, 20.0))),
+        children,
+        value: None,
+        toggled: None,
+        table_slot: None,
+        selection: None,
+        live: None,
+        enabled: true,
+        description: None,
+        placeholder: None,
+        value_range: None,
+        numeric_value: None,
+        secure_entry: false,
+        scroll_orientation: None,
+        scroll_position: None,
+        secure_revealed: false,
+        read_only: false,
+        required: false,
+        invalid: None,
+        selected: None,
+        multiselectable: false,
+        busy: false,
+        expanded: None,
+        auto_complete: None,
+        sort_direction: None,
+        level: None,
+        current: None,
+        has_popup: None,
+        role_description: None,
+        position_in_set: None,
+        size_of_set: None,
+        keyboard_shortcut: None,
+        multiline: false,
+        language: None,
+        search_field: false,
+    };
+    std::sync::Arc::new(TreeSnapshot {
+        nodes: vec![
+            node(1, Role::Container, "window", vec![2]),
+            node(2, Role::Button, "Save", Vec::new()),
+        ],
+        root: Some(1),
+    })
+}
+
+#[test]
+fn the_tree_dump_answers_the_resolved_tree() {
+    let recorder = CausalRecorder::new("tree-dump");
+    recorder.clone_handle().tree(dump_snapshot());
+    let server = InspectorServer::bind("127.0.0.1:0", recorder.clone(), "tree-dump").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let hello = read_text_frame(&mut reader);
+    assert!(hello.contains(r#""kind":"hello""#), "{hello}");
+    // The door's tree rides no live stream: the greeting is the whole
+    // traffic until the ask lands (the response-only event, Stats's
+    // own rule at the dump tier).
+    let socket = reader.get_ref().try_clone().expect("clone");
+    send_client_text(&socket, br#"{"kind":"tree_dump"}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let tree = read_text_frame(&mut reader);
+    for fragment in [
+        r#""kind":"tree""#,
+        r#""root":1"#,
+        r#""node":1"#,
+        r#""role":"container""#,
+        r#""children":[2]"#,
+        r#""node":2"#,
+        r#""role":"button""#,
+        r#""label":"Save""#,
+        r#""enabled":true"#,
+    ] {
+        assert!(tree.contains(fragment), "missing {fragment} in {tree}");
+    }
+
+    // The session lives past the ask: the next fact streams on.
+    recorder
+        .clone_handle()
+        .observe(InspectEvent::Input(InputRecord {
+            kind: InputKind::Wheel,
+            target: None,
+        }));
+    let next = read_text_frame(&mut reader);
+    assert!(
+        next.contains(r#""kind":"input""#),
+        "the ask answered once and the stream continued: {next}"
+    );
+    send_client_text(&socket, br#"{"kind":"bye"}"#);
+}
+
+#[test]
+fn the_tree_dump_before_any_frame_answers_an_empty_tree() {
+    let recorder = CausalRecorder::new("tree-dump-empty");
+    let server = InspectorServer::bind("127.0.0.1:0", recorder.clone(), "empty").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let _hello = read_text_frame(&mut reader);
+    let socket = reader.get_ref().try_clone().expect("clone");
+    send_client_text(&socket, br#"{"kind":"tree_dump"}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let tree = read_text_frame(&mut reader);
+    assert_eq!(
+        tree, r#"{"kind":"tree","root":null,"nodes":[]}"#,
+        "no tree resolved yet — the honest absence, never an invented shape"
+    );
+    send_client_text(&socket, br#"{"kind":"bye"}"#);
+}
+
+#[test]
+fn the_tree_dump_rides_no_field_contents() {
+    // The secret-carrying rule at the dump tier: a resolved field whose
+    // value, placeholder, description, and selection all carry words —
+    // the answer is the shape, the contents never cross the wire.
+    use alacer_core::{Point, Rect, Role, Size, TextSelection, TreeNode, TreeSnapshot};
+    let mut field = TreeNode {
+        id: 4,
+        role: Role::TextInput,
+        label: "password".to_string(),
+        bounds: Some(Rect::new(Point::new(0.0, 0.0), Size::new(120.0, 24.0))),
+        children: Vec::new(),
+        value: Some("hunter2".to_string()),
+        toggled: None,
+        table_slot: None,
+        selection: Some(TextSelection::new(0, 7)),
+        live: None,
+        enabled: true,
+        description: Some("the login field".to_string()),
+        placeholder: Some("type your password".to_string()),
+        value_range: None,
+        numeric_value: None,
+        secure_entry: true,
+        scroll_orientation: None,
+        scroll_position: None,
+        secure_revealed: false,
+        read_only: false,
+        required: false,
+        invalid: None,
+        selected: None,
+        multiselectable: false,
+        busy: false,
+        expanded: None,
+        auto_complete: None,
+        sort_direction: None,
+        level: None,
+        current: None,
+        has_popup: None,
+        role_description: None,
+        position_in_set: None,
+        size_of_set: None,
+        keyboard_shortcut: None,
+        multiline: false,
+        language: None,
+        search_field: false,
+    };
+    field.children = Vec::new();
+    let snapshot = std::sync::Arc::new(TreeSnapshot {
+        nodes: vec![field],
+        root: Some(4),
+    });
+    let recorder = CausalRecorder::new("tree-dump-secret");
+    recorder.clone_handle().tree(snapshot);
+    let server = InspectorServer::bind("127.0.0.1:0", recorder.clone(), "secret").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let _hello = read_text_frame(&mut reader);
+    let socket = reader.get_ref().try_clone().expect("clone");
+    send_client_text(&socket, br#"{"kind":"tree_dump"}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let tree = read_text_frame(&mut reader);
+    assert!(
+        !tree.contains("hunter2")
+            && !tree.contains("type your password")
+            && !tree.contains("the login field"),
+        "the contents never ride: {tree}"
+    );
+    assert!(
+        !tree.contains(r#""value""#)
+            && !tree.contains(r#""placeholder""#)
+            && !tree.contains(r#""description""#)
+            && !tree.contains(r#""selection""#),
+        "the content keys are absent from the shape, not empty: {tree}"
+    );
+    assert!(
+        tree.contains(r#""role":"text_input""#) && tree.contains(r#""enabled":true"#),
+        "the shape answers: the role and the availability the AT walks by"
+    );
+    send_client_text(&socket, br#"{"kind":"bye"}"#);
+}

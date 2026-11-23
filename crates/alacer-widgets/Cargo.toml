@@ -80,3 +80,7 @@ harness = false
 [[bench]]
 name = "image_word"
 harness = false
+
+[[bench]]
+name = "landmark"
+harness = false

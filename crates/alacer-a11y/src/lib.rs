@@ -8,7 +8,7 @@
 //!   [`A11yDelta`] — dirty ids, removals, focus — and only dirty nodes are
 //!   re-emitted in the [`TreeUpdate`] (never a full-tree rebuild per frame,
 //!   the egui cost we refuse). The M3 exit gate measures exactly this:
-//!   **`TreeUpdate` p99 < 0.5 ms @ 1k nodes** (`tests/m3_exit_criteria.rs`).
+//!   **`TreeUpdate` p99 < 0.5 ms @ 1k nodes** (`crates/alacer-testing/tests/m3_exit_criteria.rs`).
 //! - Roles map from the core `Role` enum; labels resolve through the
 //!   required `label()` source — an unnamed widget is impossible by
 //!   construction. Editable widgets expose their content as the node's value.

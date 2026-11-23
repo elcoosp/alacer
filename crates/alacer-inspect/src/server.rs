@@ -451,6 +451,12 @@ fn handle_control(
         ClientMessage::PathAsk { node } => {
             answer_path_ask(stream, recorder, node)?;
         }
+        ClientMessage::DescendantsAsk { node } => {
+            answer_descendants_ask(stream, recorder, node)?;
+        }
+        ClientMessage::SiblingsAsk { node } => {
+            answer_siblings_ask(stream, recorder, node)?;
+        }
         ClientMessage::FindAsk { query, role } => {
             if !answer_find_ask(stream, recorder, &query, role.as_deref())? {
                 return Ok(false);
@@ -581,6 +587,74 @@ fn answer_path_ask(
         landed,
         ancestry = walked,
         "inspector client asked where the node stands"
+    );
+    let payload = serde_json::to_string(&answer).map_err(serialize_error)?;
+    send_text(stream, &payload)
+}
+
+/// The descendant ask's answer (M150, ADR-0154), one dispatch arm lifted
+/// beside the control's own (`handle_control`'s shape unchanged): what
+/// stands beneath the asked node — the path ask's own rule at the
+/// beneath tier: the subtree query over the state the observer's tree
+/// door retained, read without disturbing (no ring drains, the
+/// broadcast queue untouched), the contents the secret-carrying rule
+/// keeps off the wire absent from the shape (the `wire_descendants`
+/// conversion's own contract).
+fn answer_descendants_ask(
+    stream: &mut TcpStream,
+    recorder: &CausalRecorder,
+    node: u64,
+) -> std::io::Result<()> {
+    let serialize_error = |error: serde_json::Error| -> std::io::Error {
+        std::io::Error::other(format!(
+            "the descendants payload refused to serialize: {error}"
+        ))
+    };
+    let answer = crate::wire::wire_descendants(recorder.latest_tree().as_deref(), node);
+    let (landed, stood) = match &answer {
+        crate::wire::WireEvent::Descendants {
+            landed, beneath, ..
+        } => (*landed, beneath.len()),
+        _ => (false, 0),
+    };
+    tracing::debug!(
+        target: "alacer::inspect",
+        landed,
+        beneath = stood,
+        "inspector client asked what stands beneath the node"
+    );
+    let payload = serde_json::to_string(&answer).map_err(serialize_error)?;
+    send_text(stream, &payload)
+}
+
+/// The sibling ask's answer (M151, ADR-0155), one dispatch arm lifted
+/// beside the control's own (`handle_control`'s shape unchanged): what
+/// stands in the parent's row beside the asked node — the descendant
+/// ask's own rule at the beside tier: the row query over the state the
+/// observer's tree door retained, read without disturbing (no ring
+/// drains, the broadcast queue untouched), the contents the
+/// secret-carrying rule keeps off the wire absent from the shape (the
+/// `wire_siblings` conversion's own contract).
+fn answer_siblings_ask(
+    stream: &mut TcpStream,
+    recorder: &CausalRecorder,
+    node: u64,
+) -> std::io::Result<()> {
+    let serialize_error = |error: serde_json::Error| -> std::io::Error {
+        std::io::Error::other(format!(
+            "the siblings payload refused to serialize: {error}"
+        ))
+    };
+    let answer = crate::wire::wire_siblings(recorder.latest_tree().as_deref(), node);
+    let (landed, stood) = match &answer {
+        crate::wire::WireEvent::Siblings { landed, beside, .. } => (*landed, beside.len()),
+        _ => (false, 0),
+    };
+    tracing::debug!(
+        target: "alacer::inspect",
+        landed,
+        beside = stood,
+        "inspector client asked what stands beside the node"
     );
     let payload = serde_json::to_string(&answer).map_err(serialize_error)?;
     send_text(stream, &payload)

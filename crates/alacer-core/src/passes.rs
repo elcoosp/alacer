@@ -518,6 +518,86 @@ impl TreeSnapshot {
             .collect();
         HitAnswer::Landed { node, ancestry }
     }
+
+    /// The region ask's geometry query (M148, ADR-0152): which nodes
+    /// does `rect` touch? The point ask's plural sibling — the nodes
+    /// whose bounds intersect the region, in tree order (pre-order, the
+    /// paint order's own), the matches a panel folds into the shape the
+    /// dump ask already gave it. [`Self::find`] names, [`Self::by_id`]
+    /// addresses, [`Self::walk`] enumerates, [`Self::hit_at`] locates a
+    /// point; this door answers the shape between two corners.
+    ///
+    /// The touch rule is the geometry's own intersection convention
+    /// (euclid's `Rect::intersection`): a rect naming no positive area
+    /// — inverted or empty extents — intersects nothing, and
+    /// comparisons against a non-finite coordinate are false, so a
+    /// malformed ask honestly answers the empty walk rather than a
+    /// munged half (the scroll tier's NaN rule; on the wire a
+    /// non-finite rect is already the malformed frame's close — JSON
+    /// cannot carry NaN or infinity, the point ask's own note). An
+    /// empty answer is the honest absence — no tree resolved yet, no
+    /// bounds written, or the region touching nothing standing — never
+    /// a refusal (the word ask's empty answer, at the region tier).
+    #[must_use]
+    pub fn hit_region(&self, rect: Rect) -> Vec<&TreeNode> {
+        self.nodes
+            .iter()
+            .filter(|node| {
+                node.bounds
+                    .is_some_and(|bounds| bounds.intersection(&rect).is_some())
+            })
+            .collect()
+    }
+
+    /// The path ask's ancestry door (M149, ADR-0153): where does the
+    /// asked node stand? The point ask's walk names the ancestry the
+    /// point descended through ([`Self::hit_at`]'s landing); this door
+    /// answers it for the id a panel already holds — from the dump
+    /// ask's shape, the find ask's matches, the ask family composing —
+    /// root-first, the asked node last.
+    ///
+    /// Every miss is a named species — [`PathMiss`] — never a collapsed
+    /// `None`: no tree stands yet, or the asked id names nothing in it
+    /// (the point ask's species discipline at the address tier). The
+    /// chain is the parentage the resolved tree carries: the root's
+    /// ancestry is the root alone, and the asked node rides last.
+    #[must_use]
+    pub fn ancestry_of(&self, node: u64) -> PathAnswer<'_> {
+        if self.root.is_none() {
+            return PathAnswer::Missed(PathMiss::NoTree);
+        }
+        let Some(asked) = self.by_id(node) else {
+            return PathAnswer::Missed(PathMiss::NoNode);
+        };
+        // The parentage: one pass over the resolved nodes, every child
+        // mapped to the parent that carries it — the walk `hit_at`
+        // descends with, rebuilt from the snapshot's own shape.
+        let mut parents: FxHashMap<u64, u64> = FxHashMap::default();
+        for entry in &self.nodes {
+            for child in &entry.children {
+                parents.insert(*child, entry.id);
+            }
+        }
+        let mut chain: Vec<u64> = Vec::new();
+        let mut cursor = asked.id;
+        loop {
+            chain.push(cursor);
+            let Some(parent) = parents.get(&cursor) else {
+                break;
+            };
+            cursor = *parent;
+        }
+        chain.reverse();
+        let ancestry: Vec<&TreeNode> = chain
+            .iter()
+            // Every id the chain names is a standing node — the parent
+            // map only ever records live nodes' children, and the asked
+            // node was resolved above — so the filter carries the
+            // invariant, never a panic path.
+            .filter_map(|id| self.by_id(*id))
+            .collect();
+        PathAnswer::Landed { ancestry }
+    }
 }
 
 /// The point ask's answer (M146, ADR-0150) — the geometry query's
@@ -567,6 +647,46 @@ impl HitMiss {
             Self::NoGeometry => "no_geometry",
             Self::Outside => "outside",
             Self::Malformed => "malformed",
+        }
+    }
+}
+
+/// The path ask's answer (M149, ADR-0153) — the ancestry query's
+/// landed-or-refused shape (the point ask's own, at the address tier):
+/// the landing names the chain the asked node stands in, every refusal
+/// its species, never a collapsed `false`.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PathAnswer<'a> {
+    /// The asked node stands: its ancestry — root-first, the asked
+    /// node last.
+    Landed {
+        /// The asked node's chain — root-first, the asked node last.
+        ancestry: Vec<&'a TreeNode>,
+    },
+    /// The asked node names nothing — the species names why.
+    Missed(PathMiss),
+}
+
+/// The path ask's refusal species — every miss named, never munged
+/// into an empty answer (the named-refusals rule, the point ask's
+/// species vocabulary at the address tier).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PathMiss {
+    /// No tree stands (before the first a11y pass resolved one).
+    NoTree,
+    /// A tree stands; the asked id names nothing in it.
+    NoNode,
+}
+
+impl PathMiss {
+    /// The species' `snake_case` wire name — the one word the protocol
+    /// document and the answer both speak (the hit miss's naming door,
+    /// at the address tier).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::NoTree => "no_tree",
+            Self::NoNode => "no_node",
         }
     }
 }
@@ -7620,5 +7740,191 @@ mod tests {
             "a word outside the vocabulary is no role"
         );
         assert_eq!(Role::from_name(""), None, "the empty word is no role");
+    }
+
+    // ------------------------------------------------------------------
+    // M148 (ADR-0152): the region ask's geometry query. The point ask's
+    // plural sibling beside the query vocabulary — the nodes whose
+    // bounds the rect touches, tree order (the paint order's own), the
+    // honest empty answer for the region nothing stands in.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn hit_region_answers_the_touched_nodes_in_tree_order() {
+        let snapshot = TreeSnapshot {
+            nodes: vec![
+                hit_node(
+                    1,
+                    Role::Container,
+                    "window",
+                    Some(Rect::new(Point::new(0.0, 0.0), Size::new(800.0, 600.0))),
+                    vec![2, 3],
+                ),
+                hit_node(
+                    2,
+                    Role::Button,
+                    "left",
+                    Some(Rect::new(Point::new(10.0, 10.0), Size::new(80.0, 24.0))),
+                    Vec::new(),
+                ),
+                hit_node(
+                    3,
+                    Role::Button,
+                    "right",
+                    Some(Rect::new(Point::new(500.0, 10.0), Size::new(80.0, 24.0))),
+                    Vec::new(),
+                ),
+            ],
+            root: Some(1),
+        };
+        let ids: Vec<u64> = snapshot
+            .hit_region(Rect::new(Point::new(0.0, 0.0), Size::new(100.0, 600.0)))
+            .iter()
+            .map(|node| node.id)
+            .collect();
+        assert_eq!(
+            ids,
+            vec![1, 2],
+            "the region touches the window beside the left button — tree order, never the right one"
+        );
+    }
+
+    #[test]
+    fn hit_region_answers_the_honest_absence_when_nothing_touches() {
+        // Four honest absences, one empty answer: no tree resolved, no
+        // bounds written, a region nothing stands in — and the inverted
+        // rect naming no positive area among them (the geometry's own
+        // convention, never a guessed normalization).
+        let empty = TreeSnapshot::default();
+        assert!(
+            empty
+                .hit_region(Rect::new(Point::new(0.0, 0.0), Size::new(10.0, 10.0)))
+                .is_empty(),
+            "no tree resolved yet — the honest absence"
+        );
+        let geometry_less = TreeSnapshot {
+            nodes: vec![hit_node(1, Role::Button, "Save", None, Vec::new())],
+            root: Some(1),
+        };
+        assert!(
+            geometry_less
+                .hit_region(Rect::new(Point::new(0.0, 0.0), Size::new(10.0, 10.0)))
+                .is_empty(),
+            "no bounds written — the layout pass never ran, the honest absence"
+        );
+        let snapshot = TreeSnapshot {
+            nodes: vec![hit_node(
+                1,
+                Role::Button,
+                "Save",
+                Some(Rect::new(Point::new(0.0, 0.0), Size::new(40.0, 20.0))),
+                Vec::new(),
+            )],
+            root: Some(1),
+        };
+        assert!(
+            snapshot
+                .hit_region(Rect::new(Point::new(500.0, 500.0), Size::new(10.0, 10.0)))
+                .is_empty(),
+            "the region touches nothing standing — the honest absence"
+        );
+        assert!(
+            snapshot
+                .hit_region(Rect::new(Point::new(10.0, 10.0), Size::new(-5.0, 20.0)))
+                .is_empty(),
+            "an inverted rect names no area — the honest absence, never a munged half"
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // M149 (ADR-0153): the path ask's ancestry door. The point ask's
+    // walk names the ancestry the point descended through; this door
+    // answers it for the id a panel already holds — root-first, the
+    // asked node last, every miss a named species.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn ancestry_of_answers_the_parent_chain_root_first() {
+        let snapshot = TreeSnapshot {
+            nodes: vec![
+                hit_node(
+                    1,
+                    Role::Container,
+                    "window",
+                    Some(Rect::new(Point::new(0.0, 0.0), Size::new(800.0, 600.0))),
+                    vec![2],
+                ),
+                hit_node(
+                    2,
+                    Role::Container,
+                    "panel",
+                    Some(Rect::new(Point::new(10.0, 10.0), Size::new(300.0, 200.0))),
+                    vec![3],
+                ),
+                hit_node(
+                    3,
+                    Role::Button,
+                    "Save",
+                    Some(Rect::new(Point::new(20.0, 20.0), Size::new(80.0, 24.0))),
+                    Vec::new(),
+                ),
+            ],
+            root: Some(1),
+        };
+        let super::PathAnswer::Landed { ancestry } = snapshot.ancestry_of(3) else {
+            panic!("the asked node stands — the chain answered");
+        };
+        let ids: Vec<u64> = ancestry.iter().map(|node| node.id).collect();
+        assert_eq!(
+            ids,
+            vec![1, 2, 3],
+            "the ancestry root-first, the asked node last — the walk's own path"
+        );
+        let super::PathAnswer::Landed { ancestry } = snapshot.ancestry_of(1) else {
+            panic!("the root stands — the chain answered");
+        };
+        let ids: Vec<u64> = ancestry.iter().map(|node| node.id).collect();
+        assert_eq!(ids, vec![1], "the root's ancestry is the root alone");
+    }
+
+    #[test]
+    fn ancestry_of_refuses_the_unknown_node_as_no_node() {
+        let snapshot = TreeSnapshot {
+            nodes: vec![hit_node(
+                1,
+                Role::Container,
+                "window",
+                Some(Rect::new(Point::new(0.0, 0.0), Size::new(40.0, 20.0))),
+                Vec::new(),
+            )],
+            root: Some(1),
+        };
+        assert_eq!(
+            snapshot.ancestry_of(9),
+            super::PathAnswer::Missed(super::PathMiss::NoNode),
+            "the asked id names nothing standing — the species names it, never a collapsed answer"
+        );
+    }
+
+    #[test]
+    fn ancestry_of_refuses_the_absent_tree_as_no_tree() {
+        assert_eq!(
+            TreeSnapshot::default().ancestry_of(1),
+            super::PathAnswer::Missed(super::PathMiss::NoTree),
+            "no tree resolved yet — the honest absence"
+        );
+    }
+
+    #[test]
+    fn path_miss_names_the_species_the_wire_speaks() {
+        // The wire's tag vocabulary is `snake_case`; the species' name
+        // door is the one word the protocol document and the answer
+        // both speak (the hit miss's naming shape).
+        for (species, word) in [
+            (super::PathMiss::NoTree, "no_tree"),
+            (super::PathMiss::NoNode, "no_node"),
+        ] {
+            assert_eq!(species.name(), word, "the species' wire word");
+        }
     }
 }

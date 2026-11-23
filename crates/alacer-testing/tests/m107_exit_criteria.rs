@@ -37,7 +37,7 @@ use alacer_widgets::{BoxedWidget as _, Button, Checkbox, Column, Slider, TextInp
 /// the invalid route's case joining the required route's case (M106),
 /// the reveal route's case (M102), the scroll-position route's case
 /// (M101) and every tier's before them on the published corpus.
-const EXPECTED_BENCH_COUNT: usize = 155;
+const EXPECTED_BENCH_COUNT: usize = 157;
 
 /// The suite's own read door into the published corpus: the invalid
 /// route's case — the 1,000-node invalid field arena, the rejection

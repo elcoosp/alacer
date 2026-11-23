@@ -149,7 +149,7 @@ fn the_data_table_grid_is_reachable_named_and_positioned() {
     let _ = handles.rerender(harness.pipeline_mut());
     harness.settle();
 
-    // The grid is reachable and named (§11.5).
+    // The grid is reachable and named (§11.1 item 5).
     let table = harness.expect_a11y(Role::Table, "Inventory");
     assert_eq!(
         table.table_slot,

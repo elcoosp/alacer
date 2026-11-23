@@ -38,7 +38,10 @@ pub const TRAIL_RING_CAP: usize = 1024;
 /// reading half is the window's — [`TrailLog::drain`] hands the held
 /// events over and empties the window, [`TrailLog::look`] reads it
 /// without disturbing it, [`TrailLog::dropped`] names what the ring
-/// evicted.
+/// evicted. A poisoned lock recovers the data it held rather than
+/// wedging every later read: the window is a bounded deque whose
+/// contents survive a panic, the inspector's stats answer setting the
+/// shape (the honest behavior is the memory it holds).
 ///
 /// # Panics
 ///
@@ -90,37 +93,33 @@ impl TrailLog {
     }
 
     /// The window's cap: the events the ring holds before evicting.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the ring's lock is poisoned (a reader panicked while
-    /// holding it).
     #[must_use]
     pub fn cap(&self) -> usize {
-        self.inner.lock().expect("trail lock").cap
+        self.inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .cap
     }
 
     /// The events the window holds — what nobody has drained yet.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the ring's lock is poisoned (a reader panicked while
-    /// holding it).
     #[must_use]
     pub fn len(&self) -> usize {
-        self.inner.lock().expect("trail lock").ring.len()
+        self.inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .ring
+            .len()
     }
 
     /// Whether the window holds nothing — the drained (or never-fed)
     /// state.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the ring's lock is poisoned (a reader panicked while
-    /// holding it).
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.inner.lock().expect("trail lock").ring.is_empty()
+        self.inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .ring
+            .is_empty()
     }
 
     /// The events the ring has evicted — the named eviction (the
@@ -128,29 +127,22 @@ impl TrailLog {
     /// construction and never reset by a drain: a reader between
     /// drains diffs the count to know whether the window overflowed
     /// while it was away.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the ring's lock is poisoned (a reader panicked while
-    /// holding it).
     #[must_use]
     pub fn dropped(&self) -> u64 {
-        self.inner.lock().expect("trail lock").dropped
+        self.inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .dropped
     }
 
     /// The window's contents, oldest first — without disturbing it.
     /// A reader that looks keeps the window: the next drain hands the
     /// same facts over.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the ring's lock is poisoned (a reader panicked while
-    /// holding it).
     #[must_use]
     pub fn look(&self) -> Vec<InspectEvent> {
         self.inner
             .lock()
-            .expect("trail lock")
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .ring
             .iter()
             .cloned()
@@ -159,27 +151,29 @@ impl TrailLog {
 
     /// The window's tip — the newest fact — without disturbing the
     /// window. `None` when the window is empty.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the ring's lock is poisoned (a reader panicked while
-    /// holding it).
     #[must_use]
     pub fn last(&self) -> Option<InspectEvent> {
-        self.inner.lock().expect("trail lock").ring.back().cloned()
+        self.inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .ring
+            .back()
+            .cloned()
     }
 
     /// The window, drained: the held events handed back oldest first,
     /// the window emptied behind them. The eviction count is the
     /// reader's own — a drain never resets it.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the ring's lock is poisoned (a reader panicked while
-    /// holding it).
     #[must_use]
     pub fn drain(&self) -> Vec<InspectEvent> {
-        std::mem::take(&mut self.inner.lock().expect("trail lock").ring).into()
+        std::mem::take(
+            &mut self
+                .inner
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .ring,
+        )
+        .into()
     }
 }
 
@@ -191,7 +185,10 @@ impl Default for TrailLog {
 
 impl InspectObserver for TrailLog {
     fn observe(&mut self, event: InspectEvent) {
-        let mut ring = self.inner.lock().expect("trail lock");
+        let mut ring = self
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if ring.ring.len() >= ring.cap {
             ring.ring.pop_front();
             ring.dropped += 1;

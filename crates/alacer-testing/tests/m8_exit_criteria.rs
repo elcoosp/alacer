@@ -285,12 +285,12 @@ fn m8_the_corpus_pin_agrees_with_the_published_data() {
     // its gates grew 63 → 64 with it — these pins re-agree at the cut.
     assert_eq!(
         benches.len(),
-        151,
-        "the corpus is 151 at the M127 cut: the M46 drag route joined the M35 keymap route, the M18 route, the M20 capture case, the M21 value-write route, the M22 refused route, and the M24/M25/M26/M27 focus routes riding together"
+        152,
+        "the corpus is 152 at the M127 cut: the M46 drag route joined the M35 keymap route, the M18 route, the M20 capture case, the M21 value-write route, the M22 refused route, and the M24/M25/M26/M27 focus routes riding together"
     );
     assert_eq!(
         regressions.len(),
-        151,
+        152,
         "every bench carries a regression gate"
     );
     for id in ["input/storm_50_moves_queued", "input/storm_50_moves_direct"] {
@@ -319,8 +319,8 @@ fn m8_the_corpus_pin_agrees_with_the_published_data() {
     ] {
         let source = read_workspace_file(&format!("crates/alacer-testing/tests/{suite}"));
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 151;"),
-            "{suite} must pin the 131-case corpus"
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 152;"),
+            "{suite} must pin the corpus count the cut re-agreed"
         );
     }
 }

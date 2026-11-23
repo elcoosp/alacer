@@ -962,3 +962,240 @@ fn a_replay_ask_after_a_clear_answers_nothing_and_lives() {
         "the session lives past an empty burst: {next}"
     );
 }
+
+// ---------------------------------------------------------------------------
+// The subscribe ask (M142): the session's live fan-out filters by tier.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn a_subscribe_ask_filters_the_live_stream() {
+    // The ask: only the named tiers answer the session's live stream —
+    // the edges and frames this session records after the ask cross
+    // the socket, the unasked tiers staying silent. The rings keep
+    // recording everything (the ask is the session's fan-out, never
+    // the recorder's capture), and the session keeps serving.
+    let recorder = CausalRecorder::new("subscribe");
+    let server = InspectorServer::bind("127.0.0.1:0", recorder.clone(), "subscribe").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let hello = read_text_frame(&mut reader);
+    assert!(hello.contains(r#""kind":"hello""#), "{hello}");
+    // The connect-time drain is the whole stream (the pre-ask default):
+    // the socket goes quiet once it lands.
+    std::thread::sleep(Duration::from_millis(30));
+
+    let socket = reader.get_ref().try_clone().expect("clone");
+    send_client_text(&socket, br#"{"kind":"subscribe","tiers":["frames"]}"#);
+    std::thread::sleep(Duration::from_millis(80));
+
+    // Two facts after the ask: an input and a frame. Only the asked
+    // tier crosses — the input stays silent, the frame streams.
+    recorder
+        .clone_handle()
+        .observe(InspectEvent::Input(InputRecord {
+            kind: InputKind::Wheel,
+            target: None,
+        }));
+    recorder
+        .clone_handle()
+        .observe(InspectEvent::Frame(dummy_frame(7)));
+    std::thread::sleep(Duration::from_millis(80));
+    let frame = read_text_frame(&mut reader);
+    assert!(
+        frame.contains(r#""kind":"frame""#) && frame.contains(r#""number":7"#),
+        "the asked tier streams: {frame}"
+    );
+
+    // The unasked tier's fact crossed nothing — the next line the
+    // socket carries is the *replay answer*, not a live input event:
+    // the rings hold both facts (the capture untouched), and the burst
+    // answers everything (the answers ride whole, the filter is the
+    // live fan-out's).
+    send_client_text(&socket, br#"{"kind":"replay"}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let burst_one = read_text_frame(&mut reader);
+    assert!(
+        burst_one.contains(r#""kind":"input""#),
+        "the burst answers the rings, not the filter: {burst_one}"
+    );
+    let burst_two = read_text_frame(&mut reader);
+    assert!(
+        burst_two.contains(r#""kind":"frame""#),
+        "the burst's frames ride whole: {burst_two}"
+    );
+
+    // The bare ask restores the whole stream: the next live fact —
+    // any tier — crosses again.
+    send_client_text(&socket, br#"{"kind":"subscribe"}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    recorder
+        .clone_handle()
+        .observe(InspectEvent::Theme(ThemeRecord {
+            palette: "midnight".to_string(),
+            repainted: 1,
+        }));
+    let restored = read_text_frame(&mut reader);
+    assert!(
+        restored.contains(r#""kind":"theme""#),
+        "the bare ask restores the whole stream: {restored}"
+    );
+
+    send_client_text(&socket, br#"{"kind":"bye"}"#);
+}
+
+#[test]
+fn an_empty_subscribe_ask_mutes_the_stream_and_the_rings_keep_recording() {
+    // The mute: an empty list subscribes to nothing — the live stream
+    // goes quiet for this session while the rings keep recording (the
+    // ask is the session's fan-out, never the capture), and the
+    // answers (replay, stats) still cross. A panel reading a replay
+    // burst without the live noise asks for exactly this.
+    let recorder = CausalRecorder::new("mute");
+    let server = InspectorServer::bind("127.0.0.1:0", recorder.clone(), "mute").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let _hello = read_text_frame(&mut reader);
+    std::thread::sleep(Duration::from_millis(30));
+
+    let socket = reader.get_ref().try_clone().expect("clone");
+    send_client_text(&socket, br#"{"kind":"subscribe","tiers":[]}"#);
+    std::thread::sleep(Duration::from_millis(80));
+
+    // Facts recorded under the mute: the socket stays silent.
+    recorder
+        .clone_handle()
+        .observe(InspectEvent::Input(InputRecord {
+            kind: InputKind::PointerDown,
+            target: None,
+        }));
+    recorder
+        .clone_handle()
+        .observe(InspectEvent::Frame(dummy_frame(1)));
+    std::thread::sleep(Duration::from_millis(80));
+
+    // The answers ride whole under the mute: the stats ask answers —
+    // and names the facts the mute never carried.
+    send_client_text(&socket, br#"{"kind":"stats"}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let stats = read_text_frame(&mut reader);
+    assert!(
+        stats.contains(r#""kind":"stats""#) && stats.contains(r#""facts":2"#),
+        "the rings recorded what the mute silenced: {stats}"
+    );
+
+    // A later bare ask restores the stream — the facts recorded during
+    // the silence answer through the replay ask (the rings hold them),
+    // and the live stream carries the next fact whole.
+    send_client_text(&socket, br#"{"kind":"subscribe"}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    send_client_text(&socket, br#"{"kind":"replay"}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let burst_one = read_text_frame(&mut reader);
+    assert!(
+        burst_one.contains(r#""kind":"input""#),
+        "the muted history answers the burst: {burst_one}"
+    );
+    let burst_two = read_text_frame(&mut reader);
+    assert!(
+        burst_two.contains(r#""kind":"frame""#),
+        "the muted history's frames answer the burst too: {burst_two}"
+    );
+    recorder
+        .clone_handle()
+        .observe(InspectEvent::Theme(ThemeRecord {
+            palette: "canon".to_string(),
+            repainted: 0,
+        }));
+    let next = read_text_frame(&mut reader);
+    assert!(
+        next.contains(r#""kind":"theme""#),
+        "the restored stream carries the next fact: {next}"
+    );
+
+    send_client_text(&socket, br#"{"kind":"bye"}"#);
+}
+
+#[test]
+fn a_subscribe_ask_with_an_unknown_tier_ends_the_session() {
+    // The vocabulary is closed: a name outside the stats rows' list is
+    // a malformed control frame — the session's documented behavior is
+    // the report-and-close (the loop keeps serving; the client's own
+    // socket ends with the close echo).
+    let recorder = CausalRecorder::new("unknown-tier");
+    let server =
+        InspectorServer::bind("127.0.0.1:0", recorder.clone(), "unknown-tier").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let _hello = read_text_frame(&mut reader);
+    std::thread::sleep(Duration::from_millis(30));
+
+    let socket = reader.get_ref().try_clone().expect("clone");
+    send_client_text(&socket, br#"{"kind":"subscribe","tiers":["broadcast"]}"#);
+    std::thread::sleep(Duration::from_millis(80));
+
+    // The session ended: the server echoes its close frame (the
+    // goodbye), and nothing streams after.
+    let mut header = [0_u8; 2];
+    reader.read_exact(&mut header).expect("the close echo");
+    assert_eq!(header[0] & 0x0F, 0x8, "the close opcode");
+}
+
+#[test]
+fn the_stats_rows_name_every_tier_the_ask_filters_by() {
+    // One vocabulary, two doors: every tier name the subscribe ask
+    // accepts appears as a row in the stats answer (M141's rows are
+    // M142's ask's own list) — the two cannot drift apart. The
+    // converse does not hold: `broadcast` is the stream's own bound,
+    // never a tier.
+    let recorder = CausalRecorder::new("vocabulary");
+    let server =
+        InspectorServer::bind("127.0.0.1:0", recorder.clone(), "vocabulary").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let _hello = read_text_frame(&mut reader);
+    std::thread::sleep(Duration::from_millis(30));
+
+    let socket = reader.get_ref().try_clone().expect("clone");
+    send_client_text(&socket, br#"{"kind":"stats"}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let stats = read_text_frame(&mut reader);
+    for name in [
+        "edges",
+        "writes",
+        "inputs",
+        "focus",
+        "edits",
+        "announces",
+        "keys",
+        "clipboards",
+        "values",
+        "gestures",
+        "scrolls",
+        "text_writes",
+        "route_drops",
+        "key_edits",
+        "preedits",
+        "a11y_echoes",
+        "actions",
+        "frame_refusals",
+        "view_patches",
+        "themes",
+        "settings",
+        "frames",
+    ] {
+        let row = format!(r#""name":"{name}""#);
+        assert!(
+            stats.contains(&row),
+            "the stats answer names every tier the ask filters by: missing {row} in {stats}"
+        );
+    }
+    assert!(
+        stats.contains(r#""name":"broadcast""#),
+        "the stream's own bound is a row, never a tier"
+    );
+    send_client_text(&socket, br#"{"kind":"bye"}"#);
+}

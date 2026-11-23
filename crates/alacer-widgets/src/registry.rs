@@ -19,7 +19,8 @@ use alacer_view::{ElementProps, WidgetRegistry};
 /// plus the M134 dialog tier (`dialog`) plus the M135 tree tier (`tree`,
 /// `tree_item`) plus the M136 tooltip tier (`tooltip`) plus the M137 menu
 /// tier (`menu_bar`, `menu`, `menu_item`) plus the M138 image tier
-/// (`image`).
+/// (`image`) plus the M143 landmark tier (`banner`, `navigation`,
+/// `main`, `content_info`).
 #[must_use]
 pub fn default_registry() -> WidgetRegistry {
     let mut registry = WidgetRegistry::new();
@@ -58,6 +59,10 @@ pub fn default_registry() -> WidgetRegistry {
     registry.register("menu", menu_create, menu_patch);
     registry.register("menu_item", menu_item_create, menu_item_patch);
     registry.register("image", image_create, image_patch);
+    registry.register("banner", banner_create, landmark_patch);
+    registry.register("navigation", navigation_create, landmark_patch);
+    registry.register("main", main_create, landmark_patch);
+    registry.register("content_info", content_info_create, landmark_patch);
     registry
 }
 
@@ -1335,6 +1340,47 @@ fn image_patch(picture: &mut crate::Image, props: &ElementProps<'_>) -> bool {
         visual |= picture.set_sampling(sampling);
     }
     style_apply(picture.style_mut(), props);
+    style_visual_diff(props) || visual
+}
+
+/// The landmark element doors (M143): the page-structure words the AT's
+/// landmarks list walks — `banner { name: … }`, `navigation { name: … }`,
+/// `main { name: … }`, `content_info { name: … }` — one shape, four
+/// facts, the word the constructor's own declaration.
+fn banner_create(props: &ElementProps<'_>) -> crate::Landmark {
+    let mut region = crate::Landmark::banner(props.text("name").unwrap_or_default());
+    style_apply(region.style_mut(), props);
+    region
+}
+
+fn navigation_create(props: &ElementProps<'_>) -> crate::Landmark {
+    let mut region = crate::Landmark::navigation(props.text("name").unwrap_or_default());
+    style_apply(region.style_mut(), props);
+    region
+}
+
+fn main_create(props: &ElementProps<'_>) -> crate::Landmark {
+    let mut region = crate::Landmark::main(props.text("name").unwrap_or_default());
+    style_apply(region.style_mut(), props);
+    region
+}
+
+fn content_info_create(props: &ElementProps<'_>) -> crate::Landmark {
+    let mut region = crate::Landmark::content_info(props.text("name").unwrap_or_default());
+    style_apply(region.style_mut(), props);
+    region
+}
+
+/// The landmarks' shared patch door: the word is the one write the
+/// furniture takes (the write that lands where the word already is
+/// queues nothing — the idle-frame property, at the landmark tier).
+fn landmark_patch(region: &mut crate::Landmark, props: &ElementProps<'_>) -> bool {
+    let mut visual = false;
+    if let Some(name) = props.text("name") {
+        region.set_name(name);
+        visual = true;
+    }
+    style_apply(region.style_mut(), props);
     style_visual_diff(props) || visual
 }
 

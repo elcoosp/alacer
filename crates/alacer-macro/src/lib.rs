@@ -174,60 +174,92 @@ impl Parse for WidgetArgs {
     }
 }
 
+/// The derive's role vocabulary: the attribute word → the
+/// [`Role`](::alacer_core::Role) variant it names. One table, three
+/// readers — the mapping below, the unknown-word error's help text
+/// (built from these very words), and the parity test that walks it —
+/// so the three cannot drift apart: a word the tree speaks lands here
+/// once and every door follows (the M129-M144 words rode exactly this
+/// rule; the derive had stalled at `spin_button` while the snapshot's
+/// vocabulary kept growing).
+const ROLE_WORDS: &[(&str, &str)] = &[
+    ("decoration", "Decoration"),
+    ("container", "Container"),
+    ("label", "Label"),
+    ("button", "Button"),
+    ("text_input", "TextInput"),
+    ("scroll_area", "ScrollArea"),
+    ("list_item", "ListItem"),
+    ("list", "List"),
+    ("checkbox", "CheckBox"),
+    ("slider", "Slider"),
+    ("progress_indicator", "ProgressIndicator"),
+    ("table", "Table"),
+    ("table_row", "TableRow"),
+    ("table_cell", "TableCell"),
+    ("column_header", "ColumnHeader"),
+    ("canvas", "Canvas"),
+    ("radio", "Radio"),
+    ("radio_group", "RadioGroup"),
+    ("link", "Link"),
+    ("heading", "Heading"),
+    ("tab", "Tab"),
+    ("tab_list", "TabList"),
+    ("spin_button", "SpinButton"),
+    ("toolbar", "Toolbar"),
+    ("switch", "Switch"),
+    ("tab_panel", "TabPanel"),
+    ("meter", "Meter"),
+    ("dialog", "Dialog"),
+    ("tree", "Tree"),
+    ("tree_item", "TreeItem"),
+    ("tooltip", "Tooltip"),
+    ("menu_bar", "MenuBar"),
+    ("menu", "Menu"),
+    ("menu_item", "MenuItem"),
+    ("image", "Image"),
+    ("banner", "Banner"),
+    ("navigation", "Navigation"),
+    ("main", "Main"),
+    ("content_info", "ContentInfo"),
+    ("complementary", "Complementary"),
+    ("form", "Form"),
+    ("region", "Region"),
+    ("search", "Search"),
+];
+
 /// The attribute word → the [`Role`](::alacer_core::Role) variant: the
 /// vocabulary is `Role::name`'s own — the words the snapshot's role field,
 /// the CI walker's diagnostics, and the whole framework print.
 fn role_variant(word: &str, span: proc_macro2::Span) -> syn::Result<proc_macro2::Ident> {
-    let variant = match word {
-        "decoration" => "Decoration",
-        "container" => "Container",
-        "label" => "Label",
-        "button" => "Button",
-        "text_input" => "TextInput",
-        "scroll_area" => "ScrollArea",
-        "list_item" => "ListItem",
-        "list" => "List",
-        "checkbox" => "CheckBox",
-        "slider" => "Slider",
-        "progress_indicator" => "ProgressIndicator",
-        "table" => "Table",
-        "table_row" => "TableRow",
-        "table_cell" => "TableCell",
-        "column_header" => "ColumnHeader",
-        "canvas" => "Canvas",
-        "radio" => "Radio",
-        "radio_group" => "RadioGroup",
-        "link" => "Link",
-        "heading" => "Heading",
-        "tab" => "Tab",
-        "tab_list" => "TabList",
-        "spin_button" => "SpinButton",
-        // The pipeline's reserved region is never a widget's role: the
-        // pipeline builds the node itself (§11.6, ADR-0024) — the refusal
-        // names the rule, not just the word.
-        "live_region" => {
-            return Err(syn::Error::new(
-                span,
-                "`live_region` is never a widget's role: the pipeline builds the \
-                 live region itself (ADR-0024); help: name the widget's own \
-                 semantic — the vocabulary is `Role::name`'s",
-            ));
-        }
-        other => {
-            return Err(syn::Error::new(
-                span,
-                format!(
-                    "unknown role `{other}`; help: the derive speaks `Role::name`'s \
-                     vocabulary — decoration, container, label, button, text_input, \
-                     scroll_area, list_item, list, checkbox, slider, \
-                     progress_indicator, table, table_row, table_cell, \
-                     column_header, canvas, radio, radio_group, link, heading, \
-                     tab, tab_list, spin_button"
-                ),
-            ));
-        }
-    };
-    Ok(proc_macro2::Ident::new(variant, span))
+    // The pipeline's reserved region is never a widget's role: the
+    // pipeline builds the node itself (§11.6, ADR-0024) — the refusal
+    // names the rule, not just the word.
+    if word == "live_region" {
+        return Err(syn::Error::new(
+            span,
+            "`live_region` is never a widget's role: the pipeline builds the \
+             live region itself (ADR-0024); help: name the widget's own \
+             semantic — the vocabulary is `Role::name`'s",
+        ));
+    }
+    if let Some((_, variant)) = ROLE_WORDS.iter().find(|(candidate, _)| *candidate == word) {
+        return Ok(proc_macro2::Ident::new(variant, span));
+    }
+    // The help text is the table's own words, joined in the table's
+    // order — the drift-proofing the table's doc names.
+    Err(syn::Error::new(
+        span,
+        format!(
+            "unknown role `{word}`; help: the derive speaks `Role::name`'s \
+             vocabulary — {}",
+            ROLE_WORDS
+                .iter()
+                .map(|(candidate, _)| *candidate)
+                .collect::<Vec<&str>>()
+                .join(", ")
+        ),
+    ))
 }
 
 /// The derive's expansion: the required pair (`role`, `label`) and the `Any`
@@ -902,16 +934,26 @@ mod derive_tests {
 
     #[test]
     fn an_unknown_role_names_the_vocabulary() {
+        // The word the vocabulary genuinely does not carry (every M129+
+        // word the tree speaks — toolbar among them — maps since the
+        // derive spoke the whole `Role::name` list; a made-up word is
+        // the honest unknown).
         let error = expect_err(expand(
-            "#[widget(role = \"toolbar\", label = \"x\")] struct W;",
+            "#[widget(role = \"window\", label = \"x\")] struct W;",
         ));
         assert!(
-            error.contains("toolbar"),
+            error.contains("window"),
             "the error quotes the word: {error}"
         );
         assert!(
             error.contains("button"),
             "the vocabulary rides the error: {error}"
+        );
+        // The help text is the table's own words — the drift-proofing
+        // rule: a word the table carries must ride the error's list.
+        assert!(
+            error.contains("toolbar") && error.contains("search"),
+            "the error's vocabulary names the full table, the M129+ words included: {error}"
         );
     }
 
@@ -924,6 +966,66 @@ mod derive_tests {
             error.contains("live region"),
             "the reason is the ADR-0024 rule: {error}"
         );
+    }
+
+    #[test]
+    fn the_m129_words_map_their_variants() {
+        // The parity the derive now speaks: the words M129-M144 put on
+        // the tree — every one a `Role` variant the snapshot prints —
+        // map verbatim, the derive able to declare any widget the
+        // registry carries.
+        let pairs = [
+            ("toolbar", "Toolbar"),
+            ("switch", "Switch"),
+            ("tab_panel", "TabPanel"),
+            ("meter", "Meter"),
+            ("dialog", "Dialog"),
+            ("tree", "Tree"),
+            ("tree_item", "TreeItem"),
+            ("tooltip", "Tooltip"),
+            ("menu_bar", "MenuBar"),
+            ("menu", "Menu"),
+            ("menu_item", "MenuItem"),
+            ("image", "Image"),
+            ("banner", "Banner"),
+            ("navigation", "Navigation"),
+            ("main", "Main"),
+            ("content_info", "ContentInfo"),
+            ("complementary", "Complementary"),
+            ("form", "Form"),
+            ("region", "Region"),
+            ("search", "Search"),
+        ];
+        for (word, variant) in pairs {
+            let expanded = expand(&format!(
+                "#[widget(role = \"{word}\", label = \"x\")] struct W;"
+            ))
+            .expect("the word maps")
+            .replace(' ', "");
+            assert!(
+                expanded.contains(&format!(
+                    "::alacer_core::Role{{::alacer_core::Role::{variant}}}"
+                )),
+                "the word `{word}` maps its variant: {expanded}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_help_text_is_the_tables_own_vocabulary() {
+        // The drift-proofing rule: the unknown-word error's help text is
+        // built from the same table the mapping reads — a word added to
+        // the table rides the help text, a word dropped from the table
+        // leaves it, the two unable to drift apart.
+        let error = expect_err(expand(
+            "#[widget(role = \"pane\", label = \"x\")] struct W;",
+        ));
+        for word in super::ROLE_WORDS.iter().map(|(word, _)| *word) {
+            assert!(
+                error.contains(word),
+                "the help text names every table word (checking `{word}`): {error}"
+            );
+        }
     }
 
     #[test]

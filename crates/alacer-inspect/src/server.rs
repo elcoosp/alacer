@@ -442,6 +442,14 @@ fn handle_control(
                 serde_json::to_string(&answer).map_err(|error| serialize_error("tree", error))?;
             send_text(stream, &payload)?;
         }
+        ClientMessage::HitAsk { point } => {
+            answer_hit_ask(stream, recorder, point)?;
+        }
+        ClientMessage::FindAsk { query, role } => {
+            if !answer_find_ask(stream, recorder, &query, role.as_deref())? {
+                return Ok(false);
+            }
+        }
         ClientMessage::Bye => return Ok(false),
         ClientMessage::Subscribe { tiers } => {
             // The live-stream gate, re-set (M142): the bare
@@ -470,6 +478,86 @@ fn handle_control(
                 .unwrap_or_else(std::sync::PoisonError::into_inner) = filter.clone();
         }
     }
+    Ok(true)
+}
+
+/// The point ask's answer (M146, ADR-0150), one dispatch arm lifted
+/// beside the control's own (`handle_control`'s shape unchanged): which
+/// node the asked point touches — the geometry query over the state the
+/// observer's tree door retained, the dump ask's own rule at the point
+/// tier: read without disturbing (no ring drains, the broadcast queue
+/// untouched), the contents the secret-carrying rule keeps off the wire
+/// absent from the shape (the `wire_hit` conversion's own contract).
+fn answer_hit_ask(
+    stream: &mut TcpStream,
+    recorder: &CausalRecorder,
+    point: [f32; 2],
+) -> std::io::Result<()> {
+    let serialize_error = |error: serde_json::Error| -> std::io::Error {
+        std::io::Error::other(format!("the hit payload refused to serialize: {error}"))
+    };
+    let answer = crate::wire::wire_hit(recorder.latest_tree().as_deref(), point);
+    let (landed, walked) = match &answer {
+        crate::wire::WireEvent::Hit {
+            landed, ancestry, ..
+        } => (*landed, ancestry.len()),
+        _ => (false, 0),
+    };
+    tracing::debug!(
+        target: "alacer::inspect",
+        landed,
+        ancestry = walked,
+        "inspector client asked which node the point touches"
+    );
+    let payload = serde_json::to_string(&answer).map_err(serialize_error)?;
+    send_text(stream, &payload)
+}
+
+/// The word ask's answer (M147, ADR-0151), one dispatch arm lifted
+/// beside the control's own (`handle_control`'s shape unchanged): the
+/// nodes whose resolved names carry the query — the point ask's own
+/// rule at the name tier: the state the observer's tree door retained
+/// answers, the ask reads without disturbing (no ring drains, the
+/// broadcast queue untouched), the contents the secret-carrying rule
+/// keeps off the wire absent from the shape (the query reads the
+/// resolved names, never the values). The role word parses through the
+/// core vocabulary's own parse door (`Role::from_name`); a word outside
+/// the roles' list is a malformed control frame — the documented
+/// report-and-close behavior, the `false` the loop breaks on (the
+/// unknown control's rule, at the name tier).
+fn answer_find_ask(
+    stream: &mut TcpStream,
+    recorder: &CausalRecorder,
+    query: &str,
+    role: Option<&str>,
+) -> std::io::Result<bool> {
+    let serialize_error = |error: serde_json::Error| -> std::io::Error {
+        std::io::Error::other(format!("the find payload refused to serialize: {error}"))
+    };
+    let parsed = match role {
+        None => Some(None),
+        Some(word) => alacer_core::Role::from_name(word).map(Some),
+    };
+    let Some(role) = parsed else {
+        tracing::debug!(
+            target: "alacer::inspect",
+            word = role.unwrap_or(""),
+            "inspector client sent a find ask whose role word the vocabulary does not name — closing the session"
+        );
+        return Ok(false);
+    };
+    let answer = crate::wire::wire_find(recorder.latest_tree().as_deref(), query, role);
+    let found = match &answer {
+        crate::wire::WireEvent::Find { matches, .. } => matches.len(),
+        _ => 0,
+    };
+    tracing::debug!(
+        target: "alacer::inspect",
+        matches = found,
+        "inspector client asked which names carry the query"
+    );
+    let payload = serde_json::to_string(&answer).map_err(serialize_error)?;
+    send_text(stream, &payload)?;
     Ok(true)
 }
 

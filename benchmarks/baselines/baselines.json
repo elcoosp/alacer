@@ -14,7 +14,7 @@
     "cpu_count": "2",
     "fingerprint": "ee37c3efc5995352"
   },
-  "bench_count": 152,
+  "bench_count": 153,
   "benches": {
     "a11y/full_rebuild_1k": {
       "median_ns": 98232.71415816326,
@@ -926,6 +926,12 @@
       "median_ns": 98103.45337411939,
       "mean_ns": 84884.86414415577,
       "median_abs_dev_ns": 3115.8935290950108,
+      "samples": 100
+    },
+    "tree_dump/answer_1k_nodes": {
+      "median_ns": 336170.9922916122,
+      "mean_ns": 339426.3277550765,
+      "median_abs_dev_ns": 697.528384822146,
       "samples": 100
     }
   }

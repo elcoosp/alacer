@@ -381,10 +381,22 @@ impl TreeSnapshot {
     /// the plural query behind the harness's count/all builders.
     #[must_use]
     pub fn find_all(&self, role: Role, name: &str) -> Vec<&TreeNode> {
-        let needle = name.to_lowercase();
+        self.search(name, Some(role))
+    }
+
+    /// The word ask's query (M147, ADR-0151): every node whose resolved
+    /// name carries `needle` — case-insensitive substring, [`Self::find`]'s
+    /// own rule — the role narrowing the matches when named, `None` the
+    /// whole vocabulary. Tree order; an empty needle names every resolved
+    /// name (the ask's honest every-node answer, never a refusal).
+    /// [`Self::find_all`] is this funnel with the role always named — one
+    /// substring funnel, two doors, the two unable to drift apart.
+    #[must_use]
+    pub fn search(&self, needle: &str, role: Option<Role>) -> Vec<&TreeNode> {
+        let lower = needle.to_lowercase();
         self.nodes
             .iter()
-            .filter(|n| n.role == role && n.label.to_lowercase().contains(&needle))
+            .filter(|n| role.is_none_or(|r| n.role == r) && n.label.to_lowercase().contains(&lower))
             .collect()
     }
 
@@ -418,6 +430,144 @@ impl TreeSnapshot {
             }
         }
         out
+    }
+
+    /// The point ask's geometry query (M146, ADR-0150): which node does
+    /// `point` touch? The snapshot's query vocabulary ([`Self::find`],
+    /// [`Self::by_id`], [`Self::walk`]) names, addresses, and walks the
+    /// tree; this door locates — the innermost node whose bounds
+    /// contain the point, beside the ancestry the walk descended
+    /// through (root-first, the hit node last).
+    ///
+    /// The land rule is the paint order's own: among the nodes
+    /// containing the point, the last in pre-order wins — the tree walk
+    /// order is the paint order, later siblings composite on top, and
+    /// the answer names what the pixels would answer. Containment is
+    /// the geometry's own half-open convention (euclid's
+    /// `Rect::contains`: the min edges in, the max edges out), the
+    /// convention the damage tests and the scroll clamps already
+    /// speak.
+    ///
+    /// Every miss is a named species — [`HitMiss`] — never a collapsed
+    /// `None`: the walk that cannot honestly answer names why (no tree
+    /// stands, no geometry stands, the point touches nothing, or the
+    /// ask itself is not a finite coordinate — the NaN refused before
+    /// it corrupts the comparisons, the scroll tier's rule).
+    #[must_use]
+    pub fn hit_at(&self, point: Point) -> HitAnswer<'_> {
+        if !point.x.is_finite() || !point.y.is_finite() {
+            return HitAnswer::Missed(HitMiss::Malformed);
+        }
+        let Some(root) = self.root else {
+            return HitAnswer::Missed(HitMiss::NoTree);
+        };
+        // The walk: pre-order (the children pushed reversed, the pop
+        // order the tree order, `walk`'s own shape), the last
+        // containing node remembered beside the depth it sits at — the
+        // parentage the walk fills as it goes, the ancestry rebuilt
+        // from it without a clone per landing.
+        let mut parents: FxHashMap<u64, u64> = FxHashMap::default();
+        let mut stack = vec![(root, 0_usize)];
+        let mut winner: Option<(&TreeNode, usize)> = None;
+        let mut geometry = false;
+        while let Some((id, depth)) = stack.pop() {
+            let Some(node) = self.by_id(id) else {
+                continue;
+            };
+            for child in node.children.iter().rev() {
+                parents.insert(*child, id);
+                stack.push((*child, depth + 1));
+            }
+            geometry |= node.bounds.is_some();
+            if let Some(bounds) = node.bounds
+                && bounds.contains(point)
+            {
+                winner = Some((node, depth));
+            }
+        }
+        let Some((node, depth)) = winner else {
+            // No containing node: the species splits the two honest
+            // absences — a tree the layout pass never wrote bounds for
+            // answers `no_geometry`, a standing geometry the point
+            // misses answers `outside`.
+            return HitAnswer::Missed(if geometry {
+                HitMiss::Outside
+            } else {
+                HitMiss::NoGeometry
+            });
+        };
+        // The ancestry: the parent chain from the hit node up to the
+        // root, reversed root-first, the hit node last — the walk's
+        // own path, the shape a panel walks back to the window from.
+        let mut chain: Vec<u64> = Vec::with_capacity(depth + 1);
+        let mut cursor = node.id;
+        loop {
+            chain.push(cursor);
+            let Some(parent) = parents.get(&cursor) else {
+                break;
+            };
+            cursor = *parent;
+        }
+        chain.reverse();
+        let ancestry: Vec<&TreeNode> = chain
+            .iter()
+            // Every id the chain names was resolved during the walk —
+            // the parent map only ever records live nodes' children —
+            // so the filter carries the invariant, never a panic path.
+            .filter_map(|id| self.by_id(*id))
+            .collect();
+        HitAnswer::Landed { node, ancestry }
+    }
+}
+
+/// The point ask's answer (M146, ADR-0150) — the geometry query's
+/// landed-or-refused shape (the focus walk's own, at the snapshot
+/// tier): the landing names the node the point touches beside the
+/// ancestry it descended through, every refusal its species, never a
+/// collapsed `false`.
+#[derive(Debug, Clone, PartialEq)]
+pub enum HitAnswer<'a> {
+    /// The point touched a node: the topmost one (the last pre-order
+    /// walk order, the paint order's own rule), beside the ancestry
+    /// the walk descended through — root-first, the hit node last.
+    Landed {
+        /// The node the point touches.
+        node: &'a TreeNode,
+        /// The walk's path — root-first, the hit node last.
+        ancestry: Vec<&'a TreeNode>,
+    },
+    /// The point touched nothing — the species names why.
+    Missed(HitMiss),
+}
+
+/// The point ask's refusal species — every miss named, never munged
+/// into an empty answer (the named-refusals rule, the focus walk's
+/// species vocabulary at the geometry tier).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HitMiss {
+    /// No tree stands (before the first a11y pass resolved one).
+    NoTree,
+    /// Nodes stand, none carry bounds (the layout pass never ran).
+    NoGeometry,
+    /// Geometry stands; the point touches no node.
+    Outside,
+    /// The asked point is not a finite coordinate — the NaN refusal
+    /// before it corrupts the comparisons (the scroll tier's rule).
+    Malformed,
+}
+
+impl HitMiss {
+    /// The species' `snake_case` wire name — the one word the protocol
+    /// document and the answer both speak (the focus refusal's naming
+    /// door, at the geometry tier).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::NoTree => "no_tree",
+            Self::NoGeometry => "no_geometry",
+            Self::Outside => "outside",
+            Self::Malformed => "malformed",
+        }
     }
 }
 
@@ -7047,7 +7197,7 @@ mod tests {
         let root = p.mount_root(Box::new(Fixed {
             size: Size::new(200.0, 100.0),
         }));
-        p.add_child(root, Box::new(Switchable::new(Size::new(80.0, 20.0))));
+        let _toggled = p.add_child(root, Box::new(Switchable::new(Size::new(80.0, 20.0))));
         let trees = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
         let facts = std::rc::Rc::new(std::cell::Cell::new(0_u64));
         p.set_observer(Box::new(TreeCatcher {
@@ -7092,5 +7242,383 @@ mod tests {
             1,
             "a skipped a11y pass answers no tree door"
         );
+    }
+
+    // ------------------------------------------------------------------
+    // M146 (ADR-0150): the point ask's geometry query. The snapshot's
+    // query vocabulary (`find`, `by_id`, `walk`) names, addresses, and
+    // walks; the one door it lacked locates — which node does this
+    // point touch? The land rule is the paint order's own (the last
+    // pre-order node containing the point wins); every miss is a named
+    // species, never a collapsed `false`.
+    // ------------------------------------------------------------------
+
+    /// Builds one node with the full field list — the honest
+    /// explicitness the tree node's own review demands (the dump
+    /// helper's rule, at the core tier).
+    fn hit_node(
+        id: u64,
+        role: Role,
+        label: &str,
+        bounds: Option<Rect>,
+        children: Vec<u64>,
+    ) -> super::TreeNode {
+        super::TreeNode {
+            id,
+            role,
+            label: label.to_string(),
+            bounds,
+            children,
+            value: None,
+            toggled: None,
+            table_slot: None,
+            selection: None,
+            live: None,
+            enabled: true,
+            description: None,
+            placeholder: None,
+            value_range: None,
+            numeric_value: None,
+            secure_entry: false,
+            scroll_orientation: None,
+            scroll_position: None,
+            secure_revealed: false,
+            read_only: false,
+            required: false,
+            invalid: None,
+            selected: None,
+            multiselectable: false,
+            busy: false,
+            expanded: None,
+            auto_complete: None,
+            sort_direction: None,
+            level: None,
+            current: None,
+            has_popup: None,
+            role_description: None,
+            position_in_set: None,
+            size_of_set: None,
+            keyboard_shortcut: None,
+            multiline: false,
+            language: None,
+            search_field: false,
+        }
+    }
+
+    #[test]
+    fn hit_at_lands_the_innermost_node_with_the_ancestry_it_descended() {
+        let snapshot = TreeSnapshot {
+            nodes: vec![
+                hit_node(
+                    1,
+                    Role::Container,
+                    "window",
+                    Some(Rect::new(Point::new(0.0, 0.0), Size::new(800.0, 600.0))),
+                    vec![2],
+                ),
+                hit_node(
+                    2,
+                    Role::Container,
+                    "panel",
+                    Some(Rect::new(Point::new(10.0, 10.0), Size::new(300.0, 200.0))),
+                    vec![3],
+                ),
+                hit_node(
+                    3,
+                    Role::Button,
+                    "Save",
+                    Some(Rect::new(Point::new(20.0, 20.0), Size::new(80.0, 24.0))),
+                    Vec::new(),
+                ),
+            ],
+            root: Some(1),
+        };
+        let super::HitAnswer::Landed { node, ancestry } = snapshot.hit_at(Point::new(30.0, 30.0))
+        else {
+            panic!("the point sits on the button — the walk landed");
+        };
+        assert_eq!(node.id, 3, "the innermost node the point touches");
+        assert_eq!(node.label, "Save", "the node the walk names");
+        let ids: Vec<u64> = ancestry.iter().map(|n| n.id).collect();
+        assert_eq!(
+            ids,
+            vec![1, 2, 3],
+            "the ancestry root-first, the hit node last"
+        );
+    }
+
+    #[test]
+    fn hit_at_names_the_last_preorder_node_where_siblings_overlap() {
+        // Two sibling buttons sharing the same geometry: the later one
+        // paints on top (the tree walk order is the paint order), so
+        // the point in the overlap names the last one in pre-order.
+        let snapshot = TreeSnapshot {
+            nodes: vec![
+                hit_node(
+                    1,
+                    Role::Container,
+                    "window",
+                    Some(Rect::new(Point::new(0.0, 0.0), Size::new(800.0, 600.0))),
+                    vec![2, 3],
+                ),
+                hit_node(
+                    2,
+                    Role::Button,
+                    "under",
+                    Some(Rect::new(Point::new(0.0, 0.0), Size::new(40.0, 40.0))),
+                    Vec::new(),
+                ),
+                hit_node(
+                    3,
+                    Role::Button,
+                    "over",
+                    Some(Rect::new(Point::new(0.0, 0.0), Size::new(40.0, 40.0))),
+                    Vec::new(),
+                ),
+            ],
+            root: Some(1),
+        };
+        let super::HitAnswer::Landed { node, .. } = snapshot.hit_at(Point::new(10.0, 10.0)) else {
+            panic!("the point sits in the overlap — the walk landed");
+        };
+        assert_eq!(
+            node.id, 3,
+            "the last pre-order node wins — the paint order's own rule"
+        );
+    }
+
+    #[test]
+    fn hit_at_misses_outside_the_geometry_it_stands_with() {
+        let snapshot = TreeSnapshot {
+            nodes: vec![hit_node(
+                1,
+                Role::Container,
+                "window",
+                Some(Rect::new(Point::new(0.0, 0.0), Size::new(200.0, 100.0))),
+                Vec::new(),
+            )],
+            root: Some(1),
+        };
+        assert_eq!(
+            snapshot.hit_at(Point::new(500.0, 500.0)),
+            super::HitAnswer::Missed(super::HitMiss::Outside),
+            "geometry stands, the point touches nothing — the species names it"
+        );
+    }
+
+    #[test]
+    fn hit_at_refuses_the_geometry_less_tree_as_no_geometry() {
+        // The tree stands, the layout pass never wrote bounds — the
+        // focus walk's own NoGeometry species, at the snapshot tier.
+        let snapshot = TreeSnapshot {
+            nodes: vec![
+                hit_node(1, Role::Container, "window", None, vec![2]),
+                hit_node(2, Role::Button, "Save", None, Vec::new()),
+            ],
+            root: Some(1),
+        };
+        assert_eq!(
+            snapshot.hit_at(Point::new(10.0, 10.0)),
+            super::HitAnswer::Missed(super::HitMiss::NoGeometry),
+            "no node carries bounds — the honest refusal, never a guessed miss"
+        );
+    }
+
+    #[test]
+    fn hit_at_refuses_the_absent_tree_as_no_tree() {
+        assert_eq!(
+            TreeSnapshot::default().hit_at(Point::new(1.0, 1.0)),
+            super::HitAnswer::Missed(super::HitMiss::NoTree),
+            "no tree resolved yet — the honest absence"
+        );
+    }
+
+    #[test]
+    fn hit_at_refuses_the_nan_point_before_it_corrupts() {
+        // A non-finite ask names its species before the comparisons
+        // run: euclid's containment would munge NaN into a plain
+        // `outside` miss (every comparison false), and the munged
+        // answer reads as a clean geometry verdict. The scroll tier's
+        // own rule — the NaN refused before it corrupts.
+        let snapshot = TreeSnapshot {
+            nodes: vec![hit_node(
+                1,
+                Role::Button,
+                "Save",
+                Some(Rect::new(Point::new(0.0, 0.0), Size::new(40.0, 20.0))),
+                Vec::new(),
+            )],
+            root: Some(1),
+        };
+        assert_eq!(
+            snapshot.hit_at(Point::new(f32::NAN, 10.0)),
+            super::HitAnswer::Missed(super::HitMiss::Malformed),
+            "the NaN ask names its malformation, never a munged miss"
+        );
+        assert_eq!(
+            snapshot.hit_at(Point::new(10.0, f32::INFINITY)),
+            super::HitAnswer::Missed(super::HitMiss::Malformed),
+            "an infinite coordinate is the same malformed ask"
+        );
+    }
+
+    #[test]
+    fn hit_miss_names_the_species_the_wire_speaks() {
+        // The wire's tag vocabulary is `snake_case`; the species' name
+        // door is the one word the protocol document and the answer
+        // both speak (the focus refusal's naming shape).
+        for (species, word) in [
+            (super::HitMiss::NoTree, "no_tree"),
+            (super::HitMiss::NoGeometry, "no_geometry"),
+            (super::HitMiss::Outside, "outside"),
+            (super::HitMiss::Malformed, "malformed"),
+        ] {
+            assert_eq!(species.name(), word, "the species' wire word");
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // M147 (ADR-0151): the word ask's query. The snapshot's query
+    // vocabulary grows the role-optional door beside `find`/`find_all`
+    // — one substring funnel, the role narrowing it when named — and
+    // the Role vocabulary grows the inverse name door, the wire's word
+    // parsing beside `name`'s (one vocabulary, two doors, the two
+    // unable to drift apart).
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn search_answers_the_case_insensitive_needle_in_tree_order() {
+        let snapshot = TreeSnapshot {
+            nodes: vec![
+                hit_node(1, Role::Container, "window", None, vec![2, 3]),
+                hit_node(2, Role::Button, "Save", None, Vec::new()),
+                hit_node(3, Role::Label, "save the doc", None, Vec::new()),
+            ],
+            root: Some(1),
+        };
+        let ids: Vec<u64> = snapshot
+            .search("save", Some(Role::Button))
+            .iter()
+            .map(|n| n.id)
+            .collect();
+        assert_eq!(ids, vec![2], "the role narrows the needle's matches");
+        let ids: Vec<u64> = snapshot.search("SAVE", None).iter().map(|n| n.id).collect();
+        assert_eq!(
+            ids,
+            vec![2, 3],
+            "the needle is case-insensitive, the matches in tree order"
+        );
+    }
+
+    #[test]
+    fn search_without_a_role_answers_the_whole_vocabulary() {
+        let snapshot = TreeSnapshot {
+            nodes: vec![
+                hit_node(1, Role::Container, "window", None, vec![2]),
+                hit_node(2, Role::Button, "Save", None, Vec::new()),
+            ],
+            root: Some(1),
+        };
+        // The empty needle names every resolved name — the ask's honest
+        // every-node answer, not a refusal (the replay burst's empty
+        // answer is an absence, never an error).
+        let count = snapshot.search("", None).len();
+        assert_eq!(count, 2, "the whole vocabulary rides the empty needle");
+    }
+
+    #[test]
+    fn find_all_rides_the_same_substring_funnel_search_carries() {
+        // One funnel, two doors: the plural query the harness rides and
+        // the word ask's role-optional door answer the same matches —
+        // the two unable to drift apart.
+        let snapshot = TreeSnapshot {
+            nodes: vec![
+                hit_node(1, Role::Container, "window", None, vec![2, 3]),
+                hit_node(2, Role::Button, "Save", None, Vec::new()),
+                hit_node(3, Role::Button, "save as", None, Vec::new()),
+            ],
+            root: Some(1),
+        };
+        let funnel: Vec<u64> = snapshot
+            .find_all(Role::Button, "save")
+            .iter()
+            .map(|n| n.id)
+            .collect();
+        let door: Vec<u64> = snapshot
+            .search("save", Some(Role::Button))
+            .iter()
+            .map(|n| n.id)
+            .collect();
+        assert_eq!(funnel, door, "one substring funnel, two doors");
+    }
+
+    #[test]
+    fn role_from_name_round_trips_every_role_word() {
+        // One vocabulary, two doors: every role's word parses back to
+        // the role it named — the drift pin the name door and the parse
+        // door cannot pass apart.
+        for role in [
+            Role::Decoration,
+            Role::Container,
+            Role::Label,
+            Role::Button,
+            Role::TextInput,
+            Role::ScrollArea,
+            Role::ListItem,
+            Role::List,
+            Role::CheckBox,
+            Role::Slider,
+            Role::ProgressIndicator,
+            Role::Table,
+            Role::TableRow,
+            Role::TableCell,
+            Role::ColumnHeader,
+            Role::Canvas,
+            Role::LiveRegion,
+            Role::Radio,
+            Role::RadioGroup,
+            Role::Link,
+            Role::Heading,
+            Role::Tab,
+            Role::TabList,
+            Role::SpinButton,
+            Role::Toolbar,
+            Role::Switch,
+            Role::TabPanel,
+            Role::Meter,
+            Role::Dialog,
+            Role::Tree,
+            Role::TreeItem,
+            Role::Tooltip,
+            Role::MenuBar,
+            Role::Menu,
+            Role::MenuItem,
+            Role::Image,
+            Role::Banner,
+            Role::Navigation,
+            Role::Main,
+            Role::ContentInfo,
+            Role::Complementary,
+            Role::Form,
+            Role::Region,
+            Role::Search,
+        ] {
+            assert_eq!(
+                Role::from_name(role.name()),
+                Some(role),
+                "the word {} parses back to the role it names",
+                role.name()
+            );
+        }
+    }
+
+    #[test]
+    fn role_from_name_refuses_the_unknown_word() {
+        assert_eq!(
+            Role::from_name("gizmo"),
+            None,
+            "a word outside the vocabulary is no role"
+        );
+        assert_eq!(Role::from_name(""), None, "the empty word is no role");
     }
 }

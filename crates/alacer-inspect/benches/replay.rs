@@ -134,6 +134,128 @@ fn replay_burst(c: &mut Criterion) {
         );
     });
     group.finish();
+
+    // The tree dump (the inspector's ask-and-answer control): the
+    // answer's price — the wire conversion over the retained snapshot
+    // plus the serialization the send path takes, measured on a
+    // 1 000-node resolved tree (the shape a real panel walks). The ask
+    // is answered once per connect — a connect-time price beside the
+    // burst's, never a per-frame one: the tree rides no broadcast, the
+    // observer's door retains it as state, and the ask is the only
+    // door it crosses the wire through.
+    let recorder = CausalRecorder::new("tree-dump-bench");
+    recorder.clone_handle().tree(dump_snapshot(1_000));
+    let mut group = c.benchmark_group("tree_dump");
+    group.throughput(criterion::Throughput::Elements(1_000));
+    group.bench_function("answer_1k_nodes", |b| {
+        b.iter(|| {
+            let answer = alacer_inspect::wire::wire_tree(recorder.latest_tree().as_deref());
+            let payload = serde_json::to_string(&answer).expect("the dump's payload");
+            black_box(payload.len());
+        });
+    });
+    group.finish();
+}
+
+/// Builds a resolved snapshot of `count` nodes: one root over the
+/// members, every field named — the honest explicitness the tree
+/// node's own review demands (no `Default` to mask a missed tier).
+fn dump_snapshot(count: usize) -> std::sync::Arc<alacer_core::TreeSnapshot> {
+    use alacer_core::{Point, Rect, Role, Size, TreeNode, TreeSnapshot};
+    let root_id = 0_u64;
+    let mut nodes = Vec::with_capacity(count);
+    nodes.push(TreeNode {
+        id: root_id,
+        role: Role::Container,
+        label: "window".to_string(),
+        bounds: Some(Rect::new(Point::new(0.0, 0.0), Size::new(800.0, 600.0))),
+        children: (1..u64::try_from(count).unwrap_or_default()).collect(),
+        value: None,
+        toggled: None,
+        table_slot: None,
+        selection: None,
+        live: None,
+        enabled: true,
+        description: None,
+        placeholder: None,
+        value_range: None,
+        numeric_value: None,
+        secure_entry: false,
+        scroll_orientation: None,
+        scroll_position: None,
+        secure_revealed: false,
+        read_only: false,
+        required: false,
+        invalid: None,
+        selected: None,
+        multiselectable: false,
+        busy: false,
+        expanded: None,
+        auto_complete: None,
+        sort_direction: None,
+        level: None,
+        current: None,
+        has_popup: None,
+        role_description: None,
+        position_in_set: None,
+        size_of_set: None,
+        keyboard_shortcut: None,
+        multiline: false,
+        language: None,
+        search_field: false,
+    });
+    for id in 1..u64::try_from(count).unwrap_or_default() {
+        nodes.push(TreeNode {
+            id,
+            role: Role::Button,
+            label: format!("tool {id}"),
+            bounds: Some(Rect::new(
+                Point::new(
+                    f32::from(u16::try_from(id % 40).unwrap_or_default()) * 20.0,
+                    f32::from(u16::try_from(id / 40).unwrap_or_default()) * 28.0,
+                ),
+                Size::new(18.0, 24.0),
+            )),
+            children: Vec::new(),
+            value: None,
+            toggled: None,
+            table_slot: None,
+            selection: None,
+            live: None,
+            enabled: true,
+            description: None,
+            placeholder: None,
+            value_range: None,
+            numeric_value: None,
+            secure_entry: false,
+            scroll_orientation: None,
+            scroll_position: None,
+            secure_revealed: false,
+            read_only: false,
+            required: false,
+            invalid: None,
+            selected: None,
+            multiselectable: false,
+            busy: false,
+            expanded: None,
+            auto_complete: None,
+            sort_direction: None,
+            level: None,
+            current: None,
+            has_popup: None,
+            role_description: None,
+            position_in_set: None,
+            size_of_set: None,
+            keyboard_shortcut: None,
+            multiline: false,
+            language: None,
+            search_field: false,
+        });
+    }
+    std::sync::Arc::new(TreeSnapshot {
+        nodes,
+        root: Some(root_id),
+    })
 }
 
 criterion_group!(benches, replay_burst);

@@ -27,7 +27,10 @@ picks a free port.
 Standard RFC 6455. The server responds `101 Switching Protocols` with the
 `Sec-WebSocket-Accept` derived per spec. Server frames are never masked;
 client frames must be (per RFC). The server answers `ping` with `pong`
-(echoing the payload) and echoes a client `close` before closing.
+(echoing the payload) and echoes a client `close` before closing. The
+server sends no pings of its own, and an unsolicited client `pong` ends
+the session — the server treats it as the goodbye it echoes a close for
+(the same shape `bye` takes; a client that pongs re-connects cleanly).
 
 ## Server → client
 
@@ -1157,6 +1160,85 @@ the `tree_dump` ask answers from, one event:
   ask closes the session on the unknown control, the documented
   unknown-frame behavior.
 
+### `region` — the region ask's answer (M148)
+
+```json
+{"kind":"region","asked":[0.0,0.0,120.0,60.0],"matches":[{"node":1,"role":"container","label":"window","bounds":[0.0,0.0,800.0,600.0],"enabled":true,"children":[2]},{"node":2,"role":"button","label":"Save","bounds":[16.0,20.0,80.0,24.0],"enabled":true,"children":[]}]}
+```
+
+The answer to the `region_ask` control: which nodes the asked rect
+touches — the point ask's plural sibling over the same resolved
+snapshot the `tree_dump` ask answers from, one event:
+
+- `asked` — the rect the ask carried, `[x, y, width, height]` in the
+  tree's logical pixels — the answer echoes the ask (the `hit`
+  answer's own rule).
+- `matches` — the nodes whose bounds intersect the rect, in tree
+  order (pre-order — the paint order's own: later siblings composite
+  on top, and the matches name the composite order the pixels
+  answer), each node the `tree` event's own node vocabulary. The
+  touch rule is the geometry's own intersection convention (the
+  convention the damage tests speak). An empty list is the honest
+  absence — no tree resolved yet, no bounds written, or the region
+  touching nothing standing — never a refusal (the `find` answer's
+  empty answer, at the region tier). A rect naming no positive area
+  — inverted or empty extents — touches nothing among them: the same
+  honest absence, never a guessed normalization.
+- The rect's coordinates are the tree's own logical pixels (the
+  bounds quadruple's frame). A rect whose coordinates are not finite
+  cannot ride JSON — serde renders NaN and infinity as `null`, the
+  array parse refuses — so a non-finite ask is a malformed control
+  frame, the documented report-and-close behavior (the `hit_ask`
+  rule, at the region tier).
+- The content keys are absent, not empty: the `tree` ask's
+  secret-carrying rule at the region tier — the shape answers, the
+  contents (a field's value, its selection, the placeholder and
+  description beside them) never.
+- Like `stats`, `tree`, `hit` and `find`, the event prices no ring:
+  the ask's answer, never a captured fact, never a streamed one. The
+  ask reads without disturbing (the dump ask's rule): no ring drains,
+  the broadcast queue is untouched, the answer is the *state*.
+  Additive at version 1 (the `Replay` ask's precedent): a server
+  older than the ask closes the session on the unknown control, the
+  documented unknown-frame behavior.
+
+### `path` — the path ask's answer (M149)
+
+```json
+{"kind":"path","asked":2,"landed":true,"miss":null,"ancestry":[{"node":1,"role":"container","label":"window","bounds":[0.0,0.0,800.0,600.0],"enabled":true,"children":[2]},{"node":2,"role":"button","label":"Save","bounds":[16.0,20.0,80.0,24.0],"enabled":true,"children":[]}]}
+```
+
+The answer to the `path_ask` control: where the asked node stands —
+the ancestry the node stands in, the point ask's landed-or-refused
+shape at the address tier, over the same resolved snapshot the
+`tree_dump` ask answers from, one event:
+
+- `asked` — the node id the ask carried — the answer echoes the ask
+  (the `hit` answer's own rule). The id is the one the `tree`, the
+  `hit`, the `find` and the `region` answers already name: the ask
+  family composing.
+- `landed` — whether the chain answered (`true`) or the ask was
+  refused (`false`).
+- `miss` — the refusal species, `null` on a landing: `no_tree`
+  (before the first a11y pass resolved a tree), `no_node` (a tree
+  stands; the asked id names nothing in it).
+- `ancestry` — the asked node's chain, root-first, the asked node
+  last (the root's ancestry the root alone); each node the `tree`
+  event's own node vocabulary, empty on a miss. The chain is the
+  parentage the resolved tree carries — the walk `hit_at` descends
+  with, answered for the id the panel already holds.
+- The content keys are absent, not empty: the `tree` ask's
+  secret-carrying rule at the address tier — the shape answers, the
+  contents (a field's value, its selection, the placeholder and
+  description beside them) never.
+- Like `stats`, `tree`, `hit`, `find` and `region`, the event prices
+  no ring: the ask's answer, never a captured fact, never a streamed
+  one. The ask reads without disturbing (the dump ask's rule): no
+  ring drains, the broadcast queue is untouched, the answer is the
+  *state*. Additive at version 1 (the `Replay` ask's precedent): a
+  server older than the ask closes the session on the unknown
+  control, the documented unknown-frame behavior.
+
 ## Client → server
 
 ```json
@@ -1308,6 +1390,41 @@ session's documented report-and-close behavior (the unknown control's
 own rule, at the name tier). Additive at version 1 (the `Replay` ask's
 precedent): a server older than the ask closes the session on the
 unknown control, the documented unknown-frame behavior.
+
+```json
+{"kind":"region_ask","rect":[120.0,84.0,200.0,120.0]}
+```
+Asks the server which nodes the named rect touches (M148) — the region
+ask riding the same retained snapshot the `tree_dump` ask answers from,
+the point ask's plural sibling. The answer is one `region` event: the
+touched nodes in tree order (the paint order's own), the ask echoed
+beside the answer, an empty list the honest absence. The rect is
+`[x, y, width, height]` in the tree's logical pixels (the bounds
+quadruple's frame); a rect naming no positive area — inverted or empty
+extents — touches nothing (the same honest absence, never a guessed
+normalization). A rect whose coordinates are not finite cannot ride
+JSON — serde renders NaN and infinity as `null`, the array parse
+refuses — so a non-finite ask is a malformed control frame, the
+documented report-and-close behavior. The ask reads without disturbing
+(the dump ask's own rule). Additive at version 1 (the `Replay` ask's
+precedent): a server older than the ask closes the session on the
+unknown control, the documented unknown-frame behavior.
+
+```json
+{"kind":"path_ask","node":2}
+```
+Asks the server where the named node stands (M149) — the path ask
+riding the same retained snapshot the `tree_dump` ask answers from, the
+point ask's shape at the address tier. The answer is one `path` event:
+the ancestry the node stands in (root-first, the asked node last), the
+ask echoed beside the answer, the refusal a named species (`no_tree`
+before the first tree resolves, `no_node` for an id naming nothing
+standing). The id is the one the dump, the hit, the find and the
+region answers already name — the ask family composing (the word ask's
+matches feeding the walk). The ask reads without disturbing (the dump
+ask's own rule). Additive at version 1 (the `Replay` ask's precedent):
+a server older than the ask closes the session on the unknown control,
+the documented unknown-frame behavior.
 
 ```json
 {"kind":"bye"}

@@ -231,8 +231,8 @@ fn m69_the_living_documents_re_agree() {
     // the demonstration.
     let readme = read_workspace_file("README.md");
     for fragment in [
-        "M0 through M141",
-        "a hundred and forty-six decision records",
+        "M0 through M143",
+        "a hundred and forty-eight decision records",
         "Since M69 the activation ask answers on the log",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
@@ -243,7 +243,7 @@ fn m69_the_living_documents_re_agree() {
     let architecture = read_workspace_file("docs/architecture.md");
     for fragment in [
         "ADR-0075",
-        "a hundred and forty-six decision records",
+        "a hundred and forty-eight decision records",
         "the action tier grows its own trail",
     ] {
         assert!(
@@ -277,7 +277,7 @@ fn m69_the_living_documents_re_agree() {
     // The sibling suites' pins ride the same cut (one sweep, no drift).
     let m68 = read_workspace_file("crates/alacer-testing/tests/m68_exit_criteria.rs");
     assert!(
-        m68.contains("M0 through M141"),
+        m68.contains("M0 through M143"),
         "the m68 suite's pins moved with the documents"
     );
 }

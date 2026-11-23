@@ -1,4 +1,4 @@
-//! The availability benchmark (§11.5, ADR-0028): the refused-press route
+//! The availability benchmark (§11.1 item 5, ADR-0028): the refused-press route
 //! driven through the pipeline on a 1,000-node arena — one hundred AT
 //! presses against a disabled button, each refused honestly, each
 //! costing the routing pass and an idle frame on the shipped composition

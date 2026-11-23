@@ -30,7 +30,7 @@ use alacer_widgets::{BoxedWidget as _, Button, Column, Progress, Slider, TextInp
 /// the description route's case (M95), the toggle route's pair (M94),
 /// the derive route's pair (M92), and the recording route's pair (M93)
 /// on the published corpus.
-const EXPECTED_BENCH_COUNT: usize = 157;
+const EXPECTED_BENCH_COUNT: usize = 159;
 
 /// The suite's own read door into the published corpus: the numeric
 /// route's case — the 1,000-node value arena whose every node answers

@@ -1063,6 +1063,11 @@
       "id": "image_word_idle_write_256",
       "baseline": "image_word/idle_write_256",
       "scope": "same-host"
+    },
+    {
+      "id": "subscribe/broadcast_512x3_filtered",
+      "baseline": "subscribe/broadcast_512x3_filtered",
+      "scope": "same-host"
     }
   ],
   "test_enforced_gates": [

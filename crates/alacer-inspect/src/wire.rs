@@ -37,6 +37,21 @@ pub struct Hello {
     /// for stays silent. Additive at version 1 (the rider field's rule):
     /// clients that ignore unknown fields are unaffected.
     pub facts: u64,
+    /// The live-stream gate the server remembers (M145, ADR-0149): the
+    /// tiers this session's fan-out answers with before the panel asks
+    /// for anything — the gate a previous session set, persisted across
+    /// reconnects beside the cursor precedent (the server remembering a
+    /// panel is a second channel, priced first). `None` (the JSON
+    /// `null`) is the whole stream — the pre-M142 shape, the state a
+    /// fresh server and a bare restore ask both name; a list gates the
+    /// fan-out to the named tiers; an empty list is the mute (the
+    /// stream goes quiet while the rings keep recording). The names are
+    /// the subscribe ask's own vocabulary (`Tier`, the stats rows') in
+    /// the event vocabulary's order, so the greeting's gate and a
+    /// panel's later ask cannot drift apart. Additive at version 1 (the
+    /// `facts` field's rule): clients that ignore unknown fields are
+    /// unaffected.
+    pub gate: Option<Vec<Tier>>,
 }
 
 /// The client's control messages (all optional; the server streams
@@ -121,7 +136,7 @@ pub enum ClientMessage {
 /// publish are the names a panel filters by, one list the two doors
 /// read, so the two cannot drift apart. `broadcast` is deliberately
 /// absent — the stream is the medium, never a tier of itself.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Tier {
     /// The edge-activation ring's name (`edges`).
@@ -253,6 +268,19 @@ impl TierFilter {
             None => true,
             Some(set) => event.tier().is_none_or(|tier| set.contains(&tier)),
         }
+    }
+
+    /// The greeting's own shape (M145, ADR-0149): the gate as the wire
+    /// names it — `None` the whole stream, a list the named tiers in
+    /// the event vocabulary's order (deterministic, so the greeting's
+    /// gate and a panel's later ask cannot drift apart), the mute the
+    /// empty list. The inverse of [`Self::from_ask`], one vocabulary,
+    /// two doors.
+    #[must_use]
+    pub fn ask(&self) -> Option<Vec<Tier>> {
+        let mut tiers: Vec<Tier> = self.admitted.as_ref()?.iter().copied().collect();
+        tiers.sort_unstable();
+        Some(tiers)
     }
 }
 
@@ -1775,11 +1803,28 @@ mod tests {
             version: PROTOCOL_VERSION,
             app: "demo".to_string(),
             facts: 0,
+            gate: None,
         };
         let json = serde_json::to_string(&hello).expect("hello json");
         assert_eq!(
-            json, r#"{"kind":"hello","version":1,"app":"demo","facts":0}"#,
-            "the documented greeting shape — the fact count beside the app"
+            json, r#"{"kind":"hello","version":1,"app":"demo","facts":0,"gate":null}"#,
+            "the documented greeting shape — the fact count beside the app, the gate beside the cursor source"
+        );
+        // A gated greeting names the tiers the session starts under
+        // (M145, ADR-0149): the subscribe ask's own vocabulary, the
+        // event vocabulary's order.
+        let gated = Hello {
+            kind: "hello",
+            version: PROTOCOL_VERSION,
+            app: "demo".to_string(),
+            facts: 0,
+            gate: Some(vec![Tier::Themes, Tier::Frames]),
+        };
+        let json = serde_json::to_string(&gated).expect("hello json");
+        assert_eq!(
+            json,
+            r#"{"kind":"hello","version":1,"app":"demo","facts":0,"gate":["themes","frames"]}"#,
+            "the gate rides the tier vocabulary"
         );
     }
 
@@ -3524,6 +3569,26 @@ mod tests {
         let from_asked = TierFilter::from_ask(Some(vec![Tier::Edges, Tier::Themes]));
         assert!(from_asked.admits(&edge) && from_asked.admits(&theme));
         assert!(!from_asked.admits(&input));
+
+        // The greeting's shape (M145): the gate as the wire names it —
+        // the whole stream the `null`, a list the named tiers in the
+        // event vocabulary's order, the mute the empty list. The
+        // round-trip with `from_ask` is exact: one vocabulary, two
+        // doors.
+        assert_eq!(TierFilter::all().ask(), None);
+        assert_eq!(
+            TierFilter::only([Tier::Frames]).ask(),
+            Some(vec![Tier::Frames])
+        );
+        let sorted = TierFilter::only([Tier::Themes, Tier::Edges]).ask();
+        assert_eq!(
+            sorted,
+            Some(vec![Tier::Edges, Tier::Themes]),
+            "the greeting's list is the vocabulary's order, never hash order"
+        );
+        assert_eq!(TierFilter::only([]).ask(), Some(Vec::new()), "the mute");
+        let re_asked = TierFilter::from_ask(sorted);
+        assert!(re_asked.admits(&edge) && !re_asked.admits(&input));
     }
 
     /// Every captured event kind names its tier — the mapping the

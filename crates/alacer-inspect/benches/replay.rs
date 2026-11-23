@@ -153,7 +153,7 @@ fn replay_burst(c: &mut Criterion) {
 /// door it crosses the wire through), each measured on the same
 /// 1 000-node resolved tree (the shape a real panel walks), each
 /// landing asserted before the timing (the bench never pricing a
-/// refusal it meant to price an answer). One fn per ask — the five
+/// refusal it meant to price an answer). One fn per ask — the seven
 /// groups the family holds — the shared tree the helper below builds.
 fn price_state_asks(c: &mut Criterion) {
     price_dump_ask(c);
@@ -161,6 +161,8 @@ fn price_state_asks(c: &mut Criterion) {
     price_word_ask(c);
     price_region_ask(c);
     price_path_ask(c);
+    price_descendants_ask(c);
+    price_siblings_ask(c);
 }
 
 /// The tree dump's price (the inspector's ask-and-answer control): the
@@ -317,6 +319,73 @@ fn price_path_ask(c: &mut Criterion) {
         b.iter(|| {
             let answer = alacer_inspect::wire::wire_path(recorder.latest_tree().as_deref(), 999);
             let payload = serde_json::to_string(&answer).expect("the path's payload");
+            black_box(payload.len());
+        });
+    });
+    group.finish();
+}
+
+/// The descendant ask's price (M150, ADR-0154): the beneath query's
+/// whole worth — the subtree walk over the retained snapshot, the wire
+/// conversion, the serialization — the matches' whole answer, priced
+/// beside the family's.
+fn price_descendants_ask(c: &mut Criterion) {
+    let recorder = CausalRecorder::new("descendants-ask-bench");
+    recorder.clone_handle().tree(dump_snapshot(1_000));
+    let answer = alacer_inspect::wire::wire_descendants(recorder.latest_tree().as_deref(), 0);
+    let alacer_inspect::WireEvent::Descendants {
+        landed: true,
+        beneath,
+        ..
+    } = &answer
+    else {
+        panic!("the root's subtree answers");
+    };
+    assert_eq!(
+        beneath.len(),
+        999,
+        "the beneath is the whole grid the root stands over — the anchor left out"
+    );
+    let mut group = c.benchmark_group("descendants_ask");
+    group.throughput(criterion::Throughput::Elements(1_000));
+    group.bench_function("answer_1k_nodes", |b| {
+        b.iter(|| {
+            let answer =
+                alacer_inspect::wire::wire_descendants(recorder.latest_tree().as_deref(), 0);
+            let payload = serde_json::to_string(&answer).expect("the descendants' payload");
+            black_box(payload.len());
+        });
+    });
+    group.finish();
+}
+
+/// The sibling ask's price (M151, ADR-0155): the beside query's whole
+/// worth — the parentage pass, the row rebuild, the wire conversion,
+/// the serialization — priced beside the family's.
+fn price_siblings_ask(c: &mut Criterion) {
+    let recorder = CausalRecorder::new("siblings-ask-bench");
+    recorder.clone_handle().tree(dump_snapshot(1_000));
+    let answer = alacer_inspect::wire::wire_siblings(recorder.latest_tree().as_deref(), 500);
+    let alacer_inspect::WireEvent::Siblings {
+        landed: true,
+        beside,
+        ..
+    } = &answer
+    else {
+        panic!("the grid cell's row answers");
+    };
+    assert_eq!(
+        beside.len(),
+        998,
+        "the row is the grid the cell stands in — the asked cell left out"
+    );
+    let mut group = c.benchmark_group("siblings_ask");
+    group.throughput(criterion::Throughput::Elements(1_000));
+    group.bench_function("answer_1k_nodes", |b| {
+        b.iter(|| {
+            let answer =
+                alacer_inspect::wire::wire_siblings(recorder.latest_tree().as_deref(), 500);
+            let payload = serde_json::to_string(&answer).expect("the siblings' payload");
             black_box(payload.len());
         });
     });

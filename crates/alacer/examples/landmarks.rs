@@ -1,6 +1,8 @@
-//! The landmark tier as a consumer's vocabulary (M143, ADR-0147): the
-//! page-structure words the AT walks a document by — the banner, the
-//! navigation strip, the main region, the footer.
+//! The landmark tier as a consumer's vocabulary (M143, ADR-0147; the
+//! growth, M144, ADR-0148): the page-structure words the AT walks a
+//! document by — the banner, the navigation strip, the main region,
+//! the footer, and (M144) the complementary aside, the form, the
+//! generic named region and the search strip.
 //!
 //! The beat the example exists to show: the words price the words and
 //! nothing else — each landmark is a named container the page's
@@ -74,6 +76,31 @@ fn landmarks_view(nav_mounted: &FluxRwSignal<bool>, wake: &Rc<dyn Fn()>) -> View
             .child(ViewNode::element("label").prop("text", "The Alacer Developers")),
     );
 
+    // The growth's words (M144, ADR-0148): the aside the main reads
+    // beside, the form whose controls submit together, the generic
+    // named region, and the search strip — the vocabulary the
+    // landmarks list reads whole.
+    root = root.child(
+        ViewNode::element("complementary")
+            .prop("name", "Related reading")
+            .child(ViewNode::element("label").prop("text", "Reading list")),
+    );
+    root = root.child(
+        ViewNode::element("form")
+            .prop("name", "Catalog feedback")
+            .child(ViewNode::element("text_input").prop("label", "Comments")),
+    );
+    root = root.child(
+        ViewNode::element("region")
+            .prop("name", "Featured panel")
+            .child(ViewNode::element("label").prop("text", "This week's picks")),
+    );
+    root = root.child(
+        ViewNode::element("search")
+            .prop("name", "Catalog search")
+            .child(ViewNode::element("text_input").prop("label", "Query")),
+    );
+
     // The toggle: the app's wiring the presence rides.
     let toggle_label = if current { "Hide nav" } else { "Show nav" };
     let next_mounted = *nav_mounted;
@@ -88,9 +115,9 @@ fn landmarks_view(nav_mounted: &FluxRwSignal<bool>, wake: &Rc<dyn Fn()>) -> View
 
     // The vocabulary reads back the way the app wired it.
     let status = if current {
-        "landmarks: banner, navigation, main, content_info"
+        "landmarks: banner, navigation, main, content_info, complementary, form, region, search"
     } else {
-        "landmarks: banner, main, content_info"
+        "landmarks: banner, main, content_info, complementary, form, region, search"
     };
     root = root.child(ViewNode::element("label").prop("text", status));
 
@@ -116,7 +143,7 @@ fn main() {
     let mut app = AlacerApp::new(
         pipeline,
         "Alacer landmarks",
-        (360.0, 420.0),
+        (360.0, 560.0),
         backend_choice(),
     );
     app.set_patch_hook(Box::new(move |pipeline| {

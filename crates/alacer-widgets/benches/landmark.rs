@@ -68,5 +68,51 @@ fn bench_same_name(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_name_write, bench_same_name);
+/// The vocabulary case (M144, ADR-0148): the growth's price — the eight
+/// constructor words cycled through the same moving-name write, the
+/// pool built one region per constructor (round-robin) and renamed the
+/// way `name_write_256` renames. The word is the constructor's own
+/// declaration; the write's price is the word it lands under — the case
+/// proves the vocabulary's growth prices the words and nothing else
+/// (the M143 rule, at the growth tier). Rides outside the published
+/// corpus with the pair above (the coordinated rule grows the baseline
+/// at the next published cut).
+fn bench_words_write(c: &mut Criterion) {
+    const WORDS: usize = 8;
+    let mut group = c.benchmark_group("landmark");
+    group.throughput(criterion::Throughput::Elements(POOL as u64));
+    group.bench_function("words_write_256", |b| {
+        b.iter_batched(
+            || {
+                (0..POOL)
+                    .map(|index| match index % WORDS {
+                        0 => Landmark::banner(format!("Region {index}")),
+                        1 => Landmark::navigation(format!("Region {index}")),
+                        2 => Landmark::main(format!("Region {index}")),
+                        3 => Landmark::content_info(format!("Region {index}")),
+                        4 => Landmark::complementary(format!("Region {index}")),
+                        5 => Landmark::form(format!("Region {index}")),
+                        6 => Landmark::region(format!("Region {index}")),
+                        _ => Landmark::search(format!("Region {index}")),
+                    })
+                    .collect::<Vec<_>>()
+            },
+            |mut pool| {
+                for (index, region) in pool.iter_mut().enumerate() {
+                    region.set_name(format!("Renamed {index}"));
+                }
+                pool.len()
+            },
+            criterion::BatchSize::SmallInput,
+        );
+    });
+    group.finish();
+}
+
+criterion_group!(
+    benches,
+    bench_name_write,
+    bench_same_name,
+    bench_words_write
+);
 criterion_main!(benches);

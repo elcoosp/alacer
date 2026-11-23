@@ -46,7 +46,7 @@
 | 50-event pointer storm                                | **1** coalesced dispatch (**40.08×**)           | `input_storm_batching` budget                                                                          |
 | 10k-node churn frame vs egui, same host               | 1.10 ms vs 20.7 ms full frame (**18.8×**)       | 5-run medians, declared rig (`benchmarks/rig.json`)                                                    |
 | …vs Masonry                                           | 1.10 ms vs 4.6 ms full pass pipeline (**4.2×**) | same rig, `scripts/run_comparison.py`                                                                  |
-| All 157 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
+| All 159 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
 
 _Competitor rows compare Alacer's incremental frame against their full frame/pass — every row in
 `benchmarks/comparisons/results.json` is labeled with its scope._
@@ -86,7 +86,7 @@ cargo test --workspace                                          # headless: real
 > `ALACER_SOFTWARE=1` presents through softbuffer — the platform honors it at startup
 > (`BackendPreference::software_env`) whichever backend the app asked for; any other value is
 > refused with a named warning, never guessed. CI and the headless tests already run this path:
-> no mock renderer, no mock event loop. The full 137-example catalog lives in
+> no mock renderer, no mock event loop. The full 139-example catalog lives in
 > [docs/examples.md](https://github.com/elcoosp/alacer/blob/main/docs/examples.md).
 
 ## How it works
@@ -391,7 +391,7 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `todo` / `data_table`                                | the canons: a11y tree, record/replay, grid slots, keyboard navigation            |
 | `tree`                                               | the tree tier: the named collection, its nested members, the words the published tiers already carried |
 
-<details><summary><b>137 examples, grouped (recording, alloc_budget, input_budget, derive_widget, layout_probe, sort, level, current, has_popup, role_description, busy, key_routing, set, live, shortcut, multiline, language, switch, tab_panel, search_field, meter, dialog, tree, menu_bar, image, landmarks, and tri_state live in the catalog)</b></summary>
+<details><summary><b>139 examples, grouped (recording, alloc_budget, input_budget, derive_widget, layout_probe, sort, level, current, has_popup, role_description, busy, key_routing, set, live, shortcut, multiline, language, switch, tab_panel, search_field, meter, dialog, tree, menu_bar, image, landmarks, inspector_descendants, inspector_siblings, and tri_state live in the catalog)</b></summary>
 
 **Start here**
 
@@ -565,7 +565,7 @@ is the query API as a runnable walkthrough.
 ## Learn more
 
 - [Architecture](https://github.com/elcoosp/alacer/blob/main/docs/architecture.md) — design axioms, the ten-pass contract, rendering, accessibility, DX, performance, roadmap and kill criteria
-- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred and fifty-four decision records, from workspace discipline to the M149 scope
+- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred and fifty-six decision records, from workspace discipline to the M151 scope
 - [Examples catalog](https://github.com/elcoosp/alacer/blob/main/docs/examples.md) — every example with the contract it exercises
 - [Migrating from Iced](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-iced.md) · [from egui](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-egui.md) — mental-model mappings, interop limits stated plainly
 - [Inspector protocol](https://github.com/elcoosp/alacer/blob/main/docs/inspector-protocol.md) — the versioned WebSocket contract behind `alacer-inspect`

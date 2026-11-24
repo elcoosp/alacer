@@ -81,6 +81,9 @@ impl SettingSeam for FixedSettings {
     fn accent_color(&self) -> Option<Color> {
         None
     }
+    fn reduced_transparency(&self) -> bool {
+        false
+    }
 }
 
 /// The app's own theme ask (the manual door's payload): one palette,

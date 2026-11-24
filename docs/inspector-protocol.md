@@ -954,6 +954,22 @@ The setting tier's own fact (M74, ADR-0080, ADR-0079's pre-registered re-open ru
 
 The theme tier's own fact (M73, ADR-0079): the palette the widgets borrow for their un-overridden paint roles — compile-time constants through 0.16, no door answering "make it dark" at all — is a seam now, and the swap answers on the log. The record carries the installed `ThemeSeam`'s own `name()` tag beside the door that landed it: `palette` is the stable, documented field value (`"canon"` for the provided default, app-defined tags for every custom palette). The tag is the fact — the payload rule's shape: the log names the palette, the paint pass resolves it, the palette's colors never ride the wire. Since M78 (ADR-0084, ADR-0082's second pre-registered re-open rule reaching the theme tier) the event grows the broadcast's node count beside the tag — `repainted` is the additive field the versioning rule admits at version 1, the lengths rule's shape at the theme tier (the count names the swap's reach, the ids never riding), computed where the swap's broadcast resolves and never re-counted at the reader, the composed swap naming the same reach the flip's broadcast resolved (one flip, one count). One fact per swap that landed, never per frame: a swap that lands where the palette already is queues no masks and no facts (the idle-frame property, A1's rule at the theme tier), and the frames that paint the new palette stream no theme fact of their own — the frame summary prices those. The record rides *beside* the door's `bool` answer (`PassPipeline::set_theme` answers whether the swap landed) never instead of it. The event streams at the tick's start drain (the theme drain's arm runs after the view-patch drain, so a frame's trail reads routes → tiers → the palette those routes painted into), one frame after the door answered; the queue behind it is bounded (256 facts per thread, oldest-first eviction) and the recorder's `theme` ring holds 512. Since M75 the tag's vocabulary carries the composition door's swaps (ADR-0081): a `SettingComposer` the app installed through `PassPipeline::set_composer` resolves the palette the OS's flips compose, the composed swap streaming the composer's own `name()` tag (app-defined — the *Duet* demo streams `"duet"`) behind the flip's own `setting` event, the equality check against the effective palette holding unchanged. The additive event the versioning rule admits at version 1 — clients that ignore unknown kinds are unaffected.
 
+### `cursor` — a hover's resolved cursor fact
+
+ ("why did the pointer's shape move — which face named it?")
+
+```json
+{
+  "kind":"cursor",
+  "style":"grab",
+  "source":"widget",
+  "node":42,
+  "role":"canvas"
+}
+```
+
+The cursor tier's own fact (M153, ADR-0157): the pointer's hover shape existed nowhere in the log — M152's resolution door answered the platform's per-frame ask, and the churn's only observer was the platform's own debug line — and the trail is a tier now, the fact queued where the answer resolves. The record carries the style the hover resolves to beside the source that named it: `style` is the vocabulary's own `name()` tag (the stable, documented field value — `"pointer"`, `"text"`, `"grab"`, the CSS `cursor` words underscored), and `source` names the resolution's two honest answers — `"widget"` when a widget's hook named the shape, `"default"` when nothing accepted the hover (the honest absence, the absence named as a source, never guessed onto a widget that did not answer). The widget source rides the ids the tree event's vocabulary speaks — `node` (the id-path hash's `u64`) and `role` (the semantic role word) — both `null` when the default answered; the label never rides (the lengths rule — a hover is not a payload, and the log is a devtools surface, not a shadow tree). One fact per resolved *change*, never per frame: a style that did not move is not a fact (the flood rule at the cursor tier — the door coalesces against the last noted answer, the compare the still hover's whole cost), and the disabled trail queues nothing (the A7 idle contract's one branch per resolution). The event streams at the tick's start drain (the cursor drain's arm runs after the clipboard drain, the clipboard drain's shape — the fact queues where the hover resolves, one frame after the change), and the queue behind it is bounded (256 facts per thread, oldest-first eviction) and the recorder's `cursors` ring holds 512. The additive event the versioning rule admits at version 1 — clients that ignore unknown kinds are unaffected.
+
 ### `frame` — a completed frame
 
  ("why is this frame slow?", "what did this mask touch?")
@@ -1021,7 +1037,7 @@ immediately *before* that frame's `frame` event.
 The answer to the `stats` control: the recorder's fact count beside one
 row per ring, the stream's own bound (`broadcast`) first, the trail rings
 in the event vocabulary's order, `frames` last. The rows shown above are
-elided — the real answer carries all twenty-three rows, exactly the rings
+elided — the real answer carries all twenty-four rows, exactly the rings
 the bounds sentence below names.
 
 - `facts` — the recorder's total fact count at the ask (the same
@@ -1031,7 +1047,7 @@ the bounds sentence below names.
   `inputs`, `focus`, `edits`, `announces`, `keys`, `clipboards`,
   `values`, `gestures`, `scrolls`, `text_writes`, `route_drops`,
   `key_edits`, `preedits`, `a11y_echoes`, `actions`, `frame_refusals`,
-  `view_patches`, `themes`, `settings`, `frames`).
+  `view_patches`, `themes`, `settings`, `cursors`, `frames`).
 - `rings[].held` — the entries the ring holds right now.
 - `rings[].cap` — the bound the ring is held to (the bounds sentence
   below is this row's contract).
@@ -1557,7 +1573,8 @@ malformed text frame is treated as `bye`.
   inputs 512, focus 512, edits 512, announces 512, keys 512,
   clipboards 512, values 512, gestures 512, scrolls 512, text_writes 512,
   route_drops 512, key_edits 512, preedits 512, a11y_echoes 512, actions
-  512, frame_refusals 512, view_patches 512, themes 512, settings 512);
+  512, frame_refusals 512, view_patches 512, themes 512, settings 512,
+  cursors 512);
   `clear` empties them; `replay` reads them without disturbing; `stats`
   answers their occupancy, caps, and evictions without disturbing either.
   The `stats` answer's row list is this sentence's own list — the two

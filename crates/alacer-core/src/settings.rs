@@ -67,7 +67,12 @@
 //! accent), and since the same cut (ADR-0086's own pre-registered
 //! rule) the composition resolves by it beside the three: a palette
 //! that tints its accent roles from the OS accent answers by the fact
-//! at the two points the door already owned.
+//! at the two points the door already owned. Since M154 (ADR-0158, the
+//! same rule cashed a fourth time) the seam and the record grow the
+//! OS's reduced-transparency fact beside the four — the vocabulary
+//! consulting it when translucency itself is the question (a backdrop
+//! that mutes its glass, a selection that holds its fill), never a
+//! second seam per fact.
 //!
 //! ```text
 //! // The adapter's door (core-only dependency):
@@ -146,16 +151,27 @@ pub trait SettingSeam: Send + Sync + 'static {
     /// presence, a platform that reports no accent answering `None`
     /// (never a guessed color).
     fn accent_color(&self) -> Option<Color>;
+
+    /// The OS's reduced-transparency fact, re-read beside the four once
+    /// per paint pass (ADR-0158) — the same one dynamic call per frame,
+    /// the vocabulary consulting it when translucency itself is the
+    /// question (a backdrop that mutes its glass, a selection that
+    /// holds its fill, an overlay that goes solid). Required like the
+    /// facts it sits beside, the adapter answering the absence when its
+    /// platform reports no transparency fact (`false` — effects
+    /// allowed).
+    fn reduced_transparency(&self) -> bool;
 }
 
 /// The provided canon setting (§13.3, the provided-implementation rule
 /// beside every seam — [`crate::theme::CanonPalette`]'s precedent):
-/// light, motion allowed, standard contrast, no accent, always — the
-/// facts the blessed snapshot corpus was blessed with, installable by
-/// name so a consumer that swapped away can swap back through the same
-/// door it swapped in. Installing it where nothing is installed (or
-/// where the canon facts are installed) is the no-op the door answers
-/// `false` on: the default build already resolves them.
+/// light, motion allowed, standard contrast, no accent, effects
+/// allowed — always — the facts the blessed snapshot corpus was blessed
+/// with, installable by name so a consumer that swapped away can swap
+/// back through the same door it swapped in. Installing it where
+/// nothing is installed (or where the canon facts are installed) is the
+/// no-op the door answers `false` on: the default build already
+/// resolves them.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct CanonSettings;
 
@@ -174,6 +190,10 @@ impl SettingSeam for CanonSettings {
 
     fn accent_color(&self) -> Option<Color> {
         None
+    }
+
+    fn reduced_transparency(&self) -> bool {
+        false
     }
 }
 
@@ -215,13 +235,22 @@ pub trait SettingComposer: Send + Sync + 'static {
     /// fact rides beside the three, the fact riding its presence: a
     /// palette that tints its accent roles from the OS accent answers
     /// by the fact at the same two resolution points the door already
-    /// owned, and answers the absence with its own.
+    /// owned, and answers the absence with its own. Since M154
+    /// (ADR-0158, the signature's own pre-registered growth) the
+    /// reduced-transparency fact rides beside the four: a palette that
+    /// mutes its translucency roles when the OS asks answers by the
+    /// fact at the same two resolution points.
+    #[expect(
+        clippy::fn_params_excessive_bools,
+        reason = "the facts ride the plain per-fact signature the composer answers by (ADR-0086's rule, the M154 cut growing the transparency beside the four) — a facts bundle would trade every composition's readability for nothing, the seam the pipeline hands the facts through"
+    )]
     fn palette(
         &self,
         dark: bool,
         reduced_motion: bool,
         high_contrast: bool,
         accent: Option<Color>,
+        reduced_transparency: bool,
     ) -> Palette;
 
     /// The composed palette's tag — the stable name the causal log's
@@ -248,6 +277,7 @@ impl SettingComposer for CanonComposer {
         _reduced_motion: bool,
         _high_contrast: bool,
         _accent: Option<Color>,
+        _reduced_transparency: bool,
     ) -> Palette {
         Palette::CANON
     }
@@ -300,6 +330,7 @@ impl SettingComposer for KioskComposer {
         _reduced_motion: bool,
         _high_contrast: bool,
         _accent: Option<Color>,
+        _reduced_transparency: bool,
     ) -> Palette {
         self.palette
     }
@@ -355,6 +386,10 @@ pub struct FactShape {
     /// honest absence ([`None`] pinned — the fact held at absence,
     /// ADR-0087's presence rule at the shape's door).
     accent: FactPin<Option<Color>>,
+    /// The reduced-transparency fact: follow or the pinned value
+    /// (ADR-0158 — the fifth slot the shape's algebra grew beside the
+    /// four).
+    reduced_transparency: FactPin<bool>,
 }
 
 impl FactShape {
@@ -366,6 +401,7 @@ impl FactShape {
         reduced_motion: FactPin::Follow,
         high_contrast: FactPin::Follow,
         accent: FactPin::Follow,
+        reduced_transparency: FactPin::Follow,
     };
 
     /// Pins the dark fact to `dark` — the flip the OS lands, the
@@ -406,6 +442,15 @@ impl FactShape {
     #[must_use]
     pub const fn pin_absent_accent(mut self) -> Self {
         self.accent = FactPin::Pin(None);
+        self
+    }
+
+    /// Pins the reduced-transparency fact to `reduced_transparency` —
+    /// the ask the OS lands, the glass the base never sees move
+    /// (ADR-0158's shape at the door, the pin builders' own rule).
+    #[must_use]
+    pub const fn pin_reduced_transparency(mut self, reduced_transparency: bool) -> Self {
+        self.reduced_transparency = FactPin::Pin(reduced_transparency);
         self
     }
 }
@@ -461,12 +506,16 @@ impl SettingComposer for ShapedComposer {
         reduced_motion: bool,
         high_contrast: bool,
         accent: Option<Color>,
+        reduced_transparency: bool,
     ) -> Palette {
         self.base.palette(
             self.shape.dark.substitute(dark),
             self.shape.reduced_motion.substitute(reduced_motion),
             self.shape.high_contrast.substitute(high_contrast),
             self.shape.accent.substitute(accent),
+            self.shape
+                .reduced_transparency
+                .substitute(reduced_transparency),
         )
     }
 
@@ -525,6 +574,10 @@ impl ThemeSeam for ComposedPalette {
 /// (ADR-0086's rule — the composer answers by the facts beside
 /// `dark`), the bundle is the door's internal shape.
 #[derive(Debug, Clone, Copy)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "the door's bundle holds the seam's answers the composition resolves by — the bools *are* the facts (ADR-0080's rule), one field per fact the door read once (the M154 cut grew the transparency beside the four); not app-facing, the [`SettingComposer`]'s plain signature stays the app's door"
+)]
 pub(crate) struct OsFacts {
     /// The dark-mode fact — [`SettingSeam::dark_mode`]'s answer.
     pub(crate) dark: bool,
@@ -537,17 +590,21 @@ pub(crate) struct OsFacts {
     /// The accent-color fact — [`SettingSeam::accent_color`]'s answer,
     /// riding its presence (`None` is the honest absence).
     pub(crate) accent: Option<Color>,
+    /// The reduced-transparency fact —
+    /// [`SettingSeam::reduced_transparency`]'s answer (ADR-0158).
+    pub(crate) reduced_transparency: bool,
 }
 
 impl OsFacts {
     /// The canon facts (light, motion allowed, standard contrast, no
-    /// accent) — what the door resolves where nothing is installed, the
-    /// facts the default build resolves.
+    /// accent, effects allowed) — what the door resolves where nothing
+    /// is installed, the facts the default build resolves.
     pub(crate) const CANON: Self = Self {
         dark: false,
         reduced_motion: false,
         high_contrast: false,
         accent: None,
+        reduced_transparency: false,
     };
 }
 
@@ -597,6 +654,7 @@ pub fn note_setting(record: SettingRecord) {
             reduced_motion = record.reduced_motion,
             high_contrast = record.high_contrast,
             accent = ?record.accent,
+            reduced_transparency = record.reduced_transparency,
             repainted = record.repainted,
             "setting flip queued for the next tick"
         );
@@ -628,9 +686,9 @@ mod tests {
     use crate::theme::Palette;
 
     /// The canon setting pins the canon facts — light, motion allowed,
-    /// standard contrast, no accent — the facts the blessed snapshot
-    /// corpus was blessed with, byte for byte, the corpus's green
-    /// depends on it.
+    /// standard contrast, no accent, effects allowed — the facts the
+    /// blessed snapshot corpus was blessed with, byte for byte, the
+    /// corpus's green depends on it.
     #[test]
     fn the_canon_setting_pins_the_canon_facts() {
         assert!(!CanonSettings.dark_mode());
@@ -639,6 +697,10 @@ mod tests {
         assert!(
             CanonSettings.accent_color().is_none(),
             "the canon absence is the honest absence — no guessed accent"
+        );
+        assert!(
+            !CanonSettings.reduced_transparency(),
+            "the canon fact answers effects allowed — no guessed ask"
         );
     }
 
@@ -651,6 +713,7 @@ mod tests {
             reduced_motion: false,
             high_contrast: false,
             accent: None,
+            reduced_transparency: true,
             repainted: 0,
         });
         assert!(
@@ -670,6 +733,7 @@ mod tests {
                 reduced_motion: i % 3 == 0,
                 high_contrast: i % 5 == 0,
                 accent: None,
+                reduced_transparency: i % 7 == 0,
                 repainted: 1,
             });
         }
@@ -688,6 +752,10 @@ mod tests {
             "all three facts ride the same record (i=8 allows contrast — 8 % 5 != 0)"
         );
         assert!(
+            !drained[0].reduced_transparency,
+            "all four facts ride the same record (i=8 allows effects — 8 % 7 != 0)"
+        );
+        assert!(
             take_setting_trail().is_empty(),
             "the drain clears whole — a fact streams once"
         );
@@ -695,9 +763,9 @@ mod tests {
     }
 
     /// The kiosk lock answers one palette for every fact permutation —
-    /// all sixteen, bit-flipped — the composition that follows nothing,
-    /// tagged by its own name (ADR-0089). Const-constructible, the lock
-    /// ships beside the palette it holds.
+    /// all thirty-two, bit-flipped — the composition that follows
+    /// nothing, tagged by its own name (ADR-0089). Const-constructible,
+    /// the lock ships beside the palette it holds.
     #[test]
     fn the_kiosk_lock_answers_one_palette_for_every_facts() {
         let locked = Palette {
@@ -705,13 +773,21 @@ mod tests {
             ..Palette::CANON
         };
         let lock = KioskComposer::locked(locked);
-        for bits in 0_u8..16 {
+        for bits in 0_u8..32 {
             let dark = bits & 1 != 0;
             let reduced_motion = bits & 2 != 0;
             let high_contrast = bits & 4 != 0;
             let accent = (bits & 8 != 0).then_some(Color::rgb(255, 94, 58));
+            let reduced_transparency = bits & 16 != 0;
             assert_eq!(
-                SettingComposer::palette(&lock, dark, reduced_motion, high_contrast, accent),
+                SettingComposer::palette(
+                    &lock,
+                    dark,
+                    reduced_motion,
+                    high_contrast,
+                    accent,
+                    reduced_transparency
+                ),
                 locked,
                 "the lock followed the facts (bits {bits})"
             );
@@ -731,13 +807,13 @@ mod tests {
             ..Palette::CANON
         });
         assert_eq!(
-            SettingComposer::palette(&first, true, true, true, Some(Color::rgb(1, 2, 3))),
-            SettingComposer::palette(&first, false, false, false, None),
+            SettingComposer::palette(&first, true, true, true, Some(Color::rgb(1, 2, 3)), true),
+            SettingComposer::palette(&first, false, false, false, None, false),
             "the lock's answer moved with the facts"
         );
         assert_ne!(
-            SettingComposer::palette(&first, false, false, false, None),
-            SettingComposer::palette(&second, false, false, false, None),
+            SettingComposer::palette(&first, false, false, false, None, false),
+            SettingComposer::palette(&second, false, false, false, None, false),
             "two locks resolved the same palette"
         );
     }
@@ -751,12 +827,17 @@ mod tests {
     struct FactEchoComposer;
 
     impl SettingComposer for FactEchoComposer {
+        /// The echo composer's slots (ADR-0086, ADR-0158): each fact
+        /// rides the plain signature — the roles name the facts the
+        /// base was handed, the tests read the substitution straight
+        /// off the palette.
         fn palette(
             &self,
             dark: bool,
             reduced_motion: bool,
             high_contrast: bool,
             accent: Option<Color>,
+            reduced_transparency: bool,
         ) -> Palette {
             Palette {
                 surface: if dark {
@@ -775,6 +856,11 @@ mod tests {
                     Color::rgb(0, 0, 0)
                 },
                 accent: accent.unwrap_or(Color::rgb(2, 2, 2)),
+                selection: if reduced_transparency {
+                    Color::rgb(3, 3, 3)
+                } else {
+                    Color::rgb(3, 3, 3).with_alpha(64)
+                },
                 ..Palette::CANON
             }
         }
@@ -804,6 +890,7 @@ mod tests {
                 reduced_motion,
                 false,
                 Some(Color::rgb(255, 94, 58)),
+                false,
             );
             assert_eq!(
                 answer.surface,
@@ -848,8 +935,14 @@ mod tests {
         for bits in 0_u8..4 {
             let reduced_motion = bits & 1 != 0;
             let high_contrast = bits & 2 != 0;
-            let answer =
-                SettingComposer::palette(&shaped, false, reduced_motion, high_contrast, None);
+            let answer = SettingComposer::palette(
+                &shaped,
+                false,
+                reduced_motion,
+                high_contrast,
+                None,
+                false,
+            );
             assert_eq!(
                 answer.panel,
                 Color::rgb(1, 1, 1),
@@ -868,6 +961,36 @@ mod tests {
         }
     }
 
+    /// The transparency pin holds its fact too (ADR-0158's shape, the
+    /// builder the algebra grew beside the four): the shape pinning
+    /// reduced transparency substitutes it before the base resolves —
+    /// a glass-locked surface the OS's transparency flips never move —
+    /// and the facts the shape leaves unpinned ride through.
+    #[test]
+    fn the_shape_pins_the_transparency_fact_too() {
+        const SHAPE: FactShape = FactShape::FOLLOW_ALL.pin_reduced_transparency(true);
+        let shaped = ShapedComposer::over(Box::new(FactEchoComposer), SHAPE);
+        for bits in 0_u8..4 {
+            let dark = bits & 1 != 0;
+            let landed = bits & 2 != 0;
+            let answer = SettingComposer::palette(&shaped, dark, false, false, None, landed);
+            assert_eq!(
+                answer.selection,
+                Color::rgb(3, 3, 3),
+                "the pinned transparency fact never reached the base (bits {bits})"
+            );
+            assert_eq!(
+                answer.surface,
+                if dark {
+                    Color::rgb(1, 1, 1)
+                } else {
+                    Color::rgb(0, 0, 0)
+                },
+                "the unpinned dark fact rides through (bits {bits})"
+            );
+        }
+    }
+
     /// The shape that holds nothing is the base itself: every fact
     /// rides to the composition unchanged, the answered palette the
     /// base's own answer (the no-lock shape the no-op install rides).
@@ -880,13 +1003,21 @@ mod tests {
             let high_contrast = bits & 4 != 0;
             let accent = (bits % 2 != 0).then_some(Color::rgb(255, 94, 58));
             assert_eq!(
-                SettingComposer::palette(&shaped, dark, reduced_motion, high_contrast, accent),
+                SettingComposer::palette(
+                    &shaped,
+                    dark,
+                    reduced_motion,
+                    high_contrast,
+                    accent,
+                    false
+                ),
                 SettingComposer::palette(
                     &FactEchoComposer,
                     dark,
                     reduced_motion,
                     high_contrast,
-                    accent
+                    accent,
+                    false
                 ),
                 "the empty shape moved a fact (bits {bits})"
             );
@@ -903,8 +1034,14 @@ mod tests {
             Box::new(FactEchoComposer),
             FactShape::FOLLOW_ALL.pin_absent_accent(),
         );
-        let answer =
-            SettingComposer::palette(&shaped, false, false, false, Some(Color::rgb(255, 94, 58)));
+        let answer = SettingComposer::palette(
+            &shaped,
+            false,
+            false,
+            false,
+            Some(Color::rgb(255, 94, 58)),
+            false,
+        );
         assert_eq!(
             answer.accent,
             Color::rgb(2, 2, 2),
@@ -926,13 +1063,13 @@ mod tests {
             FactShape::FOLLOW_ALL.pin_dark(false),
         );
         assert_ne!(
-            SettingComposer::palette(&dark_lock, false, false, false, None).surface,
-            SettingComposer::palette(&light_lock, false, false, false, None).surface,
+            SettingComposer::palette(&dark_lock, false, false, false, None, false).surface,
+            SettingComposer::palette(&light_lock, false, false, false, None, false).surface,
             "two shapes resolved the same surface"
         );
         assert_eq!(
-            SettingComposer::palette(&dark_lock, true, false, false, None),
-            SettingComposer::palette(&dark_lock, false, false, false, None),
+            SettingComposer::palette(&dark_lock, true, false, false, None, false),
+            SettingComposer::palette(&dark_lock, false, false, false, None, false),
             "the shape's answer moved with the fact it pins"
         );
     }

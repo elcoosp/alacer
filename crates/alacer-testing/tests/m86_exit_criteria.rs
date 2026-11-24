@@ -103,6 +103,9 @@ impl SettingSeam for FixedSettings {
     fn accent_color(&self) -> Option<Color> {
         self.accent
     }
+    fn reduced_transparency(&self) -> bool {
+        false
+    }
 }
 
 /// The beats' seam, boxed: the dark and accent facts the beats flip,
@@ -125,6 +128,7 @@ impl SettingComposer for DuetAccentComposer {
         _reduced_motion: bool,
         _high_contrast: bool,
         accent: Option<Color>,
+        _reduced_transparency: bool,
     ) -> Palette {
         match (dark, accent) {
             (false, None) => Palette::CANON,

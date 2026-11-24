@@ -2,7 +2,7 @@
   "schema": 1,
   "description": "Published Alacer performance baseline (M5, ADR-0011): one entry per criterion benchmark case, median/mean/MAD in nanoseconds. Ids are the criterion result directories under target/criterion. Regenerate with scripts/collect_baseline.py after `cargo bench`.",
   "generated_at": "2026-11-24T16:57:30+00:00",
-  "toolchain": "unknown",
+  "toolchain": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
   "git": {
     "commit": "6f63e61fc6c39c1df758312b030fe402d96bfa8a",
     "dirty": false

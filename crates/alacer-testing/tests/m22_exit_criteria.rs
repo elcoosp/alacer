@@ -423,13 +423,13 @@ fn m22_the_refused_route_joins_the_corpus_by_the_coordinated_rule() {
     ] {
         let source = read_workspace_file(&format!("crates/alacer-testing/tests/{suite}"));
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 159;"),
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 163;"),
             "{suite} must pin the 131-case corpus"
         );
     }
     let m19 = read_workspace_file("crates/alacer-testing/tests/m19_exit_criteria.rs");
     assert!(
-        m19.contains("All 159 criterion cases") && m19.contains("serde_json::json!(159)"),
+        m19.contains("All 163 criterion cases") && m19.contains("serde_json::json!(159)"),
         "the m19 suite's pins moved with the corpus"
     );
     let m20 = read_workspace_file("crates/alacer-testing/tests/m20_exit_criteria.rs");
@@ -453,10 +453,10 @@ fn m22_the_living_documents_re_agree() {
     // block and the register count move with the corpus.
     let readme = read_workspace_file("README.md");
     for fragment in [
-        "All 159 criterion cases",
+        "All 163 criterion cases",
         "Since M22 the availability tier is widget vocabulary",
-        "M0 through M149",
-        "a hundred and fifty-six decision records",
+        "M0 through M153",
+        "a hundred and fifty-eight decision records",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
     }
@@ -484,7 +484,7 @@ fn m22_the_living_documents_re_agree() {
     let architecture = read_workspace_file("docs/architecture.md");
     for fragment in [
         "ADR-0028",
-        "a hundred and fifty-six decision records",
+        "a hundred and fifty-eight decision records",
         "the availability tier joins the widget contract",
     ] {
         assert!(

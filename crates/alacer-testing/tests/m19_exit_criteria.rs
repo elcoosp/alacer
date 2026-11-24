@@ -286,8 +286,8 @@ fn m19_the_living_documents_re_agree() {
     // moves with the corpus.
     let readme = read_workspace_file("README.md");
     assert!(
-        readme.contains("All 165 criterion cases"),
-        "the README quotes the baselines.json bench_count (165)"
+        readme.contains("All 204 criterion cases"),
+        "the README quotes the baselines.json bench_count (204)"
     );
     assert!(
         readme.contains("Since M19 the drag holds its target"),
@@ -338,7 +338,7 @@ fn m19_the_living_documents_re_agree() {
     let baselines = parse_workspace_json("benchmarks/baselines/baselines.json");
     assert_eq!(
         baselines["bench_count"],
-        serde_json::json!(165),
+        serde_json::json!(204),
         "the published corpus carries the capture case the code half promised"
     );
 }

@@ -176,10 +176,6 @@ impl Widget for RoleProbe {
 struct ScaledComposer;
 
 impl SettingComposer for ScaledComposer {
-    #[expect(
-        clippy::fn_params_excessive_bools,
-        reason = "the composition answers by the plain per-fact signature the seam grew (ADR-0086's rule, the M155 cut growing the scale beside the five) — the trait's own door, not a bundle"
-    )]
     fn palette(
         &self,
         _dark: bool,

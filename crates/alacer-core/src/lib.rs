@@ -90,6 +90,7 @@ pub mod announce;
 pub mod arena;
 pub mod clipboard;
 pub mod color;
+pub mod cursor;
 pub mod damage;
 pub mod events;
 pub mod flux;
@@ -127,6 +128,7 @@ pub use announce::{ANNOUNCEMENT_NODE_HASH, Announcement, Politeness};
 pub use arena::{Arena, NodeId, WidgetMut};
 pub use clipboard::CLIPBOARD_TRAIL_CAP;
 pub use color::Color;
+pub use cursor::{CURSOR_TRAIL_CAP, CursorStyle};
 pub use damage::{DAMAGE_REGION_BUDGET, Damage, DamageBuilder};
 pub use events::{
     EventPhase, ImeEvent, Key, KeyEvent, KeyState, Modifiers, MouseButton, PointerEvent,
@@ -139,15 +141,15 @@ pub use history::EDIT_TRAIL_CAP;
 pub use input::EventCoalescer;
 pub use inspect::{
     A11yEchoRecord, ActionAsk, ActionOutcome, ActionRecord, ActionRefusal, ActionRider, BindingId,
-    ClipboardAction, ClipboardOutcome, ClipboardRecord, ClipboardRefusal, DirtyNode,
-    EdgeActivation, FocusRecord, FocusRider, FrameRefusalRecord, FrameRefusalSpecies, FrameSummary,
-    GesturePhase, GestureRecord, InputKind, InputRecord, InspectEvent, InspectObserver,
-    KeyEditAction, KeyEditDriver, KeyEditOutcome, KeyEditRecord, KeyEditRefusal, KeyRecord,
-    PassTiming, PreeditAction, PreeditRecord, RangeBound, RouteDropRecord, RouteDropRider,
-    RouteDropSpecies, ScrollAction, ScrollOutcome, ScrollRecord, ScrollRefusal, SettingRecord,
-    SignalKey, SignalWrite, Tee, TextWriteAction, TextWriteOutcome, TextWriteRecord,
-    TextWriteRefusal, TextWriteSource, ThemeRecord, ValueAction, ValueOutcome, ValueRecord,
-    ValueRefusal, ViewPatchRecord,
+    ClipboardAction, ClipboardOutcome, ClipboardRecord, ClipboardRefusal, CursorRecord,
+    CursorSource, DirtyNode, EdgeActivation, FocusRecord, FocusRider, FrameRefusalRecord,
+    FrameRefusalSpecies, FrameSummary, GesturePhase, GestureRecord, InputKind, InputRecord,
+    InspectEvent, InspectObserver, KeyEditAction, KeyEditDriver, KeyEditOutcome, KeyEditRecord,
+    KeyEditRefusal, KeyRecord, PassTiming, PreeditAction, PreeditRecord, RangeBound,
+    RouteDropRecord, RouteDropRider, RouteDropSpecies, ScrollAction, ScrollOutcome, ScrollRecord,
+    ScrollRefusal, SettingRecord, SignalKey, SignalWrite, Tee, TextWriteAction, TextWriteOutcome,
+    TextWriteRecord, TextWriteRefusal, TextWriteSource, ThemeRecord, ValueAction, ValueOutcome,
+    ValueRecord, ValueRefusal, ViewPatchRecord,
 };
 pub use key_edit::KEY_EDIT_TRAIL_CAP;
 pub use keymap::{Chord, Keymap, KeymapConsult, KeymapSeam};
@@ -195,6 +197,7 @@ pub mod prelude {
     pub use crate::announce::{Politeness, announce};
     pub use crate::arena::{Arena, NodeId, WidgetMut};
     pub use crate::color::Color;
+    pub use crate::cursor::CursorStyle;
     pub use crate::damage::Damage;
     pub use crate::events::{
         EventPhase, ImeEvent, Key, KeyEvent, KeyState, Modifiers, MouseButton, PointerEvent,
@@ -202,9 +205,9 @@ pub mod prelude {
     pub use crate::flux::{Flux, RenderBinding};
     pub use crate::geom::{Point, Rect, Size, Vector};
     pub use crate::inspect::{
-        ActionRecord, ClipboardRecord, GestureRecord, HorizontalScrollFact, InspectEvent,
-        InspectObserver, KeyEditOutcome, KeyEditRecord, KeyEditRefusal, KeyRecord, PreeditRecord,
-        ScrollRecord, SettingRecord, Tee, TextWriteRecord, ThemeRecord, ValueRecord,
+        ActionRecord, ClipboardRecord, CursorRecord, GestureRecord, HorizontalScrollFact,
+        InspectEvent, InspectObserver, KeyEditOutcome, KeyEditRecord, KeyEditRefusal, KeyRecord,
+        PreeditRecord, ScrollRecord, SettingRecord, Tee, TextWriteRecord, ThemeRecord, ValueRecord,
     };
     pub use crate::keymap::{Chord, Keymap, KeymapConsult, KeymapSeam};
     pub use crate::mask::Change;

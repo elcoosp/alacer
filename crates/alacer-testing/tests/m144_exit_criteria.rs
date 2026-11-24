@@ -238,11 +238,11 @@ fn m144_the_living_documents_re_agree() {
     // the growth fixes beside the words).
     let readme = read("README.md");
     assert!(
-        readme.contains("M0 through M149"),
+        readme.contains("M0 through M153"),
         "the README status reflects the living cut — the chain cannot drift"
     );
     assert!(
-        readme.contains("a hundred and fifty-six decision records"),
+        readme.contains("a hundred and fifty-eight decision records"),
         "the register grew the M144 and M145 rows"
     );
     assert!(
@@ -250,7 +250,7 @@ fn m144_the_living_documents_re_agree() {
         "the shipped-vocabulary line carries the menu, image and landmark tiers"
     );
     assert!(
-        read("docs/architecture.md").contains("a hundred and fifty-six decision records"),
+        read("docs/architecture.md").contains("a hundred and fifty-eight decision records"),
         "the architecture carries the growth's decision"
     );
 
@@ -282,7 +282,7 @@ fn m144_the_living_documents_re_agree() {
     // suite carrying the living-documents pin).
     let m81 = read("crates/alacer-testing/tests/m81_exit_criteria.rs");
     assert!(
-        m81.contains("M0 through M149"),
+        m81.contains("M0 through M153"),
         "the m81 suite's pins moved with the documents"
     );
 }

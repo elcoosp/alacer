@@ -59,8 +59,6 @@ use winit::window::{Theme, Window, WindowId};
 pub enum PlatformEvent {
     /// An AccessKit platform message.
     AccessKit(AccessKitEvent),
-    /// The tree changed; AccessKit wants the update applied.
-    TreeChanged,
     /// A hot patch landed; the app's patch hook re-renders the view scoped
     /// (§13.2, ADR-0010). The hook owns the how; the loop owns the when —
     /// exactly one regenerate per patch event.
@@ -200,6 +198,46 @@ impl std::error::Error for PlatformError {
     }
 }
 
+/// The cursor seam's platform half (M152, ADR-0156): the window icon one
+/// [`alacer_core::cursor::CursorStyle`] applies as — the exhaustive,
+/// one-to-one mapping the delta discipline rides. The vocabulary is the
+/// honest CSS-parity subset of winit's own `CursorIcon` set, so every
+/// style has a native word and none is invented; the single-edge resizes
+/// (`EResize`, `NResize`, …) are the window chrome's own words (winit
+/// maps them from `ResizeDirection`), never a widget's declaration.
+#[must_use]
+pub fn cursor_icon_of(style: alacer_core::cursor::CursorStyle) -> winit::window::CursorIcon {
+    use alacer_core::cursor::CursorStyle;
+    match style {
+        CursorStyle::Default => winit::window::CursorIcon::Default,
+        CursorStyle::Pointer => winit::window::CursorIcon::Pointer,
+        CursorStyle::Text => winit::window::CursorIcon::Text,
+        CursorStyle::Crosshair => winit::window::CursorIcon::Crosshair,
+        CursorStyle::Grab => winit::window::CursorIcon::Grab,
+        CursorStyle::Grabbing => winit::window::CursorIcon::Grabbing,
+        CursorStyle::NotAllowed => winit::window::CursorIcon::NotAllowed,
+        CursorStyle::Wait => winit::window::CursorIcon::Wait,
+        CursorStyle::Progress => winit::window::CursorIcon::Progress,
+        CursorStyle::Help => winit::window::CursorIcon::Help,
+        CursorStyle::ContextMenu => winit::window::CursorIcon::ContextMenu,
+        CursorStyle::Move => winit::window::CursorIcon::Move,
+        CursorStyle::Copy => winit::window::CursorIcon::Copy,
+        CursorStyle::Alias => winit::window::CursorIcon::Alias,
+        CursorStyle::NoDrop => winit::window::CursorIcon::NoDrop,
+        CursorStyle::Cell => winit::window::CursorIcon::Cell,
+        CursorStyle::VerticalText => winit::window::CursorIcon::VerticalText,
+        CursorStyle::AllScroll => winit::window::CursorIcon::AllScroll,
+        CursorStyle::ZoomIn => winit::window::CursorIcon::ZoomIn,
+        CursorStyle::ZoomOut => winit::window::CursorIcon::ZoomOut,
+        CursorStyle::EwResize => winit::window::CursorIcon::EwResize,
+        CursorStyle::NsResize => winit::window::CursorIcon::NsResize,
+        CursorStyle::NeswResize => winit::window::CursorIcon::NeswResize,
+        CursorStyle::NwseResize => winit::window::CursorIcon::NwseResize,
+        CursorStyle::ColResize => winit::window::CursorIcon::ColResize,
+        CursorStyle::RowResize => winit::window::CursorIcon::RowResize,
+    }
+}
+
 // The present paths compile with their features (M34, ADR-0040): the
 // enum's variants are the compiled backends — a single-backend build
 // carries one, a no-backend build carries none and refuses at the
@@ -244,6 +282,10 @@ pub struct AlacerApp {
     /// The last IME request applied to the window — the platform only acts
     /// on the delta frame over frame (§10.3).
     applied_ime: Option<ImeRequest>,
+    /// The last cursor icon applied to the window — the platform only acts
+    /// on the delta frame over frame (M152, ADR-0156, §10.3's own rule):
+    /// the hover resolves per frame, the window hears only the moves.
+    applied_cursor: Option<winit::window::CursorIcon>,
     /// The softbuffer path's persistent framebuffer: partial paint repaints
     /// damage regions onto this instead of re-rasterizing everything (§9.3).
     #[cfg(feature = "backend-softbuffer")]
@@ -336,6 +378,7 @@ impl AlacerApp {
             modifiers: alacer_core::events::Modifiers::default(),
             clicks: ClickCounter::default(),
             applied_ime: None,
+            applied_cursor: None,
             #[cfg(feature = "backend-softbuffer")]
             framebuffer: None,
             patch_channel: None,
@@ -464,6 +507,9 @@ impl AlacerApp {
         // detach the IME, move the candidate window to the caret. Only the
         // delta acts — platform calls are not free.
         self.apply_ime_request();
+        // Apply this frame's cursor answer to the window (M152, ADR-0156):
+        // the hover's declared shape, delta-only — the same discipline.
+        self.apply_cursor_request();
         let width = size_px(viewport.width).max(1);
         let height = size_px(viewport.height).max(1);
         self.present(&report, width, height);
@@ -666,6 +712,33 @@ impl AlacerApp {
             (None, None) => {}
         }
         self.applied_ime = request;
+    }
+
+    /// Applies this frame's cursor answer to the window (M152, ADR-0156):
+    /// the hover resolves through [`PassPipeline::cursor_at`] — the
+    /// deepest accepting hit's declared
+    /// [`alacer_core::widget::Widget::cursor_style`] word — and the
+    /// platform applies the delta, the IME request's own discipline
+    /// (§10.3): the window call is not free, and a still pointer over a
+    /// still tree owes the OS nothing. The resolved fact traces at debug
+    /// — the observability idiom's target — so a stuck shape names the
+    /// style it is stuck on.
+    fn apply_cursor_request(&mut self) {
+        let Some(window) = &self.window else {
+            return;
+        };
+        let style = self.pipeline.cursor_at(self.cursor);
+        let icon = cursor_icon_of(style);
+        if Some(icon) == self.applied_cursor {
+            return;
+        }
+        tracing::debug!(
+            target: "alacer::platform",
+            style = style.name(),
+            "the pointer hover's cursor applied to the window"
+        );
+        window.set_cursor(icon);
+        self.applied_cursor = Some(icon);
     }
 
     /// Queues one raw pointer event into the pipeline's frame-batched input
@@ -1081,6 +1154,17 @@ impl ApplicationHandler<PlatformEvent> for AlacerApp {
             }
             WindowEvent::CursorLeft { .. } => {
                 self.queue_pointer(PointerEvent::Leave);
+                // The pointer left the window (M152, ADR-0156): the
+                // default stands again — the hover the frame resolves
+                // rides the stale position, so the leave resets the
+                // applied shape itself, the delta discipline's own
+                // bookkeeping.
+                if self.applied_cursor != Some(winit::window::CursorIcon::Default) {
+                    if let Some(window) = &self.window {
+                        window.set_cursor(winit::window::CursorIcon::Default);
+                    }
+                    self.applied_cursor = Some(winit::window::CursorIcon::Default);
+                }
             }
             WindowEvent::MouseInput { state, button, .. } => {
                 let event = match (state, button) {
@@ -1190,11 +1274,6 @@ impl ApplicationHandler<PlatformEvent> for AlacerApp {
                 }
                 AccessKitWindowEvent::AccessibilityDeactivated => {}
             },
-            PlatformEvent::TreeChanged => {
-                // An embedder's nudge: flush the sink's pending updates now,
-                // without waiting for the next frame boundary (ADR-0015).
-                self.push_pending_a11y();
-            }
             PlatformEvent::Patch => {
                 // §13.2: the patch lands, the hook re-renders scoped — one
                 // regenerate per patch event, then one layout+paint cycle.
@@ -1342,14 +1421,59 @@ fn instance_descriptor() -> wgpu::InstanceDescriptor {
 #[cfg(test)]
 mod tests {
     use super::WinitSettings;
+    use super::cursor_icon_of;
     use super::wheel_delta;
     use alacer_a11y::AccessKitSink;
     use alacer_core::Flux;
+    use alacer_core::cursor::CursorStyle;
     use alacer_core::geom::{Point, Vector};
     use alacer_core::passes::{A11yDelta, A11ySink, PassPipeline};
     use alacer_core::settings::SettingSeam as _;
     use winit::event::MouseScrollDelta;
-    use winit::window::Theme;
+    use winit::window::{CursorIcon, Theme};
+
+    // ------------------------------------------------------------------
+    // M152 (ADR-0156): the cursor seam's mapping — the vocabulary's
+    // every style names its own native icon, the exhaustive match the
+    // delta applies through.
+    #[test]
+    fn the_cursor_styles_map_one_to_one_onto_the_window_icons() {
+        let styles = [
+            (CursorStyle::Default, CursorIcon::Default),
+            (CursorStyle::Pointer, CursorIcon::Pointer),
+            (CursorStyle::Text, CursorIcon::Text),
+            (CursorStyle::Crosshair, CursorIcon::Crosshair),
+            (CursorStyle::Grab, CursorIcon::Grab),
+            (CursorStyle::Grabbing, CursorIcon::Grabbing),
+            (CursorStyle::NotAllowed, CursorIcon::NotAllowed),
+            (CursorStyle::Wait, CursorIcon::Wait),
+            (CursorStyle::Progress, CursorIcon::Progress),
+            (CursorStyle::Help, CursorIcon::Help),
+            (CursorStyle::ContextMenu, CursorIcon::ContextMenu),
+            (CursorStyle::Move, CursorIcon::Move),
+            (CursorStyle::Copy, CursorIcon::Copy),
+            (CursorStyle::Alias, CursorIcon::Alias),
+            (CursorStyle::NoDrop, CursorIcon::NoDrop),
+            (CursorStyle::Cell, CursorIcon::Cell),
+            (CursorStyle::VerticalText, CursorIcon::VerticalText),
+            (CursorStyle::AllScroll, CursorIcon::AllScroll),
+            (CursorStyle::ZoomIn, CursorIcon::ZoomIn),
+            (CursorStyle::ZoomOut, CursorIcon::ZoomOut),
+            (CursorStyle::EwResize, CursorIcon::EwResize),
+            (CursorStyle::NsResize, CursorIcon::NsResize),
+            (CursorStyle::NeswResize, CursorIcon::NeswResize),
+            (CursorStyle::NwseResize, CursorIcon::NwseResize),
+            (CursorStyle::ColResize, CursorIcon::ColResize),
+            (CursorStyle::RowResize, CursorIcon::RowResize),
+        ];
+        for (style, icon) in styles {
+            assert_eq!(
+                cursor_icon_of(style),
+                icon,
+                "{style:?} maps onto its own icon"
+            );
+        }
+    }
 
     // ------------------------------------------------------------------
     // M74 (ADR-0080): the OS setting adapter — the window's `Theme`

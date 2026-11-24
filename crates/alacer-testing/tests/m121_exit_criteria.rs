@@ -41,7 +41,7 @@ use alacer_widgets::{BoxedWidget as _, Button, Column, Label};
 /// role-description route's case (M116), the has-popup route's case
 /// (M115), the set route's pair (M119) and every tier's before them on
 /// the published corpus.
-const EXPECTED_BENCH_COUNT: usize = 164;
+const EXPECTED_BENCH_COUNT: usize = 165;
 
 /// The suite's own read door into the published corpus: the shortcut
 /// route's case — the 1,000-node button arena carrying the constructor's

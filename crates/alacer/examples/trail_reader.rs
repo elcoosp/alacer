@@ -85,6 +85,7 @@ fn describe(event: &InspectEvent) -> String {
             }
         }
         InspectEvent::Frame(_) => "a frame completed".to_string(),
+        InspectEvent::Cursor(_) => "a hover resolved a cursor fact".to_string(),
     }
 }
 

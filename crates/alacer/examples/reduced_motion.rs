@@ -73,6 +73,10 @@ impl SettingSeam for SimulatedOs {
     fn reduced_transparency(&self) -> bool {
         false
     }
+
+    fn text_scale(&self) -> Option<f32> {
+        None
+    }
 }
 
 /// A probe that paints its whole bounds from the resolved *motion*
@@ -222,6 +226,10 @@ impl SettingSeam for DarkMotionOs {
     }
     fn reduced_transparency(&self) -> bool {
         false
+    }
+
+    fn text_scale(&self) -> Option<f32> {
+        None
     }
 }
 

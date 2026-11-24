@@ -73,6 +73,10 @@ impl SettingSeam for FixedSettings {
     fn reduced_transparency(&self) -> bool {
         self.reduced_transparency
     }
+
+    fn text_scale(&self) -> Option<f32> {
+        None
+    }
 }
 
 /// A probe that paints its whole bounds from the resolved
@@ -173,6 +177,7 @@ impl SettingComposer for CalmComposer {
         _high_contrast: bool,
         _accent: Option<Color>,
         reduced_transparency: bool,
+        _text_scale: Option<f32>,
     ) -> Palette {
         if reduced_transparency {
             Palette {
@@ -503,12 +508,12 @@ fn m154_the_composition_follows_the_transparency_fact() {
     // — the canon palette for any facts, the transparency fact
     // included.
     assert_eq!(
-        CanonComposer.palette(false, false, false, None, false),
+        CanonComposer.palette(false, false, false, None, false, None),
         Palette::CANON,
         "the canon composition answers the canon palette for effects allowed"
     );
     assert_eq!(
-        CanonComposer.palette(false, false, false, None, true),
+        CanonComposer.palette(false, false, false, None, true, None),
         Palette::CANON,
         "the canon composition answers the canon palette for the ask too"
     );
@@ -576,6 +581,7 @@ fn m154_the_wire_names_the_transparency_fact() {
         high_contrast: false,
         accent: None,
         reduced_transparency: true,
+        text_scale: None,
         repainted: 42,
     };
     let event = alacer_inspect::wire::wire_setting(&asked);
@@ -599,6 +605,7 @@ fn m154_the_wire_names_the_transparency_fact() {
         high_contrast: false,
         accent: None,
         reduced_transparency: false,
+        text_scale: None,
         repainted: 0,
     };
     let event = alacer_inspect::wire::wire_setting(&allowed);
@@ -650,11 +657,11 @@ fn m154_the_disabled_trail_still_lands() {
 fn m154_the_living_documents_re_agree() {
     let readme = read_workspace_file("README.md");
     assert!(
-        readme.contains("M0 through M154"),
+        readme.contains("M0 through M155"),
         "the README status reflects the living cut — the chain cannot drift"
     );
     assert!(
-        readme.contains("All 164 criterion cases"),
+        readme.contains("All 165 criterion cases"),
         "the README quotes the baselines.json bench_count the fact tier grew"
     );
     let architecture = read_workspace_file("docs/architecture.md");
@@ -663,7 +670,7 @@ fn m154_the_living_documents_re_agree() {
         "the architecture carries the transparency fact's decision"
     );
     assert!(
-        architecture.contains("a hundred and fifty-nine decision records"),
+        architecture.contains("a hundred and sixty decision records"),
         "the register grew the M154 row"
     );
     let baselines = serde_json::from_str::<serde_json::Value>(&read_workspace_file(
@@ -671,7 +678,7 @@ fn m154_the_living_documents_re_agree() {
     ))
     .expect("the baselines parse");
     assert_eq!(
-        baselines["bench_count"], 164,
+        baselines["bench_count"], 165,
         "the published corpus carries the transparency flip's pricing"
     );
     assert!(
@@ -689,7 +696,7 @@ fn m154_the_living_documents_re_agree() {
     // the m81 suite's documents pin moved to M154's cut.
     let m81 = read_workspace_file("crates/alacer-testing/tests/m81_exit_criteria.rs");
     assert!(
-        m81.contains("M0 through M154"),
+        m81.contains("M0 through M155"),
         "the m81 suite's pins moved with the documents"
     );
 }

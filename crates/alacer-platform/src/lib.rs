@@ -1042,6 +1042,19 @@ impl alacer_core::settings::SettingSeam for WinitSettings {
     fn accent_color(&self) -> Option<alacer_core::color::Color> {
         None
     }
+
+    /// winit reports no reduced-transparency fact — the OS's
+    /// transparency preference lives below the windowing layer's
+    /// vocabulary, the same below-the-vocabulary position the motion,
+    /// contrast, and accent facts hold — so the adapter answers the
+    /// honest absence (ADR-0158 rides ADR-0083's adapter rule: a
+    /// platform that reports no fact answers the absence, never a
+    /// guess; `false` is effects allowed, never a guessed ask). An app
+    /// that reads the fact through its own channels installs its own
+    /// seam through the same door.
+    fn reduced_transparency(&self) -> bool {
+        false
+    }
 }
 
 impl ApplicationHandler<PlatformEvent> for AlacerApp {

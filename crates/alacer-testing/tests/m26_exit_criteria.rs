@@ -618,7 +618,9 @@ fn m26_the_corpus_pins_moved_with_the_routes() {
     );
     let m8 = read_workspace_file("crates/alacer-testing/tests/m8_exit_criteria.rs");
     assert!(
-        m8.contains("the corpus is 152 at the M127 cut:"),
+        m8.contains(
+            "the corpus catch-up pins 204: every shipped bench case prices under a regression gate"
+        ),
         "the m8 suite's corpus pin moved with the routes"
     );
     for path in std::fs::read_dir(workspace_root().join("crates/alacer-testing/tests"))

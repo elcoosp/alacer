@@ -14,7 +14,7 @@
     "cpu_count": "2",
     "fingerprint": "ee37c3efc5995352"
   },
-  "bench_count": 159,
+  "bench_count": 163,
   "benches": {
     "a11y/full_rebuild_1k": {
       "median_ns": 98232.71415816326,
@@ -968,6 +968,30 @@
       "median_ns": 557452.4907407408,
       "mean_ns": 557698.3565971167,
       "median_abs_dev_ns": 1652.2479701685838,
+      "samples": 100
+    },
+    "cursor/cursor_at_deepest_hit_200": {
+      "median_ns": 1072.7730587496549,
+      "mean_ns": 1079.8502305295185,
+      "median_abs_dev_ns": 5.129889978004429,
+      "samples": 100
+    },
+    "cursor/cursor_at_void_200": {
+      "median_ns": 1062.1433750986582,
+      "mean_ns": 1065.0042127067122,
+      "median_abs_dev_ns": 5.941591305282684,
+      "samples": 100
+    },
+    "cursor/trail_note_on_change_200": {
+      "median_ns": 1485.4667177391898,
+      "mean_ns": 1489.6444373564466,
+      "median_abs_dev_ns": 62.94378584881661,
+      "samples": 100
+    },
+    "cursor/trail_note_no_change_200": {
+      "median_ns": 1458.0489929414628,
+      "mean_ns": 1477.059212661557,
+      "median_abs_dev_ns": 28.254115235463328,
       "samples": 100
     }
   }

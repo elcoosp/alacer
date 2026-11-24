@@ -194,6 +194,13 @@ impl Widget for Link {
         self
     }
 
+    fn cursor_style(&self) -> alacer_core::cursor::CursorStyle {
+        // The open affordance (M152, ADR-0156): a link's hover is the
+        // pointer — the hand the web's hyperlink taught, the shape that
+        // says "this opens" before the first click says it.
+        alacer_core::cursor::CursorStyle::Pointer
+    }
+
     fn role(&self) -> Role {
         Role::Link
     }

@@ -163,6 +163,13 @@ impl FluxWriter {
         T: Send + Sync + 'static,
     {
         let key = signal_key_of(signal);
+        // The lock-poisoning policy (the recorder's observer lock is the
+        // deliberate contrast): a poisoned flux lock means shared capture
+        // state a panicking writer left mid-write — recovering into it
+        // would answer facts from a torn record, so the panic is the
+        // honest answer here. The recorder's lock degrades to `None`
+        // instead because its observers are additive: a lost fact is a
+        // named eviction, never torn state.
         let mut capture = self.capture.lock().expect("flux capture lock");
         if capture.enabled {
             capture.record_write(key, origin.into());

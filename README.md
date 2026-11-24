@@ -46,7 +46,7 @@
 | 50-event pointer storm                                | **1** coalesced dispatch (**40.08×**)           | `input_storm_batching` budget                                                                          |
 | 10k-node churn frame vs egui, same host               | 1.10 ms vs 20.7 ms full frame (**18.8×**)       | 5-run medians, declared rig (`benchmarks/rig.json`)                                                    |
 | …vs Masonry                                           | 1.10 ms vs 4.6 ms full pass pipeline (**4.2×**) | same rig, `scripts/run_comparison.py`                                                                  |
-| All 163 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
+| All 164 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
 
 _Competitor rows compare Alacer's incremental frame against their full frame/pass — every row in
 `benchmarks/comparisons/results.json` is labeled with its scope._
@@ -388,10 +388,11 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `high_contrast`                                      | the OS's high-contrast fact rides the same seam: the contrast-only flip lands, the probe paints from the fact, the log names all three facts |
 | `follow_os`                                          | the palette follows the OS: one composer, the facts beside dark — the composition door swaps it on every flip and calms it when motion asks, the log answers |
 | `accent_follow`                                      | the OS's accent fact rides the same seam: the accent-only flip lands, the composition tints the palette's accent roles from the fact, the log names all four facts |
+| `reduced_transparency`                               | the OS's transparency fact rides the same seam: the transparency-only flip lands where the four facts are still, the probe paints from the fact, the log names all five facts | `cargo run -p alacer --example reduced_transparency`
 | `todo` / `data_table`                                | the canons: a11y tree, record/replay, grid slots, keyboard navigation            |
 | `tree`                                               | the tree tier: the named collection, its nested members, the words the published tiers already carried |
 
-<details><summary><b>140 examples, grouped (recording, alloc_budget, input_budget, derive_widget, layout_probe, sort, level, current, has_popup, role_description, busy, key_routing, set, live, shortcut, multiline, language, switch, tab_panel, search_field, meter, dialog, tree, menu_bar, image, landmarks, inspector_descendants, inspector_siblings, and tri_state live in the catalog)</b></summary>
+<details><summary><b>141 examples, grouped (recording, alloc_budget, input_budget, derive_widget, layout_probe, sort, level, current, has_popup, role_description, busy, key_routing, set, live, shortcut, multiline, language, switch, tab_panel, search_field, meter, dialog, tree, menu_bar, image, landmarks, inspector_descendants, inspector_siblings, and tri_state live in the catalog)</b></summary>
 
 **Start here**
 
@@ -553,7 +554,7 @@ is the query API as a runnable walkthrough.
 ## Status
 
 > [!NOTE]
-> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M153 of `docs/architecture.md` are
+> Alacer is at **0.17.0**, pre-1.0: milestones M0 through M154 of `docs/architecture.md` are
 > complete, but the API still moves between minor versions. MSRV **1.99**, edition **2024**.
 
 | Platform            | CI coverage                                                                                                                                                           |
@@ -565,7 +566,7 @@ is the query API as a runnable walkthrough.
 ## Learn more
 
 - [Architecture](https://github.com/elcoosp/alacer/blob/main/docs/architecture.md) — design axioms, the ten-pass contract, rendering, accessibility, DX, performance, roadmap and kill criteria
-- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred and fifty-eight decision records, from workspace discipline to the M153 scope
+- [ADRs](https://github.com/elcoosp/alacer/blob/main/docs/adr/) — a hundred and fifty-nine decision records, from workspace discipline to the M154 scope
 - [Examples catalog](https://github.com/elcoosp/alacer/blob/main/docs/examples.md) — every example with the contract it exercises
 - [Migrating from Iced](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-iced.md) · [from egui](https://github.com/elcoosp/alacer/blob/main/docs/migration/from-egui.md) — mental-model mappings, interop limits stated plainly
 - [Inspector protocol](https://github.com/elcoosp/alacer/blob/main/docs/inspector-protocol.md) — the versioned WebSocket contract behind `alacer-inspect`

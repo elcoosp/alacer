@@ -208,15 +208,16 @@ pub trait PaintSink {
 /// pass — one dynamic call per frame, never per node — and every widget
 /// paints the roles its app did not override from the copy it holds.
 /// Beside the palette it carries the frame's resolved OS facts
-/// (ADR-0080, ADR-0083, ADR-0085, ADR-0087, ADR-0158): the installed
-/// [`crate::settings::SettingSeam`]'s dark-mode, reduced-motion, and
-/// high-contrast answers, and its accent-color answer riding its
-/// presence (`None` is the honest absence), resolved the same
+/// (ADR-0080, ADR-0083, ADR-0085, ADR-0087, ADR-0158, ADR-0159): the
+/// installed [`crate::settings::SettingSeam`]'s dark-mode, reduced-motion, and
+/// high-contrast answers, its accent-color answer riding its
+/// presence (`None` is the honest absence), and its text-scale answer
+/// riding its presence the same way, resolved the same
 /// once-per-pass shape, the role-independent decisions the vocabulary
 /// consults.
 #[expect(
     clippy::struct_excessive_bools,
-    reason = "the context holds the frame's resolved OS facts the vocabulary consults — the bools *are* the facts (ADR-0080's rule), one field per fact the pass resolved once; a bundle would trade every probe's direct read for nothing (the M154 cut grew the transparency beside the four)"
+    reason = "the context holds the frame's resolved OS facts the vocabulary consults — the bools *are* the facts (ADR-0080's rule), one field per fact the pass resolved once; a bundle would trade every probe's direct read for nothing (the M155 cut grew the scale beside the five)"
 )]
 pub struct PaintCtx<'a> {
     sink: &'a mut dyn PaintSink,
@@ -229,6 +230,7 @@ pub struct PaintCtx<'a> {
     high_contrast: bool,
     accent: Option<Color>,
     reduced_transparency: bool,
+    text_scale: Option<f32>,
     /// The compose state this context's pushes record with — the compose
     /// pass's inheritance write ([`Self::set_compose`]), identity until
     /// the pass says otherwise.
@@ -242,17 +244,18 @@ impl<'a> PaintCtx<'a> {
     /// `reduced_motion`, the OS's high-contrast fact from
     /// `high_contrast`, and the OS's accent-color fact from `accent`
     /// (riding its presence — `None` is the honest absence), and the
-    /// OS's reduced-transparency fact from `reduced_transparency` (the
-    /// paint pass resolves the installed seams once per pass; direct
-    /// callers without a theme resolve the canon palette and the canon
-    /// facts).
+    /// OS's reduced-transparency fact from `reduced_transparency`, and
+    /// the OS's text-scale fact from `text_scale` (riding its presence
+    /// the same way) — the paint pass resolves the installed seams once
+    /// per pass; direct callers without a theme resolve the canon
+    /// palette and the canon facts.
     #[expect(
         clippy::too_many_arguments,
-        reason = "the constructor mirrors the context's own resolved facts — the palette beside the OS facts the pass resolved once each; packing them into a bundle would trade every direct caller's readability for nothing (the M79 cut grew the fact beside the two, the M81 cut the accent beside the three, the M154 cut the transparency beside the four)"
+        reason = "the constructor mirrors the context's own resolved facts — the palette beside the OS facts the pass resolved once each; packing them into a bundle would trade every direct caller's readability for nothing (the M79 cut grew the fact beside the two, the M81 cut the accent beside the three, the M154 cut the transparency beside the four, the M155 cut the scale beside the five)"
     )]
     #[expect(
         clippy::fn_params_excessive_bools,
-        reason = "the facts ride the plain per-fact parameters the pass resolved — one dynamic call per fact per frame, the seam every widget's probe reads (ADR-0083, ADR-0085, ADR-0087, ADR-0158); the bundle refactor would trade the constructor's readability for nothing"
+        reason = "the facts ride the plain per-fact parameters the pass resolved — one dynamic call per fact per frame, the seam every widget's probe reads (ADR-0083, ADR-0085, ADR-0087, ADR-0158, ADR-0159); the bundle refactor would trade the constructor's readability for nothing"
     )]
     #[must_use]
     pub fn new(
@@ -266,6 +269,7 @@ impl<'a> PaintCtx<'a> {
         high_contrast: bool,
         accent: Option<Color>,
         reduced_transparency: bool,
+        text_scale: Option<f32>,
     ) -> Self {
         Self {
             sink,
@@ -278,6 +282,7 @@ impl<'a> PaintCtx<'a> {
             high_contrast,
             accent,
             reduced_transparency,
+            text_scale,
             compose: Compose::IDENTITY,
         }
     }
@@ -353,6 +358,22 @@ impl<'a> PaintCtx<'a> {
     #[must_use]
     pub const fn reduced_transparency(&self) -> bool {
         self.reduced_transparency
+    }
+
+    /// The frame's resolved OS fact beside the five (ADR-0159): the
+    /// text-scale answer the installed setting seam gave this pass —
+    /// the fact a widget consults when typography itself is the
+    /// question (a label that follows the OS's preferred reading size,
+    /// a density the OS's ask scales), the same once-per-pass shape the
+    /// dark, motion, contrast, accent, and transparency facts ride,
+    /// never a per-node call. The fact rides its presence: `None` is
+    /// the honest absence — a platform that reports no read answers
+    /// `None`, never a guessed multiplier; a `Some(scale)` is the
+    /// multiplier the OS asks for, the declared sizes the base the
+    /// vocabulary multiplies.
+    #[must_use]
+    pub const fn text_scale(&self) -> Option<f32> {
+        self.text_scale
     }
 
     /// Records one quad, translated to absolute coordinates: the node's
@@ -568,6 +589,7 @@ mod tests {
             false,
             None,
             false,
+            None,
         );
 
         ctx.push_quad(Quad::filled(
@@ -617,7 +639,7 @@ mod tests {
         );
         {
             let mut ctx = PaintCtx::new(
-                &mut plain, facts.0, facts.1, None, facts.2, false, false, false, None, false,
+                &mut plain, facts.0, facts.1, None, facts.2, false, false, false, None, false, None,
             );
             ctx.push_quad(red_quad());
         }
@@ -633,6 +655,7 @@ mod tests {
                 false,
                 None,
                 false,
+                None,
             );
             ctx.set_compose(Compose::IDENTITY);
             ctx.push_quad(red_quad());
@@ -654,6 +677,7 @@ mod tests {
             false,
             None,
             false,
+            None,
         );
         ctx.set_compose(Compose::faded(0.5));
         ctx.push_quad(red_quad());
@@ -691,6 +715,7 @@ mod tests {
             false,
             None,
             false,
+            None,
         );
         ctx.set_compose(Compose::shifted(Vector::new(5.0, 3.0)));
         ctx.push_quad(red_quad());
@@ -735,6 +760,7 @@ mod tests {
             false,
             None,
             false,
+            None,
         );
 
         ctx.push_image(super::Image {

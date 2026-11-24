@@ -350,8 +350,8 @@ fn m24_the_living_documents_re_agree() {
     // the demonstration.
     let readme = read_workspace_file("README.md");
     for fragment in [
-        "M0 through M153",
-        "a hundred and fifty-eight decision records",
+        "M0 through M154",
+        "a hundred and fifty-nine decision records",
         "Since M24 the focus walk is public vocabulary",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
@@ -373,7 +373,7 @@ fn m24_the_living_documents_re_agree() {
     let architecture = read_workspace_file("docs/architecture.md");
     for fragment in [
         "ADR-0030",
-        "a hundred and fifty-eight decision records",
+        "a hundred and fifty-nine decision records",
         "the focus walk joins the dispatch contract",
     ] {
         assert!(
@@ -411,12 +411,12 @@ fn m24_the_living_documents_re_agree() {
             "crates/alacer-testing/tests/{suite}_exit_criteria.rs"
         ));
         assert!(
-            source.contains("M0 through M153")
-                && source.contains("a hundred and fifty-eight decision records"),
+            source.contains("M0 through M154")
+                && source.contains("a hundred and fifty-nine decision records"),
             "the {suite} suite's README pins moved with the documents"
         );
         assert!(
-            source.contains("a hundred and fifty-eight decision records"),
+            source.contains("a hundred and fifty-nine decision records"),
             "the {suite} suite's architecture pin moved with the register"
         );
     }

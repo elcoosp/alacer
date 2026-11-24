@@ -46,7 +46,7 @@ use alacer_widgets::{BoxedWidget as _, Column, TextInput, Tree, TreeItem};
 /// routes price the a11y snapshot machinery (the M95 rule), and the
 /// coordinated rule grows it at the next published cut, never at a
 /// widget bench's. The pin re-agrees at 155.
-const EXPECTED_BENCH_COUNT: usize = 165;
+const EXPECTED_BENCH_COUNT: usize = 204;
 
 /// The first node in the snapshot whose role and name match.
 fn node(harness: &TestHarness, role: Role, name: &str) -> Option<TreeNode> {
@@ -254,8 +254,7 @@ fn m135_the_corpus_pin_re_agrees_at_the_m135_cut() {
     // The published corpus pin re-agrees: the tree tier grows no
     // snapshot route (the words are the container's and member's own,
     // the shape the named containers rode), and its pricing door is
-    // the widgets crate's own bench — outside the published corpus,
-    // the coordinated rule growing it at the next published cut.
+    // the widgets crate's own bench — outside the corpus at its own cut, joined by the corpus catch-up's published cut — the coordinated rule's next published cut cashed.
     assert_eq!(
         baselines["bench_count"].as_u64(),
         Some(u64::try_from(EXPECTED_BENCH_COUNT).expect("fits")),

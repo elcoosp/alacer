@@ -2097,6 +2097,20 @@ pub trait Widget: 'static {
         true
     }
 
+    /// The hover shape this widget declares for the pointer over its face
+    /// (M152, ADR-0156): the [`crate::cursor::CursorStyle`] the platform
+    /// applies while the deepest accepting hit under the pointer is this
+    /// widget. The default is the platform's arrow — a widget that
+    /// overrides nothing declares nothing, and the honest answer is the
+    /// absence, never a guessed affordance (the ADR-5 discipline, at the
+    /// cursor tier). Override for the faces the vocabulary names: a link
+    /// reads as the pointer, a text field as the caret, a canvas grab
+    /// handle as the open hand — the pipeline resolves the deepest hit's
+    /// word and the platform applies the delta to the window.
+    fn cursor_style(&self) -> crate::cursor::CursorStyle {
+        crate::cursor::CursorStyle::Default
+    }
+
     /// Whether this widget can hold keyboard focus (§7.2 pass 2 recomputes
     /// the candidates from this predicate after structure changes).
     ///

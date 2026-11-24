@@ -60,7 +60,6 @@
 //! the read's absence. The log answers "did the paste refuse for the
 //! read, or for the field".
 //!
-//! [`crate::passes::PassPipeline::announce`]: crate::passes::PassPipeline::announce
 
 use std::cell::Cell;
 use std::cell::RefCell;

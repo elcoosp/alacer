@@ -644,16 +644,18 @@ function connect() {
         // is not an identity, the ids never ride), and since M77
         // (ADR-0083) the reduced-motion fact beside the dark one, and
         // since M79 (ADR-0085) the high-contrast fact beside the two,
-        // and since M81 (ADR-0087) the accent fact beside the three
-        // (the additive field rule: one event, the facts beside each
-        // other) — so a reader answers "what does the vocabulary
-        // consult now, when did the OS move it, and how much did the
-        // flip repaint?" from the row alone.
+        // and since M81 (ADR-0087) the accent fact beside the three,
+        // and since M154 (ADR-0158) the reduced-transparency fact
+        // beside the four (the additive field rule: one event, the
+        // facts beside each other) — so a reader answers "what does
+        // the vocabulary consult now, when did the OS move it, and how
+        // much did the flip repaint?" from the row alone.
         const motion = event.reduced_motion ? ", reduced motion" : "";
         const contrast = event.high_contrast ? ", high contrast" : "";
         const accent = event.accent ? ", accent " + event.accent : "";
-        addLog("setting", "setting " + (event.dark ? "dark" : "light") + motion + contrast + accent,
-          "the OS fact is now " + (event.dark ? "dark" : "light") + motion + contrast + accent +
+        const transparency = event.reduced_transparency ? ", reduced transparency" : "";
+        addLog("setting", "setting " + (event.dark ? "dark" : "light") + motion + contrast + accent + transparency,
+          "the OS fact is now " + (event.dark ? "dark" : "light") + motion + contrast + accent + transparency +
           " — the flip repainted " + event.repainted + " nodes");
         break;
       }

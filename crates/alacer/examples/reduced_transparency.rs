@@ -75,6 +75,10 @@ impl SettingSeam for SimulatedOs {
     fn reduced_transparency(&self) -> bool {
         self.transparency.load(Ordering::Relaxed)
     }
+
+    fn text_scale(&self) -> Option<f32> {
+        None
+    }
 }
 
 /// A probe that paints its whole bounds from the resolved
@@ -221,6 +225,10 @@ impl SettingSeam for DarkTransparencyOs {
 
     fn reduced_transparency(&self) -> bool {
         false
+    }
+
+    fn text_scale(&self) -> Option<f32> {
+        None
     }
 }
 

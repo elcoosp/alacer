@@ -25,7 +25,11 @@
 //! beside it (ADR-0087, the same rule cashed a third time):
 //! `door_flip_accent` — the accent-only flip landing where the other
 //! facts are still, all four facts resolved, the record streamed, the
-//! real reader naming the accent fact. Since M85 the lock's flip joins
+//! real reader naming the accent fact. Since M154 the fourth grown
+//! fact's flip joins beside it (ADR-0158, the same rule cashed a
+//! fourth time): `door_flip_transparency` — the transparency-only flip
+//! landing where the other facts are still, all five facts resolved,
+//! the record streamed, the real reader naming the transparency fact. Since M85 the lock's flip joins
 //! beside it (ADR-0089): `kiosk_flip_no_op` — the flip landing where
 //! the composition answers the palette already installed (the kiosk
 //! lock's whole answer), the door landing the fact, the composition
@@ -60,6 +64,7 @@ fn flip() -> SettingRecord {
         reduced_motion: false,
         high_contrast: false,
         accent: None,
+        reduced_transparency: false,
         repainted: 1,
     }
 }
@@ -133,6 +138,9 @@ impl SettingSeam for FixedSettings {
     fn accent_color(&self) -> Option<alacer_core::color::Color> {
         None
     }
+    fn reduced_transparency(&self) -> bool {
+        false
+    }
 }
 
 /// The composed dark palette the bench composer answers — every role
@@ -162,6 +170,7 @@ impl SettingComposer for DuetComposer {
         _reduced_motion: bool,
         _high_contrast: bool,
         _accent: Option<alacer_core::color::Color>,
+        _reduced_transparency: bool,
     ) -> Palette {
         if dark { DUET_DARK } else { Palette::CANON }
     }
@@ -196,6 +205,9 @@ impl SettingSeam for MotionSettings {
     fn accent_color(&self) -> Option<alacer_core::color::Color> {
         None
     }
+    fn reduced_transparency(&self) -> bool {
+        false
+    }
 }
 
 /// The bench's contrast-bearing seam (ADR-0085): the dark and motion
@@ -222,6 +234,9 @@ impl SettingSeam for ContrastSettings {
 
     fn accent_color(&self) -> Option<alacer_core::color::Color> {
         None
+    }
+    fn reduced_transparency(&self) -> bool {
+        false
     }
 }
 
@@ -256,6 +271,9 @@ impl SettingSeam for AccentSettings {
         } else {
             None
         }
+    }
+    fn reduced_transparency(&self) -> bool {
+        false
     }
 }
 
@@ -613,12 +631,98 @@ fn bench_settings_accent(c: &mut Criterion) {
     group.finish();
 }
 
+/// The bench's transparency-bearing seam (ADR-0158): the other facts
+/// stay fixed, the transparency fact answers an atomic the bench
+/// handle toggles — every measured flip is the transparency-only
+/// landing the grown door check admits where the other facts are
+/// still, the case the M81 check would have swallowed.
+struct TransparencySettings {
+    transparency: std::sync::Arc<AtomicBool>,
+}
+
+impl SettingSeam for TransparencySettings {
+    fn dark_mode(&self) -> bool {
+        false
+    }
+
+    fn reduced_motion(&self) -> bool {
+        false
+    }
+
+    fn high_contrast(&self) -> bool {
+        false
+    }
+
+    fn accent_color(&self) -> Option<alacer_core::color::Color> {
+        None
+    }
+
+    fn reduced_transparency(&self) -> bool {
+        self.transparency.load(Ordering::Relaxed)
+    }
+}
+
+/// The transparency flip's own cost (ADR-0158): the fourth grown fact's
+/// flip read end to end through the real reader the lengths rule
+/// priced — the tick's start drain streaming the record into the trail
+/// reader, the reader naming the transparency fact.
+fn bench_settings_transparency(c: &mut Criterion) {
+    let mut group = c.benchmark_group("settings");
+
+    // The transparency-only flip, read end to end (ADR-0158): the fact
+    // the M81 door's four-fact check swallowed lands now — all five
+    // facts resolved where the broadcast resolves, the record carrying
+    // them beside the count, the tick's start drain streaming it into
+    // the trail reader, the reader naming the transparency fact. Each
+    // measured iteration toggles the transparency fact so every flip
+    // lands (the dark, motion, contrast, and accent facts ride beside
+    // it unchanged); the transparency-only landing itself is the shape
+    // the m154 suite pins.
+    group.bench_function("door_flip_transparency", |b| {
+        let mut pipeline = PassPipeline::new(
+            Flux::new(),
+            Box::new(NoopLayout),
+            Box::new(NullJournal),
+            Box::new(NullA11y),
+        );
+        let reader = TrailLog::new();
+        pipeline.set_observer(Box::new(reader.clone()));
+        let transparency = Arc::new(AtomicBool::new(false));
+        pipeline.set_settings(Box::new(TransparencySettings {
+            transparency: Arc::clone(&transparency),
+        }));
+        b.iter(|| {
+            let _previous = transparency.fetch_xor(true, Ordering::Relaxed);
+            black_box(pipeline.set_settings(Box::new(TransparencySettings {
+                transparency: Arc::clone(&transparency),
+            })));
+            pipeline
+                .tick(alacer_core::geom::Size::new(320.0, 240.0))
+                .expect("the transparency-flip bench's frames lay out");
+            let landed = reader
+                .look()
+                .into_iter()
+                .filter_map(|event| match event {
+                    alacer_core::inspect::InspectEvent::Setting(record) => {
+                        Some(record.reduced_transparency)
+                    }
+                    _ => None,
+                })
+                .next_back();
+            black_box(landed);
+        });
+    });
+
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_settings,
     bench_settings_door,
     bench_settings_composition,
     bench_settings_counted,
-    bench_settings_accent
+    bench_settings_accent,
+    bench_settings_transparency
 );
 criterion_main!(benches);

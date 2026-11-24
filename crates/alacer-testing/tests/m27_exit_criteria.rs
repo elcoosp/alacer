@@ -377,7 +377,7 @@ fn m27_the_surface_rides_the_same_cut() {
         "the README's status block and ADR count re-agree at M27"
     );
     assert!(
-        readme.contains("route_100_outcome_moves_1k") || readme.contains("165 criterion cases"),
+        readme.contains("204 criterion cases"),
         "the README's perf bullet rides the shipped corpus"
     );
     let architecture = std::fs::read_to_string(root.join("docs/architecture.md"))

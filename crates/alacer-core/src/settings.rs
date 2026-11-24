@@ -72,7 +72,13 @@
 //! OS's reduced-transparency fact beside the four — the vocabulary
 //! consulting it when translucency itself is the question (a backdrop
 //! that mutes its glass, a selection that holds its fill), never a
-//! second seam per fact.
+//! second seam per fact. Since M155 (ADR-0159, the same rule cashed a
+//! fifth time) the seam and the record grow the OS's text-scale fact
+//! beside the five — the fact riding its presence ([`None`], the
+//! honest absence, never a guessed multiplier), the vocabulary
+//! consulting it when typography itself is the question (a label that
+//! follows the OS's preferred reading size, a density the OS's ask
+//! scales), never a second seam per fact.
 //!
 //! ```text
 //! // The adapter's door (core-only dependency):
@@ -116,7 +122,11 @@ pub const SETTING_TRAIL_CAP: usize = 256;
 /// the three — one seam, the facts the vocabulary consults riding
 /// beside each other, never a second seam per fact. The accent fact
 /// rides its presence: an adapter whose platform reports no accent
-/// answers [`None`] — the honest absence, never a guess.
+/// answers [`None`] — the honest absence, never a guess. Since M155
+/// (ADR-0159, the same rule cashed a fifth time) the OS's text-scale
+/// fact rides beside the five — the fact riding its presence the way
+/// the accent does: an adapter whose platform reports no read answers
+/// [`None`], never a guessed multiplier.
 pub trait SettingSeam: Send + Sync + 'static {
     /// The OS's dark-mode fact, re-read once per paint pass — one
     /// dynamic call per frame, never per node, the palette
@@ -161,17 +171,29 @@ pub trait SettingSeam: Send + Sync + 'static {
     /// platform reports no transparency fact (`false` — effects
     /// allowed).
     fn reduced_transparency(&self) -> bool;
+
+    /// The OS's text-scale fact, re-read beside the five once per
+    /// paint pass (ADR-0159) — the same one dynamic call per frame, the
+    /// vocabulary consulting it when typography itself is the question
+    /// (a label that follows the OS's preferred reading size, a
+    /// density the OS's ask scales). Required like the facts it sits
+    /// beside, and answerable by the absence: [`None`] is the honest
+    /// absence — the fact riding its presence, a platform that reports
+    /// no read answering `None` (never a guessed multiplier; a
+    /// `Some(scale)` is the multiplier the OS asks for, the declared
+    /// sizes the base the vocabulary multiplies).
+    fn text_scale(&self) -> Option<f32>;
 }
 
 /// The provided canon setting (§13.3, the provided-implementation rule
 /// beside every seam — [`crate::theme::CanonPalette`]'s precedent):
 /// light, motion allowed, standard contrast, no accent, effects
-/// allowed — always — the facts the blessed snapshot corpus was blessed
-/// with, installable by name so a consumer that swapped away can swap
-/// back through the same door it swapped in. Installing it where
-/// nothing is installed (or where the canon facts are installed) is the
-/// no-op the door answers `false` on: the default build already
-/// resolves them.
+/// allowed, no text scale — always — the facts the blessed snapshot
+/// corpus was blessed with, installable by name so a consumer that
+/// swapped away can swap back through the same door it swapped in.
+/// Installing it where nothing is installed (or where the canon facts
+/// are installed) is the no-op the door answers `false` on: the
+/// default build already resolves them.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct CanonSettings;
 
@@ -194,6 +216,10 @@ impl SettingSeam for CanonSettings {
 
     fn reduced_transparency(&self) -> bool {
         false
+    }
+
+    fn text_scale(&self) -> Option<f32> {
+        None
     }
 }
 
@@ -239,10 +265,15 @@ pub trait SettingComposer: Send + Sync + 'static {
     /// (ADR-0158, the signature's own pre-registered growth) the
     /// reduced-transparency fact rides beside the four: a palette that
     /// mutes its translucency roles when the OS asks answers by the
-    /// fact at the same two resolution points.
+    /// fact at the same two resolution points. Since M155 (ADR-0159,
+    /// the same growth cashed again) the text-scale fact rides beside
+    /// the five, riding its presence: a palette that sizes its
+    /// typography from the OS's preferred reading size answers by the
+    /// fact at the same two resolution points, and answers the absence
+    /// with its own.
     #[expect(
         clippy::fn_params_excessive_bools,
-        reason = "the facts ride the plain per-fact signature the composer answers by (ADR-0086's rule, the M154 cut growing the transparency beside the four) — a facts bundle would trade every composition's readability for nothing, the seam the pipeline hands the facts through"
+        reason = "the facts ride the plain per-fact signature the composer answers by (ADR-0086's rule, the M155 cut growing the scale beside the five) — a facts bundle would trade every composition's readability for nothing, the seam the pipeline hands the facts through"
     )]
     fn palette(
         &self,
@@ -251,6 +282,7 @@ pub trait SettingComposer: Send + Sync + 'static {
         high_contrast: bool,
         accent: Option<Color>,
         reduced_transparency: bool,
+        text_scale: Option<f32>,
     ) -> Palette;
 
     /// The composed palette's tag — the stable name the causal log's
@@ -278,6 +310,7 @@ impl SettingComposer for CanonComposer {
         _high_contrast: bool,
         _accent: Option<Color>,
         _reduced_transparency: bool,
+        _text_scale: Option<f32>,
     ) -> Palette {
         Palette::CANON
     }
@@ -331,6 +364,7 @@ impl SettingComposer for KioskComposer {
         _high_contrast: bool,
         _accent: Option<Color>,
         _reduced_transparency: bool,
+        _text_scale: Option<f32>,
     ) -> Palette {
         self.palette
     }
@@ -374,7 +408,7 @@ impl<T> FactPin<T> {
 /// accent-free checkout line pins the honest absence; a brand-tinted
 /// surface pins the brand color — and every fact the shape leaves
 /// unpinned rides to the composition the way it always has.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct FactShape {
     /// The dark fact: follow or the pinned value.
     dark: FactPin<bool>,
@@ -390,6 +424,10 @@ pub struct FactShape {
     /// (ADR-0158 — the fifth slot the shape's algebra grew beside the
     /// four).
     reduced_transparency: FactPin<bool>,
+    /// The text-scale fact: follow, pinned to a multiplier, or pinned
+    /// to the honest absence ([`None`] pinned — the fact held at
+    /// absence, ADR-0159's presence rule at the shape's door).
+    text_scale: FactPin<Option<f32>>,
 }
 
 impl FactShape {
@@ -402,6 +440,7 @@ impl FactShape {
         high_contrast: FactPin::Follow,
         accent: FactPin::Follow,
         reduced_transparency: FactPin::Follow,
+        text_scale: FactPin::Follow,
     };
 
     /// Pins the dark fact to `dark` — the flip the OS lands, the
@@ -451,6 +490,25 @@ impl FactShape {
     #[must_use]
     pub const fn pin_reduced_transparency(mut self, reduced_transparency: bool) -> Self {
         self.reduced_transparency = FactPin::Pin(reduced_transparency);
+        self
+    }
+
+    /// Pins the text-scale fact to `text_scale` — the multiplier the
+    /// base composes its typography from, whatever the OS reports
+    /// (ADR-0159's shape at the door, the pin builders' own rule).
+    #[must_use]
+    pub const fn pin_text_scale(mut self, text_scale: f32) -> Self {
+        self.text_scale = FactPin::Pin(Some(text_scale));
+        self
+    }
+
+    /// Pins the text-scale fact to the honest absence — the base
+    /// composes from [`None`], whatever the OS reports (the
+    /// declared-size surface, ADR-0159's presence rule held at the
+    /// shape's door).
+    #[must_use]
+    pub const fn pin_absent_text_scale(mut self) -> Self {
+        self.text_scale = FactPin::Pin(None);
         self
     }
 }
@@ -507,6 +565,7 @@ impl SettingComposer for ShapedComposer {
         high_contrast: bool,
         accent: Option<Color>,
         reduced_transparency: bool,
+        text_scale: Option<f32>,
     ) -> Palette {
         self.base.palette(
             self.shape.dark.substitute(dark),
@@ -516,6 +575,7 @@ impl SettingComposer for ShapedComposer {
             self.shape
                 .reduced_transparency
                 .substitute(reduced_transparency),
+            self.shape.text_scale.substitute(text_scale),
         )
     }
 
@@ -573,10 +633,10 @@ impl ThemeSeam for ComposedPalette {
 /// the [`SettingComposer`] trait keeps the plain per-fact signature
 /// (ADR-0086's rule — the composer answers by the facts beside
 /// `dark`), the bundle is the door's internal shape.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[expect(
     clippy::struct_excessive_bools,
-    reason = "the door's bundle holds the seam's answers the composition resolves by — the bools *are* the facts (ADR-0080's rule), one field per fact the door read once (the M154 cut grew the transparency beside the four); not app-facing, the [`SettingComposer`]'s plain signature stays the app's door"
+    reason = "the door's bundle holds the seam's answers the composition resolves by — the bools *are* the facts (ADR-0080's rule), one field per fact the door read once (the M155 cut grew the scale beside the five); not app-facing, the [`SettingComposer`]'s plain signature stays the app's door"
 )]
 pub(crate) struct OsFacts {
     /// The dark-mode fact — [`SettingSeam::dark_mode`]'s answer.
@@ -593,19 +653,41 @@ pub(crate) struct OsFacts {
     /// The reduced-transparency fact —
     /// [`SettingSeam::reduced_transparency`]'s answer (ADR-0158).
     pub(crate) reduced_transparency: bool,
+    /// The text-scale fact — [`SettingSeam::text_scale`]'s answer,
+    /// riding its presence (`None` is the honest absence, ADR-0159).
+    pub(crate) text_scale: Option<f32>,
 }
 
 impl OsFacts {
     /// The canon facts (light, motion allowed, standard contrast, no
-    /// accent, effects allowed) — what the door resolves where nothing
-    /// is installed, the facts the default build resolves.
+    /// accent, effects allowed, no text scale) — what the door
+    /// resolves where nothing is installed, the facts the default
+    /// build resolves.
     pub(crate) const CANON: Self = Self {
         dark: false,
         reduced_motion: false,
         high_contrast: false,
         accent: None,
         reduced_transparency: false,
+        text_scale: None,
     };
+
+    /// The seam's answers, read once — the door's own shape (ADR-0159):
+    /// one dynamic call per fact, the equality check comparing the two
+    /// bundles the door already holds (the installed seam's and the
+    /// ask's), the per-fact comparisons the M81 tuple grew ending where
+    /// the bundle lives. Every later fact the seam grows rides the
+    /// bundle the doors read, never a bolt-on read beside it.
+    pub(crate) fn of_seam(seam: &dyn SettingSeam) -> Self {
+        Self {
+            dark: seam.dark_mode(),
+            reduced_motion: seam.reduced_motion(),
+            high_contrast: seam.high_contrast(),
+            accent: seam.accent_color(),
+            reduced_transparency: seam.reduced_transparency(),
+            text_scale: seam.text_scale(),
+        }
+    }
 }
 
 thread_local! {
@@ -655,6 +737,7 @@ pub fn note_setting(record: SettingRecord) {
             high_contrast = record.high_contrast,
             accent = ?record.accent,
             reduced_transparency = record.reduced_transparency,
+            text_scale = ?record.text_scale,
             repainted = record.repainted,
             "setting flip queued for the next tick"
         );
@@ -702,6 +785,10 @@ mod tests {
             !CanonSettings.reduced_transparency(),
             "the canon fact answers effects allowed — no guessed ask"
         );
+        assert!(
+            CanonSettings.text_scale().is_none(),
+            "the canon fact answers the honest absence — no guessed multiplier"
+        );
     }
 
     /// The disabled trail is a no-op: nothing queues, the drain answers
@@ -714,6 +801,7 @@ mod tests {
             high_contrast: false,
             accent: None,
             reduced_transparency: true,
+            text_scale: None,
             repainted: 0,
         });
         assert!(
@@ -734,6 +822,7 @@ mod tests {
                 high_contrast: i % 5 == 0,
                 accent: None,
                 reduced_transparency: i % 7 == 0,
+                text_scale: (i % 11 == 0).then_some(1.25),
                 repainted: 1,
             });
         }
@@ -756,6 +845,10 @@ mod tests {
             "all four facts ride the same record (i=8 allows effects — 8 % 7 != 0)"
         );
         assert!(
+            drained[0].text_scale.is_none(),
+            "all five facts ride the same record (i=8 reports no read — 8 % 11 != 0)"
+        );
+        assert!(
             take_setting_trail().is_empty(),
             "the drain clears whole — a fact streams once"
         );
@@ -763,7 +856,7 @@ mod tests {
     }
 
     /// The kiosk lock answers one palette for every fact permutation —
-    /// all thirty-two, bit-flipped — the composition that follows
+    /// all sixty-four, bit-flipped — the composition that follows
     /// nothing, tagged by its own name (ADR-0089). Const-constructible,
     /// the lock ships beside the palette it holds.
     #[test]
@@ -773,12 +866,13 @@ mod tests {
             ..Palette::CANON
         };
         let lock = KioskComposer::locked(locked);
-        for bits in 0_u8..32 {
+        for bits in 0_u8..64 {
             let dark = bits & 1 != 0;
             let reduced_motion = bits & 2 != 0;
             let high_contrast = bits & 4 != 0;
             let accent = (bits & 8 != 0).then_some(Color::rgb(255, 94, 58));
             let reduced_transparency = bits & 16 != 0;
+            let text_scale = (bits & 32 != 0).then_some(1.25);
             assert_eq!(
                 SettingComposer::palette(
                     &lock,
@@ -786,7 +880,8 @@ mod tests {
                     reduced_motion,
                     high_contrast,
                     accent,
-                    reduced_transparency
+                    reduced_transparency,
+                    text_scale
                 ),
                 locked,
                 "the lock followed the facts (bits {bits})"
@@ -807,13 +902,21 @@ mod tests {
             ..Palette::CANON
         });
         assert_eq!(
-            SettingComposer::palette(&first, true, true, true, Some(Color::rgb(1, 2, 3)), true),
-            SettingComposer::palette(&first, false, false, false, None, false),
+            SettingComposer::palette(
+                &first,
+                true,
+                true,
+                true,
+                Some(Color::rgb(1, 2, 3)),
+                true,
+                None
+            ),
+            SettingComposer::palette(&first, false, false, false, None, false, Some(1.25)),
             "the lock's answer moved with the facts"
         );
         assert_ne!(
-            SettingComposer::palette(&first, false, false, false, None, false),
-            SettingComposer::palette(&second, false, false, false, None, false),
+            SettingComposer::palette(&first, false, false, false, None, false, None),
+            SettingComposer::palette(&second, false, false, false, None, false, None),
             "two locks resolved the same palette"
         );
     }
@@ -827,7 +930,7 @@ mod tests {
     struct FactEchoComposer;
 
     impl SettingComposer for FactEchoComposer {
-        /// The echo composer's slots (ADR-0086, ADR-0158): each fact
+        /// The echo composer's slots (ADR-0086, ADR-0159): each fact
         /// rides the plain signature — the roles name the facts the
         /// base was handed, the tests read the substitution straight
         /// off the palette.
@@ -838,6 +941,7 @@ mod tests {
             high_contrast: bool,
             accent: Option<Color>,
             reduced_transparency: bool,
+            text_scale: Option<f32>,
         ) -> Palette {
             Palette {
                 surface: if dark {
@@ -860,6 +964,11 @@ mod tests {
                     Color::rgb(3, 3, 3)
                 } else {
                     Color::rgb(3, 3, 3).with_alpha(64)
+                },
+                text: if text_scale.is_some() {
+                    Color::rgb(4, 4, 4)
+                } else {
+                    Color::rgb(5, 5, 5)
                 },
                 ..Palette::CANON
             }
@@ -891,6 +1000,7 @@ mod tests {
                 false,
                 Some(Color::rgb(255, 94, 58)),
                 false,
+                None,
             );
             assert_eq!(
                 answer.surface,
@@ -942,6 +1052,7 @@ mod tests {
                 high_contrast,
                 None,
                 false,
+                None,
             );
             assert_eq!(
                 answer.panel,
@@ -973,7 +1084,7 @@ mod tests {
         for bits in 0_u8..4 {
             let dark = bits & 1 != 0;
             let landed = bits & 2 != 0;
-            let answer = SettingComposer::palette(&shaped, dark, false, false, None, landed);
+            let answer = SettingComposer::palette(&shaped, dark, false, false, None, landed, None);
             assert_eq!(
                 answer.selection,
                 Color::rgb(3, 3, 3),
@@ -989,6 +1100,56 @@ mod tests {
                 "the unpinned dark fact rides through (bits {bits})"
             );
         }
+    }
+
+    /// The text-scale pin holds its fact too (ADR-0159's shape, the
+    /// builder the algebra grew beside the five): the shape pinning the
+    /// text scale substitutes it before the base resolves — a
+    /// typography-locked surface the OS's text-size flips never move —
+    /// and the facts the shape leaves unpinned ride through.
+    #[test]
+    fn the_shape_pins_the_text_scale_fact_too() {
+        const SHAPE: FactShape = FactShape::FOLLOW_ALL.pin_text_scale(1.25);
+        let shaped = ShapedComposer::over(Box::new(FactEchoComposer), SHAPE);
+        for bits in 0_u8..4 {
+            let dark = bits & 1 != 0;
+            let landed = (bits & 2 != 0).then_some(1.25);
+            let answer = SettingComposer::palette(&shaped, dark, false, false, None, false, landed);
+            assert_eq!(
+                answer.text,
+                Color::rgb(4, 4, 4),
+                "the pinned text-scale fact never reached the base (bits {bits})"
+            );
+            assert_eq!(
+                answer.surface,
+                if dark {
+                    Color::rgb(1, 1, 1)
+                } else {
+                    Color::rgb(0, 0, 0)
+                },
+                "the unpinned dark fact rides through (bits {bits})"
+            );
+        }
+    }
+
+    /// The pinned scale absence holds too: the text-scale fact pinned
+    /// to the honest absence reaches the base as `None` even where the
+    /// OS reports a multiplier — the shape holding the fact, not
+    /// dropping it (ADR-0159's presence rule at the shape's door, the
+    /// accent pin's own precedent).
+    #[test]
+    fn the_shape_pins_the_scale_absence_too() {
+        let shaped = ShapedComposer::over(
+            Box::new(FactEchoComposer),
+            FactShape::FOLLOW_ALL.pin_absent_text_scale(),
+        );
+        let answer =
+            SettingComposer::palette(&shaped, false, false, false, None, false, Some(1.25));
+        assert_eq!(
+            answer.text,
+            Color::rgb(5, 5, 5),
+            "the pinned absence dropped to the base's absence marker"
+        );
     }
 
     /// The shape that holds nothing is the base itself: every fact
@@ -1009,7 +1170,8 @@ mod tests {
                     reduced_motion,
                     high_contrast,
                     accent,
-                    false
+                    false,
+                    None
                 ),
                 SettingComposer::palette(
                     &FactEchoComposer,
@@ -1017,7 +1179,8 @@ mod tests {
                     reduced_motion,
                     high_contrast,
                     accent,
-                    false
+                    false,
+                    None
                 ),
                 "the empty shape moved a fact (bits {bits})"
             );
@@ -1041,6 +1204,7 @@ mod tests {
             false,
             Some(Color::rgb(255, 94, 58)),
             false,
+            None,
         );
         assert_eq!(
             answer.accent,
@@ -1063,13 +1227,13 @@ mod tests {
             FactShape::FOLLOW_ALL.pin_dark(false),
         );
         assert_ne!(
-            SettingComposer::palette(&dark_lock, false, false, false, None, false).surface,
-            SettingComposer::palette(&light_lock, false, false, false, None, false).surface,
+            SettingComposer::palette(&dark_lock, false, false, false, None, false, None).surface,
+            SettingComposer::palette(&light_lock, false, false, false, None, false, None).surface,
             "two shapes resolved the same surface"
         );
         assert_eq!(
-            SettingComposer::palette(&dark_lock, true, false, false, None, false),
-            SettingComposer::palette(&dark_lock, false, false, false, None, false),
+            SettingComposer::palette(&dark_lock, true, false, false, None, false, None),
+            SettingComposer::palette(&dark_lock, false, false, false, None, false, None),
             "the shape's answer moved with the fact it pins"
         );
     }

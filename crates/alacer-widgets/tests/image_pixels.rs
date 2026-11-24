@@ -57,6 +57,7 @@ fn painted(image: &Image) -> Vec<Primitive> {
         false,
         None,
         false,
+        None,
     );
     image.paint(&mut ctx);
     sink.0

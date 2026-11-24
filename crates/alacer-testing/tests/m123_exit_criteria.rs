@@ -38,7 +38,7 @@ use alacer_widgets::{BoxedWidget as _, Button, Column, Label};
 /// the M109/M119 pair shape) joining the multiline route's case (M122),
 /// the shortcut route's case (M121), the live route's case (M120) and
 /// every tier's before them on the published corpus.
-const EXPECTED_BENCH_COUNT: usize = 165;
+const EXPECTED_BENCH_COUNT: usize = 204;
 
 /// The suite's own read doors into the published corpus: the language
 /// route's pair — the 1,000-node label arena bare beside the same arena

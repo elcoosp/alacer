@@ -2159,8 +2159,10 @@ pub struct ThemeRecord {
 /// the two, and since M81 (ADR-0087, the same rule cashed a third
 /// time) the accent-color fact beside the three — the fact riding its
 /// presence ([`None`], the honest absence, never a guessed color) —
-/// one record per seam, the facts the vocabulary consults riding
-/// beside each other, never a second seam or event per fact.
+/// and since M154 (ADR-0158, the same rule cashed a fourth time) the
+/// reduced-transparency fact beside the four — one record per seam,
+/// the facts the vocabulary consults riding beside each other, never a
+/// second seam or event per fact.
 /// The record rides *beside*
 /// the door's `bool` answer — the door still answers whether the flip
 /// landed — never instead of it; a flip that lands where the facts
@@ -2168,6 +2170,10 @@ pub struct ThemeRecord {
 /// the setting tier). One fact per flip, never per frame: the frames
 /// that paint under the facts stream no setting fact of their own.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "the record carries the OS facts beside the reach they repainted — the bools *are* the facts (ADR-0080's rule), one field per fact the flip landed (the M154 cut grew the transparency beside the four), the payload rule keeping the ids out"
+)]
 pub struct SettingRecord {
     /// The OS's dark-mode fact — the installed
     /// [`crate::settings::SettingSeam`]'s own answer, resolved
@@ -2195,6 +2201,14 @@ pub struct SettingRecord {
     /// honest absence — a platform that reports no accent answering
     /// `None`, never a guessed color.
     pub accent: Option<Color>,
+    /// The OS's reduced-transparency fact (ADR-0158) — the same seam's
+    /// answer, resolved once per paint pass into `PaintCtx` beside the
+    /// facts it sits beside: the role-independent decision the
+    /// vocabulary consults when translucency itself is the question (a
+    /// backdrop that mutes its glass, a selection that holds its fill),
+    /// never a second seam per fact. The fact answers the ask: `false`
+    /// is effects allowed — the canon answer, never a guessed ask.
+    pub reduced_transparency: bool,
     /// The broadcast's node count — how many nodes the flip's
     /// `Change::PAINT` merge touched (ADR-0082): the lengths rule's
     /// shape, the count naming the flip's reach, the ids never riding

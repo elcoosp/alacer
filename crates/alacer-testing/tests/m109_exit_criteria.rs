@@ -36,7 +36,7 @@ use alacer_widgets::{
 /// the multiselectable route's pair joining the selected route's pair
 /// (M108), the invalid route's case (M107), the required route's case
 /// (M106) and every tier's before them on the published corpus.
-const EXPECTED_BENCH_COUNT: usize = 159;
+const EXPECTED_BENCH_COUNT: usize = 163;
 
 /// The suite's own read door into the published corpus: the
 /// multiselectable route's pair — the 1,000-node table arena carrying

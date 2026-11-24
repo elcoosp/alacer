@@ -48,6 +48,7 @@ fn red_quad_under(compose: Compose) -> Vec<Primitive> {
         false,
         None,
         false,
+        None,
     );
     ctx.set_compose(compose);
     ctx.push_quad(Quad::filled(
@@ -127,6 +128,7 @@ fn half_opacity_glyph_fades_the_coverage_stamp() {
         false,
         None,
         false,
+        None,
     );
     ctx.set_compose(Compose::faded(0.5));
     ctx.push_glyph(black_glyph());
@@ -161,6 +163,7 @@ fn identity_compose_is_byte_identical_to_the_baseline() {
         false,
         None,
         false,
+        None,
     );
     ctx.push_quad(Quad::filled(
         Rect::new(Point::new(0.0, 0.0), Size::new(20.0, 10.0)),

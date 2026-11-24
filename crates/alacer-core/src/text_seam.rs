@@ -524,10 +524,11 @@ mod tests {
     #[test]
     fn the_engine_contract_covers_the_run_exactly() {
         install(Rc::new(Stub));
-        // The stub above does not implement segmentation (it is the
-        // pre-M13 stub); coverage is pinned where real segmentations live
-        // (alacer-text). What is pinned here is the shape: the hop rule
-        // stays total over any segmentation that covers the run.
+        // The stub above answers a coarse alphanumeric segmentation (the
+        // M13 seam's own honest stand-in — coverage for real UAX #29
+        // segmentations lives in alacer-text). What is pinned here is the
+        // shape: the hop rule stays total over any segmentation that
+        // covers the run.
         let covered = segs(HELLO);
         assert_eq!(covered.first().map_or(0, |s| s.start), 0);
         assert_eq!(

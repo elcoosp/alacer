@@ -750,6 +750,11 @@
       "scope": "same-host"
     },
     {
+      "id": "settings/door_flip_text_scale",
+      "baseline": "settings/door_flip_text_scale",
+      "scope": "same-host"
+    },
+    {
       "id": "alloc/warm_frame_zero_alloc",
       "baseline": "alloc/warm_frame_zero_alloc",
       "scope": "same-host"

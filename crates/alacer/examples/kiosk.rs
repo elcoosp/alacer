@@ -76,6 +76,10 @@ impl SettingSeam for OsSettings {
     fn reduced_transparency(&self) -> bool {
         false
     }
+
+    fn text_scale(&self) -> Option<f32> {
+        None
+    }
 }
 
 /// The manual theme ask: one palette, named (the payload the

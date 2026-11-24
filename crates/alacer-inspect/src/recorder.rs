@@ -107,6 +107,11 @@ pub const THEME_RING_CAP: usize = 512;
 /// ring (ADR-0080, the theme ring's shape).
 pub const SETTING_RING_CAP: usize = 512;
 
+/// The cursor ring's cap: the cursor tier's own facts — the hover's
+/// resolved changes, bounded and named like every other tier's ring
+/// (ADR-0157, the theme ring's shape).
+pub const CURSOR_RING_CAP: usize = 512;
+
 /// One recorded frame (the wire conversion lives in [`crate::wire`]).
 #[derive(Debug, Clone)]
 pub struct RecordedFrame {
@@ -227,6 +232,9 @@ struct Recording {
     /// The setting facts (ADR-0080: the flips' dark-mode facts beside
     /// the door — bounded by [`SETTING_RING_CAP`]).
     settings: Ring<alacer_core::inspect::SettingRecord>,
+    /// The cursor facts (ADR-0157: the hover's resolved changes beside
+    /// the source that named them — bounded by [`CURSOR_RING_CAP`]).
+    cursors: Ring<alacer_core::inspect::CursorRecord>,
     /// The most recent frame, for "what does the inspector see right now".
     latest: Option<alacer_core::inspect::FrameSummary>,
     /// The most recent resolved tree, for the dump ask (the observer's
@@ -272,6 +280,7 @@ impl Recording {
             view_patches: Ring::new(VIEW_PATCH_RING_CAP),
             themes: Ring::new(THEME_RING_CAP),
             settings: Ring::new(SETTING_RING_CAP),
+            cursors: Ring::new(CURSOR_RING_CAP),
             latest: None,
             latest_tree: None,
             broadcast: VecDeque::new(),
@@ -331,6 +340,7 @@ impl Recording {
             ring_row("view_patches", &self.view_patches, VIEW_PATCH_RING_CAP),
             ring_row("themes", &self.themes, THEME_RING_CAP),
             ring_row("settings", &self.settings, SETTING_RING_CAP),
+            ring_row("cursors", &self.cursors, CURSOR_RING_CAP),
             ring_row("frames", &self.frames, FRAME_RING_CAP),
         ]
     }
@@ -803,6 +813,7 @@ impl CausalRecorder {
             recording.view_patches.clear();
             recording.themes.clear();
             recording.settings.clear();
+            recording.cursors.clear();
         }
     }
 
@@ -915,6 +926,9 @@ impl CausalRecorder {
         });
         walk_ring(&mut burst, &recording.settings, &above, |r| {
             InspectEvent::Setting(*r)
+        });
+        walk_ring(&mut burst, &recording.cursors, &above, |r| {
+            InspectEvent::Cursor(*r)
         });
         walk_ring(&mut burst, &recording.frames, &above, |r| {
             InspectEvent::Frame(r.summary.clone())
@@ -1072,6 +1086,9 @@ impl InspectObserver for RecorderHandle {
             }
             InspectEvent::Setting(record) => {
                 recording.settings.push(fact_number, record);
+            }
+            InspectEvent::Cursor(record) => {
+                recording.cursors.push(fact_number, record);
             }
             InspectEvent::Frame(summary) => {
                 self.frames_seen.fetch_add(1, Ordering::Relaxed);

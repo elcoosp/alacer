@@ -53,6 +53,9 @@ impl SettingSeam for FixedSettings {
     fn accent_color(&self) -> Option<alacer_core::color::Color> {
         None
     }
+    fn reduced_transparency(&self) -> bool {
+        false
+    }
 }
 
 /// A probe that paints its whole bounds from the resolved *motion*
@@ -293,6 +296,7 @@ fn m77_the_wire_names_the_motion_fact() {
         reduced_motion: true,
         high_contrast: false,
         accent: None,
+        reduced_transparency: false,
         repainted: 42,
     };
     let event = alacer_inspect::wire::wire_setting(&record);
@@ -353,11 +357,11 @@ fn m77_the_disabled_trail_still_lands() {
 fn m77_the_living_documents_re_agree() {
     let readme = read_workspace_file("README.md");
     assert!(
-        readme.contains("M0 through M153"),
+        readme.contains("M0 through M154"),
         "the README status reflects the living cut — the chain cannot drift"
     );
     assert!(
-        readme.contains("All 163 criterion cases"),
+        readme.contains("All 164 criterion cases"),
         "the README quotes the baselines.json bench_count the fact tier grew"
     );
     let architecture = read_workspace_file("docs/architecture.md");
@@ -366,7 +370,7 @@ fn m77_the_living_documents_re_agree() {
         "the architecture carries the motion fact's decision"
     );
     assert!(
-        architecture.contains("a hundred and fifty-eight decision records"),
+        architecture.contains("a hundred and fifty-nine decision records"),
         "the register grew the M77 row"
     );
     let baselines = serde_json::from_str::<serde_json::Value>(&read_workspace_file(
@@ -374,7 +378,7 @@ fn m77_the_living_documents_re_agree() {
     ))
     .expect("the baselines parse");
     assert_eq!(
-        baselines["bench_count"], 159,
+        baselines["bench_count"], 164,
         "the published corpus carries the fact tier's pricing"
     );
 }

@@ -2169,10 +2169,10 @@ pub struct ThemeRecord {
 /// already are queues no record (the idle-frame property, A1's rule at
 /// the setting tier). One fact per flip, never per frame: the frames
 /// that paint under the facts stream no setting fact of their own.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[expect(
     clippy::struct_excessive_bools,
-    reason = "the record carries the OS facts beside the reach they repainted — the bools *are* the facts (ADR-0080's rule), one field per fact the flip landed (the M154 cut grew the transparency beside the four), the payload rule keeping the ids out"
+    reason = "the record carries the OS facts beside the reach they repainted — the bools *are* the facts (ADR-0080's rule), one field per fact the flip landed (the M155 cut grew the scale beside the five), the payload rule keeping the ids out"
 )]
 pub struct SettingRecord {
     /// The OS's dark-mode fact — the installed
@@ -2209,6 +2209,15 @@ pub struct SettingRecord {
     /// never a second seam per fact. The fact answers the ask: `false`
     /// is effects allowed — the canon answer, never a guessed ask.
     pub reduced_transparency: bool,
+    /// The OS's text-scale fact (ADR-0159) — the same seam's answer,
+    /// resolved once per paint pass into `PaintCtx` beside the facts it
+    /// sits beside: the role-independent decision the vocabulary
+    /// consults when typography itself is the question (a label that
+    /// follows the OS's preferred reading size), never a second seam
+    /// per fact. The fact rides its presence: `None` is the honest
+    /// absence — a platform that reports no read answering `None`,
+    /// never a guessed multiplier.
+    pub text_scale: Option<f32>,
     /// The broadcast's node count — how many nodes the flip's
     /// `Change::PAINT` merge touched (ADR-0082): the lengths rule's
     /// shape, the count naming the flip's reach, the ids never riding

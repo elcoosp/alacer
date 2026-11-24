@@ -92,6 +92,10 @@ impl SettingSeam for SimulatedOs {
     fn reduced_transparency(&self) -> bool {
         false
     }
+
+    fn text_scale(&self) -> Option<f32> {
+        None
+    }
 }
 
 /// The demo's composition (ADR-0087): the canon palette whose accent
@@ -128,6 +132,7 @@ impl SettingComposer for AccentFollowComposer {
         _high_contrast: bool,
         accent: Option<alacer_core::Color>,
         _reduced_transparency: bool,
+        _text_scale: Option<f32>,
     ) -> Palette {
         accent.map_or(Palette::CANON, Self::tinted)
     }

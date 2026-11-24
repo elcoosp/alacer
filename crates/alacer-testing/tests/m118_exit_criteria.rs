@@ -38,7 +38,7 @@ use alacer_widgets::{BoxedWidget as _, Button, Column, TextInput};
 /// cut — the count the M117 suite pinned, kept: the routing-outcome
 /// doors price no frame work (the verdict is the return value the
 /// dispatch already computed), so no case joins and no case leaves.
-const EXPECTED_BENCH_COUNT: usize = 165;
+const EXPECTED_BENCH_COUNT: usize = 204;
 
 /// The first node in the snapshot whose role and name match.
 fn node(harness: &TestHarness, role: Role, name: &str) -> Option<TreeNode> {

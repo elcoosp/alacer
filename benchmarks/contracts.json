@@ -745,6 +745,11 @@
       "scope": "same-host"
     },
     {
+      "id": "settings/door_flip_transparency",
+      "baseline": "settings/door_flip_transparency",
+      "scope": "same-host"
+    },
+    {
       "id": "alloc/warm_frame_zero_alloc",
       "baseline": "alloc/warm_frame_zero_alloc",
       "scope": "same-host"

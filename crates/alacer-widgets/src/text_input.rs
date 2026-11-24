@@ -1463,6 +1463,13 @@ impl Widget for TextInput {
         self
     }
 
+    fn cursor_style(&self) -> alacer_core::cursor::CursorStyle {
+        // The text caret (M152, ADR-0156): a field's hover is the
+        // I-beam — the shape that says "text lands here", the affordance
+        // the editing contract's own face carries.
+        alacer_core::cursor::CursorStyle::Text
+    }
+
     fn role(&self) -> Role {
         Role::TextInput
     }

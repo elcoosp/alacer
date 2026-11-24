@@ -884,6 +884,7 @@ pub(crate) fn wire_event_of(event: &alacer_core::inspect::InspectEvent) -> WireE
         alacer_core::inspect::InspectEvent::ViewPatch(record) => wire::wire_view_patch(record),
         alacer_core::inspect::InspectEvent::Theme(record) => wire::wire_theme(record),
         alacer_core::inspect::InspectEvent::Setting(record) => wire::wire_setting(record),
+        alacer_core::inspect::InspectEvent::Cursor(record) => wire::wire_cursor(record),
         alacer_core::inspect::InspectEvent::Frame(summary) => wire::wire_frame(summary),
     }
 }

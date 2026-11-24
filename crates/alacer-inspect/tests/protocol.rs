@@ -366,9 +366,10 @@ fn setting_events_carry_the_documented_flat_shape() {
     // fact rides beside the dark one, and since M79 (ADR-0085) the
     // high-contrast fact rides beside the two, and since M81 (ADR-0087)
     // the accent fact rides beside the three as the documented hex (or
-    // `null`, the honest absence) — the additive fields the
-    // versioning rule admits at version 1, the lengths rule's shape
-    // (the ids never ride).
+    // `null`, the honest absence), and since M154 (ADR-0158) the
+    // reduced-transparency fact rides beside the four — the additive
+    // fields the versioning rule admits at version 1, the lengths
+    // rule's shape (the ids never ride).
     use alacer_core::color::Color;
     use alacer_core::inspect::SettingRecord;
     use alacer_inspect::wire::wire_setting;
@@ -378,6 +379,7 @@ fn setting_events_carry_the_documented_flat_shape() {
         reduced_motion: false,
         high_contrast: false,
         accent: None,
+        reduced_transparency: false,
         repainted: 7,
     });
     let json = serde_json::to_string(&flip).expect("flip json");
@@ -387,6 +389,7 @@ fn setting_events_carry_the_documented_flat_shape() {
             && json.contains(r#""reduced_motion":false"#)
             && json.contains(r#""high_contrast":false"#)
             && json.contains(r#""accent":null"#)
+            && json.contains(r#""reduced_transparency":false"#)
             && json.contains(r#""repainted":7"#),
         "the flip's facts and its reach, named plain: {json}"
     );
@@ -395,6 +398,7 @@ fn setting_events_carry_the_documented_flat_shape() {
         reduced_motion: true,
         high_contrast: true,
         accent: Some(Color::rgb(255, 94, 58)),
+        reduced_transparency: true,
         repainted: 0,
     });
     let json = serde_json::to_string(&flip).expect("flip json");
@@ -403,6 +407,7 @@ fn setting_events_carry_the_documented_flat_shape() {
             && json.contains(r#""reduced_motion":true"#)
             && json.contains(r#""high_contrast":true"#)
             && json.contains(r##""accent":"#FF5E3AFF""##)
+            && json.contains(r#""reduced_transparency":true"#)
             && json.contains(r#""repainted":0"#),
         "the light flip names its own facts and reach: {json}"
     );
@@ -911,6 +916,7 @@ fn a_replay_ask_after_a_clear_answers_nothing_and_lives() {
             reduced_motion: false,
             high_contrast: false,
             accent: None,
+            reduced_transparency: false,
             repainted: 0,
         }));
     let server =

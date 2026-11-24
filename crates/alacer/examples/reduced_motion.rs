@@ -70,6 +70,9 @@ impl SettingSeam for SimulatedOs {
     fn accent_color(&self) -> Option<alacer_core::color::Color> {
         None
     }
+    fn reduced_transparency(&self) -> bool {
+        false
+    }
 }
 
 /// A probe that paints its whole bounds from the resolved *motion*
@@ -216,6 +219,9 @@ impl SettingSeam for DarkMotionOs {
 
     fn accent_color(&self) -> Option<alacer_core::color::Color> {
         None
+    }
+    fn reduced_transparency(&self) -> bool {
+        false
     }
 }
 

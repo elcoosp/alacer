@@ -1669,6 +1669,7 @@ impl PassPipeline {
         crate::view_patch::set_view_patch_trail_enabled(true);
         crate::theme::set_theme_trail_enabled(true);
         crate::settings::set_setting_trail_enabled(true);
+        crate::cursor::set_cursor_trail_enabled(true);
     }
 
     /// Installs the theme seam (§7.2 pass 8, ADR-0079): the palette the
@@ -2577,6 +2578,53 @@ impl PassPipeline {
         response
     }
 
+    /// The pointer hover's cursor ask (M152, ADR-0156): the
+    /// [`crate::cursor::CursorStyle`] the platform applies while the
+    /// pointer rests at `point` — the deepest accepting hit's declared
+    /// [`crate::widget::Widget::cursor_style`] word, or the default when
+    /// nothing accepts the hover. The walk is the pointer route's own
+    /// (the same pre-order bounds sweep, the same deepest-hit chain), so
+    /// the hover the cursor names is exactly the hover the clicks land
+    /// on: two vocabularies, one geometry. A read, never a pass — no
+    /// dirt, no frames, no pass run: the platform resolves per frame and
+    /// owns the delta discipline (the IME request's own rule, §10.3).
+    ///
+    /// Since M153 (ADR-0157) the resolution is the cursor trail's note
+    /// site: one [`crate::inspect::CursorRecord`] per resolved *change*
+    /// queues where the answer lands (the clipboard trail's shape, the
+    /// flood rule at the cursor tier — a style that did not move is not
+    /// a fact), streamed at the tick's start drain. The disabled trail's
+    /// whole cost is the note's one branch.
+    #[must_use]
+    pub fn cursor_at(&self, point: crate::geom::Point) -> crate::cursor::CursorStyle {
+        let mut deepest: Option<NodeId> = None;
+        self.arena.for_each_pre_order(&mut |id, slot| {
+            let contains = slot.bounds.is_some_and(|b| b.contains(point));
+            let accepts = slot.widget().accepts_pointer();
+            if contains && accepts {
+                deepest = Some(id);
+            }
+        });
+        let (style, source) = deepest.map_or(
+            (
+                crate::cursor::CursorStyle::Default,
+                crate::inspect::CursorSource::Default,
+            ),
+            |id| {
+                let widget = self.arena.widget(id);
+                (
+                    widget.cursor_style(),
+                    crate::inspect::CursorSource::Widget {
+                        node: id.raw(),
+                        role: widget.role(),
+                    },
+                )
+            },
+        );
+        crate::cursor::note_resolution(style, source);
+        style
+    }
+
     /// The event pass body: the captured route when a press is in flight
     /// (§10.1, ADR-0025), else the hit test with its capture walk and
     /// bubble walk. Returns the target the inspector records — the
@@ -3050,6 +3098,20 @@ impl PassPipeline {
     fn notify_clipboard(&mut self, record: crate::inspect::ClipboardRecord) {
         if let Some(observer) = self.observer.as_mut() {
             observer.observe(InspectEvent::Clipboard(record));
+        }
+    }
+
+    /// Forwards one cursor fact to the observer, when installed (§13.3,
+    /// ADR-0157): the cursor trail — the hover's resolved change, the
+    /// style beside the source that named it. The record is the
+    /// resolution door's own fact verbatim
+    /// ([`crate::inspect::CursorRecord`]), streamed at the tick's start
+    /// drain — one frame after the change, the clipboard trail's
+    /// currency. One branch when no observer is installed: the A7 idle
+    /// contract is unchanged.
+    fn notify_cursor(&mut self, record: crate::inspect::CursorRecord) {
+        if let Some(observer) = self.observer.as_mut() {
+            observer.observe(InspectEvent::Cursor(record));
         }
     }
 
@@ -3767,6 +3829,17 @@ impl PassPipeline {
         // reader just never sees it.
         for record in crate::clipboard::take_clipboard_trail() {
             self.notify_clipboard(record);
+        }
+
+        // The cursor-trail drain (§13.3, ADR-0157): the hover facts the
+        // resolution door queued on this thread ride the observer at the
+        // tick's start — the clipboard drain's shape, one frame after
+        // the change. Every fact streams (a bounded queue, never
+        // collapsed), and the drain empties the queue whether an
+        // observer listens or not: a fact streams once, an absent
+        // reader just never sees it.
+        for record in crate::cursor::take_cursor_trail() {
+            self.notify_cursor(record);
         }
 
         // The edit-trail drain (§13.3, ADR-0037): the journal facts the

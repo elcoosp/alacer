@@ -61,6 +61,10 @@ impl SettingSeam for FixedSettings {
     fn reduced_transparency(&self) -> bool {
         false
     }
+
+    fn text_scale(&self) -> Option<f32> {
+        None
+    }
 }
 
 /// The composition the suite drives: the canon palette for the light
@@ -78,6 +82,7 @@ impl SettingComposer for DuetComposer {
         _high_contrast: bool,
         _accent: Option<alacer_core::color::Color>,
         _reduced_transparency: bool,
+        _text_scale: Option<f32>,
     ) -> Palette {
         if dark {
             Palette {
@@ -236,12 +241,12 @@ fn theme_facts(trail: &TrailLog) -> Vec<ThemeRecord> {
 fn m75_the_canon_composer_pins_the_canon_palette() {
     let _guard = alacer_core::flux::batch_test_lock();
     assert_eq!(
-        CanonComposer.palette(false, false, false, None, false),
+        CanonComposer.palette(false, false, false, None, false, None),
         Palette::CANON,
         "the canon composition resolves the canon palette for light"
     );
     assert_eq!(
-        CanonComposer.palette(true, false, false, None, false),
+        CanonComposer.palette(true, false, false, None, false, None),
         Palette::CANON,
         "the canon composition resolves the canon palette for dark"
     );
@@ -491,7 +496,7 @@ struct DuetDarkTheme;
 
 impl ThemeSeam for DuetDarkTheme {
     fn palette(&self) -> Palette {
-        DuetComposer.palette(true, false, false, None, false)
+        DuetComposer.palette(true, false, false, None, false, None)
     }
 
     fn name(&self) -> &'static str {
@@ -595,11 +600,11 @@ fn m75_the_disabled_trail_still_composes() {
 fn m75_the_living_documents_re_agree() {
     let readme = read_workspace_file("README.md");
     assert!(
-        readme.contains("M0 through M154"),
+        readme.contains("M0 through M155"),
         "the README status reflects the living cut — the chain cannot drift"
     );
     assert!(
-        readme.contains("All 164 criterion cases"),
+        readme.contains("All 165 criterion cases"),
         "the README quotes the baselines.json bench_count the composition tier grew"
     );
     let architecture = read_workspace_file("docs/architecture.md");
@@ -608,7 +613,7 @@ fn m75_the_living_documents_re_agree() {
         "the architecture carries the composition door's decision"
     );
     assert!(
-        architecture.contains("a hundred and fifty-nine decision records"),
+        architecture.contains("a hundred and sixty decision records"),
         "the register grew the M75 row"
     );
     let baselines = serde_json::from_str::<serde_json::Value>(&read_workspace_file(
@@ -616,7 +621,7 @@ fn m75_the_living_documents_re_agree() {
     ))
     .expect("the baselines parse");
     assert_eq!(
-        baselines["bench_count"], 164,
+        baselines["bench_count"], 165,
         "the published corpus carries the composition tier's pricing"
     );
 }

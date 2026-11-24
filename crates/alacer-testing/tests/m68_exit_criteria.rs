@@ -285,8 +285,8 @@ fn m68_the_living_documents_re_agree() {
     // the demonstration.
     let readme = read_workspace_file("README.md");
     for fragment in [
-        "M0 through M149",
-        "a hundred and fifty-six decision records",
+        "M0 through M153",
+        "a hundred and fifty-eight decision records",
         "Since M68 the payloadless chord names its read",
     ] {
         assert!(readme.contains(fragment), "the README names {fragment}");
@@ -297,7 +297,7 @@ fn m68_the_living_documents_re_agree() {
     let architecture = read_workspace_file("docs/architecture.md");
     for fragment in [
         "ADR-0074",
-        "a hundred and fifty-six decision records",
+        "a hundred and fifty-eight decision records",
         "the wall grows the read's species beside the door's",
     ] {
         assert!(
@@ -331,7 +331,7 @@ fn m68_the_living_documents_re_agree() {
     // The sibling suites' pins ride the same cut (one sweep, no drift).
     let m67 = read_workspace_file("crates/alacer-testing/tests/m67_exit_criteria.rs");
     assert!(
-        m67.contains("M0 through M149"),
+        m67.contains("M0 through M153"),
         "the m67 suite's pins moved with the documents"
     );
 }

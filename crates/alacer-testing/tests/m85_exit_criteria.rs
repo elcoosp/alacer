@@ -84,6 +84,10 @@ impl SettingSeam for FixedSettings {
     fn reduced_transparency(&self) -> bool {
         false
     }
+
+    fn text_scale(&self) -> Option<f32> {
+        None
+    }
 }
 
 /// The app's own theme ask (the manual door's payload): one palette,

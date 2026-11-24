@@ -73,6 +73,9 @@ impl SettingSeam for OsSettings {
     fn accent_color(&self) -> Option<Color> {
         None
     }
+    fn reduced_transparency(&self) -> bool {
+        false
+    }
 }
 
 /// The manual theme ask: one palette, named (the payload the

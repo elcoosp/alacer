@@ -9,9 +9,13 @@
    cross-crate behavior lives in `alacer-testing/tests/`. The M0 exit
    criteria are executable — keep them green.
 3. **No lint suppression.** Clippy `pedantic` fires on every crate and CI denies
-   all warnings (`-D warnings`), and there are no `#[allow]` attributes. If a
-   cast is genuinely necessary, put it in `alacer-core/src/num.rs` with a
-   reason-carrying `#[expect]`.
+   all warnings (`-D warnings`), and there are no `#[allow]` attributes. A
+   suppression that is genuinely necessary is a reason-carrying `#[expect]`
+   at the seam it prices — the documented cast seams (`alacer-core/src/num.rs`,
+   the boundary casts elsewhere), a constructor whose argument list mirrors
+   the facts it resolves (`PaintCtx::new`), the platform's event-loop
+   signatures — never a blanket opt-out; the `reason` names the cut that
+   grew the seam.
 4. **One invalidation currency.** A feature that cannot express itself as a
    `Change` mask is rejected or redesigned (axiom A1). Effects never mutate
    widgets; they queue masks.

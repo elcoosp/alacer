@@ -92,6 +92,9 @@ impl SettingSeam for OsSettings {
     fn accent_color(&self) -> Option<Color> {
         self.accent
     }
+    fn reduced_transparency(&self) -> bool {
+        false
+    }
 }
 
 /// The base composition the shape rides: a duet that follows dark and
@@ -107,6 +110,7 @@ impl SettingComposer for DuetAccentComposer {
         _reduced_motion: bool,
         _high_contrast: bool,
         accent: Option<Color>,
+        _reduced_transparency: bool,
     ) -> Palette {
         match (dark, accent) {
             (false, None) => Palette::CANON,

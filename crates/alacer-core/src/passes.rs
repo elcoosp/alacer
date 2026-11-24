@@ -1730,8 +1730,11 @@ impl PassPipeline {
     /// fact beside the dark one, since M79 (ADR-0085) the OS's
     /// high-contrast fact beside the two, since M81 (ADR-0087) the
     /// OS's accent-color fact beside the three (riding its presence —
-    /// `None` is the honest absence), and since M154 (ADR-0158) the
-    /// OS's reduced-transparency fact beside the four — one seam, one
+    /// `None` is the honest absence), since M154 (ADR-0158) the
+    /// OS's reduced-transparency fact beside the four, and since M155
+    /// (ADR-0159) the OS's text-scale fact beside the five (riding its
+    /// presence the same way — the preferred reading size, `None` the
+    /// honest absence, never a guessed multiplier) — one seam, one
     /// door, the flip landing when *any* fact moves.
     ///
     /// The facts never munge the palette: the roles the widgets
@@ -1748,32 +1751,20 @@ impl PassPipeline {
     /// the theme tier's write rule, priced where the write resolves).
     /// Answers `true` when the flip landed.
     pub fn set_settings(&mut self, settings: Box<dyn crate::settings::SettingSeam>) -> bool {
-        let dark = settings.dark_mode();
-        let reduced_motion = settings.reduced_motion();
-        let high_contrast = settings.high_contrast();
-        let accent = settings.accent_color();
-        let reduced_transparency = settings.reduced_transparency();
-        let (installed_dark, installed_motion, installed_contrast, installed_accent) = self
+        // The door reads each seam once into the facts bundle it
+        // already holds (ADR-0159's shape): one dynamic call per fact
+        // per seam, the equality check comparing the two bundles — the
+        // per-fact comparisons the M81 tuple grew ending where the
+        // bundle lives, every later fact riding the read instead of a
+        // bolt-on check beside it.
+        let facts = crate::settings::OsFacts::of_seam(settings.as_ref());
+        let installed_facts = self
             .settings
             .as_deref()
-            .map_or((false, false, false, None), |installed| {
-                (
-                    installed.dark_mode(),
-                    installed.reduced_motion(),
-                    installed.high_contrast(),
-                    installed.accent_color(),
-                )
+            .map_or(crate::settings::OsFacts::CANON, |installed| {
+                crate::settings::OsFacts::of_seam(installed)
             });
-        let installed_transparency = self
-            .settings
-            .as_deref()
-            .is_some_and(crate::settings::SettingSeam::reduced_transparency);
-        if installed_dark == dark
-            && installed_motion == reduced_motion
-            && installed_contrast == high_contrast
-            && installed_accent == accent
-            && installed_transparency == reduced_transparency
-        {
+        if installed_facts == facts {
             return false;
         }
         // The broadcast: every node repaints — the facts the whole tree
@@ -1786,11 +1777,12 @@ impl PassPipeline {
         self.arena.for_each_pre_order(&mut |id, _| nodes.push(id));
         let repainted = nodes.len();
         crate::settings::note_setting(crate::inspect::SettingRecord {
-            dark,
-            reduced_motion,
-            high_contrast,
-            accent,
-            reduced_transparency,
+            dark: facts.dark,
+            reduced_motion: facts.reduced_motion,
+            high_contrast: facts.high_contrast,
+            accent: facts.accent,
+            reduced_transparency: facts.reduced_transparency,
+            text_scale: facts.text_scale,
             repainted,
         });
         self.settings = Some(settings);
@@ -1809,17 +1801,7 @@ impl PassPipeline {
         // re-swaps nothing — the swap half of the door is the no-op
         // (the idle rule at the theme tier), the flip itself still
         // landed (the fact moved).
-        self.compose_from(
-            crate::settings::OsFacts {
-                dark,
-                reduced_motion,
-                high_contrast,
-                accent,
-                reduced_transparency,
-            },
-            false,
-            repainted,
-        );
+        self.compose_from(facts, false, repainted);
         true
     }
 
@@ -1855,13 +1837,7 @@ impl PassPipeline {
             .settings
             .as_deref()
             .map_or(crate::settings::OsFacts::CANON, |installed| {
-                crate::settings::OsFacts {
-                    dark: installed.dark_mode(),
-                    reduced_motion: installed.reduced_motion(),
-                    high_contrast: installed.high_contrast(),
-                    accent: installed.accent_color(),
-                    reduced_transparency: installed.reduced_transparency(),
-                }
+                crate::settings::OsFacts::of_seam(installed)
             });
         self.composer = Some(composer);
         // The install path walks its own broadcast — no flip reach to
@@ -1905,6 +1881,7 @@ impl PassPipeline {
                     facts.high_contrast,
                     facts.accent,
                     facts.reduced_transparency,
+                    facts.text_scale,
                 ),
                 composer.name(),
             )
@@ -4680,6 +4657,10 @@ impl PassPipeline {
             .settings
             .as_deref()
             .is_some_and(crate::settings::SettingSeam::reduced_transparency);
+        let text_scale = self
+            .settings
+            .as_deref()
+            .and_then(crate::settings::SettingSeam::text_scale);
         for node in targets {
             // The old layer's extent is damage too — a moved/resized widget
             // must erase where it *was*, not only paint where it is. An
@@ -4709,6 +4690,7 @@ impl PassPipeline {
                 high_contrast,
                 accent,
                 reduced_transparency,
+                text_scale,
             );
             if let Some(extent) = crate::scene::primitives_extent(&primitives) {
                 damage.add(extent);
@@ -4752,11 +4734,11 @@ impl PassPipeline {
 
     #[expect(
         clippy::too_many_arguments,
-        reason = "the painter mirrors the context's own resolved facts — the palette beside the OS facts the pass resolved once each; packing them into a bundle would trade the one call site's readability for nothing (the M154 cut grew the transparency beside the four, the constructor's own shape)"
+        reason = "the painter mirrors the context's own resolved facts — the palette beside the OS facts the pass resolved once each; packing them into a bundle would trade the one call site's readability for nothing (the M155 cut grew the scale beside the five, the constructor's own shape)"
     )]
     #[expect(
         clippy::fn_params_excessive_bools,
-        reason = "the facts ride the pass's plain per-fact parameters the way PaintCtx::new resolves them — one dynamic call per fact per frame, the bundle refactor priced at the constructor's seam, never here (ADR-0158)"
+        reason = "the facts ride the pass's plain per-fact parameters the way PaintCtx::new resolves them — one dynamic call per fact per frame, the bundle refactor priced at the constructor's seam, never here (ADR-0158, ADR-0159)"
     )]
     fn paint_node(
         &mut self,
@@ -4767,6 +4749,7 @@ impl PassPipeline {
         high_contrast: bool,
         accent: Option<crate::color::Color>,
         reduced_transparency: bool,
+        text_scale: Option<f32>,
     ) -> Vec<Primitive> {
         struct JournalVec<'a> {
             out: &'a mut Vec<Primitive>,
@@ -4800,6 +4783,7 @@ impl PassPipeline {
                 high_contrast,
                 accent,
                 reduced_transparency,
+                text_scale,
             );
             ctx.set_compose(compose);
             let widget = &self.arena.slot(node).widget;

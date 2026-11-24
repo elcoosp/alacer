@@ -322,6 +322,8 @@ pub enum Tier {
     Themes,
     /// The setting ring's name (`settings`).
     Settings,
+    /// The cursor ring's name (`cursors`).
+    Cursors,
     /// The frame ring's name (`frames`).
     Frames,
 }
@@ -354,6 +356,7 @@ impl Tier {
             Self::ViewPatches => "view_patches",
             Self::Themes => "themes",
             Self::Settings => "settings",
+            Self::Cursors => "cursors",
             Self::Frames => "frames",
         }
     }
@@ -1088,6 +1091,30 @@ pub enum WireEvent {
         /// the swap's reach named on the wire.
         repainted: usize,
     },
+    /// A hover's cursor fact resolved — the cursor tier's own trail
+    /// (M153, ADR-0157): a new event kind at version 1, clients that
+    /// ignore unknown kinds unaffected (the additive rule). The style
+    /// beside the source that named it — the widget's node and role
+    /// riding the widget source (the lengths rule: the label never
+    /// does), `null` when the default answered (the honest absence,
+    /// the absence named as a source, never guessed onto a widget).
+    Cursor {
+        /// The style the hover resolves to — the vocabulary's own
+        /// `name()` (`"pointer"`, `"text"`, `"grab"`, …), the stable,
+        /// documented field value the protocol document pins.
+        style: String,
+        /// The source's name (`"widget"` or `"default"`) — the two
+        /// honest answers the resolution carries.
+        source: String,
+        /// The node whose hook named the style, when a widget answered
+        /// — the id the tree event's vocabulary speaks, `null` when the
+        /// default answered.
+        node: Option<u64>,
+        /// The node's semantic role word (`"link"`, `"text_input"`,
+        /// …), when a widget answered — the face the style names,
+        /// `null` when the default answered.
+        role: Option<String>,
+    },
     /// A completed frame — the ledger + the mask heatmap.
     Frame {
         /// Monotonic frame number.
@@ -1321,6 +1348,7 @@ impl WireEvent {
             Self::ViewPatch { .. } => Some(Tier::ViewPatches),
             Self::Theme { .. } => Some(Tier::Themes),
             Self::Setting { .. } => Some(Tier::Settings),
+            Self::Cursor { .. } => Some(Tier::Cursors),
             Self::Frame { .. } => Some(Tier::Frames),
             // The two response-only events: the occupancy answer and
             // the dump ask's answer name no ring tier — they are the
@@ -2187,6 +2215,31 @@ pub fn wire_theme(record: &alacer_core::inspect::ThemeRecord) -> WireEvent {
     }
 }
 
+/// The cursor record, flat on the wire (M153, ADR-0157): the style the
+/// hover resolves to beside the source that named it — the widget's
+/// node and role riding the widget source, `null` when the default
+/// answered (the honest absence, the absence named as a source, never
+/// guessed onto a widget that did not answer). The ids are the tree
+/// event's vocabulary, the words the record's own `name()` doors
+/// answer — the log reads "which face named this shape".
+#[must_use]
+pub fn wire_cursor(record: &alacer_core::inspect::CursorRecord) -> WireEvent {
+    WireEvent::Cursor {
+        style: record.style.name().to_string(),
+        source: record.source.name().to_string(),
+        node: match record.source {
+            alacer_core::inspect::CursorSource::Widget { node, .. } => Some(node),
+            alacer_core::inspect::CursorSource::Default => None,
+        },
+        role: match record.source {
+            alacer_core::inspect::CursorSource::Widget { role, .. } => {
+                Some(role.name().to_string())
+            }
+            alacer_core::inspect::CursorSource::Default => None,
+        },
+    }
+}
+
 /// The setting-flip record, flat on the wire (M74, ADR-0080): the
 /// dark-mode fact beside the door that landed it — the bool *is* the
 /// fact. Since M76 (ADR-0082) the event carries the broadcast's node
@@ -2585,6 +2638,55 @@ mod tests {
             panic!("announce event");
         };
         assert_eq!(refusal.as_deref(), Some("empty_text"));
+    }
+
+    #[test]
+    fn cursor_events_carry_the_hover_vocabulary() {
+        use alacer_core::cursor::CursorStyle;
+        let event = wire_cursor(&alacer_core::inspect::CursorRecord {
+            style: CursorStyle::Grab,
+            source: alacer_core::inspect::CursorSource::Widget {
+                node: 42,
+                role: alacer_core::widget::Role::Canvas,
+            },
+        });
+        let json = serde_json::to_string(&event).expect("cursor json");
+        assert_eq!(
+            json, r#"{"kind":"cursor","style":"grab","source":"widget","node":42,"role":"canvas"}"#,
+            "the documented cursor shape (the input event's flat rule): the style beside the source that named it"
+        );
+        let default = wire_cursor(&alacer_core::inspect::CursorRecord {
+            style: CursorStyle::Default,
+            source: alacer_core::inspect::CursorSource::Default,
+        });
+        let json = serde_json::to_string(&default).expect("default cursor json");
+        assert_eq!(
+            json,
+            r#"{"kind":"cursor","style":"default","source":"default","node":null,"role":null}"#,
+            "the honest absence: the default's source names no widget — null where the ids would ride"
+        );
+        let WireEvent::Cursor {
+            style,
+            source,
+            node,
+            role,
+        } = event
+        else {
+            panic!("cursor event");
+        };
+        assert_eq!(style, "grab");
+        assert_eq!(source, "widget");
+        assert_eq!(
+            node,
+            Some(42),
+            "the node the tree event's vocabulary speaks"
+        );
+        assert_eq!(role, Some("canvas".to_string()));
+        assert_eq!(
+            Tier::Cursors.name(),
+            "cursors",
+            "the tier word the gate and the stats rows speak"
+        );
     }
 
     #[test]

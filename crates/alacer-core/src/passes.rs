@@ -1728,10 +1728,11 @@ impl PassPipeline {
     /// lands (the theme trail's door-side note, ADR-0079's shape).
     /// Since M77 (ADR-0083) the seam carries the OS's reduced-motion
     /// fact beside the dark one, since M79 (ADR-0085) the OS's
-    /// high-contrast fact beside the two, and since M81 (ADR-0087) the
+    /// high-contrast fact beside the two, since M81 (ADR-0087) the
     /// OS's accent-color fact beside the three (riding its presence —
-    /// `None` is the honest absence) — one seam, one door, the flip
-    /// landing when *any* fact moves.
+    /// `None` is the honest absence), and since M154 (ADR-0158) the
+    /// OS's reduced-transparency fact beside the four — one seam, one
+    /// door, the flip landing when *any* fact moves.
     ///
     /// The facts never munge the palette: the roles the widgets
     /// borrowed re-resolve from the *installed palette* exactly as
@@ -1751,6 +1752,7 @@ impl PassPipeline {
         let reduced_motion = settings.reduced_motion();
         let high_contrast = settings.high_contrast();
         let accent = settings.accent_color();
+        let reduced_transparency = settings.reduced_transparency();
         let (installed_dark, installed_motion, installed_contrast, installed_accent) = self
             .settings
             .as_deref()
@@ -1762,10 +1764,15 @@ impl PassPipeline {
                     installed.accent_color(),
                 )
             });
+        let installed_transparency = self
+            .settings
+            .as_deref()
+            .is_some_and(crate::settings::SettingSeam::reduced_transparency);
         if installed_dark == dark
             && installed_motion == reduced_motion
             && installed_contrast == high_contrast
             && installed_accent == accent
+            && installed_transparency == reduced_transparency
         {
             return false;
         }
@@ -1783,6 +1790,7 @@ impl PassPipeline {
             reduced_motion,
             high_contrast,
             accent,
+            reduced_transparency,
             repainted,
         });
         self.settings = Some(settings);
@@ -1807,6 +1815,7 @@ impl PassPipeline {
                 reduced_motion,
                 high_contrast,
                 accent,
+                reduced_transparency,
             },
             false,
             repainted,
@@ -1851,6 +1860,7 @@ impl PassPipeline {
                     reduced_motion: installed.reduced_motion(),
                     high_contrast: installed.high_contrast(),
                     accent: installed.accent_color(),
+                    reduced_transparency: installed.reduced_transparency(),
                 }
             });
         self.composer = Some(composer);
@@ -1894,6 +1904,7 @@ impl PassPipeline {
                     facts.reduced_motion,
                     facts.high_contrast,
                     facts.accent,
+                    facts.reduced_transparency,
                 ),
                 composer.name(),
             )
@@ -4640,13 +4651,14 @@ impl PassPipeline {
             crate::theme::ThemeSeam::palette,
         );
         // The frame's OS facts, resolved once per paint pass
-        // (ADR-0080, ADR-0083, ADR-0085, ADR-0087): one dynamic call per
-        // fact per frame — the installed seam's dark-mode, reduced-motion,
-        // high-contrast, and accent-color answers (the accent riding its
-        // presence — `None` the honest absence), or the canon facts when
-        // nothing is installed — handed to every node's context beside
-        // the palette. Never per node: the resolutions ride the
-        // palette's own once-per-pass overhead, priced by the
+        // (ADR-0080, ADR-0083, ADR-0085, ADR-0087, ADR-0158): one
+        // dynamic call per fact per frame — the installed seam's
+        // dark-mode, reduced-motion, high-contrast, and accent-color
+        // answers (the accent riding its presence — `None` the honest
+        // absence) and its reduced-transparency answer, or the canon
+        // facts when nothing is installed — handed to every node's
+        // context beside the palette. Never per node: the resolutions
+        // ride the palette's own once-per-pass overhead, priced by the
         // pass-overhead contract.
         let dark = self
             .settings
@@ -4664,6 +4676,10 @@ impl PassPipeline {
             .settings
             .as_deref()
             .and_then(crate::settings::SettingSeam::accent_color);
+        let reduced_transparency = self
+            .settings
+            .as_deref()
+            .is_some_and(crate::settings::SettingSeam::reduced_transparency);
         for node in targets {
             // The old layer's extent is damage too — a moved/resized widget
             // must erase where it *was*, not only paint where it is. An
@@ -4685,8 +4701,15 @@ impl PassPipeline {
                     crate::scene::PAINT_DAMAGE_MARGIN,
                 ));
             }
-            let primitives =
-                self.paint_node(node, palette, dark, reduced_motion, high_contrast, accent);
+            let primitives = self.paint_node(
+                node,
+                palette,
+                dark,
+                reduced_motion,
+                high_contrast,
+                accent,
+                reduced_transparency,
+            );
             if let Some(extent) = crate::scene::primitives_extent(&primitives) {
                 damage.add(extent);
             }
@@ -4727,6 +4750,14 @@ impl PassPipeline {
         }
     }
 
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the painter mirrors the context's own resolved facts — the palette beside the OS facts the pass resolved once each; packing them into a bundle would trade the one call site's readability for nothing (the M154 cut grew the transparency beside the four, the constructor's own shape)"
+    )]
+    #[expect(
+        clippy::fn_params_excessive_bools,
+        reason = "the facts ride the pass's plain per-fact parameters the way PaintCtx::new resolves them — one dynamic call per fact per frame, the bundle refactor priced at the constructor's seam, never here (ADR-0158)"
+    )]
     fn paint_node(
         &mut self,
         node: NodeId,
@@ -4735,6 +4766,7 @@ impl PassPipeline {
         reduced_motion: bool,
         high_contrast: bool,
         accent: Option<crate::color::Color>,
+        reduced_transparency: bool,
     ) -> Vec<Primitive> {
         struct JournalVec<'a> {
             out: &'a mut Vec<Primitive>,
@@ -4767,6 +4799,7 @@ impl PassPipeline {
                 reduced_motion,
                 high_contrast,
                 accent,
+                reduced_transparency,
             );
             ctx.set_compose(compose);
             let widget = &self.arena.slot(node).widget;

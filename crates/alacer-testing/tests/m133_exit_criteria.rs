@@ -45,7 +45,7 @@ use alacer_widgets::{BoxedWidget as _, Button, Column, Meter, Progress};
 /// machinery (the M95 rule), and the coordinated rule grows it at the
 /// next published cut, never at a widget bench's. The pin re-agrees
 /// at 152.
-const EXPECTED_BENCH_COUNT: usize = 164;
+const EXPECTED_BENCH_COUNT: usize = 165;
 
 /// The first node in the snapshot whose role and name match.
 fn node(harness: &TestHarness, role: Role, name: &str) -> Option<TreeNode> {
@@ -275,15 +275,15 @@ fn m133_the_living_documents_re_agree() {
     // the meter tier's record.
     let readme = read("README.md");
     assert!(
-        readme.contains("M0 through M154"),
+        readme.contains("M0 through M155"),
         "the README status reflects the living cut — the chain cannot drift"
     );
     assert!(
-        readme.contains("a hundred and fifty-nine decision records"),
+        readme.contains("a hundred and sixty decision records"),
         "the register grew the M133 row"
     );
     assert!(
-        read("docs/architecture.md").contains("a hundred and fifty-nine decision records"),
+        read("docs/architecture.md").contains("a hundred and sixty decision records"),
         "the architecture carries the meter fact's decision"
     );
 
@@ -303,7 +303,7 @@ fn m133_the_living_documents_re_agree() {
     // pin the corpus, and their pins re-agreed with it).
     let m81 = read("crates/alacer-testing/tests/m81_exit_criteria.rs");
     assert!(
-        m81.contains("M0 through M154"),
+        m81.contains("M0 through M155"),
         "the m81 suite's pins moved with the documents"
     );
 }

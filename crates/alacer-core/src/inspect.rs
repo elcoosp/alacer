@@ -20,6 +20,7 @@
 //! | "Did a shortcut take this key — or why not?" | [`InspectEvent::Key`] — the keymap consult's answer: one record per funnel consult (the chord beside the species), streamed the moment the consult resolves (ADR-0042) |
 //! | "Why did the drag move the value — where did it start, where did it land?" | [`InspectEvent::Gesture`] — the drag's own story: one per-gesture record per phase (the beginning, the end), streamed the moment the gesture's door resolves (ADR-0052) |
 //! | "Did the AT's press land — or why not?" | [`InspectEvent::Action`] — the action trail: one record per activation ask the funnel routes (the landing or the named refusal species beside the aim), streamed the tick after the ask resolves (ADR-0075) |
+//! | "Why did the pointer's shape move — which face named it?" | [`InspectEvent::Cursor`] — the cursor trail: one record per resolved change (the style beside the source that named it), streamed the tick after the hover moved (ADR-0157) |
 
 use crate::announce::Politeness;
 use crate::arena::NodeId;
@@ -538,6 +539,58 @@ pub struct ClipboardRecord {
     /// the span copied, the span cut, the text pasted. Zero on a
     /// refusal: a refusal moves nothing.
     pub chars: usize,
+}
+
+/// The hover's resolved cursor fact (M153, ADR-0157): one record per
+/// resolved *change* — the style the platform now applies beside the
+/// source that named it. The length rule at the cursor tier is the
+/// source's own: the widget's node id and role ride beside the style
+/// (the words the record needs to answer "which face named this"), and
+/// the label never does — a hover is not a payload, and the log is a
+/// devtools surface, not a shadow tree.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CursorRecord {
+    /// The style the hover resolves to — the shape the platform's delta
+    /// applies to the window.
+    pub style: crate::cursor::CursorStyle,
+    /// The hover the style rode: the widget whose hook named it (the
+    /// node and its role beside it), or the honest default when nothing
+    /// accepted the hover.
+    pub source: CursorSource,
+}
+
+/// Where one cursor fact's style came from (M153, ADR-0157): the hover
+/// resolution's two honest answers — a widget named the shape, or
+/// nothing stood under the pointer and the default answered. The names
+/// are the wire's stable tags (the protocol's `snake_case` rule).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CursorSource {
+    /// Nothing accepting stood under the pointer: the platform's
+    /// default — the absence, named as a source, never guessed onto a
+    /// widget that did not answer.
+    Default,
+    /// The widget named the style — the node and its role ride beside
+    /// (the lengths rule: the label never does).
+    Widget {
+        /// The node whose hook named the style (the id-path hash's
+        /// vocabulary, the wire's stable `u64`).
+        node: u64,
+        /// The node's semantic role — the face the style names, the
+        /// word the log reads beside the node id.
+        role: crate::widget::Role,
+    },
+}
+
+impl CursorSource {
+    /// The source's name, the wire vocabulary's `snake_case` tag (the
+    /// protocol's stable, documented field values).
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Default => "default",
+            Self::Widget { .. } => "widget",
+        }
+    }
 }
 
 /// What the value tier just answered (§13.3, ADR-0046): the value
@@ -2289,6 +2342,16 @@ pub enum InspectEvent {
     /// own records (the tick's start drain — a swap queues where it
     /// lands, one frame after the door answered).
     Theme(ThemeRecord),
+    /// A hover's cursor fact resolved — the cursor tier's own trail
+    /// (M153, ADR-0157): the style the pointer's hover now resolves to
+    /// beside the source that named it (the widget whose hook answered,
+    /// the node and role beside it — the lengths rule: the label never
+    /// rides), one record per resolved *change*, never per frame (the
+    /// flood rule at the cursor tier — a style that did not move is not
+    /// a fact). Streams with the frame's own records (the tick's start
+    /// drain, the clipboard drain's shape — the fact queues where the
+    /// hover resolves, one frame after the change).
+    Cursor(CursorRecord),
     /// A frame completed — the frame's causal summary.
     Frame(FrameSummary),
 }

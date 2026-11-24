@@ -448,7 +448,7 @@ fn m80_the_living_documents_re_agree() {
         "the README status reflects the living cut — the chain cannot drift"
     );
     assert!(
-        readme.contains("All 165 criterion cases"),
+        readme.contains("All 204 criterion cases"),
         "the README quotes the baselines.json bench_count the composition's pricing rides"
     );
     let architecture = read_workspace_file("docs/architecture.md");
@@ -469,7 +469,7 @@ fn m80_the_living_documents_re_agree() {
     ))
     .expect("the baselines parse");
     assert_eq!(
-        baselines["bench_count"], 165,
+        baselines["bench_count"], 204,
         "the published corpus carries the composition's pricing — the route is not new"
     );
     let protocol = read_workspace_file("docs/inspector-protocol.md");

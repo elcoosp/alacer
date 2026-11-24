@@ -1042,10 +1042,11 @@ pub enum WireEvent {
     /// identity: the ids never ride), never a second event per fact.
     /// Since M79 (ADR-0085) the event grows the high-contrast fact
     /// beside the two, and since M81 (ADR-0087) the accent-color fact
-    /// beside the three — the additive fields the versioning rule
-    /// admits at version 1, the facts riding beside each other, the
-    /// accent riding its presence (`null` the honest absence, the hex
-    /// the reported color, never a guess).
+    /// beside the three, and since M154 (ADR-0158) the
+    /// reduced-transparency fact beside the four — the additive fields
+    /// the versioning rule admits at version 1, the facts riding
+    /// beside each other, the accent riding its presence (`null` the
+    /// honest absence, the hex the reported color, never a guess).
     /// Streams ahead of the theme facts (the flip is the fact the
     /// palette resolves beside).
     Setting {
@@ -1067,6 +1068,10 @@ pub enum WireEvent {
         /// accent (the honest absence), the stable, documented field
         /// value the protocol document pins.
         accent: Option<String>,
+        /// The OS's reduced-transparency fact (ADR-0158) — the same
+        /// seam's answer beside the facts it sits beside, the stable,
+        /// documented field value the protocol document pins.
+        reduced_transparency: bool,
         /// The broadcast's node count — how many nodes the flip's
         /// `Change::PAINT` merge touched (ADR-0082, the lengths rule),
         /// the flip's reach named on the wire.
@@ -2245,13 +2250,14 @@ pub fn wire_cursor(record: &alacer_core::inspect::CursorRecord) -> WireEvent {
 /// fact. Since M76 (ADR-0082) the event carries the broadcast's node
 /// count beside the fact, since M77 (ADR-0083) the reduced-motion
 /// fact beside the dark one, since M79 (ADR-0085) the
-/// high-contrast fact beside the two, and since M81 (ADR-0087) the
-/// accent-color fact beside the three — the lengths rule, the ids never
-/// riding, the accent riding its presence (the documented `#RRGGBBAA`
-/// hex, or `null` when the platform reports no accent — the honest
-/// absence, never a guessed color). The setting tier's own answer,
-/// never a silent repaint: the flips the whole window rode are named
-/// facts now, one per flip that landed.
+/// high-contrast fact beside the two, since M81 (ADR-0087) the
+/// accent-color fact beside the three, and since M154 (ADR-0158) the
+/// reduced-transparency fact beside the four — the lengths rule, the
+/// ids never riding, the accent riding its presence (the documented
+/// `#RRGGBBAA` hex, or `null` when the platform reports no accent —
+/// the honest absence, never a guessed color). The setting tier's own
+/// answer, never a silent repaint: the flips the whole window rode are
+/// named facts now, one per flip that landed.
 #[must_use]
 pub fn wire_setting(record: &alacer_core::inspect::SettingRecord) -> WireEvent {
     WireEvent::Setting {
@@ -2259,6 +2265,7 @@ pub fn wire_setting(record: &alacer_core::inspect::SettingRecord) -> WireEvent {
         reduced_motion: record.reduced_motion,
         high_contrast: record.high_contrast,
         accent: record.accent.map(accent_hex),
+        reduced_transparency: record.reduced_transparency,
         repainted: record.repainted,
     }
 }
@@ -5541,12 +5548,15 @@ mod client_tests {
     /// its detail line, the fact riding its presence (`null` the
     /// honest absence, the hex the reported color), one event carrying
     /// the facts the vocabulary consults (never a second event per
-    /// fact). The pin rides the file's own fragments (the M30 route).
+    /// fact). Since M154 (ADR-0158) the client renders the transparency
+    /// fact beside the four — the additive field rule riding. The pin
+    /// rides the file's own fragments (the M30 route).
     #[test]
     fn the_client_renders_the_settings_accent_fact() {
         let page = include_str!("inspector.html");
         for fragment in [
             "event.accent",
+            "event.reduced_transparency",
             "case \"setting\":",
             "The client renders the setting tier's own fact (M74,",
         ] {

@@ -91,6 +91,10 @@ impl SettingSeam for SimulatedOs {
     fn reduced_transparency(&self) -> bool {
         false
     }
+
+    fn text_scale(&self) -> Option<f32> {
+        None
+    }
 }
 
 /// The demo's composition (ADR-0081, ADR-0086): the canon palette for
@@ -139,6 +143,7 @@ impl SettingComposer for DuetComposer {
         _high_contrast: bool,
         _accent: Option<alacer_core::color::Color>,
         _reduced_transparency: bool,
+        _text_scale: Option<f32>,
     ) -> Palette {
         if dark && reduced_motion {
             DUET_CALM

@@ -1103,6 +1103,26 @@
       "id": "siblings_ask_answer_1k_nodes",
       "baseline": "siblings_ask/answer_1k_nodes",
       "scope": "same-host"
+    },
+    {
+      "id": "cursor_cursor_at_deepest_hit_200",
+      "baseline": "cursor/cursor_at_deepest_hit_200",
+      "scope": "same-host"
+    },
+    {
+      "id": "cursor_cursor_at_void_200",
+      "baseline": "cursor/cursor_at_void_200",
+      "scope": "same-host"
+    },
+    {
+      "id": "cursor_trail_note_on_change_200",
+      "baseline": "cursor/trail_note_on_change_200",
+      "scope": "same-host"
+    },
+    {
+      "id": "cursor_trail_note_no_change_200",
+      "baseline": "cursor/trail_note_no_change_200",
+      "scope": "same-host"
     }
   ],
   "test_enforced_gates": [

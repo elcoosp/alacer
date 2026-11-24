@@ -67,6 +67,9 @@ impl SettingSeam for FixedSettings {
     fn accent_color(&self) -> Option<Color> {
         self.accent
     }
+    fn reduced_transparency(&self) -> bool {
+        false
+    }
 }
 
 /// A probe that paints its whole bounds from the resolved *accent*
@@ -181,6 +184,7 @@ impl SettingComposer for AccentFollowComposer {
         _reduced_motion: bool,
         _high_contrast: bool,
         accent: Option<Color>,
+        _reduced_transparency: bool,
     ) -> Palette {
         accent.map_or(Palette::CANON, Self::tinted)
     }
@@ -495,12 +499,12 @@ fn m81_the_composition_follows_the_accent_fact() {
     // The canon composition: grown in signature, unchanged in behavior
     // — the canon palette for any facts, the accent fact included.
     assert_eq!(
-        CanonComposer.palette(false, false, false, None),
+        CanonComposer.palette(false, false, false, None, false),
         Palette::CANON,
         "the canon composition answers the canon palette for the absence"
     );
     assert_eq!(
-        CanonComposer.palette(false, false, false, Some(OS_ACCENT)),
+        CanonComposer.palette(false, false, false, Some(OS_ACCENT), false),
         Palette::CANON,
         "the canon composition answers the canon palette for the accent too"
     );
@@ -569,6 +573,7 @@ fn m81_the_wire_names_the_accent_fact() {
         reduced_motion: false,
         high_contrast: false,
         accent: Some(OS_ACCENT),
+        reduced_transparency: false,
         repainted: 42,
     };
     let event = alacer_inspect::wire::wire_setting(&reported);
@@ -591,6 +596,7 @@ fn m81_the_wire_names_the_accent_fact() {
         reduced_motion: false,
         high_contrast: false,
         accent: None,
+        reduced_transparency: false,
         repainted: 0,
     };
     let event = alacer_inspect::wire::wire_setting(&absent);
@@ -641,11 +647,11 @@ fn m81_the_disabled_trail_still_lands() {
 fn m81_the_living_documents_re_agree() {
     let readme = read_workspace_file("README.md");
     assert!(
-        readme.contains("M0 through M153"),
+        readme.contains("M0 through M154"),
         "the README status reflects the living cut — the chain cannot drift"
     );
     assert!(
-        readme.contains("All 163 criterion cases"),
+        readme.contains("All 164 criterion cases"),
         "the README quotes the baselines.json bench_count the fact tier grew"
     );
     let architecture = read_workspace_file("docs/architecture.md");
@@ -658,7 +664,7 @@ fn m81_the_living_documents_re_agree() {
         "the architecture carries the accent fact's decision"
     );
     assert!(
-        architecture.contains("a hundred and fifty-eight decision records"),
+        architecture.contains("a hundred and fifty-nine decision records"),
         "the register grew the M81 row"
     );
     let baselines = serde_json::from_str::<serde_json::Value>(&read_workspace_file(
@@ -666,7 +672,7 @@ fn m81_the_living_documents_re_agree() {
     ))
     .expect("the baselines parse");
     assert_eq!(
-        baselines["bench_count"], 159,
+        baselines["bench_count"], 164,
         "the published corpus carries the accent flip's pricing"
     );
     assert!(
@@ -684,7 +690,7 @@ fn m81_the_living_documents_re_agree() {
     // the m80 suite's documents pin moved to M81's cut.
     let m80 = read_workspace_file("crates/alacer-testing/tests/m80_exit_criteria.rs");
     assert!(
-        m80.contains("M0 through M153"),
+        m80.contains("M0 through M154"),
         "the m80 suite's pins moved with the documents"
     );
 }

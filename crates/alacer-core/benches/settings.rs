@@ -56,8 +56,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 /// The record one flip carries: the OS facts, verbatim (the payload
-/// rule at the setting tier — the bools are the facts, the accent
-/// riding its presence).
+/// rule at the setting tier — the bools are the facts, the accent and
+/// the text scale riding their presence).
 fn flip() -> SettingRecord {
     SettingRecord {
         dark: true,
@@ -65,6 +65,7 @@ fn flip() -> SettingRecord {
         high_contrast: false,
         accent: None,
         reduced_transparency: false,
+        text_scale: None,
         repainted: 1,
     }
 }
@@ -141,6 +142,10 @@ impl SettingSeam for FixedSettings {
     fn reduced_transparency(&self) -> bool {
         false
     }
+
+    fn text_scale(&self) -> Option<f32> {
+        None
+    }
 }
 
 /// The composed dark palette the bench composer answers — every role
@@ -171,6 +176,7 @@ impl SettingComposer for DuetComposer {
         _high_contrast: bool,
         _accent: Option<alacer_core::color::Color>,
         _reduced_transparency: bool,
+        _text_scale: Option<f32>,
     ) -> Palette {
         if dark { DUET_DARK } else { Palette::CANON }
     }
@@ -208,6 +214,10 @@ impl SettingSeam for MotionSettings {
     fn reduced_transparency(&self) -> bool {
         false
     }
+
+    fn text_scale(&self) -> Option<f32> {
+        None
+    }
 }
 
 /// The bench's contrast-bearing seam (ADR-0085): the dark and motion
@@ -237,6 +247,10 @@ impl SettingSeam for ContrastSettings {
     }
     fn reduced_transparency(&self) -> bool {
         false
+    }
+
+    fn text_scale(&self) -> Option<f32> {
+        None
     }
 }
 
@@ -274,6 +288,10 @@ impl SettingSeam for AccentSettings {
     }
     fn reduced_transparency(&self) -> bool {
         false
+    }
+
+    fn text_scale(&self) -> Option<f32> {
+        None
     }
 }
 
@@ -660,6 +678,10 @@ impl SettingSeam for TransparencySettings {
     fn reduced_transparency(&self) -> bool {
         self.transparency.load(Ordering::Relaxed)
     }
+
+    fn text_scale(&self) -> Option<f32> {
+        None
+    }
 }
 
 /// The transparency flip's own cost (ADR-0158): the fourth grown fact's
@@ -716,6 +738,102 @@ fn bench_settings_transparency(c: &mut Criterion) {
     group.finish();
 }
 
+/// The bench's text-scale-bearing seam (ADR-0159): the other facts stay
+/// fixed, the text-scale fact answers an atomic the bench handle
+/// toggles — every measured flip is the scale-only landing the grown
+/// door check admits where the other facts are still, the case the
+/// M154 check would have swallowed.
+struct TextScaleSettings {
+    scale: std::sync::Arc<AtomicBool>,
+}
+
+impl SettingSeam for TextScaleSettings {
+    fn dark_mode(&self) -> bool {
+        false
+    }
+
+    fn reduced_motion(&self) -> bool {
+        false
+    }
+
+    fn high_contrast(&self) -> bool {
+        false
+    }
+
+    fn accent_color(&self) -> Option<alacer_core::color::Color> {
+        None
+    }
+
+    fn reduced_transparency(&self) -> bool {
+        false
+    }
+
+    fn text_scale(&self) -> Option<f32> {
+        // The fact rides its presence: the toggled atomic says whether
+        // the OS reports a read, the reported multiplier the bench's
+        // fixed answer.
+        if self.scale.load(Ordering::Relaxed) {
+            Some(1.25)
+        } else {
+            None
+        }
+    }
+}
+
+/// The text-scale flip's own cost (ADR-0159): the fifth grown fact's
+/// flip read end to end through the real reader the lengths rule
+/// priced — the tick's start drain streaming the record into the trail
+/// reader, the reader naming the text-scale fact.
+fn bench_settings_text_scale(c: &mut Criterion) {
+    let mut group = c.benchmark_group("settings");
+
+    // The scale-only flip, read end to end (ADR-0159): the fact the
+    // M154 door's five-fact check swallowed lands now — all six facts
+    // resolved where the broadcast resolves, the record carrying them
+    // beside the count, the tick's start drain streaming it into the
+    // trail reader, the reader naming the text-scale fact. Each
+    // measured iteration toggles the scale fact so every flip lands
+    // (the dark, motion, contrast, accent, and transparency facts ride
+    // beside it unchanged); the scale-only landing itself is the shape
+    // the m155 suite pins.
+    group.bench_function("door_flip_text_scale", |b| {
+        let mut pipeline = PassPipeline::new(
+            Flux::new(),
+            Box::new(NoopLayout),
+            Box::new(NullJournal),
+            Box::new(NullA11y),
+        );
+        let reader = TrailLog::new();
+        pipeline.set_observer(Box::new(reader.clone()));
+        let scale = Arc::new(AtomicBool::new(false));
+        pipeline.set_settings(Box::new(TextScaleSettings {
+            scale: Arc::clone(&scale),
+        }));
+        b.iter(|| {
+            let _previous = scale.fetch_xor(true, Ordering::Relaxed);
+            black_box(pipeline.set_settings(Box::new(TextScaleSettings {
+                scale: Arc::clone(&scale),
+            })));
+            pipeline
+                .tick(alacer_core::geom::Size::new(320.0, 240.0))
+                .expect("the text-scale-flip bench's frames lay out");
+            let landed = reader
+                .look()
+                .into_iter()
+                .filter_map(|event| match event {
+                    alacer_core::inspect::InspectEvent::Setting(record) => {
+                        Some(record.text_scale.is_some())
+                    }
+                    _ => None,
+                })
+                .next_back();
+            black_box(landed);
+        });
+    });
+
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_settings,
@@ -723,6 +841,7 @@ criterion_group!(
     bench_settings_composition,
     bench_settings_counted,
     bench_settings_accent,
-    bench_settings_transparency
+    bench_settings_transparency,
+    bench_settings_text_scale
 );
 criterion_main!(benches);

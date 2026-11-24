@@ -93,6 +93,7 @@ fn main() {
             false,
             false,
             None,
+            false,
         );
         panel.paint(&mut ctx);
         label.paint(&mut ctx);

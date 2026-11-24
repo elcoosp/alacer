@@ -60,6 +60,10 @@ impl SettingSeam for FixedSettings {
     fn reduced_transparency(&self) -> bool {
         false
     }
+
+    fn text_scale(&self) -> Option<f32> {
+        None
+    }
 }
 
 /// The duet dark palette the fact-following composition answers while
@@ -110,6 +114,7 @@ impl SettingComposer for DuetCalmComposer {
         _high_contrast: bool,
         _accent: Option<alacer_core::color::Color>,
         _reduced_transparency: bool,
+        _text_scale: Option<f32>,
     ) -> Palette {
         if dark && reduced_motion {
             DUET_CALM
@@ -439,11 +444,11 @@ fn m80_the_fact_agnostic_composer_stays_the_no_op() {
 fn m80_the_living_documents_re_agree() {
     let readme = read_workspace_file("README.md");
     assert!(
-        readme.contains("M0 through M154"),
+        readme.contains("M0 through M155"),
         "the README status reflects the living cut — the chain cannot drift"
     );
     assert!(
-        readme.contains("All 164 criterion cases"),
+        readme.contains("All 165 criterion cases"),
         "the README quotes the baselines.json bench_count the composition's pricing rides"
     );
     let architecture = read_workspace_file("docs/architecture.md");
@@ -456,7 +461,7 @@ fn m80_the_living_documents_re_agree() {
         "the architecture carries the fact-following composition's decision"
     );
     assert!(
-        architecture.contains("a hundred and fifty-nine decision records"),
+        architecture.contains("a hundred and sixty decision records"),
         "the register grew the M80 row"
     );
     let baselines = serde_json::from_str::<serde_json::Value>(&read_workspace_file(
@@ -464,7 +469,7 @@ fn m80_the_living_documents_re_agree() {
     ))
     .expect("the baselines parse");
     assert_eq!(
-        baselines["bench_count"], 164,
+        baselines["bench_count"], 165,
         "the published corpus carries the composition's pricing — the route is not new"
     );
     let protocol = read_workspace_file("docs/inspector-protocol.md");
@@ -474,7 +479,7 @@ fn m80_the_living_documents_re_agree() {
     );
     let m79 = read_workspace_file("crates/alacer-testing/tests/m79_exit_criteria.rs");
     assert!(
-        m79.contains("M0 through M154"),
+        m79.contains("M0 through M155"),
         "the m79 suite's pins moved with the documents"
     );
 }

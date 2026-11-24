@@ -209,16 +209,17 @@ fn m144_the_corpus_pin_holds_at_the_m144_cut() {
     )
     .expect("the published baseline is valid JSON");
 
-    // The published corpus pin holds: the growth prices the words and
-    // nothing else (the M143 rule), and its pricing door is the widgets
-    // crate's own bench — the word-write pair the M143 cut carried
-    // beside the growth's vocabulary case — riding *outside* the
-    // published corpus: the published baseline's routes price the a11y
-    // snapshot machinery (the M95 rule), and the coordinated rule grows
-    // it at the next published cut, never at a widget bench's.
+    // The published corpus pin holds: the growth priced the words and
+    // nothing else at its own cut (the M143 rule), and its pricing door
+    // was the widgets crate's own bench — the word-write pair the M143
+    // cut carried beside the growth's vocabulary case, riding *outside*
+    // the published corpus at that cut. The corpus catch-up's published
+    // cut grew it in (the coordinated rule's next published cut cashed):
+    // the word-write pair and every other shipped bench case now price
+    // under a regression gate, the corpus 165 → 204.
     assert_eq!(
         baselines["bench_count"].as_u64(),
-        Some(165),
+        Some(204),
         "the published corpus pin re-agrees at the cut"
     );
 }

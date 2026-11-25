@@ -1328,6 +1328,11 @@
       "id": "tree/name_write_256",
       "baseline": "tree/name_write_256",
       "scope": "same-host"
+    },
+    {
+      "id": "text_measure_measure_scaled_cold",
+      "baseline": "text_measure/measure_scaled_cold",
+      "scope": "same-host"
     }
   ],
   "test_enforced_gates": [

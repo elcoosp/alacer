@@ -1,0 +1,22 @@
+# ADR-0160: The text-scale effect — the fact's multiplier reaches the text tier
+
+- **Status:** Accepted (2026-11-24)
+- **Cashes:** ADR-0159's own "not in this milestone" deferral — *"a text-scaling **effect** in the text tier (the fact is the decision's input, the typography a widget's own vocabulary — priced first when a widget needs it)."* A widget needs it now: typography is the one consumer the M155 cut left reading the fact as a probe instead of following it as a size. A widget that wanted to follow the OS's preferred reading size could paint its own decision from `PaintCtx::text_scale`, but the *measured* geometry never moved — bounds, wrap widths, and the caret's mapping stayed at the declared sizes, so every hand-rolled follower either clipped or desynced from the edit contract.
+- **Companion:** ADR-0159 (the fact — the input this decision consumes), ADR-0087 (the re-open rule the fact cashed), ADR-0019/ADR-0018 (the editing contract the caret mapping closes against), ADR-0009 (the text seam — the one door the multiplier rides); architecture §7.2 pass 4, §9.4, §17, §18.
+
+## Decision
+
+The text-scale fact's `Some(scale)` multiplies the declared sizes at the text seam's one door — never a second channel per consumer, never a widget-side multiplication:
+
+- **One door.** `TextSeam::set_text_scale` (defaulted: an engine that does not consume the fact answers the base for its whole life) installs the multiplier; the flip delivers it through `text_seam::apply_text_scale` — the same installed seam every text path already shares. `TextContext` multiplies every declared size entering shaping, and the cache keys the *effective* size: `16 px @ 1.25×` and `20 px @ 1.0×` are one entry, the multiplier never doubles the working set, and a flip costs the misses the new keys pay, never a stale entry.
+- **The one flip whose reach changes sizes.** A landed text-scale flip broadcasts `LAYOUT` beside `PAINT` — the sizes the vocabulary multiplies must re-measure, the reach a palette-side flip never needs (the M155 shape keeps `PAINT` alone for the inks). The flip hands the multiplier to both measure engines: the seam (the shapes) and the layout stage (`LayoutEngine::set_text_scale`, defaulted like the seam's door — `RecordingLayout` forwards, the host keys its `MeasureKey` by the scale so the stale unscaled size never serves and a return to a known scale re-hits its entries).
+- **The absence is the base.** `None` — the honest absence ADR-0159 pinned — resolves the multiplier `1.0`: the declared sizes return exactly, no remembered ask. The same-scale ask is the honest no-op at every door (`false`): the flip's bundle equality check, the seam's install, the engine's keys.
+- **Refusals stay named.** A non-finite or non-positive ask lands at no door: the numeric discipline (§8.3) — a multiplier that names no size is refused, never clamped into a guess. No seam installed is the quiet no-op: a pure-core pipeline with no text engine has no sizes to multiply.
+- **What does not change:** the widget paint sites (the declared size still goes in; the effective geometry comes out), the editing contract (`hit_test` inverts the same scaled widths paint draws from — the mapping closes at the multiplier), the a11y snapshot, the wire vocabulary (the `setting` event's `text_scale` field is the fact, unchanged from M155), and the palette (the fact never munges the roles).
+
+## Consequences
+
+- **Typography follows the OS's preferred reading size.** Every label, button, field, and custom widget that shapes through the seam renders at the multiplier while the ask holds — bounds, painted glyph runs, and caret mapping agree because all three ride the one door.
+- **The flip is priced, not hoped.** `text/measure/measure_scaled_cold` joins the published corpus — the scaled key's first shape, the cost the flip pays per distinct run — the corpus growing 204 → 205 by the coordinated rule, the pins re-agreeing in the same cut.
+- **The idle contract holds.** The same-scale ask queues nothing at any tier; the absence's flip re-measures once (the sizes it restores need the reach) and then settles idle.
+- **The seam contract grew two doors, both defaulted.** `TextSeam::set_text_scale` and `LayoutEngine::set_text_scale` — no implementor breaks; the real engines override, the fakes answer the base, and the effect's end-to-end proof lives in `crates/alacer-testing/tests/text_scale_effect.rs` (bounds ratio, painted glyph sizes, the no-op, the restore) beside the unit proofs at the seam, the context, and the host cache.

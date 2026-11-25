@@ -50,6 +50,13 @@ pub struct TextContext {
     registry: FontRegistry,
     cache: LayoutCache,
     raster: raster::GlyphRasterizer,
+    /// The declared-size multiplier the OS's text-scale fact asks for
+    /// (ADR-0160, the effect half of ADR-0159's fact): every declared
+    /// size entering [`Self::layout_text`] multiplies by it, so measure,
+    /// paint, and the caret's mapping see the same scaled geometry. The
+    /// base `1.0` is the honest absence — the shapes the declared sizes
+    /// name themselves.
+    scale: f32,
 }
 
 impl Default for TextContext {
@@ -68,7 +75,30 @@ impl TextContext {
             registry: FontRegistry::new(),
             cache: LayoutCache::new(256, 8),
             raster: raster::GlyphRasterizer::new(),
+            scale: 1.0,
         }
+    }
+
+    /// Installs the text-scale multiplier — the effect ADR-0159's fact
+    /// names (ADR-0160): the flip hands the ask here, every later shape
+    /// multiplies its declared size by it. Answers whether the scale
+    /// landed: a non-finite or non-positive ask is refused (a multiplier
+    /// that names no size is refused, never clamped into a guess), and a
+    /// scale equal to the installed one lands nothing — the idle rule at
+    /// the effect tier, `false` the honest no-op.
+    pub fn set_scale(&mut self, scale: f32) -> bool {
+        if !scale.is_finite() || scale <= 0.0 || scale.to_bits() == self.scale.to_bits() {
+            return false;
+        }
+        self.scale = scale;
+        true
+    }
+
+    /// The installed multiplier — `1.0` while the OS reports no read
+    /// (the declared sizes the base).
+    #[must_use]
+    pub const fn scale(&self) -> f32 {
+        self.scale
     }
 
     /// The font registry (glyph rasterization resolves font tags through it).
@@ -90,6 +120,11 @@ impl TextContext {
 
     /// Shapes `text` at `font_size`, wrapping at `max_width` when given.
     ///
+    /// The declared size is the base the installed text-scale multiplier
+    /// applies to (ADR-0160): the effective size `font_size × scale` is
+    /// what shapes — and what the cache keys — so one multiplier change
+    /// costs the miss its new keys pay, never a stale entry.
+    ///
     /// Results are cached; repeated calls with the same inputs cost a lookup.
     #[must_use]
     pub fn layout_text(
@@ -98,6 +133,7 @@ impl TextContext {
         font_size: f32,
         max_width: Option<f32>,
     ) -> TextLayout {
+        let font_size = font_size * self.scale;
         let key = cache::CacheKey::new(text, font_size, max_width);
         if let Some(hit) = self.cache.get(&key) {
             return hit;
@@ -222,6 +258,10 @@ impl alacer_core::text_seam::TextSeam for ThreadLocalTextSeam {
         max_width: Option<f32>,
     ) -> alacer_core::geom::Size {
         with_text(|ctx| ctx.measure(spec, max_width))
+    }
+
+    fn set_text_scale(&self, scale: f32) -> bool {
+        with_text(|ctx| ctx.set_scale(scale))
     }
 
     fn layout_glyphs(
@@ -571,5 +611,139 @@ mod tests {
             top_row * 3 < bottom_row,
             "top row ({top_row}) must be the narrow stem, bottom row ({bottom_row}) the foot"
         );
+    }
+
+    // ---- The text-scale effect (ADR-0160) -------------------------------
+
+    /// ADR-0159's deferral, cashed: *"the fact is the decision's input,
+    /// the typography a widget's own vocabulary — priced first when a
+    /// widget needs it."* A widget needs it now. The multiplier applies
+    /// to the declared size at the context's one shaping door: a 16 px
+    /// run at 1.25× measures exactly what the 20 px run the ask names
+    /// measures — the declared sizes are the base the vocabulary
+    /// multiplies.
+    #[test]
+    fn the_scale_multiplies_the_declared_size() {
+        let mut ctx = TextContext::new();
+        assert_eq!(ctx.scale(), 1.0, "the base is the declared size");
+        assert!(ctx.set_scale(1.25), "the ask lands");
+        assert_eq!(ctx.scale(), 1.25);
+
+        let scaled = ctx.measure(&spec("hello world"), None);
+        let mut declared = TextContext::new();
+        let named = declared.measure(&spec_with_size("hello world", 20.0), None);
+        assert_eq!(
+            (scaled.width, scaled.height),
+            (named.width, named.height),
+            "16 px at 1.25× is the 20 px run the ask names — \
+             the declared sizes are the base the vocabulary multiplies"
+        );
+
+        // The painted glyphs carry the effective size, not the declared
+        // one: what paint draws is the geometry measure sized with.
+        let layout = ctx.layout_text("g", 16.0, None);
+        assert!(
+            !layout.glyphs.is_empty(),
+            "at least one glyph shaped at the multiplier"
+        );
+        for glyph in &layout.glyphs {
+            assert_eq!(glyph.size, 20.0, "the painted glyph rides the ask");
+        }
+    }
+
+    /// The cache keys the *effective* size: a context flipped to 1.25×
+    /// and back answers each scale its own shape — no stale entry
+    /// serves a size the multiplier did not name (§8.3's integral
+    /// discipline at the effect tier).
+    #[test]
+    fn the_cache_answers_each_scale_its_own_shape() {
+        let mut ctx = TextContext::new();
+        let base = ctx.measure(&spec("flip and back"), None);
+
+        assert!(ctx.set_scale(1.25));
+        let scaled = ctx.measure(&spec("flip and back"), None);
+        assert!(
+            scaled.height > base.height,
+            "the multiplier grows the shape"
+        );
+
+        assert!(ctx.set_scale(1.0), "the absence returns the base");
+        let restored = ctx.measure(&spec("flip and back"), None);
+        assert_eq!(
+            (restored.width, restored.height),
+            (base.width, base.height),
+            "the declared size returns exactly"
+        );
+    }
+
+    /// The effective size is the cache's identity: 16 px at 1.25× and
+    /// 20 px at the base are one entry — the multiplier never doubles
+    /// the cache's working set (§14.3's discipline at the effect tier).
+    #[test]
+    fn sixteen_at_the_ask_shares_the_named_run_entry() {
+        let mut ctx = TextContext::new();
+        assert!(ctx.set_scale(1.25));
+        let _ = ctx.measure(&spec_with_size("one shape", 16.0), None);
+        let entries_at_ask = ctx.cache().len();
+        assert!(ctx.set_scale(1.0));
+        let _ = ctx.measure(&spec_with_size("one shape", 20.0), None);
+        assert_eq!(
+            ctx.cache().len(),
+            entries_at_ask,
+            "16 px at 1.25× and 20 px at the base are one cache entry"
+        );
+    }
+
+    /// The door's refusals: a non-finite or non-positive ask never
+    /// lands (the numeric discipline — a multiplier that names no size
+    /// is refused, not clamped into a guess), and a scale equal to the
+    /// installed one is the honest no-op (`false`, the idle rule).
+    #[test]
+    fn an_invalid_or_equal_ask_is_refused() {
+        let mut ctx = TextContext::new();
+        for ask in [0.0, -1.0, f32::NAN, f32::INFINITY] {
+            assert!(
+                !ctx.set_scale(ask),
+                "the ask {ask} is refused — the numeric discipline"
+            );
+        }
+        assert_eq!(ctx.scale(), 1.0, "the refusal left the base installed");
+        assert!(
+            !ctx.set_scale(1.0),
+            "the base ask lands nothing — the idle rule"
+        );
+        assert!(ctx.set_scale(1.5), "a finite, positive, new ask lands");
+    }
+
+    /// The caret's mapping closes at the multiplier: `hit_test` inverts
+    /// the same scaled widths the paint draws from, so a click on a
+    /// scaled run's boundary lands on that boundary — the editing
+    /// contract's closure (ADR-0018's rule) at the effect tier.
+    #[test]
+    fn hit_test_closes_at_the_multiplier() {
+        let seam = ThreadLocalTextSeam;
+        with_text(|ctx| assert!(ctx.set_scale(1.25), "the ask lands"));
+        let text = "hello world";
+        let total = alacer_core::utf16::len_utf16(text);
+
+        for i in 0..=total {
+            let at = alacer_core::utf16::byte_offset(text, i);
+            let x = seam.layout_glyphs(&text[..at], 16.0, None).width;
+            assert_eq!(
+                seam.hit_test(text, 16.0, x),
+                i,
+                "the scaled prefix width of boundary {i} maps back to {i}"
+            );
+        }
+        with_text(|ctx| assert!(ctx.set_scale(1.0), "the base returns"));
+    }
+
+    /// Shorthand: a spec at a size other than the default 16.
+    fn spec_with_size(text: &str, font_size: f32) -> TextSpec {
+        TextSpec {
+            text: text.to_string(),
+            font_id: 0,
+            font_size,
+        }
     }
 }

@@ -55,6 +55,25 @@ fn bench_measure(c: &mut Criterion) {
             black_box(size);
         });
     });
+    // The text-scale effect's price (ADR-0160): a landed flip moves every
+    // cache key to the effective sizes, so each distinct run re-shapes
+    // once at the multiplier — the cold path the flip pays per run, the
+    // shape the declared sizes name multiplied. Priced beside
+    // `measure_cached` so the ask's cost is readable as the delta to the
+    // cache-hit floor.
+    group.bench_function("measure_scaled_cold", |b| {
+        let spec = TextSpec {
+            text: "the quick brown fox".to_string(),
+            font_id: 0,
+            font_size: 16.0,
+        };
+        b.iter(|| {
+            let mut ctx = TextContext::new();
+            ctx.set_scale(1.25);
+            let size = ctx.measure(&spec, None);
+            black_box(size);
+        });
+    });
     group.finish();
 }
 

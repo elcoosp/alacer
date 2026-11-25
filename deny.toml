@@ -15,6 +15,10 @@ allow = [
   "ISC",
   "Unicode-3.0",
   "Zlib",
+  # arboard's Windows clipboard backend (clipboard-win, error-code) rides
+  # BSL-1.0 — Boost, OSI-approved, FSF free/libre, permissive: not the
+  # GPL-family the comment below refuses, and not an unknown license.
+  "BSL-1.0",
   "CC0-1.0",
   "CDLA-Permissive-2.0",
 ]

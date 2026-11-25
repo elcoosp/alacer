@@ -167,8 +167,8 @@ pub enum ClientMessage {
     /// [`WireEvent::Find`] event: the matches in the tree event's node
     /// vocabulary, tree order, the ask echoed beside the answer. The
     /// role word is optional — the bare ask answers the whole
-    /// vocabulary — and a word outside the roles' list ([`Role`]'s own
-    /// `snake_case` words, [`Role::from_name`] the parse door) is a
+    /// vocabulary — and a word outside the roles' list ([`alacer_core::Role`]'s own
+    /// `snake_case` words, [`alacer_core::Role::from_name`] the parse door) is a
     /// malformed control frame: the session's documented
     /// report-and-close behavior. The query reads the resolved names —
     /// never the values, the selections, the hints the secret-carrying
@@ -1604,7 +1604,7 @@ fn wire_tree_node(node: &alacer_core::TreeNode) -> WireTreeNode {
 /// Converts the point ask's answer (M146, ADR-0150): the geometry
 /// query's verdict — `TreeSnapshot::hit_at`'s own, over the retained
 /// snapshot — mapped onto the wire. The landed walk's ancestry rides
-/// the tree event's node vocabulary ([`wire_tree_node`], one shape two
+/// the tree event's node vocabulary (`wire_tree_node`, one shape two
 /// doors), the refusal its species word, the ask echoed beside the
 /// answer (the cursor's own rule: the ask the panel reads the answer
 /// against). The answer rides no ring and no broadcast — the dump
@@ -1637,7 +1637,7 @@ pub fn wire_hit(tree: Option<&alacer_core::TreeSnapshot>, asked: [f32; 2]) -> Wi
 /// Converts the word ask's answer (M147, ADR-0151): the resolved
 /// snapshot's query — `TreeSnapshot::search`'s own, the role narrowing
 /// when named — mapped onto the wire. The matches ride the tree
-/// event's node vocabulary ([`wire_tree_node`], one shape two doors)
+/// event's node vocabulary (`wire_tree_node`, one shape two doors)
 /// in tree order, the ask echoed beside the answer (the cursor's own
 /// rule). The answer rides no ring and no broadcast — the dump ask's
 /// rule at the name tier; an empty matches list is the honest absence
@@ -1663,9 +1663,9 @@ pub fn wire_find(
 }
 
 /// Converts the region ask's answer (M148, ADR-0152): the geometry
-/// query's matches — [`TreeSnapshot::hit_region`]'s own, over the
+/// query's matches — [`alacer_core::TreeSnapshot::hit_region`]'s own, over the
 /// retained snapshot — mapped onto the wire. The touched nodes ride the
-/// tree event's node vocabulary ([`wire_tree_node`], one shape every
+/// tree event's node vocabulary (`wire_tree_node`, one shape every
 /// ask's door) in tree order (the paint order's own), the ask echoed
 /// beside the answer (the cursor's own rule: the ask the panel reads
 /// the answer against). The answer rides no ring and no broadcast — the
@@ -1689,9 +1689,9 @@ pub fn wire_region(tree: Option<&alacer_core::TreeSnapshot>, asked: [f32; 4]) ->
 }
 
 /// Converts the path ask's answer (M149, ADR-0153): the ancestry
-/// query's verdict — [`TreeSnapshot::ancestry_of`]'s own, over the
+/// query's verdict — [`alacer_core::TreeSnapshot::ancestry_of`]'s own, over the
 /// retained snapshot — mapped onto the wire. The landed chain rides the
-/// tree event's node vocabulary ([`wire_tree_node`], one shape every
+/// tree event's node vocabulary (`wire_tree_node`, one shape every
 /// ask's door) root-first, the asked node last; the refusal its species
 /// word; the ask echoed beside the answer (the cursor's own rule: the
 /// ask the panel reads the answer against). The answer rides no ring
@@ -1720,9 +1720,9 @@ pub fn wire_path(tree: Option<&alacer_core::TreeSnapshot>, asked: u64) -> WireEv
 }
 
 /// Converts the descendant ask's answer (M150, ADR-0154): the beneath
-/// query's verdict — [`TreeSnapshot::descendants_of`]'s own, over the
+/// query's verdict — [`alacer_core::TreeSnapshot::descendants_of`]'s own, over the
 /// retained snapshot — mapped onto the wire. The landed subtree rides
-/// the tree event's node vocabulary ([`wire_tree_node`], one shape
+/// the tree event's node vocabulary (`wire_tree_node`, one shape
 /// every ask's door) in tree order (the paint order's own, the asked
 /// node itself the anchor the ask names — never its own answer's first
 /// row); the refusal its species word (the path ask's vocabulary, one
@@ -1754,9 +1754,9 @@ pub fn wire_descendants(tree: Option<&alacer_core::TreeSnapshot>, asked: u64) ->
 }
 
 /// Converts the sibling ask's answer (M151, ADR-0155): the beside
-/// query's verdict — [`TreeSnapshot::siblings_of`]'s own, over the
+/// query's verdict — [`alacer_core::TreeSnapshot::siblings_of`]'s own, over the
 /// retained snapshot — mapped onto the wire. The landed row rides the
-/// tree event's node vocabulary ([`wire_tree_node`], one shape every
+/// tree event's node vocabulary (`wire_tree_node`, one shape every
 /// ask's door) in tree order (the paint order's own, the asked node
 /// itself the anchor the ask names — never its own answer's row); the
 /// refusal its species word (the family's vocabulary, one species list

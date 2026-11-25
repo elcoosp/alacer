@@ -219,7 +219,7 @@ fn m144_the_corpus_pin_holds_at_the_m144_cut() {
     // under a regression gate, the corpus 165 → 204.
     assert_eq!(
         baselines["bench_count"].as_u64(),
-        Some(204),
+        Some(205),
         "the published corpus pin re-agrees at the cut"
     );
 }

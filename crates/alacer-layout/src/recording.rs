@@ -182,6 +182,13 @@ impl LayoutEngine for RecordingLayout {
         self.inner.measure_calls()
     }
 
+    /// The effect's door forwards (ADR-0160): the recording wrapper is
+    /// transparent to the text scale — the wrapped engine owns the
+    /// measure keys, so the flip's ask rides to it untouched.
+    fn set_text_scale(&mut self, scale: f32) -> bool {
+        self.inner.set_text_scale(scale)
+    }
+
     fn reset_measure_calls(&mut self) {
         self.inner.reset_measure_calls();
     }

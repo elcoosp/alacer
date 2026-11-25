@@ -73,6 +73,11 @@ pub struct LayoutHost {
     /// compute root's location, so the engine keeps its own record for
     /// candidate seeding (ADR-0008 item 1).
     loc_cache: FxHashMap<NodeId, Point>,
+    /// The installed text-scale multiplier (ADR-0160): the flip hands it
+    /// here so the measure cache keys it — the stale unscaled size never
+    /// serves a frame the multiplier moved, and a flip back to a known
+    /// scale re-hits its entries. `1.0` the base: the declared sizes.
+    text_scale: f32,
 }
 
 impl LayoutHost {
@@ -91,6 +96,7 @@ impl LayoutHost {
             pending_region: None,
             last_viewport: None,
             loc_cache: FxHashMap::default(),
+            text_scale: 1.0,
         }
     }
 
@@ -354,6 +360,7 @@ impl LayoutHost {
         let mut calls = 0_u64;
         let mut cache = std::mem::take(&mut self.cache);
         let measurer = Arc::clone(&self.measurer);
+        let text_scale = self.text_scale;
         let compute = self.tree.compute_layout_with_measure(
             compute_root,
             available,
@@ -386,7 +393,7 @@ impl LayoutHost {
                         height: known.height.unwrap_or(size.height),
                     }),
                     MeasureSpec::Text(text) => {
-                        let key = MeasureKey::from_spec(&text, max_width);
+                        let key = MeasureKey::from_spec(&text, max_width, text_scale);
                         if let Some(size) = cache.get(&key) {
                             return taffy::LayoutOutput::from_outer_size(taffy::Size {
                                 width: known.width.unwrap_or(size.width),
@@ -546,6 +553,20 @@ impl LayoutEngine for LayoutHost {
 
     fn measure_calls(&self) -> u64 {
         self.measure_calls
+    }
+
+    /// Installs the text-scale multiplier (ADR-0160): the measure cache
+    /// keys it, so the engine answers the flip's ask with whether its
+    /// measure keys moved. A non-finite or non-positive ask is refused
+    /// (the numeric discipline — a multiplier that names no size is
+    /// refused, never clamped into a guess), a scale equal to the
+    /// installed one lands nothing — `false` the honest no-op.
+    fn set_text_scale(&mut self, scale: f32) -> bool {
+        if !scale.is_finite() || scale <= 0.0 || scale.to_bits() == self.text_scale.to_bits() {
+            return false;
+        }
+        self.text_scale = scale;
+        true
     }
 
     fn reset_measure_calls(&mut self) {
@@ -779,6 +800,95 @@ mod tests {
             .sync_and_layout(&mut arena, root, &dirty_paint, viewport())
             .expect("layout");
         assert_eq!(engine.measure_calls(), 0, "paint-only dirty never measures");
+    }
+
+    /// A call-counting measurer: the keying proof's oracle. The host
+    /// never passes the multiplier to the measurer — the text tier
+    /// applies it — so the *only* visible effect of the scale door is
+    /// which cache keys serve a frame.
+    struct CountingMeasure {
+        calls: std::sync::atomic::AtomicU64,
+    }
+
+    impl MeasureFn for CountingMeasure {
+        fn measure(&self, spec: &TextSpec, max_width: Option<f32>) -> Size {
+            self.calls
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let width = alacer_core::num::usize_to_f32(spec.text.len()) * 6.0;
+            Size::new(max_width.map_or(width, |mw| width.min(mw)), 14.0)
+        }
+    }
+
+    /// The effect's cache discipline (ADR-0160): the measure cache keys
+    /// the scale, so a frame the multiplier moved can never serve the
+    /// stale unscaled size — and a flip back to the base re-hits the
+    /// base entry instead of clearing the cache's history.
+    #[test]
+    fn a_text_scale_flip_cannot_serve_a_stale_measure() {
+        let mut arena = Arena::new();
+        let root = arena.set_root(Box::new(TestBox::with_style(Style::column())));
+        let label = arena.add_child(root, Box::new(TestBox::text("hello")));
+
+        let mut dirty = FxHashMap::default();
+        dirty.insert(root, Change::STRUCTURE);
+        dirty.insert(label, Change::STRUCTURE);
+        let counter = Arc::new(CountingMeasure {
+            calls: std::sync::atomic::AtomicU64::new(0),
+        });
+        let mut engine = LayoutHost::new(Arc::clone(&counter) as Arc<dyn MeasureFn>);
+        engine
+            .sync_and_layout(&mut arena, root, &dirty, viewport())
+            .expect("layout");
+        let first = counter.calls.load(std::sync::atomic::Ordering::Relaxed);
+        assert_eq!(first, 1, "the first sync measured the leaf once");
+
+        // The effect's door: the host learns the multiplier the flip
+        // resolved. The LAYOUT-dirty leaf re-measures — through the new
+        // key, never the stale unscaled entry.
+        assert!(engine.set_text_scale(1.25), "the scale door lands");
+        let mut scaled = FxHashMap::default();
+        scaled.insert(label, Change::LAYOUT);
+        engine
+            .sync_and_layout(&mut arena, root, &scaled, viewport())
+            .expect("scaled re-layout");
+        let second = counter.calls.load(std::sync::atomic::Ordering::Relaxed);
+        assert!(
+            second > first,
+            "the scaled key missed the cache ({first} → {second}) — \
+             the stale size never served"
+        );
+
+        // The economy half: back at the base the same-shaped frame may
+        // pay fresh keys (the constraint sequence a re-measure queries
+        // under is taffy's), but the 1.25 entries the flip stored are
+        // still in the cache — a return to the ask re-hits them, the
+        // proof the cache is *keyed*, not cleared at the door.
+        assert!(engine.set_text_scale(1.0), "the base returns");
+        let mut restored = FxHashMap::default();
+        restored.insert(label, Change::LAYOUT);
+        engine
+            .sync_and_layout(&mut arena, root, &restored, viewport())
+            .expect("restored re-layout");
+        let third = counter.calls.load(std::sync::atomic::Ordering::Relaxed);
+        assert!(engine.set_text_scale(1.25), "the ask returns");
+        engine
+            .sync_and_layout(&mut arena, root, &restored, viewport())
+            .expect("ask re-layout");
+        let fourth = counter.calls.load(std::sync::atomic::Ordering::Relaxed);
+        assert_eq!(
+            fourth, third,
+            "the ask's entries survived the round trip — keyed, not cleared"
+        );
+
+        // The door's own refusals: a non-finite or non-positive ask
+        // never lands, and the installed ask answers `false` (the idle
+        // rule at the engine's own door).
+        assert!(!engine.set_text_scale(0.0), "zero is refused");
+        assert!(!engine.set_text_scale(f32::NAN), "NaN is refused");
+        assert!(
+            !engine.set_text_scale(1.25),
+            "the installed ask is the no-op"
+        );
     }
 
     /// Builds the same random tree twice from one seed. Churnable children

@@ -18,3 +18,7 @@ ship.toml
 .github/pr-body.md
 docs/launch.md
 core
+
+# The ship handoff manifest and the reviewer body (per-file history lives on the branch)
+ship.toml
+.github/pr-body.md

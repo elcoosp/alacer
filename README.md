@@ -46,7 +46,7 @@
 | 50-event pointer storm                                | **1** coalesced dispatch (**40.08×**)           | `input_storm_batching` budget                                                                          |
 | 10k-node churn frame vs egui, same host               | 1.10 ms vs 20.7 ms full frame (**18.8×**)       | 5-run medians, declared rig (`benchmarks/rig.json`)                                                    |
 | …vs Masonry                                           | 1.10 ms vs 4.6 ms full pass pipeline (**4.2×**) | same rig, `scripts/run_comparison.py`                                                                  |
-| All 204 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
+| All 205 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
 
 _Competitor rows compare Alacer's incremental frame against their full frame/pass — every row in
 `benchmarks/comparisons/results.json` is labeled with its scope._
@@ -389,7 +389,7 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `follow_os`                                          | the palette follows the OS: one composer, the facts beside dark — the composition door swaps it on every flip and calms it when motion asks, the log answers |
 | `accent_follow`                                      | the OS's accent fact rides the same seam: the accent-only flip lands, the composition tints the palette's accent roles from the fact, the log names all four facts |
 | `reduced_transparency`                               | the OS's transparency fact rides the same seam: the transparency-only flip lands where the four facts are still, the probe paints from the fact, the log names all five facts | `cargo run -p alacer --example reduced_transparency`
-| `text_scale`                                         | the OS's preferred text size rides the same seam: the scale-only flip lands where the five facts are still, the probe paints from the fact, the log names all six facts | `cargo run -p alacer --example text_scale`
+| `text_scale`                                         | the OS's preferred text size rides the same seam — and the labels render it (the ADR-0160 effect: the flip re-measures, the typography multiplies at the seam): the scale-only flip lands where the five facts are still, the probe paints from the fact, the log names all six facts | `cargo run -p alacer --example text_scale`
 | `todo` / `data_table`                                | the canons: a11y tree, record/replay, grid slots, keyboard navigation            |
 | `tree`                                               | the tree tier: the named collection, its nested members, the words the published tiers already carried |
 

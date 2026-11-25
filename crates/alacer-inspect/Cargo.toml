@@ -29,6 +29,9 @@ tracing.workspace = true
 # price the reconnection experience pays, measured like every other
 # workspace contract.
 criterion.workspace = true
+# The m83 exit suite's pipeline fakes sign the layout stage's dirty map —
+# the same hash map the core trait's signatures name (the test-only shape).
+rustc-hash.workspace = true
 
 [[bench]]
 name = "replay"

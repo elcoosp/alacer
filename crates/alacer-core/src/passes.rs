@@ -91,6 +91,21 @@ pub trait LayoutEngine {
 
     /// Resets the measure-call counter (harness/bench convenience).
     fn reset_measure_calls(&mut self);
+
+    /// Installs the OS's text-scale multiplier — the flip's delivery to
+    /// the measure stage (ADR-0160): the sizes the vocabulary multiplies
+    /// re-measure under the new key, so the engine's measure cache must
+    /// never serve a size the multiplier moved. Answers whether the
+    /// engine's measure state moved — `false` the honest no-op (the
+    /// installed scale asked for, the refused ask).
+    ///
+    /// The default answers `false` and holds nothing: engines that do
+    /// not consume the fact keep answering the declared sizes, and the
+    /// flip's ask is the no-op its answer names.
+    fn set_text_scale(&mut self, scale: f32) -> bool {
+        let _ = scale;
+        false
+    }
 }
 
 /// One node of the accessibility snapshot: role, name, bounds, children — the
@@ -1767,6 +1782,21 @@ impl PassPipeline {
         if installed_facts == facts {
             return false;
         }
+        // The text-scale effect (ADR-0160): the one fact whose reach
+        // changes sizes, not only inks. Its flip re-measures the tree —
+        // `LAYOUT` beside `PAINT`, the reach the multiplier's shapes
+        // need — and hands the multiplier to the two measure engines the
+        // sizes ride: the text seam (every declared size the widgets
+        // shape multiplies there) and the layout stage (its measure
+        // cache keys the scale, so the stale unscaled size never
+        // serves). A palette-side flip keeps the M155 shape: `PAINT`
+        // alone, the roles re-resolving from the installed palette.
+        let text_scale_moved = installed_facts.text_scale != facts.text_scale;
+        let mask = if text_scale_moved {
+            Change::LAYOUT.union(Change::PAINT)
+        } else {
+            Change::PAINT
+        };
         // The broadcast: every node repaints — the facts the whole tree
         // consulted moved. Collected first (`for_each_pre_order` borrows
         // the arena immutably), merged after; the walk's length *is* the
@@ -1787,7 +1817,19 @@ impl PassPipeline {
         });
         self.settings = Some(settings);
         for node in nodes {
-            self.arena.merge_mask(node, Change::PAINT);
+            self.arena.merge_mask(node, mask);
+        }
+        if text_scale_moved {
+            // The absence is the base: `None` — no OS read — answers the
+            // declared sizes, never a remembered multiplier.
+            let scale = facts.text_scale.unwrap_or(1.0);
+            let seam_landed = crate::text_seam::apply_text_scale(scale);
+            let engine_landed = self.layout.set_text_scale(scale);
+            tracing::trace!(
+                target: "alacer::settings",
+                seam_landed, engine_landed,
+                "text-scale flip re-measures at the multiplier the fact resolved"
+            );
         }
         // The composition half (§7.2 pass 8, ADR-0081): the flip's own
         // record resolves the installed composer — the composed palette

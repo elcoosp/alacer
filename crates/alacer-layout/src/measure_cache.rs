@@ -15,16 +15,25 @@ pub struct MeasureKey {
 }
 
 impl MeasureKey {
-    /// Builds a key from a text spec identity and the wrap width.
+    /// Builds a key from a text spec identity, the wrap width, and the
+    /// installed text-scale multiplier (ADR-0160): the scale rides the
+    /// key so a frame the multiplier moved can never serve the stale
+    /// unscaled size, while a flip back to a known scale re-hits its
+    /// entries instead of clearing the cache's history.
     ///
     /// Widths bucket to 8 px so near-identical widths share entries without
     /// changing results measurably (egui's integer wrap-width lesson, §8.3).
     #[must_use]
-    pub fn from_spec(spec: &alacer_core::style::TextSpec, max_width: Option<f32>) -> Self {
+    pub fn from_spec(
+        spec: &alacer_core::style::TextSpec,
+        max_width: Option<f32>,
+        text_scale: f32,
+    ) -> Self {
         let mut hasher = rustc_hash::FxHasher::default();
         spec.text.hash(&mut hasher);
         spec.font_id.hash(&mut hasher);
         spec.font_size.to_bits().hash(&mut hasher);
+        text_scale.to_bits().hash(&mut hasher);
         Self {
             content: hasher.finish(),
             width_bucket: bucket(max_width),
@@ -156,10 +165,10 @@ mod tests {
         let mut cache = LruMeasureCache::new(3);
         let size = Size::new(10.0, 14.0);
 
-        let k1 = MeasureKey::from_spec(&spec("one"), None);
-        let k2 = MeasureKey::from_spec(&spec("two"), None);
-        let k3 = MeasureKey::from_spec(&spec("three"), None);
-        let k4 = MeasureKey::from_spec(&spec("four"), None);
+        let k1 = MeasureKey::from_spec(&spec("one"), None, 1.0);
+        let k2 = MeasureKey::from_spec(&spec("two"), None, 1.0);
+        let k3 = MeasureKey::from_spec(&spec("three"), None, 1.0);
+        let k4 = MeasureKey::from_spec(&spec("four"), None, 1.0);
 
         cache.put(k1, size);
         cache.put(k2, size);
@@ -179,8 +188,8 @@ mod tests {
     #[test]
     fn reinserting_a_live_key_does_not_evict() {
         let mut cache = LruMeasureCache::new(2);
-        let k1 = MeasureKey::from_spec(&spec("a"), None);
-        let k2 = MeasureKey::from_spec(&spec("b"), None);
+        let k1 = MeasureKey::from_spec(&spec("a"), None, 1.0);
+        let k2 = MeasureKey::from_spec(&spec("b"), None, 1.0);
         cache.put(k1, alacer_core::geom::Size::zero());
         cache.put(k2, alacer_core::geom::Size::zero());
         cache.put(k1, alacer_core::geom::Size::zero()); // refresh, not evict
@@ -190,7 +199,7 @@ mod tests {
     #[test]
     fn hit_and_miss_counters_track_reality() {
         let mut cache = LruMeasureCache::new(1);
-        let k = MeasureKey::from_spec(&spec("x"), None);
+        let k = MeasureKey::from_spec(&spec("x"), None, 1.0);
         assert!(cache.get(&k).is_none());
         cache.put(k, Size::new(1.0, 1.0));
         assert!(cache.get(&k).is_some());

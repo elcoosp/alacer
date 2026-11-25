@@ -43,7 +43,7 @@ use alacer_widgets::{BoxedWidget as _, Button, Column, Heading, SpinButton};
 /// snapshot machinery (the M95 rule), and the coordinated rule grows
 /// it at the next published cut, never at a widget bench's. The pin
 /// re-agrees at 155.
-const EXPECTED_BENCH_COUNT: usize = 204;
+const EXPECTED_BENCH_COUNT: usize = 205;
 
 /// The first node in the snapshot whose role and name match.
 fn node(harness: &TestHarness, role: Role, name: &str) -> Option<TreeNode> {

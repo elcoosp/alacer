@@ -16,11 +16,14 @@
 //! still — the landing the M154 door's five-fact check would have
 //! swallowed — then a second ask is the honest no-op (the same
 //! multiplier, no fact, an idle frame), and the fact moves back beside
-//! a *dark* flip. A text-scale probe paints from
+//! a *dark* flip. The fact's *effect* rides with it (ADR-0160, the
+//! deferral cashed): the flip re-measures the tree — `LAYOUT` beside
+//! `PAINT` — and the text tier multiplies the declared sizes at the
+//! seam's one door, so every label on this page renders larger while
+//! the ask holds and returns to its declared size when the absence
+//! answers. A text-scale probe paints from
 //! `ctx.text_scale()` directly: the role-independent decision the
-//! vocabulary consults (a label that follows the OS's preferred
-//! reading size, a density the OS's ask scales), the fact never munging
-//! the palette.
+//! vocabulary consults, the fact never munging the palette.
 //!
 //! ```sh
 //! RUST_LOG=alacer=info cargo run -p alacer --example text_scale
@@ -123,8 +126,9 @@ impl Widget for TextScaleProbe {
         // The probe's body: the declared-size ink while the platform
         // reports no read, the emphasized ink the OS's ask pins. The
         // fact resolves once per paint pass — the probe reads the copy
-        // its node holds; a real widget multiplies its typography by
-        // the answer.
+        // its node holds; the labels around it *are* the typography
+        // half (ADR-0160): their declared sizes multiply at the seam
+        // the ask flipped, the probe's own paint staying the probe.
         ctx.push_quad(Quad {
             rect: Rect::new(Point::zero(), ctx.size()),
             color: if ctx.text_scale().is_some() {

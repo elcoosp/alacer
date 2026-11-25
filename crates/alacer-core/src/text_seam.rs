@@ -140,6 +140,25 @@ pub trait TextSeam: 'static {
     /// Intrinsic size of a text run, wrapping at `max_width` when given.
     fn measure(&self, spec: &TextSpec, max_width: Option<f32>) -> Size;
 
+    /// Installs the OS's text-scale multiplier — the effect ADR-0159's
+    /// fact names (ADR-0160, the deferral cashed: *"the fact is the
+    /// decision's input, the typography a widget's own vocabulary —
+    /// priced first when a widget needs it"*). Every declared size the
+    /// seam shapes multiplies by it, so measure, paint, and the caret's
+    /// mapping see the same scaled geometry through this one door —
+    /// never a second channel per consumer. Answers whether the scale
+    /// landed: a non-finite or non-positive ask is refused (the numeric
+    /// discipline), a scale equal to the installed one lands nothing —
+    /// `false` the honest no-op, the idle rule at the effect tier.
+    ///
+    /// The default never moves: an engine that does not consume the
+    /// fact answers the base scale for its whole life, and the flip's
+    /// ask is the no-op its answer names.
+    fn set_text_scale(&self, scale: f32) -> bool {
+        let _ = scale;
+        false
+    }
+
     /// Shapes `text` at `font_size`, wrapping at `max_width` when given.
     fn layout_glyphs(&self, text: &str, font_size: f32, max_width: Option<f32>) -> GlyphRun;
 
@@ -255,6 +274,20 @@ pub fn with_seam<R>(f: impl FnOnce(&dyn TextSeam) -> R) -> R {
         };
         f(seam.as_ref())
     })
+}
+
+/// Hands the text-scale multiplier to the installed seam — the flip's
+/// delivery door (ADR-0160): the fact moved, the effect follows at the
+/// one door every text path shares. Answers whether the scale landed.
+/// No seam installed is the quiet no-op (`false`, never a panic — a
+/// pure-core pipeline with no text engine has no sizes to multiply).
+#[must_use]
+pub fn apply_text_scale(scale: f32) -> bool {
+    if is_installed() {
+        with_seam(|seam| seam.set_text_scale(scale))
+    } else {
+        false
+    }
 }
 
 #[cfg(test)]
@@ -375,6 +408,87 @@ mod tests {
         // click inside a cluster never lands past it.
         assert_eq!(with_seam(|s| s.hit_test("abcd", 16.0, 2.0)), 2);
         assert_eq!(with_seam(|s| s.hit_test("abcd", 16.0, 2.5)), 2);
+    }
+
+    // ---- The text-scale effect (ADR-0160) -------------------------------
+
+    /// A seam stub recording the scales the effect's door hands it —
+    /// the indirection proof at the effect tier (the flip reaches the
+    /// *installed* implementation, never a second channel).
+    struct ScaleStub(std::cell::Cell<Vec<f32>>);
+
+    impl TextSeam for ScaleStub {
+        fn measure(&self, _spec: &TextSpec, _max_width: Option<f32>) -> Size {
+            Size::new(7.0, 9.0)
+        }
+
+        fn layout_glyphs(&self, text: &str, _font_size: f32, _max_width: Option<f32>) -> GlyphRun {
+            GlyphRun {
+                width: f32::from(u16::try_from(text.len()).unwrap_or(u16::MAX)),
+                height: 10.0,
+                glyphs: Vec::new(),
+            }
+        }
+
+        fn word_segments(&self, text: &str) -> Vec<WordSegment> {
+            let _ = text;
+            Vec::new()
+        }
+
+        fn set_text_scale(&self, scale: f32) -> bool {
+            // The stub's own door rules: finite and positive lands,
+            // everything else refuses — the refusal the real engines
+            // share (the numeric discipline at the effect tier).
+            if !scale.is_finite() || scale <= 0.0 {
+                return false;
+            }
+            let mut landed = self.0.replace(Vec::new());
+            let moved = landed
+                .last()
+                .is_none_or(|last| last.to_bits() != scale.to_bits());
+            if moved {
+                landed.push(scale);
+            }
+            self.0.set(landed);
+            moved
+        }
+    }
+
+    /// The effect's free door routes the ask into the installed seam and
+    /// answers whether it landed: the flip calls this once per landed
+    /// text-scale fact, the seam's implementation owns the application.
+    #[test]
+    fn apply_text_scale_reaches_the_installed_seam() {
+        let stub = Rc::new(ScaleStub(std::cell::Cell::new(Vec::new())));
+        install(Rc::clone(&stub) as Rc<dyn TextSeam>);
+
+        assert!(super::apply_text_scale(1.25), "the first ask lands");
+        assert!(
+            !super::apply_text_scale(1.25),
+            "the same ask is the honest no-op"
+        );
+        assert!(
+            !super::apply_text_scale(f32::NAN),
+            "a non-finite ask is refused"
+        );
+        assert!(super::apply_text_scale(2.0), "a new ask lands");
+        assert_eq!(
+            stub.0.take(),
+            vec![1.25, 2.0],
+            "the landed asks reached the installed implementation in order"
+        );
+    }
+
+    /// No seam installed — the pure-core flip's guard: the effect's
+    /// door answers `false` and never panics (the `with_seam` contract is
+    /// for widgets, which only run where assembly installed text).
+    #[test]
+    fn apply_text_scale_without_a_seam_is_the_quiet_no_op() {
+        assert!(!is_installed(), "fresh thread: nothing installed");
+        assert!(
+            !super::apply_text_scale(1.25),
+            "no seam, no effect, no panic"
+        );
     }
 
     // ---- The word contract (§10.3, ADR-0019) ---------------------------

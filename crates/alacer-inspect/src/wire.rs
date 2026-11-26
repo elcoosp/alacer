@@ -149,9 +149,12 @@ pub enum ClientMessage {
     /// the walk's landed-or-refused shape, the ancestry the walk
     /// descended through. The coordinates are the tree's own logical
     /// pixels (the bounds quadruple's frame). A point whose coordinates
-    /// are not finite cannot ride JSON — serde renders NaN and infinity
-    /// as `null`, the array parse refuses — so a non-finite ask is a
-    /// malformed frame, the documented report-and-close behavior. The
+    /// are not finite cannot ride the ask — the parse alone refuses only
+    /// `null` (serde renders NaN and infinity as `null`; a huge number
+    /// like `1e39` casts to infinity and rides), so the session validates
+    /// the ask's finiteness after the parse (the `finite_asks` discipline)
+    /// and a non-finite ask is a malformed frame, the documented
+    /// report-and-close behavior. The
     /// ask reads without disturbing (the dump ask's own rule): no ring
     /// drains, the broadcast queue is untouched. Additive at version 1
     /// (the `Replay` ask's precedent): a server older than the ask
@@ -198,9 +201,11 @@ pub enum ClientMessage {
     /// the tree's logical pixels (the bounds quadruple's frame); a rect
     /// naming no positive area — inverted or empty extents — touches
     /// nothing: the empty answer the honest absence, never a refusal.
-    /// A rect whose coordinates are not finite cannot ride JSON —
-    /// serde renders NaN and infinity as `null`, the array parse
-    /// refuses — so a non-finite ask is a malformed frame, the
+    /// A rect whose coordinates are not finite cannot ride the ask —
+    /// the parse alone refuses only `null` (a huge number like `1e39`
+    /// casts to infinity and rides), so the session validates the ask's
+    /// finiteness after the parse (the `finite_asks` discipline) and a
+    /// non-finite ask is a malformed frame, the
     /// documented report-and-close behavior (the point ask's own rule,
     /// at the region tier). The ask reads without disturbing (the dump
     /// ask's own rule): no ring drains, the broadcast queue is
@@ -270,6 +275,30 @@ pub enum ClientMessage {
         /// answer echoing it back.
         node: u64,
     },
+}
+
+impl ClientMessage {
+    /// The asks' post-parse finiteness discipline (`hit_ask`, `region_ask`
+    /// — M146/M148): serde's `f64`→`f32` cast lets a huge-but-valid JSON
+    /// number (`1e39`) ride the parse as `inf` — the array parse the docs
+    /// name only refuses `null`, so the "a non-finite ask is a malformed
+    /// frame" contract did not hold for the cast class and the `hit`
+    /// answer echoed an `asked` array serde re-renders as `null`, a shape
+    /// the client's own parser cannot read back. A non-finite ask is the
+    /// malformed control frame the docs pin: the session reports and
+    /// closes. Every other kind parses whole — `Ok` is the only passing
+    /// answer.
+    pub(crate) fn finite_asks(&self) -> Result<(), &'static str> {
+        match self {
+            Self::HitAsk { point } if point.iter().any(|value| !value.is_finite()) => {
+                Err("the hit_ask's point carries a non-finite coordinate")
+            }
+            Self::RegionAsk { rect } if rect.iter().any(|value| !value.is_finite()) => {
+                Err("the region_ask's rect carries a non-finite coordinate")
+            }
+            _ => Ok(()),
+        }
+    }
 }
 
 /// One trail tier's wire name — the stats answer's row vocabulary

@@ -92,7 +92,7 @@ fn main() {
 Or write the tree as a view function with `rsx!` (`alacer::rsx!`, mounted
 with `alacer::mount_view`) — the closest thing to "the closure" you had in
 egui, except it *reconciles* instead of rebuilding. See
-[`counter_view`](../crates/alacer/examples/counter_view.rs).
+[`counter_view`](../../crates/alacer/examples/counter_view.rs).
 
 ## Widget mapping
 

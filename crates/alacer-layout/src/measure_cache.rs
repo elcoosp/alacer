@@ -41,14 +41,20 @@ impl MeasureKey {
     }
 }
 
-/// Buckets a wrap width to 8 px steps; `None` (unbounded) is bucket 0.
+/// Buckets a wrap width to 8 px steps; `None` (unbounded) is bucket 0, and
+/// every bounded width lives strictly above it. The old floor-into-0 keyed
+/// any bounded width below the 8 px grid (`Some(4.0)`) identically to the
+/// unbounded sentinel — the max-content measure (a wrap of `None`) cached
+/// its one-line size under bucket 0, and a sub-8 px definite width then
+/// hashed to the same key and served the unwrapped size: the wrap never
+/// recomputed for as long as the narrow state held.
 #[must_use]
 pub fn bucket(max_width: Option<f32>) -> u32 {
     match max_width {
         None => 0,
         Some(w) => {
             let clamped = w.max(0.0);
-            alacer_core::num::f32_to_u32((clamped / 8.0).floor() * 8.0)
+            alacer_core::num::f32_to_u32((clamped / 8.0).floor() * 8.0).saturating_add(1)
         }
     }
 }
@@ -158,6 +164,29 @@ mod tests {
         assert_eq!(bucket(Some(7.9)), bucket(Some(0.1)), "both floor to 0");
         assert_eq!(bucket(Some(8.0)), bucket(Some(15.9)));
         assert_ne!(bucket(Some(7.9)), bucket(Some(8.0)));
+    }
+
+    #[test]
+    fn a_bounded_width_never_hashes_as_the_unbounded_sentinel() {
+        // The old floor-into-0 keyed every sub-grid width (`Some(4.0)`)
+        // identically to `None` — the max-content measure's unwrapped
+        // one-line size then served a sub-8px wrapped query, the wrap
+        // never recomputing for as long as the narrow state held. Every
+        // bounded width lives strictly above bucket 0 now.
+        assert_ne!(bucket(None), bucket(Some(0.1)));
+        assert_ne!(bucket(None), bucket(Some(4.0)));
+        assert_ne!(bucket(None), bucket(Some(7.9)));
+        // A negative ask clamps to the zero-width bucket — still bounded,
+        // never the sentinel (the text cache saturates the unclamped
+        // floor through 0 today; the clamp keeps the two caches honest).
+        assert_eq!(bucket(Some(-4.0)), bucket(Some(0.0)));
+        assert_ne!(bucket(Some(-4.0)), bucket(None));
+        // The keys the pipeline builds differ, not just the buckets.
+        assert_ne!(
+            MeasureKey::from_spec(&spec("hello"), None, 1.0),
+            MeasureKey::from_spec(&spec("hello"), Some(4.0), 1.0),
+            "the unbounded and the sub-grid wrapped measures hash apart"
+        );
     }
 
     #[test]

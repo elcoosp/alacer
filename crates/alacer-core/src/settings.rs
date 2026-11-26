@@ -688,6 +688,40 @@ impl OsFacts {
             text_scale: seam.text_scale(),
         }
     }
+
+    /// The bundle comparison the flip's no-op door runs — total over the
+    /// scale fact, where the derived `PartialEq` is not: `Some(NaN)` never
+    /// equals itself under `!=`, so a seam answering the non-finite ask
+    /// re-landed the bit-identical bundle on every `set_settings` call —
+    /// a whole-tree `LAYOUT | PAINT` broadcast and a streamed record per
+    /// call, forever, where ADR-0160 pins the same-scale ask as the
+    /// honest no-op "at every door (`false`): the flip's bundle equality
+    /// check, the seam's install, the engine's keys". Everything else
+    /// compares `==` (so `-0.0` and `0.0` stay the same scale, the way
+    /// every door already no-ops them).
+    pub(crate) fn same(&self, other: &Self) -> bool {
+        self.dark == other.dark
+            && self.reduced_motion == other.reduced_motion
+            && self.high_contrast == other.high_contrast
+            && self.accent == other.accent
+            && self.reduced_transparency == other.reduced_transparency
+            && Self::scale_same(self.text_scale, other.text_scale)
+    }
+
+    /// The scale fact's total comparison: equal when both absent, both
+    /// present and `==`, or both NaN (a NaN ask is the same ask twice,
+    /// the honest no-op).
+    #[expect(
+        clippy::float_cmp,
+        reason = "the no-op door needs the ask's exact value — a margin would call 1.0 + ulp the same scale and swallow a real re-shape; the equality is the contract, never an approximation"
+    )]
+    pub(crate) fn scale_same(a: Option<f32>, b: Option<f32>) -> bool {
+        match (a, b) {
+            (None, None) => true,
+            (Some(a), Some(b)) => a == b || (a.is_nan() && b.is_nan()),
+            _ => false,
+        }
+    }
 }
 
 thread_local! {

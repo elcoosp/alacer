@@ -123,10 +123,10 @@ fn main() {
 The `Message` enum's job (naming *why* state changed) is taken over by the
 mask + the Causality inspector's provenance writes when you need the history.
 The runnable canon for everything mapped here lives in
-[`crates/alacer/examples/`](../crates/alacer/examples/) — start with
-[`counter`](../crates/alacer/examples/counter.rs) (the shell above),
-[`gallery`](../crates/alacer/examples/gallery.rs) (the widget table), and
-[`text_input`](../crates/alacer/examples/text_input.rs) (IME + focus).
+[`crates/alacer/examples/`](../../crates/alacer/examples/) — start with
+[`counter`](../../crates/alacer/examples/counter.rs) (the shell above),
+[`gallery`](../../crates/alacer/examples/gallery.rs) (the widget table), and
+[`text_input`](../../crates/alacer/examples/text_input.rs) (IME + focus).
 
 ## Widget mapping
 

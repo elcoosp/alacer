@@ -2294,3 +2294,104 @@ fn the_siblings_ask_before_any_frame_answers_the_no_tree_miss() {
     );
     send_client_text(&socket, br#"{"kind":"bye"}"#);
 }
+
+#[test]
+fn a_frame_split_across_packets_parses_whole() {
+    // The reader buffers across polls: a control TCP-segmented after the
+    // header (the old read_exact ate the bytes it had consumed on a
+    // WouldBlock and desynced the stream) is answered whole.
+    let recorder = CausalRecorder::new("split-frame");
+    let server = InspectorServer::bind("127.0.0.1:0", recorder.clone(), "split").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let _hello = read_text_frame(&mut reader);
+
+    let text = br#"{"kind":"stats"}"#;
+    let mut socket = reader.get_ref().try_clone().expect("clone the socket");
+    // The header and the mask first — nothing else.
+    socket
+        .write_all(&[
+            0x81,
+            0x80 | alacer_core::num::usize_to_u8(text.len()),
+            0,
+            0,
+            0,
+            0,
+        ])
+        .expect("frame header written");
+    socket.flush().expect("flush the header");
+    std::thread::sleep(Duration::from_millis(40));
+    // The payload rides a second packet, one poll later.
+    socket.write_all(text).expect("frame payload written");
+    socket.flush().expect("flush the payload");
+
+    let stats = read_text_frame(&mut reader);
+    assert!(
+        stats.contains(r#""kind":"stats""#),
+        "the split control answered whole: {stats}"
+    );
+    send_client_text(&socket, br#"{"kind":"bye"}"#);
+}
+
+#[test]
+fn a_declared_length_above_the_cap_ends_the_session_without_an_abort() {
+    // A 14-byte header declaring a 64-bit payload used to be allocated
+    // verbatim — an allocation failure aborts the process, so one masked
+    // header could take the whole app down. The cap refuses BEFORE any
+    // allocation: the session ends with the named violation, the socket
+    // closes, the process survives.
+    let recorder = CausalRecorder::new("oversized-frame");
+    let server = InspectorServer::bind("127.0.0.1:0", recorder.clone(), "oversize").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let _hello = read_text_frame(&mut reader);
+
+    let mut socket = reader.get_ref().try_clone().expect("clone the socket");
+    let mut header = vec![0x82_u8, 0xFF];
+    header.extend_from_slice(&0x0000_4000_0000_0000_u64.to_be_bytes());
+    header.extend_from_slice(&[0_u8, 0, 0, 0]);
+    socket.write_all(&header).expect("oversized header written");
+    socket.flush().expect("flush the header");
+
+    // The session ends: EOF on the next read, no allocation attempt, no
+    // abort (the test completing at all is the survival proof).
+    let mut eof_probe = [0_u8; 16];
+    let read = reader.read(&mut eof_probe).expect("socket stays healthy");
+    assert_eq!(
+        read, 0,
+        "the server closed the session on the capped length"
+    );
+}
+
+#[test]
+fn a_non_finite_ask_closes_the_session_without_a_hit_answer() {
+    // `1e39` parses as `inf` through serde's f64→f32 cast — the array
+    // parse the docs name only refuses `null`. The post-parse finiteness
+    // discipline (the docs' own contract) closes the session instead of
+    // echoing an `asked` array serde re-renders as `null`.
+    let recorder = CausalRecorder::new("inf-ask");
+    let server = InspectorServer::bind("127.0.0.1:0", recorder.clone(), "inf").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let _hello = read_text_frame(&mut reader);
+    let socket = reader.get_ref().try_clone().expect("clone the socket");
+
+    send_client_text(&socket, br#"{"kind":"hit_ask","point":[1e39,0.0]}"#);
+    // The session's goodbye close frame arrives — no `hit` answer before
+    // it, the session's own end after it.
+    let mut goodbye = [0_u8; 2];
+    reader
+        .read_exact(&mut goodbye)
+        .expect("the close frame arrives");
+    assert_eq!(
+        goodbye[0] & 0x0F,
+        0x8,
+        "the close opcode — never a hit answer"
+    );
+    let mut eof_probe = [0_u8; 16];
+    let read = reader.read(&mut eof_probe).expect("socket stays healthy");
+    assert_eq!(read, 0, "the session ended after the goodbye");
+}

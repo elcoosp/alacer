@@ -1779,7 +1779,7 @@ impl PassPipeline {
             .map_or(crate::settings::OsFacts::CANON, |installed| {
                 crate::settings::OsFacts::of_seam(installed)
             });
-        if installed_facts == facts {
+        if installed_facts.same(&facts) {
             return false;
         }
         // The text-scale effect (ADR-0160): the one fact whose reach
@@ -1791,7 +1791,11 @@ impl PassPipeline {
         // cache keys the scale, so the stale unscaled size never
         // serves). A palette-side flip keeps the M155 shape: `PAINT`
         // alone, the roles re-resolving from the installed palette.
-        let text_scale_moved = installed_facts.text_scale != facts.text_scale;
+        // The comparison is the flip's total one (`OsFacts::scale_same`)
+        // — a NaN ask equals itself, the same-scale no-op ADR-0160 pins
+        // holding where the derived `!=` never could.
+        let text_scale_moved =
+            !crate::settings::OsFacts::scale_same(installed_facts.text_scale, facts.text_scale);
         let mask = if text_scale_moved {
             Change::LAYOUT.union(Change::PAINT)
         } else {

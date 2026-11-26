@@ -95,6 +95,38 @@ def parse_members(root: Path) -> list[str]:
     return sorted(member.removeprefix("crates/") for member in members)
 
 
+def crate_version(root: Path, crate: str) -> str:
+    """The crate's own version, workspace inheritance resolved.
+
+    `cargo package` names the tarball `{name}-{version}.crate`, and the
+    packaging loop below needs that exact name: `target/package/` keeps
+    every earlier sibling's tarball, so a prefix-wildcard glob (`a-*.crate`)
+    matches them too, and `sorted(...)[-1]` then stages *the alphabetically
+    last sibling* as this crate — the facade `alacer` verified from
+    `alacer-widgets`' tarball, silently. The version comes from the crate's
+    own `[package]` when literal, else the root `[workspace.package]` it
+    inherits (`version.workspace = true`)."""
+    manifest = root / "crates" / crate / "Cargo.toml"
+    if not manifest.is_file():
+        raise SystemExit(f"no crate manifest for {crate} at {manifest}")
+    package = tomllib.loads(manifest.read_text(encoding="utf-8")).get("package", {})
+    if isinstance(package.get("version"), str):
+        return package["version"]
+    root_manifest = root / "Cargo.toml"
+    if not root_manifest.is_file():
+        raise SystemExit(f"no workspace manifest at {root_manifest}")
+    workspace_package = tomllib.loads(root_manifest.read_text(encoding="utf-8")).get(
+        "workspace", {}
+    ).get("package", {})
+    inherited = workspace_package.get("version")
+    if not isinstance(inherited, str):
+        raise SystemExit(
+            f"cannot resolve the version of {crate}: neither a literal "
+            "[package] version nor [workspace.package] inheritance"
+        )
+    return inherited
+
+
 def build_graph(root: Path, members: set[str], include_dev: bool = False) -> dict[str, set[str]]:
     """Internal edges per crate from the crate manifests.
 
@@ -492,16 +524,20 @@ def run_proof(
                 print(f"FAILED: cargo package -p {crate}")
                 failed += 1
                 break
-            crate_file = root / "target" / "package" / f"{crate}-*.crate"
-            matches = sorted(crate_file.parent.glob(crate_file.name))
-            if not matches:
-                raise SystemExit(f"cargo package reported success but no .crate for {crate}")
+            version = crate_version(root, crate)
+            crate_file = root / "target" / "package" / f"{crate}-{version}.crate"
+            if not crate_file.is_file():
+                raise SystemExit(
+                    f"cargo package reported success but {crate_file.name} is "
+                    f"missing for {crate} — only the crate's own tarball may "
+                    "stage or verify (prefix siblings stay out)"
+                )
             if simulate:
-                staged = stage_real_crate(root, crate, vendor, matches[-1])
-                print(f"  staged {matches[-1].name} -> {staged.relative_to(root)}")
+                staged = stage_real_crate(root, crate, vendor, crate_file)
+                print(f"  staged {crate_file.name} -> {staged.relative_to(root)}")
             real_staged.add(crate)
             print(f"--- verifying {crate} ({index}/{len(order)}) ---")
-            if verify_unpacked(root, crate, matches[-1], runner) != 0:
+            if verify_unpacked(root, crate, crate_file, runner) != 0:
                 print(f"FAILED: {verify_command()} on the unpacked {crate}")
                 failed += 1
                 break

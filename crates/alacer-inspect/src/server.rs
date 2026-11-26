@@ -170,15 +170,16 @@ struct RequestHead {
 }
 
 /// Reads the request head (through the blank line), case-insensitive header
-/// names. Body bytes (none for our two routes) are left in the reader.
+/// names. Body bytes (none for our two routes) are left in the reader. Each
+/// line is capped at [`MAX_REQUEST_HEAD_LINE`] bytes — a head without a
+/// newline inside the cap is a protocol violation, refused before it can
+/// grow the session's memory without bound (`read_line` grows until `\n`).
 fn read_request_head(reader: &mut BufReader<TcpStream>) -> std::io::Result<RequestHead> {
-    let mut line = String::new();
-    reader.read_line(&mut line)?;
+    let line = read_capped_line(reader)?;
     let path = line.split_whitespace().nth(1).unwrap_or("/").to_string();
     let mut upgrade_key = None;
     loop {
-        let mut header = String::new();
-        reader.read_line(&mut header)?;
+        let header = read_capped_line(reader)?;
         let trimmed = header.trim_end();
         if trimmed.is_empty() {
             break;
@@ -192,6 +193,34 @@ fn read_request_head(reader: &mut BufReader<TcpStream>) -> std::io::Result<Reque
     Ok(RequestHead { path, upgrade_key })
 }
 
+/// Reads one `\n`-terminated line, refusing a line that outruns
+/// [`MAX_REQUEST_HEAD_LINE`] bytes without terminating.
+fn read_capped_line(reader: &mut BufReader<TcpStream>) -> std::io::Result<String> {
+    let mut line = String::new();
+    let taken = reader
+        .take(MAX_REQUEST_HEAD_LINE as u64)
+        .read_line(&mut line)?;
+    if taken == MAX_REQUEST_HEAD_LINE && !line.ends_with('\n') {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!(
+                "the request head's line outruns the {MAX_REQUEST_HEAD_LINE}-byte cap without a newline: a head this large is a protocol violation"
+            ),
+        ));
+    }
+    Ok(line)
+}
+
+/// Escapes a string for safe inclusion in the served HTML — the request
+/// path reaches this response, so it never rides raw.
+fn html_escape(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#39;")
+}
+
 /// Serves the embedded HTML client (any non-WS path).
 fn serve_html(mut stream: &TcpStream, path: &str) -> std::io::Result<()> {
     let body = if path == "/" || path.starts_with("/index") {
@@ -199,8 +228,9 @@ fn serve_html(mut stream: &TcpStream, path: &str) -> std::io::Result<()> {
     } else {
         format!(
             "<!doctype html><meta charset='utf-8'><title>Alacer inspector</title>\
-             <p>Unknown path {path}. The client lives at <a href='/'>/</a>, \
-             the protocol at <code>/ws</code>.</p>"
+             <p>Unknown path {}. The client lives at <a href='/'>/</a>, \
+             the protocol at <code>/ws</code>.</p>",
+            html_escape(path)
         )
     };
     let response = format!(
@@ -283,6 +313,10 @@ fn run_session(
     // fan-out only: the recorder's capture, the rings, and the asks'
     // answers (replay, stats) ride whole regardless.
 
+    // The session's incremental frame reader: its buffer owns the bytes
+    // the socket delivered before a frame completed, across polls.
+    let mut client_frames = ClientFrameReader::new();
+
     loop {
         // Push everything recorded since the last drain (oldest first),
         // the session's gate applied: a fact whose tier the panel
@@ -297,18 +331,33 @@ fn run_session(
         let mut had_work = !events.is_empty();
         send_events(stream, events, &serialize_error)?;
         // Non-blocking read of whatever the client sent (controls, pings).
-        match try_read_client_frame(reader)? {
+        match client_frames.poll(reader)? {
             ClientFrame::None => {}
             ClientFrame::Text(text) => {
                 match serde_json::from_str::<ClientMessage>(&text) {
                     // One control, answered beside the loop (the
                     // dispatch arm lifted into its own fn — the loop's
                     // shape unchanged): `false` ends the session.
-                    Ok(message) => {
-                        if !handle_control(stream, recorder, message, &mut filter, gate)? {
+                    Ok(message) => match message.finite_asks() {
+                        Ok(()) => {
+                            if !handle_control(stream, recorder, message, &mut filter, gate)? {
+                                break;
+                            }
+                        }
+                        Err(violation) => {
+                            // A non-finite ask rides the malformed-control
+                            // discipline (the docs' own contract): one
+                            // debug line naming the violation, then the
+                            // session ends — the answer never echoes an
+                            // `asked` array serde re-renders as `null`.
+                            tracing::debug!(
+                                target: "alacer::inspect",
+                                violation,
+                                "inspector client sent a non-finite ask — closing the session"
+                            );
                             break;
                         }
-                    }
+                    },
                     Err(error) => {
                         // A malformed control frame is not a goodbye: the
                         // session's own discipline reports what it cannot
@@ -717,74 +766,166 @@ enum ClientFrame {
     Close(Vec<u8>),
 }
 
-/// Reads one client frame without blocking (poll mode): returns
-/// [`ClientFrame::None`] when no complete frame is buffered.
-fn try_read_client_frame(reader: &mut BufReader<TcpStream>) -> std::io::Result<ClientFrame> {
-    reader.get_mut().set_nonblocking(true)?;
-    let result = read_client_frame(reader);
-    reader.get_mut().set_nonblocking(false)?;
-    result
+/// The largest client payload this server buffers, in bytes. Controls and
+/// asks are small JSON documents; a declared length above the cap is a
+/// protocol violation refused BEFORE any allocation — the old reader
+/// trusted the client-declared length and `vec![0_u8; length]`-allocated
+/// it, so one 14-byte header declaring a 64-bit length aborted the whole
+/// process (an allocation failure aborts; it is not a catchable error).
+const MAX_CLIENT_PAYLOAD: usize = 16 * 1024 * 1024;
+
+/// The largest request-head line this server parses, in bytes — a head
+/// without a newline inside the cap is a protocol violation, never
+/// unbounded memory growth (`read_line` grows until `\n` otherwise).
+const MAX_REQUEST_HEAD_LINE: usize = 8 * 1024;
+
+/// The client's frames, read incrementally: bytes accumulate in one buffer
+/// across polls, so a frame TCP-segmented across packets parses whole. The
+/// old reader parsed straight off the socket with `read_exact`, which
+/// consumes the bytes it managed to read before reporting `WouldBlock` —
+/// a header byte eaten by one poll was gone forever (the stream desynced
+/// and the client's next control parsed as garbage), and a `WouldBlock`
+/// landing mid-payload propagated out of the session loop and killed the
+/// session for a frame that had merely arrived in two packets.
+struct ClientFrameReader {
+    buffer: Vec<u8>,
 }
 
-/// Reads one client frame (blocking on the socket, not on our buffer).
-fn read_client_frame(reader: &mut BufReader<TcpStream>) -> std::io::Result<ClientFrame> {
-    let mut header = [0_u8; 2];
-    match reader.read_exact(&mut header) {
-        Ok(()) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::UnexpectedEof => {
-            return Ok(ClientFrame::Close(Vec::new()));
+impl ClientFrameReader {
+    fn new() -> Self {
+        Self { buffer: Vec::new() }
+    }
+
+    /// Polls for one complete frame without blocking: drains what the
+    /// socket offers into the buffer, then parses a frame from the front
+    /// when one is complete. Returns [`ClientFrame::None`] while the
+    /// frame is still partial — the bytes stay buffered for the next
+    /// poll, never re-read, never lost.
+    fn poll(&mut self, reader: &mut BufReader<TcpStream>) -> std::io::Result<ClientFrame> {
+        reader.get_mut().set_nonblocking(true)?;
+        let ended = self.fill(reader);
+        reader.get_mut().set_nonblocking(false)?;
+        let ended = ended?;
+        if ended {
+            // The clean goodbye: EOF with nothing buffered. A partial
+            // frame under EOF is a stream that ended mid-frame — a
+            // protocol violation, not a goodbye.
+            if self.buffer.is_empty() {
+                return Ok(ClientFrame::Close(Vec::new()));
+            }
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                "the client stream ended mid-frame",
+            ));
         }
-        Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
-            return Ok(ClientFrame::None);
-        }
-        Err(error) => return Err(error),
-    }
-    let opcode = header[0] & 0x0F;
-    let masked = header[1] & 0x80 != 0;
-    let mut length = u64::from(header[1] & 0x7F);
-    if length == 126 {
-        let mut extended = [0_u8; 2];
-        reader.read_exact(&mut extended)?;
-        length = u64::from(u16::from_be_bytes(extended));
-    } else if length == 127 {
-        let mut extended = [0_u8; 8];
-        reader.read_exact(&mut extended)?;
-        length = u64::from_be_bytes(extended);
-    }
-    let mut mask = [0_u8; 4];
-    if masked {
-        reader.read_exact(&mut mask)?;
-    }
-    // A declared length this platform cannot address is a protocol
-    // violation, refused honestly — never munged into an empty payload
-    // and called a frame (the "named refusals, never silent drops"
-    // rule: the old `unwrap_or(0)` turned an out-of-range length into a
-    // zero-byte read, the munge reading as success where the wire said
-    // otherwise).
-    let length = usize::try_from(length).map_err(|source| {
-        std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!(
-                "the client frame declares {length} bytes, outside this platform's addressable range: {source}"
-            ),
-        )
-    })?;
-    let mut payload = vec![0_u8; length];
-    if !payload.is_empty() {
-        reader.read_exact(&mut payload)?;
-    }
-    if masked {
-        for (index, byte) in payload.iter_mut().enumerate() {
-            *byte ^= mask[index % 4];
+        match self.parse()? {
+            Some(frame) => Ok(frame),
+            None => Ok(ClientFrame::None),
         }
     }
-    Ok(match opcode {
-        0x1 | 0x2 => ClientFrame::Text(String::from_utf8_lossy(&payload).into_owned()),
-        0x8 => ClientFrame::Close(payload),
-        0x9 => ClientFrame::Ping(payload),
-        0xA => ClientFrame::Pong,
-        _ => ClientFrame::None,
-    })
+
+    /// Drains everything the socket has already received into the buffer;
+    /// the nonblocking `WouldBlock` ends the drain, the buffer keeps what
+    /// it got. Returns whether the stream ended.
+    fn fill(&mut self, reader: &mut BufReader<TcpStream>) -> std::io::Result<bool> {
+        let mut chunk = [0_u8; 4096];
+        loop {
+            match reader.read(&mut chunk) {
+                Ok(0) => return Ok(true),
+                Ok(n) => {
+                    self.buffer.extend_from_slice(&chunk[..n]);
+                    if self.buffer.len() > MAX_CLIENT_PAYLOAD + 14 {
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            format!(
+                                "the client streamed past the {MAX_CLIENT_PAYLOAD}-byte cap before a frame completed: protocol violation"
+                            ),
+                        ));
+                    }
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => return Ok(false),
+                Err(error) => return Err(error),
+            }
+        }
+    }
+
+    /// Parses one complete frame from the buffer's front, or `None` while
+    /// the frame is still partial. The declared length is checked against
+    /// the cap before anything allocates.
+    fn parse(&mut self) -> std::io::Result<Option<ClientFrame>> {
+        if self.buffer.len() < 2 {
+            return Ok(None);
+        }
+        let opcode = self.buffer[0] & 0x0F;
+        let masked = self.buffer[1] & 0x80 != 0;
+        let mut length = u64::from(self.buffer[1] & 0x7F);
+        let mut head = 2_usize;
+        if length == 126 {
+            if self.buffer.len() < head + 2 {
+                return Ok(None);
+            }
+            length = u64::from(u16::from_be_bytes([self.buffer[2], self.buffer[3]]));
+            head += 2;
+        } else if length == 127 {
+            if self.buffer.len() < head + 8 {
+                return Ok(None);
+            }
+            let mut extended = [0_u8; 8];
+            extended.copy_from_slice(&self.buffer[head..head + 8]);
+            length = u64::from_be_bytes(extended);
+            head += 8;
+        }
+        let mask: Option<[u8; 4]> = if masked {
+            if self.buffer.len() < head + 4 {
+                return Ok(None);
+            }
+            let bytes = [
+                self.buffer[head],
+                self.buffer[head + 1],
+                self.buffer[head + 2],
+                self.buffer[head + 3],
+            ];
+            head += 4;
+            Some(bytes)
+        } else {
+            None
+        };
+        // A declared length above the cap is a protocol violation,
+        // refused honestly BEFORE any allocation — never munged into a
+        // smaller read and called a frame (the "named refusals, never
+        // silent drops" rule).
+        if length > MAX_CLIENT_PAYLOAD as u64 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!(
+                    "the client frame declares {length} bytes, above the {MAX_CLIENT_PAYLOAD}-byte payload cap: a length the server will never buffer is a protocol violation"
+                ),
+            ));
+        }
+        let Ok(length) = usize::try_from(length) else {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "the declared length does not fit this platform's usize: protocol violation",
+            ));
+        };
+        if self.buffer.len() < head + length {
+            return Ok(None);
+        }
+        let mut payload = self.buffer[head..head + length].to_vec();
+        if let Some(mask) = mask {
+            for (index, byte) in payload.iter_mut().enumerate() {
+                *byte ^= mask[index % 4];
+            }
+        }
+        self.buffer.drain(..head + length);
+        Ok(Some(match opcode {
+            0x1 | 0x2 => ClientFrame::Text(String::from_utf8_lossy(&payload).into_owned()),
+            0x8 => ClientFrame::Close(payload),
+            0x9 => ClientFrame::Ping(payload),
+            0xA => ClientFrame::Pong,
+            _ => ClientFrame::None,
+        }))
+    }
 }
 
 /// Sends one server frame (FIN + opcode; servers never mask, RFC 6455 §5.1).

@@ -729,3 +729,50 @@ fn m155_the_living_documents_re_agree() {
         "the m154 suite's pins moved with the documents"
     );
 }
+
+/// The flip's no-op door is total over the scale fact: a seam answering
+/// `Some(NaN)` lands once (the canon `None` differs), and the bit-identical
+/// ask then no-ops — `false`, no second broadcast, no second record. The
+/// derived `PartialEq` never equaled `Some(NaN)` with itself, so the
+/// identical ask re-landed a whole-tree `LAYOUT | PAINT` and a record on
+/// every `set_settings` call, where ADR-0160 pins the same-scale ask as
+/// the honest no-op "at every door (`false`): the flip's bundle equality
+/// check, the seam's install, the engine's keys".
+#[test]
+fn m155_a_nan_scale_ask_lands_once_then_no_ops() {
+    let _guard = alacer_core::flux::batch_test_lock();
+    let mut harness = TestHarness::new(220.0, 140.0);
+    let trail = harness.trail();
+    let _probe = harness.mount(TextScaleProbe.boxed());
+    settle(&mut harness);
+
+    let ask = || FixedSettings {
+        dark: false,
+        reduced_motion: false,
+        high_contrast: false,
+        accent: None,
+        reduced_transparency: false,
+        text_scale: Some(f32::NAN),
+    };
+    assert!(
+        harness.pipeline_mut().set_settings(Box::new(ask())),
+        "the first ask lands — the canon `None` differs from `Some(NaN)`"
+    );
+    settle(&mut harness);
+    assert_eq!(
+        setting_facts(&trail).len(),
+        1,
+        "one record for the one landing"
+    );
+
+    assert!(
+        !harness.pipeline_mut().set_settings(Box::new(ask())),
+        "the bit-identical ask is the honest no-op — the flip's door answers `false`"
+    );
+    settle(&mut harness);
+    assert_eq!(
+        setting_facts(&trail).len(),
+        1,
+        "no second record: the no-op broadcast nothing"
+    );
+}

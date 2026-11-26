@@ -42,8 +42,8 @@
 
 | Contract                                              | Baseline                                        | Enforced by                                                                                            |
 | ----------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Incremental relayout, 10 000 nodes @ 10 % style churn | **14.44×** vs full rebuild                      | ≥ 2× gate, `alacer-layout/tests/w1_gate.rs`                                                            |
-| 50-event pointer storm                                | **1** coalesced dispatch (**40.08×**)           | `input_storm_batching` budget                                                                          |
+| Incremental relayout, 10 000 nodes @ 10 % style churn | **14.82×** vs full rebuild                      | ≥ 2× gate, `alacer-layout/tests/w1_gate.rs`                                                            |
+| 50-event pointer storm                                | **1** coalesced dispatch (**40.36×**)           | `input_storm_batching` budget                                                                          |
 | 10k-node churn frame vs egui, same host               | 1.10 ms vs 20.7 ms full frame (**18.8×**)       | 5-run medians, declared rig (`benchmarks/rig.json`)                                                    |
 | …vs Masonry                                           | 1.10 ms vs 4.6 ms full pass pipeline (**4.2×**) | same rig, `scripts/run_comparison.py`                                                                  |
 | All 205 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
@@ -320,7 +320,7 @@ fans the recorder's wire out beside the in-process reader, two doors behind one 
 
 - **Frame-batched input (M8).** Raw pointer events queue into `alacer_core::input::EventCoalescer`:
 compatible moves merge, same-direction wheel deltas accumulate on both axes, the tick routes
-one batch — a storm costs one frame of work, not N events (the 40.08× contract above).
+one batch — a storm costs one frame of work, not N events (the 40.36× contract above).
 - **Drag capture (M19).** A press implicitly captures its deepest accepting hit — moves and the
   release keep arriving past the widget's frame; the wheel still follows the hover; with no press
   in flight, routing is the hit test exactly as before (ADR-0025, `drag_capture` example). Since M19 the drag holds its target — the moves and the release keep arriving at the captured ancestor past the widget's own frame, and the wheel still follows the hover.

@@ -80,6 +80,56 @@ class ParseMembersTest(unittest.TestCase):
             check_publish.parse_members(root)
 
 
+class CrateVersionTest(unittest.TestCase):
+    """The exact tarball name needs the crate's own version, resolved."""
+
+    def test_literal_package_version_wins(self) -> None:
+        root = make_workspace(["a"], {"a": {}})
+        self.assertEqual(check_publish.crate_version(root, "a"), "0.1.0")
+
+    def test_workspace_inheritance_resolves_from_the_root(self) -> None:
+        root_manifest = "\n".join([
+            "[workspace]",
+            'resolver = "3"',
+            'members = ["crates/a"]',
+            "",
+            "[workspace.package]",
+            'version = "2.3.4"',
+        ])
+        root = make_workspace(
+            ["a"],
+            {"a": {"dependencies": ""}},
+            root_manifest=root_manifest,
+        )
+        # The fixture writes a literal version; rewrite the manifest the way
+        # the real workspace declares inheritance.
+        (root / "crates" / "a" / "Cargo.toml").write_text(
+            "\n".join([
+                "[package]",
+                'name = "a"',
+                "version.workspace = true",
+            ]),
+            encoding="utf-8",
+        )
+        self.assertEqual(check_publish.crate_version(root, "a"), "2.3.4")
+
+    def test_unresolvable_version_refuses(self) -> None:
+        root_manifest = "[workspace]\nresolver = \"3\"\nmembers = [\"crates/a\"]\n"
+        root = make_workspace(["a"], {"a": {}}, root_manifest=root_manifest)
+        (root / "crates" / "a" / "Cargo.toml").write_text(
+            "[package]\nname = \"a\"\n",
+            encoding="utf-8",
+        )
+        with self.assertRaises(SystemExit):
+            check_publish.crate_version(root, "a")
+
+    def test_missing_crate_manifest_refuses(self) -> None:
+        root = Path(tempfile.mkdtemp(prefix="check-publish-empty-"))
+        (root / "Cargo.toml").write_text("[workspace]\n", encoding="utf-8")
+        with self.assertRaises(SystemExit):
+            check_publish.crate_version(root, "ghost")
+
+
 class BuildGraphTest(unittest.TestCase):
     """Internal edges ride runtime sections; dev-only joins on request."""
 
@@ -566,6 +616,73 @@ class RunProofTest(unittest.TestCase):
         ]
         self.assertEqual(packaged, ["a-core", "a-view", "a-widgets", "a"])
         self.assertEqual(summary, (4, 0))
+
+    def test_the_facade_stages_its_own_tarball_not_a_prefix_sibling(self) -> None:
+        """`target/package/` keeps every earlier sibling's tarball; the
+        facade `a` shares its name prefix with `a-widgets`, so a
+        prefix-wildcard last-match stages the wrong crate's tarball under
+        the facade's seat — the staging must resolve the exact
+        `{crate}-{version}.crate` and every staged seat must name itself."""
+        root = make_workspace(RUNTIME_ONLY_MEMBERS, {
+            name: manifests
+            for name, manifests in FIXTURE_MANIFESTS.items()
+            if name in RUNTIME_ONLY_MEMBERS
+        })
+        vendor = root / ".publish-vendor"
+
+        def fake_runner(command: list[str], **_kwargs: object) -> int:
+            if command[:2] == ["cargo", "vendor"]:
+                vendor.mkdir(parents=True, exist_ok=True)
+                return 0
+            if command[:2] == ["cargo", "clean"]:
+                return 0
+            if command == check_publish.verify_command():
+                return 0
+            crate = command[command.index("-p") + 1]
+            crate_file = root / "target" / "package" / f"{crate}-0.1.0.crate"
+            crate_file.parent.mkdir(parents=True, exist_ok=True)
+            with tarfile.open(crate_file, "w:gz") as archive:
+                archive.add(root / "crates" / crate, arcname=f"{crate}-0.1.0")
+            return 0
+
+        summary = check_publish.run_proof(
+            root, runner=fake_runner, simulate=True, keep_vendor=True, threshold_bytes=0
+        )
+        self.assertEqual(summary, (4, 0))
+        for crate in RUNTIME_ONLY_MEMBERS:
+            manifest = (vendor / crate / "Cargo.toml").read_text(encoding="utf-8")
+            self.assertIn(
+                f'name = "{crate}"',
+                manifest,
+                f"the {crate} seat staged a foreign crate's tarball",
+            )
+
+    def test_a_missing_exact_tarball_refuses(self) -> None:
+        """A packaging success whose tarball does not carry the crate's own
+        `{name}-{version}` name is a corrupted run — refuse, never pick a
+        look-alike sibling."""
+        root = make_workspace(["a-core", "a-view"], {
+            name: manifests
+            for name, manifests in FIXTURE_MANIFESTS.items()
+            if name in ("a-core", "a-view")
+        })
+
+        def fake_runner(command: list[str], **_kwargs: object) -> int:
+            if command[:2] == ["cargo", "clean"]:
+                return 0
+            if command == check_publish.verify_command():
+                return 0
+            crate = command[command.index("-p") + 1]
+            crate_file = root / "target" / "package" / f"{crate}-9.9.9.crate"
+            crate_file.parent.mkdir(parents=True, exist_ok=True)
+            with tarfile.open(crate_file, "w:gz") as archive:
+                archive.add(root / "crates" / crate, arcname=f"{crate}-9.9.9")
+            return 0
+
+        with self.assertRaises(SystemExit):
+            check_publish.run_proof(
+                root, runner=fake_runner, simulate=False, threshold_bytes=0
+            )
 
     def test_failure_stops_and_counts(self) -> None:
         members = ["a-core", "a-view"]

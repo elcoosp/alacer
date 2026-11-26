@@ -26,7 +26,20 @@ impl CacheKey {
         Self {
             content: hasher.finish(),
             size_bits: font_size.to_bits(),
-            width_bucket: alacer_core::num::f32_to_u32((max_width.unwrap_or(0.0) / 8.0).floor()),
+            // `None` (unbounded) is bucket 0 and every bounded width lives
+            // strictly above it — the old `unwrap_or(0.0)` fold keyed a
+            // bounded width below the 8 px grid (`Some(4.0)`, or a negative
+            // one, which also saturated through the floor) identically to
+            // the unbounded sentinel, and the unwrapped one-line shaping
+            // then served a wrapped query (the layout measure cache's
+            // same lesson, one file over).
+            width_bucket: match max_width {
+                None => 0,
+                Some(w) => {
+                    let clamped = w.max(0.0);
+                    alacer_core::num::f32_to_u32((clamped / 8.0).floor() * 8.0).saturating_add(1)
+                }
+            },
         }
     }
 
@@ -255,9 +268,32 @@ mod tests {
 
     #[test]
     fn keys_bucket_widths_to_8px() {
-        assert_eq!(CacheKey::new("x", 16.0, Some(0.0)).width_bucket(), 0);
-        assert_eq!(CacheKey::new("x", 16.0, Some(7.9)).width_bucket(), 0);
-        assert_eq!(CacheKey::new("x", 16.0, Some(8.0)).width_bucket(), 1);
+        assert_eq!(CacheKey::new("x", 16.0, Some(0.0)).width_bucket(), 1);
+        assert_eq!(
+            CacheKey::new("x", 16.0, Some(7.9)).width_bucket(),
+            CacheKey::new("x", 16.0, Some(0.0)).width_bucket(),
+            "both floor into the same sub-grid bucket"
+        );
+        assert_eq!(CacheKey::new("x", 16.0, Some(8.0)).width_bucket(), 9);
+        assert_ne!(CacheKey::new("x", 16.0, Some(7.9)).width_bucket(), 9);
+    }
+
+    #[test]
+    fn a_bounded_width_never_hashes_as_the_unbounded_sentinel() {
+        // The old `unwrap_or(0.0)` fold keyed a bounded sub-grid width
+        // (and a negative one, saturating through the floor) identically
+        // to `None` — the unwrapped one-line shaping served a wrapped
+        // query. Bucket 0 is the unbounded sentinel alone.
+        assert_eq!(CacheKey::new("x", 16.0, None).width_bucket(), 0);
+        assert_ne!(
+            CacheKey::new("x", 16.0, None).width_bucket(),
+            CacheKey::new("x", 16.0, Some(4.0)).width_bucket()
+        );
+        assert_ne!(
+            CacheKey::new("x", 16.0, None).width_bucket(),
+            CacheKey::new("x", 16.0, Some(-4.0)).width_bucket(),
+            "a negative width clamps to the zero-width bucket, never the sentinel"
+        );
     }
 
     #[test]

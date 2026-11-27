@@ -118,3 +118,51 @@ fn the_served_bytes_are_the_embedded_single_file_client() {
         "the declared length is the body's byte count"
     );
 }
+
+// The panel reads every tier (M153's consumer surface, ADR-0157): the
+// trail's consequence names the inspector panel among the cursor tier's
+// readers — "the inspector panel, a status line, or a test reads the
+// cursor tier without re-implementing the observation at the resolution
+// site". Every sibling trail tier renders its echo in the embedded
+// client's log pane; the served document must carry a handler case for
+// each trail kind the protocol documents, the cursor tier included — a
+// kind the switch drops is a tier the panel answers with silence.
+#[test]
+fn the_client_reads_every_tier_the_protocol_documents() {
+    let port = bound_server("html-client-tiers");
+    let (_head, body) = fetch_root(port);
+
+    // The trail kinds in the event vocabulary's order (the rings' own
+    // order, `frames` last): every tier's echo rendered beside the
+    // others, the cursor tier's among them.
+    for kind in [
+        "edge",
+        "write",
+        "input",
+        "focus",
+        "edit",
+        "announce",
+        "key",
+        "clipboard",
+        "value",
+        "gesture",
+        "scroll",
+        "text_write",
+        "route_drop",
+        "key_edit",
+        "preedit",
+        "a11y_echo",
+        "action",
+        "frame_refusal",
+        "view_patch",
+        "theme",
+        "setting",
+        "cursor",
+    ] {
+        let handler = format!("case \"{kind}\"");
+        assert!(
+            body.contains(&handler),
+            "the panel reads every tier the protocol documents: missing the {handler} handler"
+        );
+    }
+}

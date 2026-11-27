@@ -663,6 +663,25 @@ function connect() {
           " — the flip repainted " + event.repainted + " nodes");
         break;
       }
+      case "cursor": {
+        // The client renders the cursor trail's echo (M153, ADR-0157):
+        // the hover's resolved fact lands in the log pane beside the
+        // other trails — the style beside the source that named it, so
+        // a reader answers "why did the pointer's shape move" from the
+        // log alone. The widget's source rides the node and the role
+        // word the tree event's vocabulary speaks; the default's source
+        // is the honest absence (the absence named as a source, never
+        // guessed onto a widget that did not answer). One fact per
+        // resolved change, never per frame — the flood rule the door
+        // coalesces upstream.
+        const source = event.source === "widget"
+          ? "the " + (event.role != null ? event.role + " " : "") +
+            "widget at node #" + event.node
+          : "the window's default (nothing accepted the hover)";
+        addLog("cursor", "cursor " + event.style, "the hover resolves to " +
+          event.style + " — " + source + " named it");
+        break;
+      }
       case "frame":
         renderFrame(event);
         addLog("frame", "frame " + event.number,

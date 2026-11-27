@@ -45,7 +45,7 @@ use alacer_widgets::{BoxedWidget as _, Button, Column, ColumnHeader, TableRow};
 /// expanded route's pair (M110), the multiselectable route's pair (M109),
 /// the selected route's pair (M108), the invalid route's case (M107) and
 /// every tier's before them on the published corpus.
-const EXPECTED_BENCH_COUNT: usize = 205;
+const EXPECTED_BENCH_COUNT: usize = 207;
 
 /// The suite's own read door into the published corpus: the current
 /// route's pair — the 1,000-node button arena carrying the currency

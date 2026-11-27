@@ -2,10 +2,12 @@
 //! socket, a raw TCP client doing the RFC 6455 handshake, and the JSON
 //! stream pinned against `docs/inspector-protocol.md`.
 
+use alacer_core::cursor::CursorStyle;
 use alacer_core::inspect::{
-    InputKind, InputRecord, InspectEvent, InspectObserver as _, SettingRecord, SignalWrite,
-    ThemeRecord,
+    CursorRecord, CursorSource, InputKind, InputRecord, InspectEvent, InspectObserver as _,
+    SettingRecord, SignalWrite, ThemeRecord,
 };
+use alacer_core::widget::Role;
 use alacer_inspect::{CausalRecorder, InspectorServer};
 use std::io::{BufRead as _, BufReader, Read, Write};
 use std::net::TcpStream;
@@ -1156,6 +1158,78 @@ fn a_subscribe_ask_with_an_unknown_tier_ends_the_session() {
     assert_eq!(header[0] & 0x0F, 0x8, "the close opcode");
 }
 
+// The cursor tier joins the live gate (M153, ADR-0157): the ask's
+// closed vocabulary names `cursors` — a subscribed session sees the
+// hover's resolved facts cross the socket, the unasked tiers staying
+// silent, the rings keeping everything either way (the ask is the
+// session's fan-out, never the recorder's capture). The wire shape is
+// the additive event kind at version 1: the style beside the source
+// that named it, the widget's node and role riding the widget source.
+#[test]
+fn the_cursor_tier_joins_the_live_gate() {
+    let recorder = CausalRecorder::new("cursor-gate");
+    let server =
+        InspectorServer::bind("127.0.0.1:0", recorder.clone(), "cursor-gate").expect("bind");
+    let port = server.port();
+    std::thread::spawn(move || server.serve_once());
+    let mut reader = connect_ws(port);
+    let hello = read_text_frame(&mut reader);
+    assert!(hello.contains(r#""kind":"hello""#), "{hello}");
+    std::thread::sleep(Duration::from_millis(30));
+
+    let socket = reader.get_ref().try_clone().expect("clone");
+    send_client_text(&socket, br#"{"kind":"subscribe","tiers":["cursors"]}"#);
+    std::thread::sleep(Duration::from_millis(80));
+
+    // Two facts after the ask: an unasked tier's input and the asked
+    // tier's cursor fact. Only the cursor crosses — the input stays
+    // silent, the gate is the session's fan-out.
+    recorder
+        .clone_handle()
+        .observe(InspectEvent::Input(InputRecord {
+            kind: InputKind::Wheel,
+            target: None,
+        }));
+    recorder
+        .clone_handle()
+        .observe(InspectEvent::Cursor(CursorRecord {
+            style: CursorStyle::Pointer,
+            source: CursorSource::Widget {
+                node: 42,
+                role: Role::Link,
+            },
+        }));
+    std::thread::sleep(Duration::from_millis(80));
+    let cursor = read_text_frame(&mut reader);
+    assert!(
+        cursor.contains(r#""kind":"cursor""#)
+            && cursor.contains(r#""style":"pointer""#)
+            && cursor.contains(r#""source":"widget""#)
+            && cursor.contains(r#""node":42"#)
+            && cursor.contains(r#""role":"link""#),
+        "the asked tier streams the hover's resolved fact: {cursor}"
+    );
+
+    // The unasked tier's fact crossed nothing — and the rings hold both
+    // (the capture untouched): the replay burst answers whole, the
+    // inputs ring ahead of the cursors ring (the event vocabulary's
+    // order), the filter never the capture.
+    send_client_text(&socket, br#"{"kind":"replay"}"#);
+    std::thread::sleep(Duration::from_millis(80));
+    let burst_input = read_text_frame(&mut reader);
+    assert!(
+        burst_input.contains(r#""kind":"input""#),
+        "the burst answers the rings, not the filter: {burst_input}"
+    );
+    let burst_cursor = read_text_frame(&mut reader);
+    assert!(
+        burst_cursor.contains(r#""kind":"cursor""#) && burst_cursor.contains(r#""node":42"#),
+        "the cursors ring's entry rides the burst whole: {burst_cursor}"
+    );
+
+    send_client_text(&socket, br#"{"kind":"bye"}"#);
+}
+
 #[test]
 fn the_stats_rows_name_every_tier_the_ask_filters_by() {
     // One vocabulary, two doors: every tier name the subscribe ask
@@ -1198,6 +1272,7 @@ fn the_stats_rows_name_every_tier_the_ask_filters_by() {
         "view_patches",
         "themes",
         "settings",
+        "cursors",
         "frames",
     ] {
         let row = format!(r#""name":"{name}""#);

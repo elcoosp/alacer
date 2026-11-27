@@ -206,5 +206,9 @@ name = "rsx_todo"
 harness = false
 
 [[bench]]
+name = "rsx_conditional"
+harness = false
+
+[[bench]]
 name = "hot_patch"
 harness = false

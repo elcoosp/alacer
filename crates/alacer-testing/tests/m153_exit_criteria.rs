@@ -202,3 +202,50 @@ fn m153_the_disabled_period_queues_nothing_the_later_reader_starts_where_it_came
         "the live trail streams the change that resolved under it"
     );
 }
+
+// The gate's vocabulary re-agrees with the document (ADR-0157's own
+// decision sentence: "the tier joining the subscribe gate's vocabulary
+// and the stats answer's rows (the bounds sentence's own list — the two
+// cannot drift apart)"). The M153 cut grew the `cursors` ring, the wire
+// kind, and the stats answer's row — and the protocol document's
+// subscribe-gate paragraph, the ask's own closed vocabulary, must name
+// the tier too: one list the two doors read, the two unable to drift
+// apart. The panel's half rides the served client (the html client's
+// own beat in `alacer-inspect`); this one pins the document's.
+#[test]
+fn m153_the_gate_vocabulary_re_agrees_with_the_document() {
+    let protocol = read_workspace_file("docs/inspector-protocol.md");
+
+    // The stats answer's row list names the ring (the capture's half —
+    // the vocabulary's order, `cursors` before `frames` last).
+    assert!(
+        protocol.contains("`cursors`, `frames`)"),
+        "the stats answer's row list names the cursors ring"
+    );
+
+    // The subscribe ask's paragraph names the tier beside the others —
+    // the gate's half of the one-list rule, the ask's own order.
+    assert!(
+        protocol.contains("`settings`, `cursors`, `frames`)"),
+        "the subscribe gate's documented vocabulary names the cursors tier — the two lists cannot drift apart"
+    );
+
+    // The paragraph's own count phrase re-agrees with the vocabulary.
+    assert!(
+        protocol.contains("the twenty-three trail rings"),
+        "the subscribe gate's count phrase re-agrees with the twenty-three trail rings"
+    );
+}
+
+/// The m-suites' workspace-file read door (the m41/m57 idiom): the
+/// document pins ride the repo's own files, read from the workspace
+/// root the manifest path names.
+fn read_workspace_file(path: &str) -> String {
+    let manifest = std::env::var("CARGO_MANIFEST_DIR").expect("cargo sets the manifest dir");
+    let workspace = std::path::Path::new(&manifest)
+        .ancestors()
+        .nth(2)
+        .expect("the suite rides two directories under the workspace root");
+    std::fs::read_to_string(workspace.join(path))
+        .unwrap_or_else(|error| panic!("read {path}: {error}"))
+}

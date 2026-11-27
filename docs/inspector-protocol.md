@@ -1395,11 +1395,11 @@ keep recording every tier (the replay and stats asks answer whole either
 way), so the gate drops nothing the rings hold: the panel's own silence,
 never a loss (the eviction counters name the losses the caps cause; a
 muted tier is not one of them). The names are the `stats` answer's row
-vocabulary — the twenty-two trail rings (`edges`, `writes`, `inputs`,
+vocabulary — the twenty-three trail rings (`edges`, `writes`, `inputs`,
 `focus`, `edits`, `announces`, `keys`, `clipboards`, `values`,
 `gestures`, `scrolls`, `text_writes`, `route_drops`, `key_edits`,
 `preedits`, `a11y_echoes`, `actions`, `frame_refusals`, `view_patches`,
-`themes`, `settings`, `frames`), one list the two doors read, the two
+`themes`, `settings`, `cursors`, `frames`), one list the two doors read, the two
 unable to drift apart. `broadcast` is deliberately absent — the stream
 is the medium, never a tier of itself — and a name outside the
 vocabulary is a malformed control frame: the session's documented

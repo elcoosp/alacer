@@ -104,7 +104,7 @@ fn a_clock_read_streams_no_fact() {
 /// (`click_chain/*`, `pass_overhead/*`) are already in the published
 /// corpus — the suite grows no case, the pin asserting the count this
 /// cut publishes.
-const EXPECTED_BENCH_COUNT: usize = 205;
+const EXPECTED_BENCH_COUNT: usize = 207;
 
 #[test]
 fn m103_the_corpus_pin_re_agrees_at_the_cut() {

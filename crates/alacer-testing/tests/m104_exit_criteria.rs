@@ -191,7 +191,7 @@ fn without_a_clock_the_tick_still_measures_wall_time() {
 /// `pass_overhead/seamed_timed_idle_10k`) are already in the published
 /// corpus — the suite grows no case, the pin asserting the count this
 /// cut publishes.
-const EXPECTED_BENCH_COUNT: usize = 205;
+const EXPECTED_BENCH_COUNT: usize = 207;
 
 #[test]
 fn m104_the_corpus_pin_re_agrees_at_the_cut() {

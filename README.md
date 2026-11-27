@@ -46,7 +46,7 @@
 | 50-event pointer storm                                | **1** coalesced dispatch (**40.36×**)           | `input_storm_batching` budget                                                                          |
 | 10k-node churn frame vs egui, same host               | 1.10 ms vs 20.7 ms full frame (**18.8×**)       | 5-run medians, declared rig (`benchmarks/rig.json`)                                                    |
 | …vs Masonry                                           | 1.10 ms vs 4.6 ms full pass pipeline (**4.2×**) | same rig, `scripts/run_comparison.py`                                                                  |
-| All 205 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
+| All 207 criterion cases                                | `benchmarks/baselines/baselines.json`           | `contracts.json` + the CI perf-contracts job: fails on a same-host regression or an uncontracted bench |
 
 _Competitor rows compare Alacer's incremental frame against their full frame/pass — every row in
 `benchmarks/comparisons/results.json` is labeled with its scope._
@@ -86,7 +86,7 @@ cargo test --workspace                                          # headless: real
 > `ALACER_SOFTWARE=1` presents through softbuffer — the platform honors it at startup
 > (`BackendPreference::software_env`) whichever backend the app asked for; any other value is
 > refused with a named warning, never guessed. CI and the headless tests already run this path:
-> no mock renderer, no mock event loop. The full 142-example catalog lives in
+> no mock renderer, no mock event loop. The full 143-example catalog lives in
 > [docs/examples.md](https://github.com/elcoosp/alacer/blob/main/docs/examples.md).
 
 ## How it works
@@ -367,6 +367,7 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | Example                                              | Shows                                                                            |
 | ---------------------------------------------------- | -------------------------------------------------------------------------------- |
 | `counter` / `counter_view`                           | one signal → masks end to end; the same app as an `rsx!` view                    |
+| `conditional_mount`                                  | a keyed list mounted and unmounted by an `rsx!` `if/else` branch — presence the app's wiring, the M1 conditional-mount precedent the presence tiers ride, its flip priced in the corpus |
 | `gallery`                                            | the whole widget vocabulary in one window                                        |
 | `landmarks`                                          | the page-structure words: banner, navigation (mounted and unmounted live), main, footer — the AT's landmarks list as `rsx!` elements |
 | `scrolling_list`                                     | clipped viewport, translation-only scrolling (try `ALACER_SOFTWARE=1`)           |
@@ -393,7 +394,7 @@ Run any of them with `cargo run -p alacer --example <name>`. Start here:
 | `todo` / `data_table`                                | the canons: a11y tree, record/replay, grid slots, keyboard navigation            |
 | `tree`                                               | the tree tier: the named collection, its nested members, the words the published tiers already carried |
 
-<details><summary><b>142 examples, grouped (recording, alloc_budget, input_budget, derive_widget, layout_probe, sort, level, current, has_popup, role_description, busy, key_routing, set, live, shortcut, multiline, language, switch, tab_panel, search_field, meter, dialog, tree, menu_bar, image, landmarks, inspector_descendants, inspector_siblings, and tri_state live in the catalog)</b></summary>
+<details><summary><b>143 examples, grouped (recording, alloc_budget, input_budget, derive_widget, layout_probe, sort, level, current, has_popup, role_description, busy, key_routing, set, live, shortcut, multiline, language, switch, tab_panel, search_field, meter, dialog, tree, menu_bar, image, landmarks, conditional_mount, inspector_descendants, inspector_siblings, and tri_state live in the catalog)</b></summary>
 
 **Start here**
 

@@ -129,18 +129,6 @@ impl TodoHandles {
         self.with_todos(|todos| todos.iter().filter(|item| item.done).count())
     }
 
-    /// Reads the current filter (test introspection and app logic).
-    ///
-    /// # Panics
-    ///
-    /// Panics when the signal's owner is gone (a dropped flux — an app bug).
-    pub fn with_filter<R>(&self, f: impl FnOnce(TodoFilter) -> R) -> R {
-        f(self
-            .filter
-            .try_get_untracked()
-            .expect("the filter signal's owner is alive"))
-    }
-
     /// Sets the filter — one write batch. The re-render is the caller's
     /// next [`Self::rerender`]; a windowed app's handlers fire the wake
     /// instead.

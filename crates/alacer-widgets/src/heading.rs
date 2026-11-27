@@ -114,13 +114,6 @@ impl Heading {
         self
     }
 
-    /// The depth the heading reports — the same word the M113 trait
-    /// contract carries into the a11y tree (test introspection).
-    #[must_use]
-    pub const fn level_of(&self) -> Option<usize> {
-        self.level
-    }
-
     /// Replaces the title in place (view reconciliation).
     pub fn set_name(&mut self, name: impl Into<String>) {
         self.name = name.into();

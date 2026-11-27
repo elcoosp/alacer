@@ -4144,10 +4144,48 @@ mod tests {
         assert!(parse.is_err(), "the tags' singular shape is not the tiers");
     }
 
+    /// The compiler's own closure over the tier vocabulary: a
+    /// wildcard-free match — every variant named, no `_` arm — so a
+    /// variant a later cut adds to [`Tier`] breaks this match's
+    /// compilation and the guard cannot drift the way the M153 cut's
+    /// `cursors` growth drifted past the list's pre-M153 shape.
+    fn assert_closed(tier: Tier) -> &'static str {
+        match tier {
+            Tier::Edges => "edges",
+            Tier::Writes => "writes",
+            Tier::Inputs => "inputs",
+            Tier::Focus => "focus",
+            Tier::Edits => "edits",
+            Tier::Announces => "announces",
+            Tier::Keys => "keys",
+            Tier::Clipboards => "clipboards",
+            Tier::Values => "values",
+            Tier::Gestures => "gestures",
+            Tier::Scrolls => "scrolls",
+            Tier::TextWrites => "text_writes",
+            Tier::RouteDrops => "route_drops",
+            Tier::KeyEdits => "key_edits",
+            Tier::Preedits => "preedits",
+            Tier::A11yEchoes => "a11y_echoes",
+            Tier::Actions => "actions",
+            Tier::FrameRefusals => "frame_refusals",
+            Tier::ViewPatches => "view_patches",
+            Tier::Themes => "themes",
+            Tier::Settings => "settings",
+            Tier::Cursors => "cursors",
+            Tier::Frames => "frames",
+        }
+    }
+
     /// The tier names are the stats answer's row names — one vocabulary,
     /// two doors (M141's rows name what M142's ask filters by), so the
     /// two cannot drift apart. `broadcast` is deliberately absent: the
-    /// stream is not one of its own tiers.
+    /// stream is not one of its own tiers. The closure is enforced by
+    /// the compiler, not only by this list: [`assert_closed`] matches
+    /// every variant with no wildcard arm, so a tier a later cut adds
+    /// cannot compile its way past the guard — the M153 cut's own
+    /// lesson, the `cursors` tier having grown the wire while this
+    /// list's pre-M153 shape let the drift through silently.
     #[test]
     fn the_tier_names_are_the_stats_rows_vocabulary() {
         let names: &[&str] = &[
@@ -4172,9 +4210,10 @@ mod tests {
             "view_patches",
             "themes",
             "settings",
+            "cursors",
             "frames",
         ];
-        assert_eq!(names.len(), 22, "the twenty-two trail rings");
+        assert_eq!(names.len(), 23, "the twenty-three trail rings");
         for name in names {
             let json = format!(r#"{{"kind":"subscribe","tiers":["{name}"]}}"#);
             let ask: ClientMessage = serde_json::from_str(&json)
@@ -4187,6 +4226,7 @@ mod tests {
             };
             assert_eq!(tiers.len(), 1, "one name, one tier");
             assert_eq!(tiers[0].name(), *name, "the name round-trips");
+            assert_eq!(assert_closed(tiers[0]), *name, "the vocabulary is closed");
         }
         assert!(
             !names.contains(&"broadcast"),

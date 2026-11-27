@@ -1333,6 +1333,16 @@
       "id": "text_measure_measure_scaled_cold",
       "baseline": "text_measure/measure_scaled_cold",
       "scope": "same-host"
+    },
+    {
+      "id": "rsx_conditional_flip_50",
+      "baseline": "rsx_conditional/flip/50",
+      "scope": "same-host"
+    },
+    {
+      "id": "rsx_conditional_idle_50",
+      "baseline": "rsx_conditional/idle/50",
+      "scope": "same-host"
     }
   ],
   "test_enforced_gates": [

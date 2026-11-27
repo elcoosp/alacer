@@ -607,19 +607,19 @@ fn m26_the_corpus_pins_moved_with_the_routes() {
             "crates/alacer-testing/tests/{suite}_exit_criteria.rs"
         ));
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 205;"),
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 207;"),
             "the {suite} suite's corpus pin moved with the routes"
         );
     }
     let m7 = read_workspace_file("crates/alacer-testing/tests/m7_exit_criteria.rs");
     assert!(
-        m7.contains("bench_count, 205,"),
+        m7.contains("bench_count, 207,"),
         "the m7 suite's corpus pin moved with the routes"
     );
     let m8 = read_workspace_file("crates/alacer-testing/tests/m8_exit_criteria.rs");
     assert!(
         m8.contains(
-            "the corpus catch-up pins 205: every shipped bench case prices under a regression gate"
+            "the corpus catch-up pins 207: every shipped bench case prices under a regression gate"
         ),
         "the m8 suite's corpus pin moved with the routes"
     );
@@ -657,7 +657,7 @@ fn m26_the_corpus_pins_moved_with_the_routes() {
     // cut (the coordinated rule: bench, gates, baseline, pins together).
     assert_eq!(
         gates.len(),
-        205,
+        207,
         "the contract set carries the corpus the pins promise"
     );
     for route in [

@@ -274,7 +274,7 @@ fn m9_the_activation_response_is_the_sinks_own_full_tree() {
 /// level route's case the newest (ADR-0117). Growing the corpus
 /// moves the bench file, contracts.json, the baseline, and the
 /// M5/M6/M7/M8/M9 pins together.
-const EXPECTED_BENCH_COUNT: usize = 205;
+const EXPECTED_BENCH_COUNT: usize = 207;
 
 #[test]
 fn m9_the_a11y_ratio_is_a_published_budget_and_the_corpus_moves_together() {
@@ -326,7 +326,7 @@ fn m9_the_a11y_ratio_is_a_published_budget_and_the_corpus_moves_together() {
     ] {
         let source = read_workspace_file(&format!("crates/alacer-testing/tests/{suite}"));
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 205;"),
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 207;"),
             "{suite} must pin the corpus count the cut re-agreed"
         );
     }

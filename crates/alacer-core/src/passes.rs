@@ -370,6 +370,17 @@ pub struct TreeNode {
     /// declared nothing announces no purpose, never a guessed
     /// "search".
     pub search_field: bool,
+    /// The control's action word (M156, ADR-0161): the asks the control's
+    /// door answers — the set the AT reads before it asks (AccessKit's
+    /// action set, ARIA's per-role action vocabulary: `click` on a
+    /// button, `increment` on a slider). The word is the door's own
+    /// answer said before the ask: a control advertises exactly what its
+    /// `on_a11y_action` consumes in the state it is in, and the word says
+    /// the door without opening it — an ask still travels the route it
+    /// always travelled, the door still answers each ask on its own
+    /// merits. The empty set is the honest absence — a control whose door
+    /// answers nothing advertises none, never a role-guessed action.
+    pub actions: crate::widget::A11yActions,
 }
 
 /// The full accessibility snapshot of the widget tree, built by pass 9.
@@ -4953,6 +4964,10 @@ impl PassPipeline {
                 multiline: slot.widget().multiline(),
                 language: slot.widget().language().map(str::to_owned),
                 search_field: slot.widget().search_field(),
+                // The action tier (M156, ADR-0161): the asks the widget's
+                // door answers, said in the state the widget is in — the
+                // same walk every other tier rides.
+                actions: slot.widget().a11y_actions(),
             };
             if snapshot.root.is_none() {
                 snapshot.root = Some(node.id);
@@ -5067,6 +5082,9 @@ impl PassPipeline {
             // region speaks its own content.
             language: None,
             search_field: false,
+            // The pipeline's own node: no ask to answer — the region
+            // is no door.
+            actions: crate::widget::A11yActions::empty(),
         }
     }
 
@@ -6697,10 +6715,93 @@ mod tests {
         fn measure_spec(&self) -> Option<crate::style::MeasureSpec> {
             Some(crate::style::MeasureSpec::Fixed(Size::new(100.0, 30.0)))
         }
+        fn a11y_actions(&self) -> crate::widget::A11yActions {
+            // The word is the door's answer (M156, ADR-0161): this door
+            // answers every ask, so it advertises every ask.
+            crate::widget::A11yActions::all()
+        }
         fn on_a11y_action(&mut self, action: crate::widget::A11yAction) -> bool {
             self.seen.lock().expect("seen lock").push(action);
             true
         }
+    }
+
+    /// A button that says the word it is given and answers nothing — the
+    /// pass-9 probe: the tree carries the widget's own word, verbatim,
+    /// whatever the door would do with it.
+    struct Worded {
+        word: crate::widget::A11yActions,
+    }
+
+    impl Widget for Worded {
+        fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+            self
+        }
+        fn role(&self) -> Role {
+            Role::Button
+        }
+        fn label(&self) -> LabelSource {
+            LabelSource::text("worded")
+        }
+        fn measure_spec(&self) -> Option<crate::style::MeasureSpec> {
+            Some(crate::style::MeasureSpec::Fixed(Size::new(100.0, 30.0)))
+        }
+        fn a11y_actions(&self) -> crate::widget::A11yActions {
+            self.word
+        }
+    }
+
+    #[test]
+    fn pass9_carries_the_action_word_a_widget_says() {
+        use crate::widget::A11yActions;
+
+        let _guard = crate::flux::batch_test_lock();
+        let word = A11yActions::DEFAULT_PRESS
+            .union(A11yActions::SET_VALUE)
+            .union(A11yActions::SCROLL_LEFT);
+        let mut p = pipeline();
+        let root = p.mount_root(Box::new(Fixed {
+            size: Size::new(200.0, 100.0),
+        }));
+        let _ = p.add_child(root, Box::new(Worded { word }));
+        let _ = p.add_child(
+            root,
+            Box::new(Worded {
+                word: A11yActions::empty(),
+            }),
+        );
+        let _ = p.tick(viewport()).expect("first frame");
+
+        // The action tier (M156, ADR-0161): the snapshot carries the
+        // widget's own word, kind for kind — and the widget that said
+        // nothing is carried as the honest absence, the pipeline adding
+        // no word of its own (a role never guesses an action).
+        let snapshot = p.a11y_snapshot().expect("a11y snapshot after first frame");
+        let mut words = snapshot
+            .nodes
+            .iter()
+            .filter(|node| node.role == Role::Button)
+            .map(|node| node.actions);
+        assert_eq!(
+            words.next(),
+            Some(word),
+            "the tree says the word the widget said"
+        );
+        assert_eq!(
+            words.next(),
+            Some(A11yActions::empty()),
+            "the silent widget rides the tree as the honest absence"
+        );
+        assert!(words.next().is_none(), "two worded buttons were mounted");
+        // The pipeline's own announcement region is no door.
+        assert!(
+            snapshot
+                .nodes
+                .iter()
+                .filter(|node| node.role == Role::LiveRegion)
+                .all(|node| node.actions.is_empty()),
+            "the pipeline-owned node advertises nothing"
+        );
     }
 
     #[test]
@@ -7691,6 +7792,7 @@ mod tests {
             multiline: false,
             language: None,
             search_field: false,
+            actions: crate::widget::A11yActions::empty(),
         }
     }
 

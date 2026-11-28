@@ -437,6 +437,7 @@ fn dump_snapshot(count: usize) -> std::sync::Arc<alacer_core::TreeSnapshot> {
         multiline: false,
         language: None,
         search_field: false,
+        actions: alacer_core::widget::A11yActions::empty(),
     });
     for id in 1..u64::try_from(count).unwrap_or_default() {
         nodes.push(TreeNode {
@@ -484,6 +485,7 @@ fn dump_snapshot(count: usize) -> std::sync::Arc<alacer_core::TreeSnapshot> {
             multiline: false,
             language: None,
             search_field: false,
+            actions: alacer_core::widget::A11yActions::empty(),
         });
     }
     std::sync::Arc::new(TreeSnapshot {

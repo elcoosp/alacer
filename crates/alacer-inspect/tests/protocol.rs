@@ -1340,6 +1340,7 @@ fn dump_snapshot() -> std::sync::Arc<alacer_core::TreeSnapshot> {
         multiline: false,
         language: None,
         search_field: false,
+        actions: alacer_core::widget::A11yActions::empty(),
     };
     std::sync::Arc::new(TreeSnapshot {
         nodes: vec![
@@ -1460,6 +1461,7 @@ fn the_tree_dump_rides_no_field_contents() {
         multiline: false,
         language: None,
         search_field: false,
+        actions: alacer_core::widget::A11yActions::empty(),
     };
     field.children = Vec::new();
     let snapshot = std::sync::Arc::new(TreeSnapshot {
@@ -2091,6 +2093,7 @@ fn relative_snapshot() -> std::sync::Arc<alacer_core::TreeSnapshot> {
         multiline: false,
         language: None,
         search_field: false,
+        actions: alacer_core::widget::A11yActions::empty(),
     };
     std::sync::Arc::new(TreeSnapshot {
         nodes: vec![

@@ -285,12 +285,12 @@ fn m8_the_corpus_pin_agrees_with_the_published_data() {
     // its gates grew 63 → 64 with it — these pins re-agree at the cut.
     assert_eq!(
         benches.len(),
-        207,
-        "the corpus catch-up pins 207: every shipped bench case prices under a regression gate"
+        208,
+        "the corpus catch-up pins 208: every shipped bench case prices under a regression gate"
     );
     assert_eq!(
         regressions.len(),
-        207,
+        208,
         "every bench carries a regression gate"
     );
     for id in ["input/storm_50_moves_queued", "input/storm_50_moves_direct"] {
@@ -319,7 +319,7 @@ fn m8_the_corpus_pin_agrees_with_the_published_data() {
     ] {
         let source = read_workspace_file(&format!("crates/alacer-testing/tests/{suite}"));
         assert!(
-            source.contains("const EXPECTED_BENCH_COUNT: usize = 207;"),
+            source.contains("const EXPECTED_BENCH_COUNT: usize = 208;"),
             "{suite} must pin the corpus count the cut re-agreed"
         );
     }

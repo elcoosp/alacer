@@ -51,7 +51,7 @@ use alacer_widgets::{BoxedWidget as _, Button, Checkbox, Column, Radio, RadioGro
 /// words it says are the set tier's, published since M119. The pin
 /// re-agrees at 155, and the coordinated rule grows it at the next
 /// published cut, never at a widget bench's.
-const EXPECTED_BENCH_COUNT: usize = 207;
+const EXPECTED_BENCH_COUNT: usize = 208;
 
 /// The first node in the snapshot whose role and name match.
 fn node(harness: &TestHarness, role: Role, name: &str) -> Option<TreeNode> {

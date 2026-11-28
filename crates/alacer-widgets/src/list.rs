@@ -505,6 +505,23 @@ impl Widget for List {
         EventResponse::Ignored
     }
 
+    /// The action tier (M156, ADR-0161): the scroll tier's six asks —
+    /// the four travel asks and the two page steps. The door consumes
+    /// every one of them whatever the content decides: a wall lands the
+    /// offset it holds, and an area with nothing to scroll answers the
+    /// named `no_scrollable_content` refusal on the scroll log (M50,
+    /// ADR-0056) — the ask is still the scroll area's to answer, never
+    /// another widget's. No availability word closes a scroll area's
+    /// door, so the list says all six unconditionally.
+    fn a11y_actions(&self) -> alacer_core::widget::A11yActions {
+        alacer_core::widget::A11yActions::SCROLL_UP
+            | alacer_core::widget::A11yActions::SCROLL_DOWN
+            | alacer_core::widget::A11yActions::SCROLL_LEFT
+            | alacer_core::widget::A11yActions::SCROLL_RIGHT
+            | alacer_core::widget::A11yActions::INCREMENT
+            | alacer_core::widget::A11yActions::DECREMENT
+    }
+
     fn on_a11y_action(&mut self, action: A11yAction) -> bool {
         // M10 (ADR-0016): a scroll area answers the AT vocabulary —
         // `ScrollUp`/`ScrollDown` travel by the requested unit (an item is

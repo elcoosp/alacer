@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "description": "Alacer performance contracts (M5, architecture \u00a718 / ADR-0011). Every criterion benchmark in the workspace is published as a baseline in benchmarks/baselines/baselines.json and gated here. `budgets` are architecture gates expressed as ratios of criterion medians \u2014 host-independent, enforced everywhere. `regressions` are per-case median gates against the published baseline, scoped `same-host`: absolute times only compare on the recorded host fingerprint (os/arch/cpu model/count); foreign hosts \u2014 CI runners \u2014 skip them and rely on criterion's own previous-run comparison plus the ratio budgets. Adding a benchmark case without publishing its baseline and regression gate fails the M5 exit suite.",
+  "description": "Alacer performance contracts (M5, architecture §18 / ADR-0011). Every criterion benchmark in the workspace is published as a baseline in benchmarks/baselines/baselines.json and gated here. `budgets` are architecture gates expressed as ratios of criterion medians — host-independent, enforced everywhere. `regressions` are per-case median gates against the published baseline, scoped `same-host`: absolute times only compare on the recorded host fingerprint (os/arch/cpu model/count); foreign hosts — CI runners — skip them and rely on criterion's own previous-run comparison plus the ratio budgets. Adding a benchmark case without publishing its baseline and regression gate fails the M5 exit suite.",
   "tolerance_default": 0.25,
   "budgets": [
     {
@@ -10,7 +10,7 @@
       "denominator": "w1/incremental_churn_10pct",
       "op": ">=",
       "budget": 2.0,
-      "cite": "architecture \u00a718 M2 exit gate (W1 \u2265 2\u00d7 vs full relayout), ADR-0008; test-enforced in alacer-layout/tests/w1_gate.rs, here measured by criterion"
+      "cite": "architecture §18 M2 exit gate (W1 ≥ 2× vs full relayout), ADR-0008; test-enforced in alacer-layout/tests/w1_gate.rs, here measured by criterion"
     },
     {
       "id": "input_storm_batching",
@@ -19,7 +19,7 @@
       "denominator": "input/storm_50_moves_queued",
       "op": ">=",
       "budget": 2.0,
-      "cite": "architecture \u00a710.2 (input storms cost one frame of work, not N events), ADR-0014; the queued batch routes one coalesced event where the pre-M8 wiring dispatched all 50"
+      "cite": "architecture §10.2 (input storms cost one frame of work, not N events), ADR-0014; the queued batch routes one coalesced event where the pre-M8 wiring dispatched all 50"
     },
     {
       "id": "a11y_incremental_speedup",
@@ -28,7 +28,7 @@
       "denominator": "a11y/incremental_1k_dirty_10pct",
       "op": ">=",
       "budget": 2.0,
-      "cite": "architecture \u00a711.1 item 4 (never a full-tree rebuild per frame \u2014 the egui cost we refuse), ADR-0015; the M9 shape drains the sink's dirty-only delta where the pre-M9 window rebuilt the whole tree per a11y frame"
+      "cite": "architecture §11.1 item 4 (never a full-tree rebuild per frame — the egui cost we refuse), ADR-0015; the M9 shape drains the sink's dirty-only delta where the pre-M9 window rebuilt the whole tree per a11y frame"
     },
     {
       "id": "trail_reader_overhead",
@@ -37,7 +37,7 @@
       "denominator": "announce/route_100_announcements_1k",
       "op": "<=",
       "budget": 2.0,
-      "cite": "architecture \u00a718 M63 exit gate, ADR-0069: the provided reader installed on the announce route costs at most 2\u00d7 the unobserved route \u2014 the trail rides the observe branch an installed observer already pays (A7), never a re-price of the route itself"
+      "cite": "architecture §18 M63 exit gate, ADR-0069: the provided reader installed on the announce route costs at most 2× the unobserved route — the trail rides the observe branch an installed observer already pays (A7), never a re-price of the route itself"
     },
     {
       "id": "trail_tee_overhead",
@@ -46,7 +46,7 @@
       "denominator": "announce/route_100_announcements_1k",
       "op": "<=",
       "budget": 2.5,
-      "cite": "architecture \u00a718 M64 exit gate, ADR-0070: two doors behind the tee cost at most 2.5\u00d7 the unobserved route \u2014 each door rides the observe branch the slot already pays (A7), the fan-out never a second pass over the route"
+      "cite": "architecture §18 M64 exit gate, ADR-0070: two doors behind the tee cost at most 2.5× the unobserved route — each door rides the observe branch the slot already pays (A7), the fan-out never a second pass over the route"
     },
     {
       "id": "derive_zero_overhead",
@@ -54,7 +54,7 @@
       "denominator": "derive/snapshot_1k_handwritten",
       "op": "<=",
       "budget": 1.1,
-      "cite": "architecture \u00a719 Q5's own option cashed, ADR-0096: the derive is the hand-written impl \u2014 the generated pair riding the same frame"
+      "cite": "architecture §19 Q5's own option cashed, ADR-0096: the derive is the hand-written impl — the generated pair riding the same frame"
     },
     {
       "id": "recording_wrapper_overhead",
@@ -78,7 +78,7 @@
       "denominator": "toggle/snapshot_1k_binary",
       "op": "<=",
       "budget": 1.25,
-      "cite": "the help text rides the snapshot the name rides, ADR-0099: the description is the second bounded copy the node builds beside the label's own \u2014 the measured ratio 1.19x on the dev host, the budget pricing the measured class, never a noise-floor claim"
+      "cite": "the help text rides the snapshot the name rides, ADR-0099: the description is the second bounded copy the node builds beside the label's own — the measured ratio 1.19x on the dev host, the budget pricing the measured class, never a noise-floor claim"
     },
     {
       "id": "placeholder_snapshot_overhead",
@@ -86,7 +86,7 @@
       "denominator": "placeholder/snapshot_1k_bare",
       "op": "<=",
       "budget": 1.25,
-      "cite": "the hint rides the snapshot the name rides, ADR-0100: the second bounded copy the node builds beside the label's own \u2014 the measured ratio 1.19x, the budget pricing the measured class"
+      "cite": "the hint rides the snapshot the name rides, ADR-0100: the second bounded copy the node builds beside the label's own — the measured ratio 1.19x, the budget pricing the measured class"
     },
     {
       "id": "range_snapshot_overhead",
@@ -94,7 +94,7 @@
       "denominator": "toggle/snapshot_1k_binary",
       "op": "<=",
       "budget": 1.35,
-      "cite": "ADR-0101 (M97): the span rides the snapshot the name rides \u2014 the budget re-published at the M119 cut (ADR-0123): the word's snapshot price re-measured at 1.31-1.33x the minimal arena across two hosts, the 1.25x gate no honest measurement held, so the gate re-states at the measured ratio with headroom; test-enforced nowhere, measured by criterion"
+      "cite": "ADR-0101 (M97): the span rides the snapshot the name rides — the budget re-published at the M119 cut (ADR-0123): the word's snapshot price re-measured at 1.31-1.33x the minimal arena across two hosts, the 1.25x gate no honest measurement held, so the gate re-states at the measured ratio with headroom; test-enforced nowhere, measured by criterion"
     },
     {
       "id": "orientation_snapshot_overhead",
@@ -102,7 +102,7 @@
       "denominator": "toggle/snapshot_1k_binary",
       "op": "<=",
       "budget": 1.25,
-      "cite": "the axis word rides the snapshot the name rides, ADR-0102: the enum's option the node builds beside the label's own \u2014 the measured ratio 0.92x on the dev host, the budget pricing the measured class, never a noise-floor claim"
+      "cite": "the axis word rides the snapshot the name rides, ADR-0102: the enum's option the node builds beside the label's own — the measured ratio 0.92x on the dev host, the budget pricing the measured class, never a noise-floor claim"
     },
     {
       "id": "numeric_snapshot_overhead",
@@ -110,7 +110,7 @@
       "denominator": "toggle/snapshot_1k_binary",
       "op": "<=",
       "budget": 1.35,
-      "cite": "ADR-0103 (M99): the number rides the snapshot the text rides \u2014 the budget re-published at the M119 cut (ADR-0123): the word's snapshot price re-measured at 1.31-1.33x the minimal arena across two hosts, the 1.25x gate no honest measurement held, so the gate re-states at the measured ratio with headroom; test-enforced nowhere, measured by criterion"
+      "cite": "ADR-0103 (M99): the number rides the snapshot the text rides — the budget re-published at the M119 cut (ADR-0123): the word's snapshot price re-measured at 1.31-1.33x the minimal arena across two hosts, the 1.25x gate no honest measurement held, so the gate re-states at the measured ratio with headroom; test-enforced nowhere, measured by criterion"
     },
     {
       "id": "secure_snapshot_overhead",
@@ -118,7 +118,7 @@
       "denominator": "placeholder/snapshot_1k_bare",
       "op": "<=",
       "budget": 1.25,
-      "cite": "the secure word rides the snapshot the field rides, ADR-0104: the bool and the mask the node builds beside the value's own copy \u2014 the measured ratio 0.95x on the dev host, the budget pricing the measured class, never a noise-floor claim"
+      "cite": "the secure word rides the snapshot the field rides, ADR-0104: the bool and the mask the node builds beside the value's own copy — the measured ratio 0.95x on the dev host, the budget pricing the measured class, never a noise-floor claim"
     },
     {
       "id": "scroll_position_snapshot_overhead",
@@ -126,7 +126,7 @@
       "denominator": "orientation/snapshot_1k_vertical",
       "op": "<=",
       "budget": 1.25,
-      "cite": "the position rides the snapshot the axis word rides, ADR-0105: the two axis options the node builds beside the orientation word's own \u2014 the measured ratio 1.10x on the measurement host, the budget pricing the measured class, never a noise-floor claim"
+      "cite": "the position rides the snapshot the axis word rides, ADR-0105: the two axis options the node builds beside the orientation word's own — the measured ratio 1.10x on the measurement host, the budget pricing the measured class, never a noise-floor claim"
     },
     {
       "id": "secure_revealed_snapshot_overhead",
@@ -134,7 +134,7 @@
       "denominator": "secure/snapshot_1k_secured",
       "op": "<=",
       "budget": 1.25,
-      "cite": "the reveal rides the snapshot the secure word rides, ADR-0106: the flag and the role branch the node answers beside the M100 masked copy's own \u2014 the measured ratio 1.03x on the measurement host, the budget pricing the measured class, never a noise-floor claim"
+      "cite": "the reveal rides the snapshot the secure word rides, ADR-0106: the flag and the role branch the node answers beside the M100 masked copy's own — the measured ratio 1.03x on the measurement host, the budget pricing the measured class, never a noise-floor claim"
     },
     {
       "id": "timed_tick_seam_overhead",
@@ -152,7 +152,7 @@
       "denominator": "placeholder/snapshot_1k_bare",
       "op": "<=",
       "budget": 1.25,
-      "cite": "ADR-0110 (M106): the required word rides the snapshot the field rides \u2014 the flag's price the bool the node carries; test-enforced nowhere, measured by criterion"
+      "cite": "ADR-0110 (M106): the required word rides the snapshot the field rides — the flag's price the bool the node carries; test-enforced nowhere, measured by criterion"
     },
     {
       "id": "invalid_snapshot_overhead",
@@ -161,7 +161,7 @@
       "denominator": "placeholder/snapshot_1k_bare",
       "op": "<=",
       "budget": 1.25,
-      "cite": "ADR-0111 (M107): the invalid word rides the snapshot the field rides \u2014 the word's price the one enum the node carries; test-enforced nowhere, measured by criterion"
+      "cite": "ADR-0111 (M107): the invalid word rides the snapshot the field rides — the word's price the one enum the node carries; test-enforced nowhere, measured by criterion"
     },
     {
       "id": "read_only_snapshot_overhead",
@@ -170,7 +170,7 @@
       "denominator": "placeholder/snapshot_1k_bare",
       "op": "<=",
       "budget": 1.25,
-      "cite": "ADR-0109 (M105): the read-only word rides the snapshot the field rides \u2014 the flag's price the bool the node carries; test-enforced nowhere, measured by criterion"
+      "cite": "ADR-0109 (M105): the read-only word rides the snapshot the field rides — the flag's price the bool the node carries; test-enforced nowhere, measured by criterion"
     },
     {
       "id": "selected_snapshot_overhead",
@@ -179,7 +179,7 @@
       "denominator": "selected/snapshot_1k_rows_bare",
       "op": "<=",
       "budget": 1.25,
-      "cite": "ADR-0112 (M108): the selected word rides the snapshot the row rides \u2014 the word's price the one Option<bool> the node carries; test-enforced nowhere, measured by criterion"
+      "cite": "ADR-0112 (M108): the selected word rides the snapshot the row rides — the word's price the one Option<bool> the node carries; test-enforced nowhere, measured by criterion"
     },
     {
       "id": "multiselectable_snapshot_overhead",
@@ -188,7 +188,7 @@
       "denominator": "multiselectable/snapshot_1k_tables_bare",
       "op": "<=",
       "budget": 1.25,
-      "cite": "ADR-0113 (M109): the multiselectable word rides the snapshot the container rides \u2014 the word's price the one bool the node carries; test-enforced nowhere, measured by criterion"
+      "cite": "ADR-0113 (M109): the multiselectable word rides the snapshot the container rides — the word's price the one bool the node carries; test-enforced nowhere, measured by criterion"
     },
     {
       "id": "expanded_snapshot_overhead",
@@ -197,7 +197,7 @@
       "denominator": "expanded/snapshot_1k_rows_bare",
       "op": "<=",
       "budget": 1.25,
-      "cite": "ADR-0114 (M110): the expanded word rides the snapshot the row rides \u2014 the word's price the one Option<bool> the node carries; test-enforced nowhere, measured by criterion"
+      "cite": "ADR-0114 (M110): the expanded word rides the snapshot the row rides — the word's price the one Option<bool> the node carries; test-enforced nowhere, measured by criterion"
     },
     {
       "id": "auto_complete_snapshot_overhead",
@@ -206,7 +206,7 @@
       "denominator": "placeholder/snapshot_1k_bare",
       "op": "<=",
       "budget": 1.25,
-      "cite": "ADR-0115 (M111): the auto-complete word rides the snapshot the field rides \u2014 the word's price the one Option the node carries; test-enforced nowhere, measured by criterion"
+      "cite": "ADR-0115 (M111): the auto-complete word rides the snapshot the field rides — the word's price the one Option the node carries; test-enforced nowhere, measured by criterion"
     },
     {
       "id": "sort_snapshot_overhead",
@@ -215,7 +215,7 @@
       "denominator": "sort/snapshot_1k_headers_bare",
       "op": "<=",
       "budget": 1.25,
-      "cite": "ADR-0116 (M112): the sort word rides the snapshot the header rides \u2014 the word's price the one Option the node carries; test-enforced nowhere, measured by criterion"
+      "cite": "ADR-0116 (M112): the sort word rides the snapshot the header rides — the word's price the one Option the node carries; test-enforced nowhere, measured by criterion"
     },
     {
       "id": "level_snapshot_overhead",
@@ -224,7 +224,7 @@
       "denominator": "expanded/snapshot_1k_rows_bare",
       "op": "<=",
       "budget": 1.25,
-      "cite": "ADR-0117 (M113): the level word rides the snapshot the row rides \u2014 the word's price the one Option the node carries; test-enforced nowhere, measured by criterion"
+      "cite": "ADR-0117 (M113): the level word rides the snapshot the row rides — the word's price the one Option the node carries; test-enforced nowhere, measured by criterion"
     },
     {
       "id": "current_snapshot_overhead",
@@ -233,7 +233,7 @@
       "denominator": "current/snapshot_1k_buttons_bare",
       "op": "<=",
       "budget": 1.25,
-      "cite": "ADR-0118 (M114): the current word rides the snapshot the button rides \u2014 the word's price the one Option the node carries; test-enforced nowhere, measured by criterion"
+      "cite": "ADR-0118 (M114): the current word rides the snapshot the button rides — the word's price the one Option the node carries; test-enforced nowhere, measured by criterion"
     },
     {
       "id": "has_popup_snapshot_overhead",
@@ -242,7 +242,7 @@
       "denominator": "current/snapshot_1k_buttons_bare",
       "op": "<=",
       "budget": 1.25,
-      "cite": "ADR-0119 (M115): the has-popup word rides the snapshot the button rides \u2014 the word's price the one Option the node carries; test-enforced nowhere, measured by criterion"
+      "cite": "ADR-0119 (M115): the has-popup word rides the snapshot the button rides — the word's price the one Option the node carries; test-enforced nowhere, measured by criterion"
     },
     {
       "id": "role_description_snapshot_overhead",
@@ -251,7 +251,7 @@
       "denominator": "current/snapshot_1k_buttons_bare",
       "op": "<=",
       "budget": 1.25,
-      "cite": "ADR-0120 (M116): the role-description word rides the snapshot the button rides \u2014 the word's price the one Option<String> the node carries; test-enforced nowhere, measured by criterion"
+      "cite": "ADR-0120 (M116): the role-description word rides the snapshot the button rides — the word's price the one Option<String> the node carries; test-enforced nowhere, measured by criterion"
     },
     {
       "id": "busy_snapshot_overhead",
@@ -260,7 +260,7 @@
       "denominator": "busy/snapshot_1k_lists_bare",
       "op": "<=",
       "budget": 1.25,
-      "cite": "ADR-0121 (M117): the busy word rides the snapshot the container rides \u2014 the word's price the one bool the node carries; test-enforced nowhere, measured by criterion"
+      "cite": "ADR-0121 (M117): the busy word rides the snapshot the container rides — the word's price the one bool the node carries; test-enforced nowhere, measured by criterion"
     },
     {
       "id": "set_snapshot_overhead",
@@ -269,7 +269,7 @@
       "denominator": "set/snapshot_1k_rows_bare",
       "op": "<=",
       "budget": 1.25,
-      "cite": "ADR-0123 (M119): the set words ride the snapshot the nodes ride \u2014 the words' price the two Options the nodes carry; test-enforced nowhere, measured by criterion"
+      "cite": "ADR-0123 (M119): the set words ride the snapshot the nodes ride — the words' price the two Options the nodes carry; test-enforced nowhere, measured by criterion"
     },
     {
       "id": "live_snapshot_overhead",
@@ -278,7 +278,7 @@
       "denominator": "busy/snapshot_1k_lists_bare",
       "op": "<=",
       "budget": 1.25,
-      "cite": "ADR-0124 (M120): the live word rides the snapshot the container rides \u2014 the word's price the one Option the node carries; test-enforced nowhere, measured by criterion"
+      "cite": "ADR-0124 (M120): the live word rides the snapshot the container rides — the word's price the one Option the node carries; test-enforced nowhere, measured by criterion"
     },
     {
       "id": "shortcut_snapshot_overhead",
@@ -287,7 +287,7 @@
       "denominator": "current/snapshot_1k_buttons_bare",
       "op": "<=",
       "budget": 1.25,
-      "cite": "ADR-0125 (M121): the shortcut word rides the snapshot the button rides \u2014 the word's price the one Option the node carries; test-enforced nowhere, measured by criterion"
+      "cite": "ADR-0125 (M121): the shortcut word rides the snapshot the button rides — the word's price the one Option the node carries; test-enforced nowhere, measured by criterion"
     },
     {
       "id": "multiline_snapshot_overhead",
@@ -296,7 +296,7 @@
       "denominator": "placeholder/snapshot_1k_bare",
       "op": "<=",
       "budget": 1.25,
-      "cite": "ADR-0126 (M122): the multiline word rides the snapshot the field rides \u2014 the word's price the one bool the node carries; test-enforced nowhere, measured by criterion"
+      "cite": "ADR-0126 (M122): the multiline word rides the snapshot the field rides — the word's price the one bool the node carries; test-enforced nowhere, measured by criterion"
     },
     {
       "id": "language_snapshot_overhead",
@@ -305,7 +305,16 @@
       "denominator": "language/snapshot_1k_labels_bare",
       "op": "<=",
       "budget": 1.25,
-      "cite": "ADR-0127 (M123): the language word rides the snapshot the label rides \u2014 the word's price the one bounded copy the node carries; test-enforced nowhere, measured by criterion"
+      "cite": "ADR-0127 (M123): the language word rides the snapshot the label rides — the word's price the one bounded copy the node carries; test-enforced nowhere, measured by criterion"
+    },
+    {
+      "id": "a11y_actions_overhead",
+      "metric": "median_ratio",
+      "numerator": "a11y/full_rebuild_1k_actions",
+      "denominator": "a11y/full_rebuild_1k",
+      "op": "<=",
+      "budget": 1.25,
+      "cite": "architecture §11 (the action tier, ADR-0161): the same 1,000-node tree rebuilt with every node advertising the whole ten-ask vocabulary against the tree bare — the tier's ceiling price, since a real tree mixes words (a label says nothing, a button one ask); the M95 pricing rule"
     }
   ],
   "regressions": [
@@ -1343,49 +1352,54 @@
       "id": "rsx_conditional_idle_50",
       "baseline": "rsx_conditional/idle/50",
       "scope": "same-host"
+    },
+    {
+      "id": "a11y_full_rebuild_1k_actions",
+      "baseline": "a11y/full_rebuild_1k_actions",
+      "scope": "same-host"
     }
   ],
   "test_enforced_gates": [
     {
       "id": "pass_system_overhead_15_percent",
       "gate": "pass-system overhead < 15% on 10k-node churn",
-      "cite": "architecture \u00a718 M1 gate, \u00a77.2",
+      "cite": "architecture §18 M1 gate, §7.2",
       "enforced_by": "alacer_core::passes tests + benches/pass_overhead.rs"
     },
     {
       "id": "tree_update_p99_half_ms",
       "gate": "incremental TreeUpdate p99 < 0.5 ms @ 1k nodes",
-      "cite": "architecture \u00a718 M3 exit gate, ADR-0009",
+      "cite": "architecture §18 M3 exit gate, ADR-0009",
       "enforced_by": "alacer-testing/tests/m3_exit_criteria.rs"
     },
     {
       "id": "patch_frame_budget",
-      "gate": "one hot patch \u21d2 exactly one layout+paint cycle",
-      "cite": "architecture \u00a718 M4 exit gate, ADR-0010",
+      "gate": "one hot patch ⇒ exactly one layout+paint cycle",
+      "cite": "architecture §18 M4 exit gate, ADR-0010",
       "enforced_by": "alacer-testing/tests/m4_exit_criteria.rs"
     },
     {
       "id": "w1_zero_measure_scroll",
       "gate": "translation-only scrolling: zero measure calls",
-      "cite": "architecture \u00a78.2, ADR-0008",
+      "cite": "architecture §8.2, ADR-0008",
       "enforced_by": "alacer-testing/tests/m0_exit_criteria.rs"
     },
     {
       "id": "w2_no_rewrap_oscillation",
-      "gate": "text-dense relayout: no re-wrap oscillation under \u00b15% width jitter",
-      "cite": "architecture \u00a714.2 W2, \u00a78.3 integer wrap rounding (ADR-0012)",
+      "gate": "text-dense relayout: no re-wrap oscillation under ±5% width jitter",
+      "cite": "architecture §14.2 W2, §8.3 integer wrap rounding (ADR-0012)",
       "enforced_by": "alacer-layout/tests/w2_gate.rs"
     },
     {
       "id": "w5_one_rerun_per_batch",
-      "gate": "one write batch \u21d2 one effect rerun at 10k-signal scale; memos never glitch",
-      "cite": "architecture \u00a714.2 W5, ADR-6",
+      "gate": "one write batch ⇒ one effect rerun at 10k-signal scale; memos never glitch",
+      "cite": "architecture §14.2 W5, ADR-6",
       "enforced_by": "alacer-testing/tests/m6_exit_criteria.rs"
     },
     {
       "id": "comparison_corpus_published",
       "gate": "the cross-framework comparison (declared rig + results + dashboard section) is committed, schema-valid, and same-host; the beat verdict is computable from the committed file",
-      "cite": "architecture \u00a71 (the v1 definition of done's beat), \u00a714.1, ADR-0013",
+      "cite": "architecture §1 (the v1 definition of done's beat), §14.1, ADR-0013",
       "enforced_by": "alacer-testing/tests/m7_exit_criteria.rs"
     }
   ]

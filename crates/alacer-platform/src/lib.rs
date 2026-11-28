@@ -1818,6 +1818,7 @@ mod tests {
                 multiline: false,
                 language: None,
                 search_field: false,
+                actions: alacer_core::widget::A11yActions::empty(),
             }],
         });
         sink.apply(
@@ -2106,6 +2107,86 @@ mod tests {
             drops[0].species,
             alacer_core::RouteDropSpecies::UnknownAction
         );
+    }
+
+    #[test]
+    fn every_word_the_sink_says_the_boundary_carries_back() {
+        // M156, ADR-0161: the sink's action word is the exact inverse of
+        // the request mapping. Forwards: each kind the tree can say is one
+        // ask, and the boundary maps that ask back onto the same kind — no
+        // word ever lands in the `UnknownAction` drop. Backwards: every
+        // ask the boundary can carry is a word the tree says, so the AT is
+        // never left without the advertisement for a door that answers.
+        // The payload is the AT's to give; the word names the kind, so the
+        // round trip compares `advertises()`.
+        const EVERY_ASK: [accesskit::Action; 22] = [
+            accesskit::Action::Click,
+            accesskit::Action::Focus,
+            accesskit::Action::Blur,
+            accesskit::Action::Collapse,
+            accesskit::Action::Expand,
+            accesskit::Action::CustomAction,
+            accesskit::Action::Decrement,
+            accesskit::Action::Increment,
+            accesskit::Action::HideTooltip,
+            accesskit::Action::ShowTooltip,
+            accesskit::Action::ReplaceSelectedText,
+            accesskit::Action::ScrollDown,
+            accesskit::Action::ScrollLeft,
+            accesskit::Action::ScrollRight,
+            accesskit::Action::ScrollUp,
+            accesskit::Action::ScrollIntoView,
+            accesskit::Action::ScrollToPoint,
+            accesskit::Action::SetScrollOffset,
+            accesskit::Action::SetTextSelection,
+            accesskit::Action::SetSequentialFocusNavigationStartingPoint,
+            accesskit::Action::SetValue,
+            accesskit::Action::ShowContextMenu,
+        ];
+        let data_for = |ask: accesskit::Action| -> Option<accesskit::ActionData> {
+            match ask {
+                accesskit::Action::SetValue | accesskit::Action::ReplaceSelectedText => {
+                    Some(accesskit::ActionData::Value("x".into()))
+                }
+                accesskit::Action::SetTextSelection => Some(
+                    accesskit::ActionData::SetTextSelection(accesskit::TextSelection {
+                        anchor: accesskit::TextPosition {
+                            node: accesskit::NodeId(0xAB_CD),
+                            character_index: 0,
+                        },
+                        focus: accesskit::TextPosition {
+                            node: accesskit::NodeId(0xAB_CD),
+                            character_index: 0,
+                        },
+                    }),
+                ),
+                _ => None,
+            }
+        };
+        let mut said: Vec<accesskit::Action> =
+            alacer_a11y::advertised_actions(alacer_core::widget::A11yActions::all()).collect();
+        said.sort_by_key(|ask| *ask as u8);
+        let mut carried: Vec<accesskit::Action> = EVERY_ASK
+            .into_iter()
+            .filter(|ask| super::map_action_request(&an_ask(*ask, data_for(*ask))).is_some())
+            .collect();
+        carried.sort_by_key(|ask| *ask as u8);
+        assert_eq!(
+            carried, said,
+            "the asks the boundary carries are exactly the asks the tree says"
+        );
+        for word in alacer_core::widget::A11yActions::all().iter() {
+            let asks: Vec<accesskit::Action> = alacer_a11y::advertised_actions(word).collect();
+            assert_eq!(asks.len(), 1, "one kind says one ask");
+            let mapped = super::map_action_request(&an_ask(asks[0], data_for(asks[0])))
+                .expect("a word the sink says is an ask the boundary maps");
+            assert_eq!(
+                alacer_core::widget::A11yAction::advertises(&mapped),
+                word,
+                "{} maps back onto the kind that said it",
+                super::action_tag(asks[0])
+            );
+        }
     }
 
     #[test]

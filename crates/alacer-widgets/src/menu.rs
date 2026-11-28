@@ -474,6 +474,18 @@ impl Widget for MenuItem {
         )))
     }
 
+    /// The action tier (M156, ADR-0161): the press the entry's door
+    /// answers, said while the entry is available — the word is the
+    /// door's own answer, so a closed door (the M22 availability tier)
+    /// advertises none.
+    fn a11y_actions(&self) -> alacer_core::widget::A11yActions {
+        if self.enabled() {
+            alacer_core::widget::A11yActions::DEFAULT_PRESS
+        } else {
+            alacer_core::widget::A11yActions::empty()
+        }
+    }
+
     fn on_a11y_action(&mut self, action: A11yAction) -> bool {
         // The availability tier (M22, ADR-0028): an unavailable entry has
         // no write door — every action is refused honestly, never munged

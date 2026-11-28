@@ -889,7 +889,20 @@ fn note_drop(request: &accesskit::ActionRequest, species: alacer_core::RouteDrop
 /// ADR-0063 — streamed as the route-drop trail's own fact) instead of
 /// being munged into a press: a `Focus` request that clicked something
 /// would be a correctness bug, not a fallback.
-fn map_action_request(
+///
+/// Public since the action tier's integration cut because the mapping is
+/// the boundary's own contract, the exact inverse of the sink's
+/// `advertised_actions` table (ADR-0161): a headless AT simulation — the
+/// loop a live screen reader runs, the word the wire says read off the
+/// `TreeUpdate`, the ask sent as the `ActionRequest` it invites — crosses
+/// this door exactly where the window loop does. An embedding consumer
+/// that drives the pipeline without a window rides the same inverse
+/// table, so the two halves of the action tier's vocabulary cannot drift:
+/// a kind the sink advertises but the boundary refuses to map fails the
+/// ask-for-ask suite (`alacer-testing/tests/at_action_loop.rs`) instead of
+/// compiling silently apart.
+#[must_use = "a dropped ask is a fact — the `None` names the refusal, never a munge onto the press"]
+pub fn map_action_request(
     request: &accesskit::ActionRequest,
 ) -> Option<alacer_core::widget::A11yAction> {
     use accesskit::{Action, ActionData, ScrollUnit as PlatformUnit};

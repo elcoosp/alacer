@@ -1613,6 +1613,24 @@ impl Widget for TextInput {
         }
     }
 
+    /// The action tier (M156, ADR-0161): the text tier's three asks —
+    /// the two writes and the selection — said while the field is
+    /// available. The word is the door's own answer, so each wall the
+    /// door stands on narrows it: a closed door (the M22 availability
+    /// tier) advertises none, and a read-only field (the M105 tier)
+    /// advertises the selection ask alone — a read-only field reads.
+    fn a11y_actions(&self) -> alacer_core::widget::A11yActions {
+        if !self.enabled() {
+            alacer_core::widget::A11yActions::empty()
+        } else if self.read_only {
+            alacer_core::widget::A11yActions::SET_TEXT_SELECTION
+        } else {
+            alacer_core::widget::A11yActions::SET_VALUE
+                | alacer_core::widget::A11yActions::REPLACE_SELECTED_TEXT
+                | alacer_core::widget::A11yActions::SET_TEXT_SELECTION
+        }
+    }
+
     fn on_a11y_action(&mut self, action: A11yAction) -> bool {
         // The value tier (M11, ADR-0017): a faithful AT mapping, same masks
         // as a key edit. `DefaultPress` and the scroll/step tier are not an

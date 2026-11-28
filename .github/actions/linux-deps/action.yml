@@ -1,0 +1,19 @@
+name: Linux build dependencies
+description: >
+  System libraries the GUI/text stack links against on Linux. `fontique`
+  pulls `yeslogic-fontconfig-sys`, whose build.rs aborts unless pkg-config
+  finds `fontconfig.pc`; the winit/wgpu path additionally wants the X11,
+  Wayland and xkbcommon headers. Install them before any compile step.
+runs:
+  using: composite
+  steps:
+    - name: Install the system libraries
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          pkg-config \
+          libfontconfig1-dev \
+          libx11-dev \
+          libxkbcommon-dev \
+          libwayland-dev

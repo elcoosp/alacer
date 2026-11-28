@@ -391,16 +391,18 @@ mod tests {
 
     #[test]
     fn primary_modifier_normalizes_per_platform() {
-        let mut mods = Modifiers {
+        let mods = Modifiers {
             meta: true,
             ..Modifiers::default()
         };
         #[cfg(target_os = "macos")]
         assert!(mods.primary());
         #[cfg(not(target_os = "macos"))]
-        assert!(!mods.primary(), "meta alone is not primary off macOS");
-        mods.control = true;
-        #[cfg(not(target_os = "macos"))]
-        assert!(mods.primary());
+        {
+            assert!(!mods.primary(), "meta alone is not primary off macOS");
+            let mut mods = mods;
+            mods.control = true;
+            assert!(mods.primary());
+        }
     }
 }

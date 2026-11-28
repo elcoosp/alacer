@@ -219,7 +219,7 @@ fn m144_the_corpus_pin_holds_at_the_m144_cut() {
     // under a regression gate, the corpus 165 → 204.
     assert_eq!(
         baselines["bench_count"].as_u64(),
-        Some(207),
+        Some(208),
         "the published corpus pin re-agrees at the cut"
     );
 }
@@ -239,11 +239,11 @@ fn m144_the_living_documents_re_agree() {
     // the growth fixes beside the words).
     let readme = read("README.md");
     assert!(
-        readme.contains("M0 through M155"),
+        readme.contains("M0 through M156"),
         "the README status reflects the living cut — the chain cannot drift"
     );
     assert!(
-        readme.contains("a hundred and sixty decision records"),
+        readme.contains("a hundred and sixty-one decision records"),
         "the register grew the M144 and M145 rows"
     );
     assert!(
@@ -251,7 +251,7 @@ fn m144_the_living_documents_re_agree() {
         "the shipped-vocabulary line carries the menu, image and landmark tiers"
     );
     assert!(
-        read("docs/architecture.md").contains("a hundred and sixty decision records"),
+        read("docs/architecture.md").contains("a hundred and sixty-one decision records"),
         "the architecture carries the growth's decision"
     );
 
@@ -283,7 +283,7 @@ fn m144_the_living_documents_re_agree() {
     // suite carrying the living-documents pin).
     let m81 = read("crates/alacer-testing/tests/m81_exit_criteria.rs");
     assert!(
-        m81.contains("M0 through M155"),
+        m81.contains("M0 through M156"),
         "the m81 suite's pins moved with the documents"
     );
 }

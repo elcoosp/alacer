@@ -338,6 +338,18 @@ impl Widget for Tab {
         self.focused = focused;
     }
 
+    /// The action tier (M156, ADR-0161): the select the door answers,
+    /// said while the tab is available — the word is the door's own
+    /// answer, so a closed door (the M22 availability tier) advertises
+    /// none.
+    fn a11y_actions(&self) -> alacer_core::widget::A11yActions {
+        if self.enabled() {
+            alacer_core::widget::A11yActions::DEFAULT_PRESS
+        } else {
+            alacer_core::widget::A11yActions::empty()
+        }
+    }
+
     fn on_a11y_action(&mut self, action: A11yAction) -> bool {
         // The availability tier (M22, ADR-0028): an unavailable tab
         // has no write door — the select is refused honestly, never

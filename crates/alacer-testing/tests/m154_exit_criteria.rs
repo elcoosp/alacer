@@ -657,11 +657,11 @@ fn m154_the_disabled_trail_still_lands() {
 fn m154_the_living_documents_re_agree() {
     let readme = read_workspace_file("README.md");
     assert!(
-        readme.contains("M0 through M155"),
+        readme.contains("M0 through M156"),
         "the README status reflects the living cut — the chain cannot drift"
     );
     assert!(
-        readme.contains("All 207 criterion cases"),
+        readme.contains("All 208 criterion cases"),
         "the README quotes the baselines.json bench_count the fact tier grew"
     );
     let architecture = read_workspace_file("docs/architecture.md");
@@ -670,7 +670,7 @@ fn m154_the_living_documents_re_agree() {
         "the architecture carries the transparency fact's decision"
     );
     assert!(
-        architecture.contains("a hundred and sixty decision records"),
+        architecture.contains("a hundred and sixty-one decision records"),
         "the register grew the M154 row"
     );
     let baselines = serde_json::from_str::<serde_json::Value>(&read_workspace_file(
@@ -678,7 +678,7 @@ fn m154_the_living_documents_re_agree() {
     ))
     .expect("the baselines parse");
     assert_eq!(
-        baselines["bench_count"], 207,
+        baselines["bench_count"], 208,
         "the published corpus carries the transparency flip's pricing"
     );
     assert!(
@@ -696,7 +696,7 @@ fn m154_the_living_documents_re_agree() {
     // the m81 suite's documents pin moved to M154's cut.
     let m81 = read_workspace_file("crates/alacer-testing/tests/m81_exit_criteria.rs");
     assert!(
-        m81.contains("M0 through M155"),
+        m81.contains("M0 through M156"),
         "the m81 suite's pins moved with the documents"
     );
 }

@@ -4441,6 +4441,7 @@ mod tests {
             multiline: false,
             language: None,
             search_field: false,
+            actions: alacer_core::widget::A11yActions::empty(),
         }
     }
 

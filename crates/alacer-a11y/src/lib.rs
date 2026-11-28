@@ -16,14 +16,14 @@
 //!   pass-3 output every a11y frame.
 
 use accesskit::{
-    AutoComplete, Invalid, Live, Node, NodeId, Rect, Role as AccessKitRole, TextPosition,
+    Action, AutoComplete, Invalid, Live, Node, NodeId, Rect, Role as AccessKitRole, TextPosition,
     TextSelection, Toggled, TreeId, TreeInfo, TreeUpdate,
 };
 use alacer_core::Role;
 use alacer_core::announce::Politeness;
 use alacer_core::geom::Rect as AlacerRect;
 use alacer_core::passes::{A11yDelta, A11ySink, TreeSnapshot};
-use alacer_core::widget::TableSlot;
+use alacer_core::widget::{A11yActions, TableSlot};
 use rustc_hash::FxHashSet;
 use std::collections::VecDeque;
 
@@ -241,6 +241,40 @@ pub const fn map_announcement_role(politeness: Politeness) -> AccessKitRole {
         Politeness::Polite => AccessKitRole::Status,
         Politeness::Assertive => AccessKitRole::Alert,
     }
+}
+
+/// The action words onto the AccessKit `Action`s they name (M156,
+/// ADR-0161), in the vocabulary's declaration order — the exact inverse
+/// of the platform's `map_action_request`: every word the sink says is an
+/// ask the platform can carry back, and no ask the platform would drop is
+/// ever said. The word names the kind and never the payload: a scroll word
+/// maps its `Action` whether the door was asked in items or pages.
+const ACTION_WORDS: [(A11yActions, Action); 10] = [
+    (A11yActions::DEFAULT_PRESS, Action::Click),
+    (A11yActions::INCREMENT, Action::Increment),
+    (A11yActions::DECREMENT, Action::Decrement),
+    (A11yActions::SCROLL_UP, Action::ScrollUp),
+    (A11yActions::SCROLL_DOWN, Action::ScrollDown),
+    (A11yActions::SCROLL_LEFT, Action::ScrollLeft),
+    (A11yActions::SCROLL_RIGHT, Action::ScrollRight),
+    (A11yActions::SET_VALUE, Action::SetValue),
+    (
+        A11yActions::REPLACE_SELECTED_TEXT,
+        Action::ReplaceSelectedText,
+    ),
+    (A11yActions::SET_TEXT_SELECTION, Action::SetTextSelection),
+];
+
+/// The AccessKit actions a tree node's action word advertises: one `Action`
+/// per kind the word says, so the consumer reads the node as actionable for
+/// exactly the asks the control's door answers — `is_clickable` and its
+/// siblings derive from this explicit word alone. An empty word advertises
+/// nothing: the AT reads the node exactly as it read the tree before the
+/// tier landed.
+pub fn advertised_actions(actions: A11yActions) -> impl Iterator<Item = Action> {
+    ACTION_WORDS
+        .iter()
+        .filter_map(move |(word, action)| actions.contains(*word).then_some(*action))
 }
 
 /// Converts an Alacer rect into AccessKit's `f64`-based rect.
@@ -893,6 +927,21 @@ impl AccessKitSink {
                 },
             });
         }
+        // The action tier (M156, ADR-0161): the asks the control's door
+        // answers, said as AccessKit's supported actions — the word the
+        // consumer reads before it asks (`is_clickable` and its siblings
+        // derive from the explicit word alone, so a silent node reads as
+        // un-actionable on every platform adapter). The word prices
+        // nothing but the word: the doors answer exactly as they always
+        // did. The honest absence maps to the absence: a widget whose
+        // door answers nothing says nothing, and the AT reads the node
+        // exactly as it read the tree M155 handed over. The word rides
+        // the same node-only delta as every other property — an
+        // availability write re-announces exactly that node, and the word
+        // narrows with it.
+        for action in advertised_actions(node.actions) {
+            access_node.add_action(action);
+        }
         access_node.set_children(
             node.children
                 .iter()
@@ -976,9 +1025,10 @@ pub fn walk_update(update: &TreeUpdate) -> Vec<u64> {
 #[cfg(test)]
 mod tests {
     use super::{
-        AccessKitSink, Live, UPDATE_RING_CAP, accesskit_node_id, find_in_update,
-        map_announcement_role, map_bounds, map_live, map_role, walk_update,
+        ACTION_WORDS, AccessKitSink, Live, UPDATE_RING_CAP, accesskit_node_id, advertised_actions,
+        find_in_update, map_announcement_role, map_bounds, map_live, map_role, walk_update,
     };
+    use accesskit::Action;
     use accesskit::AutoComplete;
     use accesskit::NodeId;
     use accesskit::Role as AkRole;
@@ -1753,6 +1803,7 @@ mod tests {
             multiline: false,
             language: None,
             search_field: false,
+            actions: alacer_core::widget::A11yActions::empty(),
         });
         sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
         let update = sink.last_update().expect("update");
@@ -1914,6 +1965,7 @@ mod tests {
             multiline: false,
             language: None,
             search_field: false,
+            actions: alacer_core::widget::A11yActions::empty(),
         }
     }
 
@@ -1952,6 +2004,169 @@ mod tests {
             worded.keyboard_shortcut(),
             Some("Control+S"),
             "the AT reads the declared chord beside the name"
+        );
+    }
+
+    /// Every `Action` AccessKit 0.25.2 spells, in the enum's own order — the
+    /// "none" and "only" assertions walk the whole vocabulary, so a word
+    /// never leaks an ask it does not name.
+    const EVERY_ASK: [Action; 22] = [
+        Action::Click,
+        Action::Focus,
+        Action::Blur,
+        Action::Collapse,
+        Action::Expand,
+        Action::CustomAction,
+        Action::Decrement,
+        Action::Increment,
+        Action::HideTooltip,
+        Action::ShowTooltip,
+        Action::ReplaceSelectedText,
+        Action::ScrollDown,
+        Action::ScrollLeft,
+        Action::ScrollRight,
+        Action::ScrollUp,
+        Action::ScrollIntoView,
+        Action::ScrollToPoint,
+        Action::SetScrollOffset,
+        Action::SetTextSelection,
+        Action::SetSequentialFocusNavigationStartingPoint,
+        Action::SetValue,
+        Action::ShowContextMenu,
+    ];
+
+    /// The asks a node says it answers, in the vocabulary's order.
+    fn supported(node: &accesskit::Node) -> Vec<Action> {
+        EVERY_ASK
+            .into_iter()
+            .filter(|ask| node.supports_action(*ask))
+            .collect()
+    }
+
+    /// The shared snapshot with the "Save" node's word set to `actions`.
+    fn worded_snapshot(actions: alacer_core::widget::A11yActions) -> TreeSnapshot {
+        let mut snap = snapshot();
+        snap.nodes[1].actions = actions;
+        snap
+    }
+
+    /// Re-emits the snapshot through a fresh sink — the first-frame full
+    /// build — and hands back the update so a test reads exactly what the
+    /// AT reads.
+    fn update_with_word(actions: alacer_core::widget::A11yActions) -> accesskit::TreeUpdate {
+        let mut sink = AccessKitSink::new();
+        sink.apply(
+            std::sync::Arc::new(worded_snapshot(actions)),
+            &A11yDelta::empty(),
+        );
+        sink.last_update()
+            .expect("the first frame produced an update")
+            .clone()
+    }
+
+    #[test]
+    fn the_action_tier_maps_onto_the_supported_actions() {
+        // M156, ADR-0161: the asks a control's door answers become
+        // AccessKit's supported actions — the word the consumer reads before
+        // it asks (`is_clickable` and its siblings derive from the explicit
+        // word alone, never from the role). One kind maps one ask, the
+        // exact inverse of the platform's request mapping; the payload
+        // never rides, the word naming the kind the way the core's
+        // `advertises` does.
+        for (word, ask) in ACTION_WORDS {
+            let update = update_with_word(word);
+            let said = find_in_update(&update, snap_root_and_child().1)
+                .expect("the worded node is re-emitted");
+            assert_eq!(supported(said), vec![ask], "one kind, one ask");
+            let root = find_in_update(&update, snap_root_and_child().0)
+                .expect("the first frame builds the whole tree");
+            assert!(
+                supported(root).is_empty(),
+                "a node that says nothing advertises nothing"
+            );
+        }
+        let whole = update_with_word(alacer_core::widget::A11yActions::all());
+        let said =
+            find_in_update(&whole, snap_root_and_child().1).expect("the worded node is re-emitted");
+        // `supported` walks AccessKit's enum in its own order; the table
+        // says the same ten asks.
+        assert_eq!(
+            supported(said),
+            vec![
+                Action::Click,
+                Action::Decrement,
+                Action::Increment,
+                Action::ReplaceSelectedText,
+                Action::ScrollDown,
+                Action::ScrollLeft,
+                Action::ScrollRight,
+                Action::ScrollUp,
+                Action::SetTextSelection,
+                Action::SetValue,
+            ],
+            "the whole vocabulary says the whole table, and nothing beside"
+        );
+    }
+
+    #[test]
+    fn the_word_walks_one_kind_to_one_ask() {
+        // M156, ADR-0161: the table is the vocabulary's mirror — every kind
+        // is one bit, the ten cover `all()`, and no two kinds share an ask,
+        // so the inverse the platform walks is a function both ways.
+        let said: Vec<Action> =
+            advertised_actions(alacer_core::widget::A11yActions::all()).collect();
+        assert_eq!(said.len(), ACTION_WORDS.len(), "every kind maps one ask");
+        let mut distinct = std::collections::HashSet::new();
+        let mut union = alacer_core::widget::A11yActions::empty();
+        for (word, ask) in ACTION_WORDS {
+            assert_eq!(word.iter().count(), 1, "a kind is exactly one bit");
+            assert!(
+                distinct.insert(ask),
+                "two kinds never share one ask: {ask:?}"
+            );
+            union |= word;
+        }
+        assert_eq!(union, alacer_core::widget::A11yActions::all());
+        assert!(
+            advertised_actions(alacer_core::widget::A11yActions::empty())
+                .next()
+                .is_none(),
+            "the honest absence advertises nothing"
+        );
+    }
+
+    #[test]
+    fn the_word_narrows_with_the_node_only_delta() {
+        // M156, ADR-0161: the word rides the same node-only delta as every
+        // other property — a door that closes (a field turning read-only)
+        // re-announces exactly that node, and the AT reads the narrowed
+        // word rather than an ask the widget will now refuse.
+        let mut sink = AccessKitSink::new();
+        let (_, child) = snap_root_and_child();
+        sink.apply(
+            std::sync::Arc::new(worded_snapshot(alacer_core::widget::A11yActions::all())),
+            &A11yDelta::empty(),
+        );
+        let mut narrowed = A11yDelta::empty();
+        narrowed.updated.insert(child);
+        sink.apply(
+            std::sync::Arc::new(worded_snapshot(
+                alacer_core::widget::A11yActions::SET_TEXT_SELECTION,
+            )),
+            &narrowed,
+        );
+        let updates = sink.drain_updates();
+        let last = updates.last().expect("the narrowing produced an update");
+        assert_eq!(
+            last.nodes.len(),
+            1,
+            "the narrowed word re-announces exactly that node"
+        );
+        let said = find_in_update(last, child).expect("the narrowed node is re-emitted");
+        assert_eq!(
+            supported(said),
+            vec![Action::SetTextSelection],
+            "the AT reads the word the door now answers"
         );
     }
 
@@ -2226,7 +2441,26 @@ mod tests {
     #[test]
     fn the_description_maps_onto_the_description_property() {
         let mut sink = AccessKitSink::new();
-        let snap = TreeSnapshot {
+        let snap = the_description_maps_onto_the_description_property_snapshot();
+        sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
+
+        let update = sink.last_update().expect("update");
+        let described = find_in_update(update, 1).expect("described node");
+        assert_eq!(
+            described.description().map(str::to_string).as_deref(),
+            Some("Saves the draft and queues it"),
+            "the AT reads the help text beside the name"
+        );
+        let undescribed = find_in_update(update, 2).expect("undescribed node");
+        assert_eq!(
+            undescribed.description(),
+            None,
+            "the honest absence sets nothing"
+        );
+    }
+
+    fn the_description_maps_onto_the_description_property_snapshot() -> TreeSnapshot {
+        TreeSnapshot {
             root: Some(1),
             nodes: vec![
                 TreeNode {
@@ -2268,6 +2502,7 @@ mod tests {
                     multiline: false,
                     language: None,
                     search_field: false,
+                    actions: alacer_core::widget::A11yActions::empty(),
                 },
                 TreeNode {
                     id: 2,
@@ -2308,24 +2543,10 @@ mod tests {
                     multiline: false,
                     language: None,
                     search_field: false,
+                    actions: alacer_core::widget::A11yActions::empty(),
                 },
             ],
-        };
-        sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
-
-        let update = sink.last_update().expect("update");
-        let described = find_in_update(update, 1).expect("described node");
-        assert_eq!(
-            described.description().map(str::to_string).as_deref(),
-            Some("Saves the draft and queues it"),
-            "the AT reads the help text beside the name"
-        );
-        let undescribed = find_in_update(update, 2).expect("undescribed node");
-        assert_eq!(
-            undescribed.description(),
-            None,
-            "the honest absence sets nothing"
-        );
+        }
     }
 
     /// The range tier (M97, ADR-0101): the snapshot's declared span maps
@@ -2375,6 +2596,7 @@ mod tests {
             multiline: false,
             language: None,
             search_field: false,
+            actions: alacer_core::widget::A11yActions::empty(),
         }
     }
 
@@ -2437,7 +2659,26 @@ mod tests {
     #[test]
     fn the_orientation_maps_onto_the_property() {
         let mut sink = AccessKitSink::new();
-        let snap = TreeSnapshot {
+        let snap = the_orientation_maps_onto_the_property_snapshot();
+        sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
+
+        let update = sink.last_update().expect("update");
+        let vertical = find_in_update(update, 1).expect("vertical node");
+        assert_eq!(
+            vertical.orientation(),
+            Some(accesskit::Orientation::Vertical),
+            "the declared y axis is the tree's truth"
+        );
+        let horizontal = find_in_update(update, 2).expect("horizontal node");
+        assert_eq!(
+            horizontal.orientation(),
+            Some(accesskit::Orientation::Horizontal),
+            "the declared x axis maps beside it"
+        );
+    }
+
+    fn the_orientation_maps_onto_the_property_snapshot() -> TreeSnapshot {
+        TreeSnapshot {
             root: Some(1),
             nodes: vec![
                 TreeNode {
@@ -2480,6 +2721,7 @@ mod tests {
                     multiline: false,
                     language: None,
                     search_field: false,
+                    actions: alacer_core::widget::A11yActions::empty(),
                 },
                 TreeNode {
                     id: 2,
@@ -2520,24 +2762,10 @@ mod tests {
                     multiline: false,
                     language: None,
                     search_field: false,
+                    actions: alacer_core::widget::A11yActions::empty(),
                 },
             ],
-        };
-        sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
-
-        let update = sink.last_update().expect("update");
-        let vertical = find_in_update(update, 1).expect("vertical node");
-        assert_eq!(
-            vertical.orientation(),
-            Some(accesskit::Orientation::Vertical),
-            "the declared y axis is the tree's truth"
-        );
-        let horizontal = find_in_update(update, 2).expect("horizontal node");
-        assert_eq!(
-            horizontal.orientation(),
-            Some(accesskit::Orientation::Horizontal),
-            "the declared x axis maps beside it"
-        );
+        }
     }
 
     /// The orientation tier's honest absence (M98, ADR-0102): a
@@ -2547,7 +2775,26 @@ mod tests {
     #[test]
     fn the_orientation_absence_maps_to_nothing() {
         let mut sink = AccessKitSink::new();
-        let snap = TreeSnapshot {
+        let snap = the_orientation_absence_maps_to_nothing_snapshot();
+        sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
+
+        let update = sink.last_update().expect("update");
+        let both = find_in_update(update, 3).expect("two-axis node");
+        assert_eq!(
+            both.orientation(),
+            None,
+            "a two-axis scroller announces the absence, never a wrong half"
+        );
+        let bare = find_in_update(update, 4).expect("bare node");
+        assert_eq!(
+            bare.orientation(),
+            None,
+            "a non-scroll role inherits the absence"
+        );
+    }
+
+    fn the_orientation_absence_maps_to_nothing_snapshot() -> TreeSnapshot {
+        TreeSnapshot {
             root: Some(1),
             nodes: vec![
                 TreeNode {
@@ -2591,6 +2838,7 @@ mod tests {
                     multiline: false,
                     language: None,
                     search_field: false,
+                    actions: alacer_core::widget::A11yActions::empty(),
                 },
                 TreeNode {
                     id: 4,
@@ -2631,24 +2879,10 @@ mod tests {
                     multiline: false,
                     language: None,
                     search_field: false,
+                    actions: alacer_core::widget::A11yActions::empty(),
                 },
             ],
-        };
-        sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
-
-        let update = sink.last_update().expect("update");
-        let both = find_in_update(update, 3).expect("two-axis node");
-        assert_eq!(
-            both.orientation(),
-            None,
-            "a two-axis scroller announces the absence, never a wrong half"
-        );
-        let bare = find_in_update(update, 4).expect("bare node");
-        assert_eq!(
-            bare.orientation(),
-            None,
-            "a non-scroll role inherits the absence"
-        );
+        }
     }
 
     /// The numeric tier (M99, ADR-0103): the number behind the value's
@@ -2703,6 +2937,7 @@ mod tests {
                     multiline: false,
                     language: None,
                     search_field: false,
+                    actions: alacer_core::widget::A11yActions::empty(),
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -2743,6 +2978,7 @@ mod tests {
                     multiline: false,
                     language: None,
                     search_field: false,
+                    actions: alacer_core::widget::A11yActions::empty(),
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -2779,7 +3015,26 @@ mod tests {
     #[test]
     fn the_secure_entry_maps_onto_the_password_role() {
         let mut sink = AccessKitSink::new();
-        let snap = TreeSnapshot {
+        let snap = the_secure_entry_maps_onto_the_password_role_snapshot();
+        sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
+
+        let update = sink.last_update().expect("update");
+        let secured = find_in_update(update, 1).expect("secured node");
+        assert_eq!(
+            secured.role(),
+            AkRole::PasswordInput,
+            "the constructor's word is the role the AT reads"
+        );
+        let bare = find_in_update(update, 2).expect("bare node");
+        assert_eq!(
+            bare.role(),
+            AkRole::TextInput,
+            "a field that declared nothing is the input the tree always mapped"
+        );
+    }
+
+    fn the_secure_entry_maps_onto_the_password_role_snapshot() -> TreeSnapshot {
+        TreeSnapshot {
             root: Some(1),
             nodes: vec![
                 TreeNode {
@@ -2822,6 +3077,7 @@ mod tests {
                     multiline: false,
                     language: None,
                     search_field: false,
+                    actions: alacer_core::widget::A11yActions::empty(),
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -2862,26 +3118,12 @@ mod tests {
                     multiline: false,
                     language: None,
                     search_field: false,
+                    actions: alacer_core::widget::A11yActions::empty(),
                     scroll_orientation: None,
                     scroll_position: None,
                 },
             ],
-        };
-        sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
-
-        let update = sink.last_update().expect("update");
-        let secured = find_in_update(update, 1).expect("secured node");
-        assert_eq!(
-            secured.role(),
-            AkRole::PasswordInput,
-            "the constructor's word is the role the AT reads"
-        );
-        let bare = find_in_update(update, 2).expect("bare node");
-        assert_eq!(
-            bare.role(),
-            AkRole::TextInput,
-            "a field that declared nothing is the input the tree always mapped"
-        );
+        }
     }
 
     #[test]
@@ -2892,7 +3134,26 @@ mod tests {
         // ordinary editable word; a field that revealed nothing
         // answers exactly the word M100 mapped.
         let mut sink = AccessKitSink::new();
-        let snap = TreeSnapshot {
+        let snap = the_revealed_word_yields_the_password_role_snapshot();
+        sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
+
+        let update = sink.last_update().expect("update");
+        let revealed = find_in_update(update, 1).expect("revealed node");
+        assert_eq!(
+            revealed.role(),
+            AkRole::TextInput,
+            "the revealed field is the ordinary editable the contract names"
+        );
+        let masked = find_in_update(update, 2).expect("masked node");
+        assert_eq!(
+            masked.role(),
+            AkRole::PasswordInput,
+            "a field that revealed nothing keeps the M100 word"
+        );
+    }
+
+    fn the_revealed_word_yields_the_password_role_snapshot() -> TreeSnapshot {
+        TreeSnapshot {
             root: Some(1),
             nodes: vec![
                 TreeNode {
@@ -2935,6 +3196,7 @@ mod tests {
                     multiline: false,
                     language: None,
                     search_field: false,
+                    actions: alacer_core::widget::A11yActions::empty(),
                     scroll_orientation: None,
                     scroll_position: None,
                 },
@@ -2975,26 +3237,12 @@ mod tests {
                     multiline: false,
                     language: None,
                     search_field: false,
+                    actions: alacer_core::widget::A11yActions::empty(),
                     scroll_orientation: None,
                     scroll_position: None,
                 },
             ],
-        };
-        sink.apply(std::sync::Arc::new(snap), &A11yDelta::empty());
-
-        let update = sink.last_update().expect("update");
-        let revealed = find_in_update(update, 1).expect("revealed node");
-        assert_eq!(
-            revealed.role(),
-            AkRole::TextInput,
-            "the revealed field is the ordinary editable the contract names"
-        );
-        let masked = find_in_update(update, 2).expect("masked node");
-        assert_eq!(
-            masked.role(),
-            AkRole::PasswordInput,
-            "a field that revealed nothing keeps the M100 word"
-        );
+        }
     }
 
     // -------------------------------------------------------------------

@@ -8,6 +8,7 @@
 use crate::events::{EventCtx, ImeEvent, KeyEvent, PointerEvent};
 use crate::scene::PaintCtx;
 use crate::style::Style;
+use bitflags::bitflags;
 use std::borrow::Cow;
 use std::fmt;
 use std::sync::{Arc, Mutex};
@@ -852,6 +853,76 @@ impl A11yAction {
             Self::ReplaceSelectedText(_) => "replace_selected_text",
             Self::SetTextSelection(_) => "set_text_selection",
         }
+    }
+
+    /// The ask's own word (M156, ADR-0161): the one bit the ask occupies
+    /// in the advertised set — the bridge between the routing vocabulary
+    /// and the tree's, so the question "is the word the door's answer?"
+    /// is one comparison per variant, payload left at the door.
+    #[must_use]
+    pub const fn advertises(&self) -> A11yActions {
+        match self {
+            Self::DefaultPress => A11yActions::DEFAULT_PRESS,
+            Self::Increment => A11yActions::INCREMENT,
+            Self::Decrement => A11yActions::DECREMENT,
+            Self::ScrollUp(_) => A11yActions::SCROLL_UP,
+            Self::ScrollDown(_) => A11yActions::SCROLL_DOWN,
+            Self::ScrollLeft(_) => A11yActions::SCROLL_LEFT,
+            Self::ScrollRight(_) => A11yActions::SCROLL_RIGHT,
+            Self::SetValue(_) => A11yActions::SET_VALUE,
+            Self::ReplaceSelectedText(_) => A11yActions::REPLACE_SELECTED_TEXT,
+            Self::SetTextSelection(_) => A11yActions::SET_TEXT_SELECTION,
+        }
+    }
+}
+
+bitflags! {
+    /// The asks a control's door answers, said by the tree (M156,
+    /// ADR-0161): the action tier's word — the set the AT reads before
+    /// it asks, mapped by `alacer-a11y` onto AccessKit's action set
+    /// (ARIA's per-role action vocabulary: `click` on a button,
+    /// `increment` on a slider). Through M155 the tree said what a
+    /// control *is*, its name, its value, whether it is available — and
+    /// the asks its door answered had no tier: the platform mapped ten
+    /// AccessKit actions onto [`A11yAction`]'s vocabulary (M10, M11,
+    /// M91) and every canon control answered or refused each ask
+    /// honestly, while the node the AT walked to advertised none of
+    /// them — the declared-but-unreported gap (the M94 pattern), at the
+    /// action tier.
+    ///
+    /// The word is the door's own answer said before the ask: a control
+    /// advertises exactly the asks its [`Widget::on_a11y_action`]
+    /// consumes in the state it is in — an unavailable control
+    /// advertises none (the M22 rule reaching the word: a closed door is
+    /// no capability), a read-only field the selection ask alone (M105).
+    /// The word says the door and opens nothing: an ask still travels
+    /// the route it always travelled, the door still answers each ask on
+    /// its own merits, and a malformed payload is still refused, still
+    /// named. The bits are payload-free — the word names the *kind* of
+    /// ask, never the value a `SetValue` would carry (the
+    /// lengths-not-payload rule at the tier).
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+    pub struct A11yActions: u16 {
+        /// The default ask — "press" for buttons, "toggle" for checkboxes.
+        const DEFAULT_PRESS = 1 << 0;
+        /// The step up — a value control's one step, a scroll area's one page.
+        const INCREMENT = 1 << 1;
+        /// The step down — a value control's one step, a scroll area's one page.
+        const DECREMENT = 1 << 2;
+        /// The travel up, whatever unit the ask names.
+        const SCROLL_UP = 1 << 3;
+        /// The travel down, whatever unit the ask names.
+        const SCROLL_DOWN = 1 << 4;
+        /// The travel left, whatever unit the ask names (M91, ADR-0095).
+        const SCROLL_LEFT = 1 << 5;
+        /// The travel right, whatever unit the ask names (M91, ADR-0095).
+        const SCROLL_RIGHT = 1 << 6;
+        /// The whole-value write.
+        const SET_VALUE = 1 << 7;
+        /// The paste-shaped write over the selection.
+        const REPLACE_SELECTED_TEXT = 1 << 8;
+        /// The selection moved to the ask's UTF-16 offsets.
+        const SET_TEXT_SELECTION = 1 << 9;
     }
 }
 
@@ -2083,9 +2154,43 @@ pub trait Widget: 'static {
         None
     }
 
+    /// The asks the control's door answers (M156, ADR-0161): the action
+    /// tier's word — the set the AT reads before it asks, AccessKit's
+    /// action set mapped by `alacer-a11y` in the same snapshot every
+    /// other property rides. Through M155 the tree said what a control
+    /// *is*, its name, its value, whether it is available — and the asks
+    /// its door answered had no tier: the platform mapped ten AccessKit
+    /// actions onto [`Self::on_a11y_action`]'s vocabulary and every canon
+    /// control answered or refused each ask honestly, while the node the
+    /// AT walked to advertised none of them — the
+    /// declared-but-unreported gap, the M94 pattern at the action tier.
+    ///
+    /// The word is the door's own answer said before the ask: a control
+    /// advertises exactly the asks its `on_a11y_action` consumes in the
+    /// state it is in — an unavailable control advertises none (the M22
+    /// rule reaching the word: a closed door is no capability), a
+    /// read-only field the selection ask alone (M105). The word says the
+    /// door and opens nothing: an ask still travels the route it always
+    /// travelled (a tree that answered on the word's behalf would price
+    /// a contract it does not own), and the door still answers each ask
+    /// on its own merits — a malformed payload is still refused, still
+    /// named.
+    ///
+    /// The empty set is the honest absence (the ADR-0087 presence rule at
+    /// the tier): a control whose door answers nothing advertises none —
+    /// the node the AT read before the tier, never a role-guessed action.
+    /// A widget that overrides `on_a11y_action` overrides this too: the
+    /// two are one contract, the word said before the ask and the answer
+    /// after it, and the m156 sweep pins them equal across the canon.
+    fn a11y_actions(&self) -> A11yActions {
+        A11yActions::empty()
+    }
+
     /// Handles an accessibility action targeting this widget. Returns `true`
     /// when consumed. Making widgets *actionable* completes the contract in
-    /// §11.5: reachable, named, and actionable.
+    /// §11.5: reachable, named, and actionable. Since M156 (ADR-0161) the
+    /// tree says which asks this door answers — [`Self::a11y_actions`], the
+    /// word the AT reads before it asks.
     fn on_a11y_action(&mut self, action: A11yAction) -> bool {
         let _ = action;
         false
@@ -2140,4 +2245,72 @@ pub trait Widget: 'static {
     /// the same discipline Masonry's `WidgetMut` machinery uses). Implement
     /// as `{ self }`.
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{A11yAction, A11yActions, ScrollUnit, TextSelection};
+
+    /// The routing vocabulary, one well-formed ask per variant.
+    fn every_ask() -> Vec<A11yAction> {
+        vec![
+            A11yAction::DefaultPress,
+            A11yAction::Increment,
+            A11yAction::Decrement,
+            A11yAction::ScrollUp(ScrollUnit::Item),
+            A11yAction::ScrollDown(ScrollUnit::Item),
+            A11yAction::ScrollLeft(ScrollUnit::Item),
+            A11yAction::ScrollRight(ScrollUnit::Item),
+            A11yAction::SetValue("42".to_owned()),
+            A11yAction::ReplaceSelectedText("x".to_owned()),
+            A11yAction::SetTextSelection(TextSelection::new(0, 0)),
+        ]
+    }
+
+    #[test]
+    fn every_ask_advertises_exactly_its_own_word() {
+        // M156, ADR-0161: the routing vocabulary and the tree's word are
+        // one vocabulary seen twice — every ask is one kind, every kind
+        // is one ask's, and no bit is reachable from two asks.
+        let mut said = A11yActions::empty();
+        for ask in every_ask() {
+            let word = ask.advertises();
+            assert_eq!(
+                word.bits().count_ones(),
+                1,
+                "{ask:?} advertises exactly one kind"
+            );
+            assert!(
+                !said.intersects(word),
+                "{ask:?} advertises a kind no other ask does"
+            );
+            said |= word;
+        }
+        assert_eq!(
+            said,
+            A11yActions::all(),
+            "the asks tile the vocabulary: no bit is unreachable from an ask"
+        );
+    }
+
+    #[test]
+    fn the_word_names_the_kind_and_never_the_payload() {
+        // The lengths-not-payload rule at the tier: the word says *which
+        // ask*, never the value the ask would carry.
+        assert_eq!(
+            A11yAction::ScrollUp(ScrollUnit::Item).advertises(),
+            A11yAction::ScrollUp(ScrollUnit::Page).advertises(),
+            "the unit never reaches the word"
+        );
+        assert_eq!(
+            A11yAction::SetValue("1".to_owned()).advertises(),
+            A11yAction::SetValue("a secret".to_owned()).advertises(),
+            "the value never reaches the word"
+        );
+        assert_eq!(
+            A11yAction::SetTextSelection(TextSelection::new(0, 0)).advertises(),
+            A11yAction::SetTextSelection(TextSelection::new(2, 5)).advertises(),
+            "the selection never reaches the word"
+        );
+    }
 }

@@ -480,6 +480,28 @@ impl TestHarness {
         consumed
     }
 
+    /// Dispatches `action` at the node id the a11y wire carried, then
+    /// settles — the AT's own vocabulary (ADR-0161's integration cut): a
+    /// screen reader knows nothing but the node ids the `TreeUpdate` the
+    /// sink emitted carried, and the platform's window loop routes the
+    /// mapped ask exactly this way (`request.target_node` into the
+    /// funnel's dispatch). The wire-word probe the
+    /// `at_action_loop` suite rides: the advertised word read off the
+    /// platform's node, the ask sent the `ActionRequest` way, landed here.
+    ///
+    /// Returns whether the target **consumed** the action — `false` is a
+    /// valid, assertable outcome twice over: the door refused the ask
+    /// (the no-munging contract — nothing fires, no mask queues), or the
+    /// id names no node the tree carries and the funnel dropped it (the
+    /// M57 route-drop fact streams: a stale id is a session's real state,
+    /// never a test bug).
+    #[must_use]
+    pub fn act_at(&mut self, node_id: u64, action: A11yAction) -> bool {
+        let consumed = self.pipeline.dispatch_a11y_action(node_id, action);
+        self.settle();
+        consumed
+    }
+
     /// The selection the a11y tree carries for the first node with `role`
     /// named `name` (M11, ADR-0017): the widget's reported range as
     /// `(start, end)` UTF-16 offsets in ascending order. `None` when the

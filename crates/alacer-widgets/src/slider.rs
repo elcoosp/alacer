@@ -654,6 +654,21 @@ impl Widget for Slider {
         self.role_description.as_deref()
     }
 
+    /// The action tier (M156, ADR-0161): the value tier's three asks —
+    /// the write and the two steps — said while the slider is available.
+    /// The word is the door's own answer, so a closed door (the M22
+    /// availability tier) advertises none; the payload's merits stay the
+    /// door's (a malformed value is still refused, still named).
+    fn a11y_actions(&self) -> alacer_core::widget::A11yActions {
+        if self.enabled() {
+            alacer_core::widget::A11yActions::SET_VALUE
+                | alacer_core::widget::A11yActions::INCREMENT
+                | alacer_core::widget::A11yActions::DECREMENT
+        } else {
+            alacer_core::widget::A11yActions::empty()
+        }
+    }
+
     /// The value tier (M20, ADR-0026): `SetValue` parses then rides the
     /// one funnel, `Increment`/`Decrement` step by the step — the same
     /// masks as a drag. `DefaultPress` is not a value control's contract —

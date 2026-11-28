@@ -4,10 +4,15 @@
 //! pipeline sink's dirty-node-only delta. The pair is published as the
 //! `a11y_incremental_speedup` budget — the incremental contract as a
 //! number, same-host-comparable through the regression gates.
+//!
+//! Since M156 (ADR-0161) a third case rebuilds the same tree with every
+//! node carrying the whole action word — the tier's ceiling, published as
+//! the `a11y_actions_overhead` ratio against the bare rebuild.
 
 use alacer_core::Role;
 use alacer_core::geom::{Point, Rect, Size};
 use alacer_core::passes::{A11yDelta, A11ySink, TreeNode, TreeSnapshot};
+use alacer_core::widget::A11yActions;
 use criterion::{Criterion, criterion_group, criterion_main};
 use std::hint::black_box;
 use std::sync::Arc;
@@ -17,7 +22,8 @@ const NODES: u64 = 1_000;
 /// house baseline for "steady state" (ADR-0012).
 const DIRTY: u64 = 100;
 
-fn snapshot_1k() -> Arc<TreeSnapshot> {
+/// The 1k-node snapshot with every node carrying `actions` as its word.
+fn snapshot_1k_with(actions: A11yActions) -> Arc<TreeSnapshot> {
     let capacity = usize::try_from(NODES).unwrap_or_default();
     let mut nodes = Vec::with_capacity(capacity);
     nodes.push(TreeNode {
@@ -59,6 +65,7 @@ fn snapshot_1k() -> Arc<TreeSnapshot> {
         multiline: false,
         language: None,
         search_field: false,
+        actions,
     });
     for id in 1..NODES {
         nodes.push(TreeNode {
@@ -103,12 +110,19 @@ fn snapshot_1k() -> Arc<TreeSnapshot> {
             multiline: false,
             language: None,
             search_field: false,
+            actions,
         });
     }
     Arc::new(TreeSnapshot {
         nodes,
         root: Some(0),
     })
+}
+
+/// The 1k-node snapshot with no node carrying an action word — the tree
+/// the M3 and M9 cases were published on.
+fn snapshot_1k() -> Arc<TreeSnapshot> {
+    snapshot_1k_with(A11yActions::empty())
 }
 
 fn bench_tree_update(c: &mut Criterion) {
@@ -119,6 +133,26 @@ fn bench_tree_update(c: &mut Criterion) {
     // The pre-M9 shape: one full-tree `TreeUpdate` per a11y frame — every
     // node materialized, every frame, AT connected or not.
     group.bench_function("full_rebuild_1k", |b| {
+        let mut sink = alacer_a11y::AccessKitSink::new();
+        b.iter(|| {
+            sink.apply(
+                black_box(Arc::clone(&snapshot)),
+                &A11yDelta {
+                    initializes: true,
+                    ..A11yDelta::empty()
+                },
+            );
+        });
+    });
+
+    // The M156 shape (ADR-0161): the same full rebuild with every node
+    // carrying the whole action word — ten supported asks per node, the
+    // tier's ceiling. A real tree mixes words (a label says nothing, a
+    // button one ask), so this case bounds what the tier can add to any
+    // tree; the pair against the bare rebuild publishes as the
+    // `a11y_actions_overhead` ratio.
+    group.bench_function("full_rebuild_1k_actions", |b| {
+        let snapshot = snapshot_1k_with(A11yActions::all());
         let mut sink = alacer_a11y::AccessKitSink::new();
         b.iter(|| {
             sink.apply(

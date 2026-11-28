@@ -251,7 +251,7 @@ fn the_canvas_refuses_every_at_action_honestly() {
 /// The corpus pin re-agrees: the canvas's pricing door is the testing
 /// crate's own bench (`canvas`), already in the published corpus — the
 /// suite grows no case, the pin asserting the count this cut publishes.
-const EXPECTED_BENCH_COUNT: usize = 207;
+const EXPECTED_BENCH_COUNT: usize = 208;
 
 #[test]
 fn m82_the_corpus_pin_re_agrees_at_the_cut() {
